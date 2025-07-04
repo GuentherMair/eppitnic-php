@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: Domain.php 19 2009-10-03 17:39:44Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -387,6 +387,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->domain = $domain;
       $this->state = (string)$tmp->infData->status->attributes()->s;
       $this->registrant = (string)$tmp->infData->registrant;
+      $this->authinfo = (string)$tmp->infData->authInfo->pw;
       foreach ($tmp->infData->contact as $contact) {
         $type = $contact->attributes()->type;
         $this->$type = (string)$contact;
