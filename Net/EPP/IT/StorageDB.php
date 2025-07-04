@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: StorageDB.php 35 2009-12-22 20:58:55Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -169,17 +169,21 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    status flag (should be "0" for initialization)
    * @param    array     server HTTP response code, headers and body
    * @param    string    table name
+   * @param    string    extended server error code (optional)
+   * @param    string    extended server error message (optional)
    * @return   boolean   status
    */
-  protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table) {
+  protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table, $extValueReasonCode, $extValueReason) {
     return $this->doStore($table,
-      array("clTRID"        => $clTRID,
-            "svTRID"        => $svTRID,
-            "svEPPCode"     => $svEPPCode,
-            "status"        => $status,
-            "svHTTPCode"    => $response['code'],
-            "svHTTPHeaders" => $response['headers'],
-            "svHTTPData"    => $response['body']));
+      array("clTRID"             => $clTRID,
+            "svTRID"             => $svTRID,
+            "svEPPCode"          => $svEPPCode,
+            "status"             => $status,
+            "svHTTPCode"         => $response['code'],
+            "svHTTPHeaders"      => $response['headers'],
+            "svHTTPData"         => $response['body'],
+            "extValueReasonCode" => $extValueReasonCode,
+            "extValueReason"     => $extValueReason));
   }
 
   /**
@@ -193,8 +197,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     server HTTP response code, headers and body
    * @return   boolean   status
    */
-  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response) {
-    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_responses");
+  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response, $extValueReasonCode, $extValueReason) {
+    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_responses", $extValueReasonCode, $extValueReason);
   }
 
   /**

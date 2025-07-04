@@ -1,3 +1,10 @@
+Version 2.0
+===========
+This version now supports handling of extended server error codes/messages and
+transports them transparently to the DB layer. The update in the major release
+number is due to interface changes in the StorageInterface class.
+
+
 Version 1.4
 ===========
 Different changes and updates to all modules. Mainly cleanups and some small

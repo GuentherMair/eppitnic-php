@@ -39,12 +39,12 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: StorageInterface.php 35 2009-12-22 20:58:55Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
   public function storeTransaction($clTRID, $clTRType, $clTRObject, $clTRData);
-  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response);
+  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response, $extValueReasonCode, $extValueReason);
   public function storeMessage($clTRID, $svTRID, $svCode, $status, $response);
 
   public function retrieveTransaction($clTRID = null);

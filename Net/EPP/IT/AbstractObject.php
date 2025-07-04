@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: AbstractObject.php 35 2009-12-22 20:58:55Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -66,6 +66,8 @@ abstract class Net_EPP_IT_AbstractObject
   public    $svCode;
   public    $svMsg;
   public    $svTRID;
+  public    $extValueReasonCode;
+  public    $extValueReason;
 
   /**
    * Class constructor
@@ -207,6 +209,16 @@ abstract class Net_EPP_IT_AbstractObject
           $return_code = FALSE;
           break;
       }
+
+      // look for an extended server error message and code
+      if ( is_object($this->xmlResult->response->result->extValue->reason) ) {
+        $this->extValueReasonCode = $this->xmlResult->response->result->extValue->value->reasonCode;
+        $this->extValueReason = $this->xmlResult->response->result->extValue->reason;
+      } else {
+        $this->extValueReasonCode = '';
+        $this->extValueReason = '';
+      }
+
     } else {
       $this->error("Unexpected result (no xml response code).");
       $return_code = FALSE;
@@ -225,7 +237,9 @@ abstract class Net_EPP_IT_AbstractObject
         $this->svTRID,
         $this->svCode,
         0,
-        $this->result);
+        $this->result,
+        $this->extValueReasonCode,
+        $this->extValueReason);
 
     return $return_code;
   }

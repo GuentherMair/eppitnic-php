@@ -17,7 +17,9 @@ create table tbl_responses (
   status                tinyint unsigned,
   svHTTPCode            smallint unsigned,
   svHTTPHeaders         text,
-  svHTTPData            text
+  svHTTPData            text,
+  extValueReasonCode    varchar(4),
+  extValueReason        text
 );
 
 create table tbl_msgqueue (
