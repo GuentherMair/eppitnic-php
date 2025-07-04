@@ -9,7 +9,7 @@
         <domain:name>{$domain}</domain:name>
         {if isset($authinfo)}
         <domain:authInfo>
-          <domain:pw>{$authinfo}</domain:pw>
+          <domain:pw>{$authinfo|escape}</domain:pw>
         </domain:authInfo>
         {/if}
       </domain:transfer>

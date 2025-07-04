@@ -26,7 +26,7 @@
         <domain:contact type="tech">{$single_tech}</domain:contact>
         {/foreach}
         <domain:authInfo>
-          <domain:pw>{$authinfo}</domain:pw>
+          <domain:pw>{$authinfo|escape}</domain:pw>
         </domain:authInfo>
       </domain:create>
     </create>

@@ -1304,9 +1304,6 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
     if ($authinfo === null) {
       $authinfo = $this->authinfo;
-    } else {
-      // in PHP 5.2.3 the 4th parameter "double_encode" was added
-      $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8', false);
     }
     if ($authinfo == "") {
       $this->setError("Operation not allowed, state the domain authinfo!");

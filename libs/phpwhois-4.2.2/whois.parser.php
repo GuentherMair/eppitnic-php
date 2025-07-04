@@ -717,7 +717,7 @@ if ($has_org && count($array)>0)
 
 if (isset($r['name']) && is_array($r['name']))
 	{
-	$r['name'] = implode($r['name'],' ');
+	$r['name'] = implode(' ',$r['name']);
 	}
 
 if (!empty($array))

@@ -8,7 +8,7 @@
                        xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
         <domain:name>{$domain}</domain:name>
         <domain:authInfo>
-          <domain:pw>{$authinfo}</domain:pw>
+          <domain:pw>{$authinfo|escape}</domain:pw>
         </domain:authInfo>
       </domain:transfer>
     </transfer>
@@ -19,7 +19,7 @@
         <extdom:transferTrade>
           <extdom:newRegistrant>{$newregistrant}</extdom:newRegistrant>
           <extdom:newAuthInfo>
-            <extdom:pw>{$newauthinfo}</extdom:pw>
+            <extdom:pw>{$newauthinfo|escape}</extdom:pw>
           </extdom:newAuthInfo>
         </extdom:transferTrade>
       </extdom:trade>

@@ -33,7 +33,7 @@
         {/if}
         {if $authinfo ne ""}
         <contact:authInfo>
-          <contact:pw>{$authinfo}</contact:pw>
+          <contact:pw>{$authinfo|escape}</contact:pw>
         </contact:authInfo>
         {/if}
       </contact:update>

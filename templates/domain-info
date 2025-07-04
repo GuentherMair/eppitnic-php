@@ -9,7 +9,7 @@
         <domain:name hosts="all">{$domain}</domain:name>
         {if $authinfo ne ""}
         <domain:authInfo>
-           <domain:pw>{$authinfo}</domain:pw>
+           <domain:pw>{$authinfo|escape}</domain:pw>
         </domain:authInfo>
         {/if}
       </domain:info>
