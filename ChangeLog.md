@@ -1,3 +1,24 @@
+Version 2.9
+===========
+Two more bugs found by Luca have been corrected.
+
+1) Using an "in_array" comparision containing a boolean TRUE will cause this to
+match ANY string passed to it, since "in_array" only does not do type-safe
+comparisons. This error relates to the values for "consentforpublishing" and
+has caused every contact where it has been manually assigned to be created
+with it set to 'TRUE' instead of whatever was your intention!
+
+2) The storage driver will not save the "consentforpublishing" information
+correctly. The SQL-type for it was defined to be MySQL's tinyint by the schema
+provided in all versions. Since all doStore() calls will encapsulate every
+variable in between two single apostrophes (ie. 'value'), this has caused
+every contact to be saved with "consentforpublishing" set to '0'.
+
+ATTENTION! Everyone using the storage driver provided with an implementation
+up to 2.9 will therefor have lost information about the "consentforpublishing
+value and is strongly advised to check backups and set things straight with!
+
+
 Version 2.8.1
 =============
 Cleaned up the 'CLI-generic-update-domain-authinfo.php' example and combined

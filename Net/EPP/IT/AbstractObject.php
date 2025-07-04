@@ -47,15 +47,15 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 35 2009-12-22 20:58:55Z gunny $
+ * $Id: AbstractObject.php 84 2010-04-10 15:11:32Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
   protected $client;
   protected $storage;
 
-  protected $trues = array(TRUE, "true", "TRUE", 1);
-  protected $falses = array(FALSE, "false", "FALSE", 0, null);
+  protected $trues = array("true", "TRUE", 1);
+  protected $falses = array("false", "FALSE", 0, null);
 
   public    $debug = LOG_WARNING;
 

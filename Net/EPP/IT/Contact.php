@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 75 2010-03-30 15:58:42Z gunny $
+ * $Id: Contact.php 85 2010-04-10 15:37:03Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -75,7 +75,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   protected $fax                  = "";                         // 1024
   protected $email                = "";                         // 2048
   protected $authinfo             = "";                         // 4096
-  protected $consentforpublishing = "false";                    // 8192
+  protected $consentforpublishing = 0;                          // 8192
   protected $nationalitycode      = "";                         // 16384
   protected $entitytype           = 2;                          // 32768
   protected $regcode              = "";                         // 65536
@@ -97,6 +97,19 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   }
 
   /**
+   * check for possible values of TRUE
+   */
+  private function isTrue($val) {
+    if ( $val === TRUE )
+      return TRUE;
+    if ( $val === 1 )
+      return TRUE;
+    if ( strtoupper($val) === "TRUE" )
+      return TRUE;
+    return FALSE;
+  }
+
+  /**
    * restrict access to variables, so we can keep track of changes to them
    *
    * @access   public
@@ -107,9 +120,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   public function set($var, $val) {
     if ($var == "entitytype")
       $this->setEntityType($val);
-    else if ($var == "consentforpublishing" && in_array($val, $this->trues))
+    else if ($var == "consentforpublishing" && $this->isTrue($val) )
       $this->setConsent();
-    else if ($var == "consentforpublishing" && in_array($val, $this->falses))
+    else if ($var == "consentforpublishing" && ! $this->isTrue($val) )
       $this->unsetConsent();
     else if (isset($this->$var))
       $this->$var = $val;
@@ -180,7 +193,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "true"
    */
   public function setConsent() {
-    return $this->consentforpublishing = "true";
+    return $this->consentforpublishing = 1;
   }
 
   /**
@@ -190,7 +203,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "false"
    */
   public function unsetConsent() {
-    return $this->consentforpublishing = "false";
+    return $this->consentforpublishing = 0;
   }
 
   /**
@@ -460,7 +473,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 
       $tmp = $this->xmlResult->response->extension->children('http://www.nic.it/ITNIC-EPP/extcon-1.0');
 
-      $this->consentforpublishing = (string)$tmp->infData->consentForPublishing;
+      $this->set('consentforpublishing', (string)$tmp->infData->consentForPublishing);
       $this->nationalitycode =      (string)$tmp->infData->registrant->nationalityCode;
       $this->entitytype =              (int)$tmp->infData->registrant->entityType;
       $this->regcode =              (string)$tmp->infData->registrant->regCode;

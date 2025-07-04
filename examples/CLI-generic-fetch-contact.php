@@ -46,6 +46,7 @@ if ( ! $session->hello() ) {
           echo " - name '" . $contact->get('name') . "'\n";
           echo " - street '" . $contact->get('street') . "'\n";
           echo " - city '" . $contact->get('city') . "'\n";
+          echo " - consent for publishing '" . $contact->get('consentforpublishing') . "'\n";
         } else {
           echo "Error: code ".$contact->svCode.", '".$contact->svMsg."'.\n";
         }
