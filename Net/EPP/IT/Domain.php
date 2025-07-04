@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 132 2010-10-17 17:32:36Z gunny $
+ * $Id: Domain.php 167 2010-10-18 09:36:54Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -173,7 +173,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
       // check that we are not exceeding the maximum number of allowed technical contacts
       if ( count($this->tech) >= 6 ) {
-        $this->error("You are not allowed to assign more than 6 tech contacts to a domain.");
+        $this->setError("You are not allowed to assign more than 6 tech contacts to a domain.");
         return FALSE;
       }
 
@@ -218,7 +218,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
       // check that we are not exceeding the maximum number of allowed NS records
       if ( count($this->ns) >= 6 ) {
-        $this->error("You are not allowed to assign more than 6 NS to a domain.");
+        $this->setError("You are not allowed to assign more than 6 NS to a domain.");
         return FALSE;
       }
 
@@ -238,7 +238,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
           case 0:
             break;
           default:
-            $this->error("The address must be an array of one or two elements.");
+            $this->setError("The address must be an array of one or two elements.");
             return FALSE;
             break;
         }
@@ -249,7 +249,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       // assign IP address 1 (if set)
       if ( ! empty($dns1) ) {
         if ( @gethostbyaddr($dns1) == "" ) {
-          $this->error("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
+          $this->setError("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
           return FALSE;
         } else {
           $type = strpos($dns1, '.') ? 'v4' : 'v6';
@@ -260,7 +260,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       // assign IP address 2 (if set)
       if ( ! empty($dns2) ) {
         if ( @gethostbyaddr($dns2) == "" ) {
-          $this->error("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
+          $this->setError("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
           return FALSE;
         } else {
           $type = strpos($dns2, '.') ? 'v4' : 'v6';
@@ -381,7 +381,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if (!is_array($domain))
       $domain = array($domain);
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name first!");
+      $this->setError("Operation not allowed, set a domain name first!");
       return -2;
     }
 
@@ -432,7 +432,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ( $exec_checks ) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
-        $this->error("Sanity checks failed with code '".$sanity."'!");
+        $this->setError("Sanity checks failed with code '".$sanity."'!");
         return FALSE;
       }
     }
@@ -472,7 +472,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name first!");
+      $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
     // if authinfo was not given as an argument, but has been set
@@ -550,7 +550,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name!");
+      $this->setError("Operation not allowed, set a domain name!");
       return FALSE;
     }
 
@@ -573,21 +573,21 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   public function update($exec_checks = FALSE) {
     if ($this->domain == "") {
-      $this->error("Operation not allowed, fetch a domain first!");
+      $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
     if ($this->changes == 0) {
-      $this->error("Domain did not change!");
+      $this->setError("Domain did not change!");
       return FALSE;
     }
     if (($this->changes & 2) > 0) {
-      $this->error("Update the registrant through updateRegistrant()!");
+      $this->setError("Update the registrant through updateRegistrant()!");
       return FALSE;
     }
     if ( $exec_checks ) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
-        $this->error("Sanity checks failed with code '".$sanity."'!");
+        $this->setError("Sanity checks failed with code '".$sanity."'!");
         return FALSE;
       }
     }
@@ -675,18 +675,18 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   public function updateRegistrant($exec_checks = FALSE) {
     if ($this->domain == "") {
-      $this->error("Operation not allowed, fetch a domain first!");
+      $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
     if ( (($this->changes & 2) == 0) ||
          (($this->changes & 16) == 0) ) {
-      $this->error("You MUST update the registrant and authinfo variables!");
+      $this->setError("You MUST update the registrant and authinfo variables!");
       return FALSE;
     }
     if ( $exec_checks ) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
-        $this->error("Sanity checks failed with code '".$sanity."'!");
+        $this->setError("Sanity checks failed with code '".$sanity."'!");
         return FALSE;
       }
     }
@@ -713,7 +713,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   public function updateStatus($state, $adddel = "add") {
     if ($this->domain == "") {
-      $this->error("Operation not allowed, fetch a domain first!");
+      $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
 
@@ -723,7 +723,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       case "clientHold":
         break;
       default;
-        $this->error("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientHold'.");
+        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientHold'.");
         return FALSE;
     }
 
@@ -732,7 +732,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       case "rem":
         break;
       default:
-        $this->error("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
+        $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
         return FALSE;
         break;
     }
@@ -760,7 +760,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name first!");
+      $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
 
@@ -793,7 +793,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;
     } else {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     }
   }
@@ -810,13 +810,13 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name!");
+      $this->setError("Operation not allowed, set a domain name!");
       return FALSE;
     }
 
     $tmp = $this->storage->retrieveDomain($domain, $userID);
     if ( $tmp === FALSE ) {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     } else {
       $this->changes = 0;
@@ -842,11 +842,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, fetch a domain first!");
+      $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
     if ($this->changes == 0) {
-      $this->error("Domain did not change!");
+      $this->setError("Domain did not change!");
       return FALSE;
     }
 
@@ -860,7 +860,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ( $this->storage->updateDomain($data, $domain, $userID) ) {
       return TRUE;
     } else {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     }
   }
@@ -877,7 +877,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name first!");
+      $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
     // if authinfo was not given as an argument, but has been set
@@ -920,13 +920,13 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
-      $this->error("Operation not allowed, set a domain name first!");
+      $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
     if ($authinfo === null)
       $authinfo = $this->authinfo;
     if ($authinfo == "") {
-      $this->error("Operation not allowed, state the domain authinfo!");
+      $this->setError("Operation not allowed, state the domain authinfo!");
       return FALSE;
     }
 

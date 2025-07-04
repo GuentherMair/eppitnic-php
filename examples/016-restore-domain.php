@@ -29,7 +29,7 @@ function dump_domain($domain) {
       echo " - NS: " . $name['name'] . "\n";
     }
   } else {
-    echo "UNABLE TO FETCH DOMAIN ".$name."!!\n";
+    echo "Fetch domain ".$name." FAILED (".$domain->getError().")!\n";
   }
 }
 
@@ -42,9 +42,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // lookup domain
     $name = "test1234567890.it";
@@ -52,24 +52,18 @@ if ( ! $session->hello() ) {
 
     dump_domain($domain);
 
-    switch ( $domain->restore($name) ) {
-      case FALSE:
-        echo "Domain '".$name."' - RESTORE FAILED!\n";
-        //print_r($domain->result['body']);
-        break;
-      case TRUE:
-        echo "Domain '".$name."', restore succeeded.\n";
-        break;
-    }
-    echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
+    if ( $domain->restore($name) )
+      echo "Restore domain '".$name."' succeeded.\n";
+    else
+      echo "Restore domain '".$name."' FAILED (".$domain->getError().")!\n";
 
     dump_domain($domain);
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -77,4 +71,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

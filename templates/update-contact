@@ -29,12 +29,12 @@
         {/if}
       </contact:update>
     </update>
-    {if $consentForPublishing ne "" or $registrant ne ""}
+    {if $consentForPublishing === 0 or $consentForPublishing === 1 or $registrant ne ""}
     <extension>
       <extcon:update xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0"
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                      xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extcon-1.0 extcon-1.0.xsd">
-        {if $consentForPublishing ne ""}
+        {if $consentForPublishing === 0 or $consentForPublishing === 1}
         <extcon:consentForPublishing>{$consentForPublishing}</extcon:consentForPublishing>
         {/if}
         {if $registrant ne ""}

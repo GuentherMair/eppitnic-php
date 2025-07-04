@@ -23,9 +23,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     $name = "HELLO-WORLD";
@@ -43,9 +43,9 @@ if ( ! $session->hello() ) {
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -53,4 +53,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

@@ -23,9 +23,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     $name = "GM00004";
@@ -48,11 +48,9 @@ if ( ! $session->hello() ) {
         $contact->set('entitytype', '1');
         $contact->set('regcode', 'MRAGTH78P24F132L');
         if ( $contact->create() === FALSE ) {
-          echo "Create contact '".$contact->get('handle')."' failed.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+          echo "Create contact '".$contact->get('handle')."' failed (".$contact->getError().").\n";
         } else {
-          echo "Create contact '".$contact->get('handle')."' created.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+          echo "Contact '".$contact->get('handle')."' created.\n";
 
           echo "Destroying current object...";
           unset($contact);
@@ -74,9 +72,8 @@ if ( ! $session->hello() ) {
             echo " - regcode '" . $contact->get('regcode') . "'\n";
             echo " - nationalitycode '" . $contact->get('nationalitycode') . "'\n";
           } else {
-            echo "Error: unable to fetch contact from server!!\n";
+            echo "Error: unable to fetch contact from server (".$contact->getError().")!\n";
           }
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
 
           echo "Changing data (street, voice, email, consent for publishing)...";
           $contact->set('street', 'via 123');
@@ -90,23 +87,20 @@ if ( ! $session->hello() ) {
           if ( $contact->updateStatus('clientUpdateProhibited', 'add') ) {
             echo " done.\n";
           } else {
-            echo " Error: unable to update contact status!!\n";
+            echo " Error: (".$contact->getError().")!\n";
           }
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
 
           echo "Deny delete to contact...";
           $qrs = $contact->updateStatus('clientDeleteProhibited', 'add');
           if ( $contact->updateStatus('clientDeleteProhibited', 'add') ) {
             echo " done.\n";
           } else {
-            echo " Error: unable to update contact status!!\n";
+            echo " Error: (".$contact->getError().")!\n";
           }
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
           */
 
           echo "Now updating data through EPP server...\n";
           if ( $contact->update() ) {
-            echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
             echo "Destroying current object...";
             unset($contact);
             echo " done.\n";
@@ -127,14 +121,10 @@ if ( ! $session->hello() ) {
               echo " - regcode '" . $contact->get('regcode') . "'\n";
               echo " - nationalitycode '" . $contact->get('nationalitycode') . "'\n";
             } else {
-              echo "Error: unable to fetch contact from server!!\n";
+              echo "Error: unable to fetch contact from server (".$contact->getError().")!\n";
             }
-            echo "Result code ".$conact->svCode.", '".$contact->svMsg."'.\n";
           } else {
-            echo "Error: unable to update contact!!\n";
-            echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
-            print_r($contact->result);
-            print_r($contact->xmlQuery);
+            echo "Error: unable to update contact (".$contact->getError().")!\n";
           }
         }
         break;
@@ -143,15 +133,15 @@ if ( ! $session->hello() ) {
         $rs = $contact->delete($name);
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$contact->getError().").\n";
         break;
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -159,4 +149,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

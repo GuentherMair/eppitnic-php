@@ -24,9 +24,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // create empty contact object
     echo "Creating new object...";
@@ -61,26 +61,18 @@ if ( ! $session->hello() ) {
         echo " - city '" . $contact->get('city') . "'\n";
         echo " - regcode: '".$contact->get('regcode')."'\n";
       } else {              
-        echo "Error: unable to fetch contact from server!\n";
+        echo "Error: unable to fetch contact from server (".$contact->getError().")!\n";
       }
-      echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";      
 
     } else {
-      echo "Error: unable to update contact!\n";
-      echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
-      echo "\n";
-      echo "Query:\n";
-      print_r($contact->xmlQuery);
-      echo "\n";
-      echo "Result:\n";
-      print_r($contact->result);
+      echo "Error: unable to update contact (".$contact->getError().")!\n";
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -88,4 +80,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

@@ -31,9 +31,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login($new_password) === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // switch password inside configuration file
     $result = file_put_contents("config.xml", str_replace("<password>".strtolower($nic->EPPCfg->password)."</password>", "<password>".$new_password."</password>", strtolower(file_get_contents("config.xml"))));
@@ -52,9 +52,9 @@ if ( ! $session->hello() ) {
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -62,4 +62,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

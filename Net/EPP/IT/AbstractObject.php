@@ -8,8 +8,8 @@ require_once 'Net/EPP/IT/log_severity.php';
  * It provides:
  *  - public variables available inside all objects
  *  - a generic constructor and protected variables for Client and Storage
- *  - a generic error code handler
  *  - a generic ExecuteQuery method
+ *  - generic error code handlers (getter and setter)
  *
  * PHP version 5
  *
@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 124 2010-10-09 12:59:25Z gunny $
+ * $Id: AbstractObject.php 167 2010-10-18 09:36:54Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -523,9 +523,28 @@ abstract class Net_EPP_IT_AbstractObject
    * @param    string    error message
    * @param    string    4-digit error code
    */
-  protected function error($msg, $code = "0000") {
+  protected function setError($msg, $code = "0000") {
     $this->svMsg = $msg;
     $this->svCode = $code;
+  }
+
+  /**
+   * get error message
+   *
+   * @access   protected
+   * @return   string    error message
+   */
+  protected function getError() {
+    $msg = "";
+
+    // only try to set a message text if we got a EPP error message
+    if ( !empty($this->svCode) ) {
+      $msg = " EPP code '".$this->svCode."': ".$this->svMsg;
+      if ( !empty($this->extValueReason) )
+        $msg .= " / extended reason '".$this->extValueReasonCode."': ".$this->extValueReason;
+    }
+
+    return $msg;
   }
 
   /**
@@ -581,7 +600,7 @@ abstract class Net_EPP_IT_AbstractObject
       }
 
     } else {
-      $this->error("Unexpected result (no xml response code).");
+      $this->setError("Unexpected result (no xml response code).");
       $return_code = FALSE;
     }
 

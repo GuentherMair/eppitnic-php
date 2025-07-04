@@ -23,9 +23,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     $name = "GM00001";
@@ -46,26 +46,20 @@ if ( ! $session->hello() ) {
         $contact->set('entitytype', '1');
         $contact->set('regcode', 'MRAGTH78P24F132L');
         if ( $contact->create() === FALSE ) {
-          echo "Create contact '".$contact->get('handle')."' failed.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+          echo "Create contact '".$contact->get('handle')."' failed (".$contact->getError().").\n";
         } else {
-          echo "Create contact '".$contact->get('handle')."' created.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+          echo "Contact '".$contact->get('handle')."' created.\n";
 
           echo "Now trying to delete...\n";
           if ( $contact->delete($name) === FALSE ) {
-            echo "Delete contact '".$name."' failed.\n";
-            echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+            echo "Delete contact '".$name."' failed (".$contact->getError().").\n";
           } else {
             echo "Contact '".$name."' removed.\n";
-            echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
-
             if ( $contact->check($name) ) {
               echo "Contact '".$name."' is available again.\n";
             } else {
               echo "THIS SHOULD NEVER HAPPEN... contact '".$name."' is not available!\n";
             }
-            echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
           }
         }
         break;
@@ -80,9 +74,9 @@ if ( ! $session->hello() ) {
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -90,4 +84,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 132 2010-10-17 17:32:36Z gunny $
+ * $Id: Contact.php 170 2010-10-19 12:17:51Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -195,6 +195,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "true"
    */
   public function setConsent() {
+    $this->changes |= 8192;
     return $this->consentforpublishing = 1;
   }
 
@@ -205,6 +206,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "false"
    */
   public function unsetConsent() {
+    $this->changes |= 8192;
     return $this->consentforpublishing = 0;
   }
 
@@ -360,7 +362,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if (!is_array($contact))
       $contact = array($contact);
     if (empty($contact)) {
-      $this->error("Operation not allowed, set a handle!");
+      $this->setError("Operation not allowed, set a handle!");
       return -2;
     }
 
@@ -399,7 +401,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ( $exec_checks ) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
-        $this->error("Sanity checks failed with code '".$sanity."'!");
+        $this->setError("Sanity checks failed with code '".$sanity."'!");
         return FALSE;
       }
     }
@@ -448,7 +450,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
-      $this->error("Operation not allowed, set a handle!");
+      $this->setError("Operation not allowed, set a handle!");
       return FALSE;
     }
 
@@ -504,7 +506,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
-      $this->error("Operation not allowed, set a handle!");
+      $this->setError("Operation not allowed, set a handle!");
       return FALSE;
     }
 
@@ -527,17 +529,17 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    */
   public function update($exec_checks = FALSE) {
     if ($this->handle == "") {
-      $this->error("Operation not allowed, fetch a handle first!");
+      $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
     }
     if ($this->changes == 0) {
-      $this->error("Handle did not change!");
+      $this->setError("Handle did not change!");
       return FALSE;
     }
     if ( $exec_checks ) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
-        $this->error("Sanity checks failed with code '".$sanity."'!");
+        $this->setError("Sanity checks failed with code '".$sanity."'!");
         return FALSE;
       }
     }
@@ -573,11 +575,6 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if (($this->changes & 4096) > 0)
       $contact[] = array('name' => 'authinfo', 'value' => $this->authinfo);
 
-    // consent for publishing
-    $consent = "";
-    if (($this->changes & 8192) > 0)
-      $consent = $this->consentforpublishing;
-
     // registrant information
     $registrant = array();
     if (($this->changes & 16384) > 0)
@@ -601,9 +598,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     else
       $this->client->assign('addr', $addr);
 
-    if ( empty($consent) )
-      $this->client->assign('consentForPublishing', '');
-    else
+    if (($this->changes & 8192) > 0)
       $this->client->assign('consentForPublishing', $this->consentforpublishing);
 
     if ( empty($contact) )
@@ -633,7 +628,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    */
   public function updateStatus($state, $adddel = "add") {
     if ($this->handle == "") {
-      $this->error("Operation not allowed, fetch a handle first!");
+      $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
     }
 
@@ -642,7 +637,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       case "clientUpdateProhibited":
         break;
       default;
-        $this->error("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited' or 'clientUpdateProhibited'.");
+        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited' or 'clientUpdateProhibited'.");
         return FALSE;
     }
 
@@ -654,7 +649,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
         $this->status = array_diff($this->status, array($state));
         break;
       default:
-        $this->error("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
+        $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
         return FALSE;
         break;
     }
@@ -702,7 +697,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ( $this->storage->storeContact($contact, $userID) ) {
       return TRUE;
     } else {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     }
   }
@@ -719,13 +714,13 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
-      $this->error("Operation not allowed, set a handle!");
+      $this->setError("Operation not allowed, set a handle!");
       return FALSE;
     }
 
     $tmp = $this->storage->retrieveContact($contact, $userID);
     if ( $tmp === FALSE ) {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     } else {
       $this->changes = 0;
@@ -748,11 +743,11 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
-      $this->error("Operation not allowed, fetch a handle first!");
+      $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
     }
     if ($this->changes == 0) {
-      $this->error("Handle did not change!");
+      $this->setError("Handle did not change!");
       return FALSE;
     }
 
@@ -778,7 +773,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if ( $this->storage->updateContact($data, $contact, $userID) ) {
       return TRUE;
     } else {
-      $this->error($this->storage->dberrMsg);
+      $this->setError($this->storage->getError());
       return FALSE;
     }
   }

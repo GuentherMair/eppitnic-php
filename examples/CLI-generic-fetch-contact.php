@@ -30,15 +30,14 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     switch ( $contact->check($name) ) {
       case TRUE:
         echo "Contact '".$name."' is available.\n";
-        echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
         break;
       case FALSE:
         echo "Contact '".$name."' exists:\n";
@@ -51,19 +50,19 @@ if ( ! $session->hello() ) {
           echo " - city '" . $contact->get('city') . "'\n";
           echo " - consent for publishing '" . $contact->get('consentforpublishing') . "'\n";
         } else {
-          echo "Error: code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+          echo "Fetch contact FAILED (".$contact->getError().").\n";
         }
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$contact->getError().").\n";
         break;
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -71,4 +70,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

@@ -21,4 +21,3 @@ print_r( $nic->sendRequest($nic->fetch("login")) );
 $nic->assign('clTRID', $nic->set_clTRID());
 print_r( $nic->sendRequest($nic->fetch("logout")) );
 
-?>

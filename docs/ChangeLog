@@ -1,5 +1,19 @@
-Version 3.0
-===========
+Version 3.0 beta 3
+==================
+Added centralized error handling functions to Net_EPP_IT_AbstractObject and to
+Net_EPP_IT_StorageDB. Updated error handling in all example scripts.
+
+Added some modifications for consentforpublishing handling (thanks Marco!).
+
+
+Version 3.0 beta 2
+==================
+Public beta release for the new version. As soon as the final 3.0 version is
+out I'll again dump the "what's new" information.
+
+
+Version 3.0 beta 1 (internal only)
+==================================
 The DB layout changed in order to support user ownership on objects (mandants).
 This obviously constitutes a breach in the continuity of some DB access
 methods and is underlined by an upgrade of the major version number.

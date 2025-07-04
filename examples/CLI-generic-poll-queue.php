@@ -20,9 +20,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // poll message queue
     switch ( $session->pollMessageCount() ) {
@@ -35,23 +35,22 @@ if ( ! $session->hello() ) {
         break;
     }
     while ( $session->pollMessageCount() > 0 ) {
-      switch ( $session->poll(TRUE, "ack", $session->pollID()) ) {
-        case TRUE:
-          echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
-          break;
-        case FALSE;
-          echo "FAILED to get message n. " . $session->pollMessageCount() . ":\n";
-          echo "Result code ".$session->svCode.", '".$session->svMsg."'.\n";
-          break;
-      }
+
+      // as for now - dump debug information
+      $session->poll(TRUE, "req", $session->pollID());
       print_r($session->result[body]);
+
+      if ( $session->poll(FALSE, "ack", $session->pollID()) )
+        echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
+      else
+        echo "FAILED to get message n. " . $session->pollMessageCount() . " (".$session->getError().").\n";
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -59,4 +58,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

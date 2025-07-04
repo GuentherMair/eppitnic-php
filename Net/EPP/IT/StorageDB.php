@@ -42,16 +42,18 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 127 2010-10-09 16:09:06Z gunny $
+ * $Id: StorageDB.php 167 2010-10-18 09:36:54Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
-  var $dbConnect;
-  var $dberrCode;
-  var $dberrMsg;
-  var $dbMaxEntries = 50;
-  var $dbSerializePrefix = "__SERIALIZED:";
-  var $dbMagicQuotes = TRUE;
+  public    $dbConnect;
+
+  public    $dbMaxEntries      = 50;
+  public    $dbSerializePrefix = "__SERIALIZED:";
+  public    $dbMagicQuotes     = TRUE;
+
+  protected $dberrCode         = 0;
+  protected $dberrMsg          = "";
 
   /**
    * Class constructor
@@ -66,25 +68,44 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
       $this->dbMagicQuotes = FALSE;
     $this->dbConnect = ADONewConnection($cfg->dbtype);
     if ( ! $this->dbConnect )
-      return $this->error(1, "unable to load adodb database driver '".$cfg->dbConnecttype."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(1, "unable to load adodb database driver '".$cfg->dbConnecttype."': ".$this->dbConnect->ErrorMsg());
     if ( ! $this->dbConnect->Connect($cfg->dbhost, $cfg->dbuser, $cfg->dbpwd, $cfg->dbname) )
-      return $this->error(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."': ".$this->dbConnect->ErrorMsg());
     $this->dbConnect->setFetchMode(ADODB_FETCH_ASSOC);
   }
 
   /**
-   * internal error handling function
-   * (reduce size)
+   * set internal error code and message
    *
    * @access   protected
    * @param    int       error number
    * @param    string    error message
    * @return   boolean   status
    */
-  protected function error($errno, $error) {
+  protected function setError($errno, $error) {
     $this->dberrCode = $errno;
     $this->dberrMsg = $error;
     return ($errno == 0 ) ? TRUE : FALSE;
+  }
+
+  /**
+   * get internal error message
+   *
+   * @access   protected
+   * @return   string    error message
+   */
+  protected function getError() {
+    return $this->dberrMsg;
+  }
+
+  /**
+   * get internal error code
+   *
+   * @access   protected
+   * @return   integer   error code
+   */
+  protected function getErrorCode() {
+    return $this->dberrCode;
   }
 
   /**
@@ -122,7 +143,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    */
   protected function doStore($table, $elements, $userID = 1) {
     if ( ! is_array($elements) )
-      return $this->error(4, "second paramenter must be an array!");
+      return $this->setError(4, "second paramenter must be an array!");
 
     $keys = array();
     $values = array();
@@ -142,9 +163,9 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // execute query
     if ( $this->dbConnect->Execute("INSERT INTO ".$table." (".implode(",", $keys).") VALUES (".implode(",", $values).")") )
-      return $this->error(0, "information stored to '".$table."'");
+      return $this->setError(0, "information stored to '".$table."'");
     else
-      return $this->error(8, "unable to store given data to '".$table."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(8, "unable to store given data to '".$table."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**
@@ -160,7 +181,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    */
   protected function doUpdate($table, $elements, $index, $handle, $userID = 1) {
     if ( ! is_array($elements) )
-      return $this->error(4, "second paramenter must be an array!");
+      return $this->setError(4, "second paramenter must be an array!");
 
     $update = array();
     foreach ($elements as $key => $value) {
@@ -172,9 +193,9 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // execute query
     if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userID)) )
-      return $this->error(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
+      return $this->setError(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
     else
-      return $this->error(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userID."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userID."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**
@@ -350,7 +371,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // first evaluation of the result
     if ( $result === FALSE )
-      return $this->error(8, "unable to get data from '".$table."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(8, "unable to get data from '".$table."': ".$this->dbConnect->ErrorMsg());
 
     // construct return array
     $x = 0;

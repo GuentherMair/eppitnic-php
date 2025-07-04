@@ -23,9 +23,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     $name = "GM00001";
@@ -48,23 +48,22 @@ if ( ! $session->hello() ) {
         if ( $contact->create() ) {
           echo "Create contact '".$contact->get('handle')."' created.\n";
         } else {
-          echo "Create contact '".$contact->get('handle')."' failed.\n";
+          echo "Create contact '".$contact->get('handle')."' failed (".$contact->getError().").\n";
         }
-        echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
         break;
       case FALSE:
         echo "Contact '".$name."' already in use.\n";
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$contact->getError().").\n";
         break;
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -72,4 +71,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

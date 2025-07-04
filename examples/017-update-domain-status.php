@@ -29,7 +29,7 @@ function dump_domain($domain) {
       echo " - NS: " . $name['name'] . "\n";
     }
   } else {
-    echo "UNABLE TO FETCH DOMAIN ".$name."!!\n";
+    echo "Fetch domain ".$name." FAILED (".$domain->getError().")!\n";
   }
 }
 
@@ -42,9 +42,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // lookup domain
     $name = "test1234567890.it";
@@ -53,36 +53,26 @@ if ( ! $session->hello() ) {
     dump_domain($domain);
 
     echo "Adding clientUpdateProhibited state...";
-    switch ( $domain->updateStatus('clientUpdateProhibited', 'add') ) {
-      case FALSE:
-        echo " FAILED!\n";
-        break;
-      case TRUE:
-        echo " OK.\n";
-        break;
-    }
-    echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
+    if ( $domain->updateStatus('clientUpdateProhibited', 'add') )
+      echo " OK.\n";
+    else
+      echo " FAILED (".$domain->getError().")!\n";
 
     dump_domain($domain);
 
     echo "Removing clientUpdateProhibited state...";
-    switch ( $domain->updateStatus('clientUpdateProhibited', 'rem') ) {
-      case FALSE:
-        echo " FAILED!\n";
-        break;
-      case TRUE:
-        echo " OK.\n";
-        break;
-    }
-    echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
+    if ( $domain->updateStatus('clientUpdateProhibited', 'rem') )
+      echo " OK.\n";
+    else
+      echo " FAILED (".$domain->getError().")!\n";
 
     dump_domain($domain);
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -90,4 +80,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

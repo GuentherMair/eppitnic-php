@@ -24,9 +24,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // lookup domain
     $name = "transfer-domain-0001.it";
@@ -46,9 +46,8 @@ if ( ! $session->hello() ) {
             echo " - NS: " . $name['name'] . "\n";
           }
         } else {
-          echo "FAILED\n";
+          echo "FAILED (".$domain->getError().").\n";
         }
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       default:
         echo "Error: '".$name."'.\n";
@@ -57,9 +56,9 @@ if ( ! $session->hello() ) {
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -67,4 +66,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

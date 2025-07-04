@@ -38,9 +38,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // recreate domain object
     $domain = new Net_EPP_IT_Domain($nic, $db);
@@ -64,21 +64,10 @@ if ( ! $session->hello() ) {
       }
 
     // update domain
-    switch ( $domain->update() ) {
-      case TRUE:
-        echo "Domain '".$name."' is now up to date.\n";
-        break;
-      case FALSE:
-        echo "Update to domain '".$name."' FAILED!.\n";
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."', '".$domain->extValueReason."'.\n";
-        echo "\n";
-        echo "Query:\n";
-        print_r($domain->xmlQuery);
-        echo "\n";
-        echo "Result:\n";
-        print_r($domain->result);
-        break;
-    }
+    if ( $domain->update() )
+      echo "Domain '".$name."' is now up to date.\n";
+    else
+      echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
 
     // logout
     if ( $session->logout() ) {
@@ -92,4 +81,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

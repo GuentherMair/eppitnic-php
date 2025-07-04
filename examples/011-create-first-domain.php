@@ -49,8 +49,7 @@ function check_or_create($handle, $registrant = FALSE) {
     echo "Create contact '".$contact->get('handle')."' created.\n";
     return TRUE;
   } else {
-    echo "Create contact '".$contact->get('handle')."' FAILED.\n";
-    echo "Reason code ".$contact->svCode.", '".$contact->svMsg."'.\n";
+    echo "Create contact '".$contact->get('handle')."' FAILED (".$contact->getError().").\n";
     return FALSE;
   }
   return TRUE;
@@ -70,9 +69,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // some details
     $name = "test1234567890.it";
@@ -114,24 +113,22 @@ if ( ! $session->hello() ) {
         if ( $domain->create() ) {
           echo "Domain '".$name."' created.\n";
         } else {
-          echo "Domain '".$name."' NOT created.\n";
+          echo "Domain '".$name."' NOT created (".$domain->getError().").\n";
         }
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       case FALSE:
         echo "Domain '".$name."' is NOT available.\n";
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$domain->getError().").\n";
         break;
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -139,4 +136,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

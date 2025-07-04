@@ -32,22 +32,20 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // some details
     switch ( $domain->check($name) ) {
       case TRUE:
         echo "Domain '".$name."' is available.\n";
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       case FALSE:
         echo "Domain '".$name."' is NOT available.\n";
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$domain->getError().").\n";
         exit;
         break;
     }
@@ -64,21 +62,16 @@ if ( ! $session->hello() ) {
 
     // update domain
     $domain->set('authinfo', $authinfo);
-    switch ( $domain->update() ) {
-      case TRUE:
-        echo "Domain '".$name."' is now up to date.\n";
-        break;
-      case FALSE:
-        echo "Update to domain '".$name."' FAILED!.\n";
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
-        break;
-    }
+    if ( $domain->update() )
+      echo "Domain '".$name."' is now up to date.\n";
+    else
+      echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -86,4 +79,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

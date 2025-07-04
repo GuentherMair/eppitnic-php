@@ -30,9 +30,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // test check contact
     switch ( $contact->check($name) ) {
@@ -41,24 +41,21 @@ if ( ! $session->hello() ) {
         break;
       case FALSE:
         echo "Contact '".$name."' is in use, now trying to delete...\n";
-        if ( $contact->delete($name) === FALSE ) {
-          echo "Delete contact '".$name."' failed.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
-        } else {
+        if ( $contact->delete($name) )
           echo "Contact '".$name."' removed.\n";
-          echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
-        }
+        else
+          echo "Delete contact '".$name."' failed (".$contact->getError().").\n";
         break;
       default:
-        echo "Error: '".$name."'.\n";
+        echo "Error: '".$name."' (".$contact->getError().").\n";
         break;
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -66,4 +63,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

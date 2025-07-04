@@ -102,21 +102,10 @@ function update_domain($domain, $options) {
     $domain->set('authinfo', $authinfo);
 
   // update domain
-  switch ( $domain->update() ) {
-    case TRUE:
-      echo "The domain is now up to date.\n";
-      break;
-    case FALSE:
-      echo "Update to the domain FAILED!.\n";
-      echo "Reason code ".$domain->svCode.", '".$domain->svMsg."', '".$domain->extValueReason."'.\n";
-      echo "\n";
-      echo "Query:\n";
-      print_r($domain->xmlQuery);
-      echo "\n";
-      echo "Result:\n";
-      print_r($domain->result);
-      break;
-  }
+  if ( $domain->update() )
+    echo "The domain is now up to date.\n";
+  else
+    echo "Update to the domain FAILED (".$domain->getError().")!\n";
 }
 
 
@@ -129,9 +118,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // recreate domain object
     $domain = new Net_EPP_IT_Domain($nic, $db);
@@ -154,8 +143,7 @@ if ( ! $session->hello() ) {
           }
 
         } else {
-          echo "FAILED\n";
-          echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
+          echo "Fetch domain FAILED (".$domain->getError().")\n";
         }
         break;
       default:
@@ -165,9 +153,9 @@ if ( ! $session->hello() ) {
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -175,4 +163,3 @@ if ( ! $session->hello() ) {
   }
 }  
 
-?>

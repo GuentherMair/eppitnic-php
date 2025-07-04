@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 129 2010-10-16 13:06:06Z gunny $
+ * $Id: Session.php 167 2010-10-18 09:36:54Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -187,12 +187,12 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
         break;
       case "ack":
         if ( empty($msgID) ) {
-          $this->error("Polling of type 'ack' requires a message ID to be set!");
+          $this->setError("Polling of type 'ack' requires a message ID to be set!");
           return FALSE;
         }
         break;
       default:
-        $this->error("Polling of type '".$type."' not supported, choose one of 'req' or 'ack'.");
+        $this->setError("Polling of type '".$type."' not supported, choose one of 'req' or 'ack'.");
         return FALSE;
         break;
     }

@@ -20,9 +20,9 @@ if ( ! $session->hello() ) {
 
   // perform login
   if ( $session->login() === FALSE ) {
-    echo "Login FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login FAILED (".$session->getError().").\n";
   } else {
-    echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+    echo "Login OK.\n";
 
     // poll message queue
     switch ( $session->pollMessageCount() ) {
@@ -41,17 +41,16 @@ if ( ! $session->hello() ) {
           echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
           break;
         case FALSE;
-          echo "FAILED to get message n. " . $session->pollMessageCount() . ":\n";
-          echo "Result code ".$session->svCode.", '".$session->svMsg."'.\n";
+          echo "FAILED to get message n. " . $session->pollMessageCount() . ": ".$session->getError()."\n";
           break;
       }
     }
 
     // logout
     if ( $session->logout() ) {
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+      echo "Logout FAILED (".$session->getError().").\n";
     }
 
     // print credit
@@ -59,4 +58,3 @@ if ( ! $session->hello() ) {
   }
 }
 
-?>

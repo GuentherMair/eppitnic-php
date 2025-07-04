@@ -45,7 +45,7 @@ require_once 'Net/EPP/IT/Domain.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: WSDL.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: WSDL.php 167 2010-10-18 09:36:54Z gunny $
  */
 
 class Net_EPP_IT_WSDL
@@ -88,14 +88,7 @@ class Net_EPP_IT_WSDL
    */
   public function createErrMsg($object, $statusCode) {
     $this->statusCode = $statusCode;
-
-    // only try to set a message text if we got a EPP error message
-    if ( !empty($object->svCode) ) {
-      $this->statusMsg = " EPP Code '".$object->svCode."': ".$object->svMsg;
-      if ( ! empty($object->extValueReason) )
-        $this->statusMsg .= " / extended reason: ".$object->extValueReason;
-    }
-
+    $this->statusMsg = $object->getError();
     return $this->statusMsg;
   }
 

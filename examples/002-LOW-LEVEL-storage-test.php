@@ -37,4 +37,3 @@ $result = $nic->sendRequest($data);
 $xml = $nic->parseResponse($result[body]);
 $db->storeResponse($clTRID, $xml->response->trID->svTRID, $xml->response->result['code'], 0, $result);
 
-?>
