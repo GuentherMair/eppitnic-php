@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 252 2010-11-12 09:42:57Z gunny $
+ * $Id: StorageInterface.php 322 2011-03-08 13:05:43Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
@@ -55,18 +55,18 @@ interface Net_EPP_IT_StorageInterface
   public function storeMessage($clTRID, $svTRID, $svCode, $status, $response);
   public function retrieveMessage($clTRID = null);
   public function storeParsedMessage($elements);
-  public function retrieveParsedMessages($active = true, $userID = 1);
+  public function retrieveParsedMessages($active = true, $userid = 1);
   public function archiveParsedMessage($id);
 
   // contact operations
-  public function storeContact($elements, $userID = 1);
-  public function retrieveContact($contact, $userID = 1);
-  public function updateContact($elements, $contact, $userID = 1);
+  public function storeContact($elements, $userid = 1);
+  public function retrieveContact($contact, $userid = 1);
+  public function updateContact($elements, $contact, $userid = 1);
 
   // domain operations
-  public function storeDomain($elements, $userID = 1);
-  public function retrieveDomain($domain, $userID = 1);
-  public function updateDomain($elements, $domain, $userID = 1);
+  public function storeDomain($elements, $userid = 1);
+  public function retrieveDomain($domain, $userid = 1);
+  public function updateDomain($elements, $domain, $userid = 1);
 
   // generic
   public function escape($data);

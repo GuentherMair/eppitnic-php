@@ -53,12 +53,12 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 312 2011-01-13 19:34:22Z gunny $
+ * $Id: Contact.php 322 2011-03-08 13:05:43Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
   //         name                  // change flag
-  protected $userID;               // -
+  protected $userid;               // use just in case of an updateRegistrant + change of agent
   protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle;               // -
   protected $changes;              // sum
@@ -93,9 +93,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    Net_EPP_IT_StorageInterface  storage class
    */
   function __construct(&$client, &$storage) {
+    parent::__construct($client, $storage);
+
     $this->authinfo = $this->authinfo();
     $this->initValues();
-    parent::__construct($client, $storage);
   }
 
   /**
@@ -104,7 +105,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @access   protected
    */
   protected function initValues() {
-    $this->userID               = 1;
+    $this->userid               = 1;
     $this->status               = array();
     $this->handle               = "";
     $this->changes              = 0;
@@ -134,7 +135,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   private function isTrue($val) {
     if ( $val === TRUE )
       return TRUE;
-    if ( $val === 1 )
+    if ( (string)$val == "1" )
       return TRUE;
     if ( strtoupper($val) === "TRUE" )
       return TRUE;
@@ -726,7 +727,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB($userID = 1) {
+  public function storeDB($userid = 1) {
     $contact['status'] = $this->status;
     $contact['handle'] = $this->handle;
     $contact['name'] = $this->name;
@@ -747,7 +748,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $contact['entitytype'] = $this->entitytype;
     $contact['regcode'] = $this->regcode;
 
-    if ( $this->storage->storeContact($contact, $userID) ) {
+    if ( $this->storage->storeContact($contact, $userid) ) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -763,7 +764,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($contact = null, $userID = 1) {
+  public function loadDB($contact = null, $userid = 1) {
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
@@ -774,13 +775,14 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveContact($contact, $userID);
+    $tmp = $this->storage->retrieveContact($contact, $userid);
     if ( $tmp === FALSE ) {
       $this->setError($this->storage->getError());
       return FALSE;
     } else {
       $this->changes = 0;
       foreach ($tmp as $key => $value) {
+        $key = strtolower($key);
         $this->$key = $value;
       }
       return TRUE;
@@ -795,7 +797,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($contact = null, $userID = 1) {
+  public function updateDB($contact = null, $userid = 1) {
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
@@ -826,7 +828,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if (($this->changes & 32768) > 0) $data['entitytype'] = $this->entitytype;
     if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
 
-    if ( $this->storage->updateContact($data, $contact, $userID) ) {
+    if ( $this->storage->updateContact($data, $contact, $userid) ) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -842,8 +844,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    boolean  list only active contacts (TRUE = yes / FALSE = no)
    * @return   array    list of contacts
    */
-  public function listContacts($userID = 1, $activeOnly = TRUE) {
-    return $this->storage->listContacts($userID, $activeOnly);
+  public function listContacts($userid = 1, $activeOnly = TRUE) {
+    return $this->storage->listContacts($userid, $activeOnly);
   }
 
   /**
@@ -854,8 +856,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function deleteContactDB($contact, $userID = 1) {
-    return $this->storage->deleteContact($contact, $userID);
+  public function deleteContactDB($contact, $userid = 1) {
+    return $this->storage->deleteContact($contact, $userid);
   }
 
   /**
@@ -866,8 +868,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function restoreContactDB($contact, $userID = 1) {
-    return $this->storage->restoreContact($contact, $userID);
+  public function restoreContactDB($contact, $userid = 1) {
+    return $this->storage->restoreContact($contact, $userid);
   }
 }
 

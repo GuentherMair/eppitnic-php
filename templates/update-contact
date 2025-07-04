@@ -24,6 +24,7 @@
         {/if}
         {foreach from=$contact item=i}
           {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+          {if $i.value eq "" && $i.name eq "fax"}<contact:{$i.name}/>{/if}
         {/foreach}
         </contact:chg>
         {/if}

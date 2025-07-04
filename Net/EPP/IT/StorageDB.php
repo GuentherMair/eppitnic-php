@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 300 2010-12-20 21:58:05Z gunny $
+ * $Id: StorageDB.php 324 2011-03-08 14:43:08Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -131,12 +131,12 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * (reduce size)
    *
    * @access   protected
-   * @param    int       userID
+   * @param    int       userid
    * @param    string    optional table name
    * @return   string    ACL string to be added to sql queries
    */
-  protected function ACL($userID, $table = null) {
-    return ( $userID == "1" ) ? "" : " and ".( ($table === null) ? "" : $table."." )."userID=".$this->escape($userID);
+  protected function ACL($userid, $table = null) {
+    return ( $userid == "1" ) ? "" : " and ".( ($table === null) ? "" : $table."." )."userid=".$this->escape($userid);
   }
 
   /**
@@ -148,7 +148,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   boolean   status
    */
-  protected function doStore($table, $elements, $userID = 1) {
+  protected function doStore($table, $elements, $userid = 1) {
     if ( ! is_array($elements) )
       return $this->setError(4, "second paramenter must be an array!");
 
@@ -164,8 +164,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // ACL settings
     if ( in_array($table, array('tbl_contacts', 'tbl_domains')) ) {
-      $keys[] = 'userID';
-      $values[] = $this->escape($userID);
+      $keys[] = 'userid';
+      $values[] = $this->escape($userid);
     }
 
     // execute query
@@ -186,7 +186,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   boolean   status
    */
-  protected function doUpdate($table, $elements, $index, $handle, $userID = 1) {
+  protected function doUpdate($table, $elements, $index, $handle, $userid = 1) {
     if ( ! is_array($elements) )
       return $this->setError(4, "second paramenter must be an array!");
 
@@ -199,10 +199,10 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     }
 
     // execute query
-    if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userID)) )
+    if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userid)) )
       return $this->setError(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
     else
-      return $this->setError(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userID."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userid."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**
@@ -303,8 +303,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     contact information to be stored
    * @return   boolean   status
    */
-  public function storeContact($elements, $userID = 1) {
-    return $this->doStore("tbl_contacts", $elements, $userID);
+  public function storeContact($elements, $userid = 1) {
+    return $this->doStore("tbl_contacts", $elements, $userid);
   }
 
   /**
@@ -314,8 +314,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     domain information to be stored
    * @return   boolean   status
    */
-  public function storeDomain($elements, $userID = 1) {
-    return $this->doStore("tbl_domains", $elements, $userID);
+  public function storeDomain($elements, $userid = 1) {
+    return $this->doStore("tbl_domains", $elements, $userid);
   }
 
   /**
@@ -327,8 +327,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateContact($elements, $contact, $userID = 1) {
-    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact, $userID);
+  public function updateContact($elements, $contact, $userid = 1) {
+    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact, $userid);
   }
 
   /**
@@ -340,8 +340,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateDomain($elements, $domain, $userID = 1) {
-    return $this->doUpdate("tbl_domains", $elements, "domain", $domain, $userID);
+  public function updateDomain($elements, $domain, $userid = 1) {
+    return $this->doUpdate("tbl_domains", $elements, "domain", $domain, $userid);
   }
 
   /**
@@ -369,7 +369,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   array     results OR FALSE in case of failure
    */
-  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userID = 1) {
+  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userid = 1) {
     $elements = array();
 
     // if no value was specified, multiple results are requested
@@ -383,9 +383,9 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // execute query
     if ( $this->dbMaxEntries == 0 )
-      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userID)." ORDER BY ".$sort_order);
+      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userid)." ORDER BY ".$sort_order);
     else
-      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userID). " ORDER BY ".$sort_order, $this->dbMaxEntries);
+      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userid). " ORDER BY ".$sort_order, $this->dbMaxEntries);
 
     // first evaluation of the result
     if ( $result === FALSE )
@@ -465,7 +465,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function retrieveParsedMessages($active = true, $userID = 1) {
+  public function retrieveParsedMessages($active = true, $userid = 1) {
     $elements = array();
 
     // set primary condition (archived or not)
@@ -475,8 +475,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
       $condition = '1 = 1';
 
     // set user ACL
-    if ( $userID > 1 )
-      $acl = ' and d.userID = '.$userID;
+    if ( $userid > 1 )
+      $acl = ' and d.userid = '.$userid;
     else
       $acl = '';
 
@@ -485,7 +485,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
       SELECT
         t.*,
         ".$this->dbConnect->SQLDate('d-m-Y', 'createdTime')." as date,
-        d.userID,
+        d.userid,
         d.registrant,
         u.billingID
       FROM
@@ -494,10 +494,10 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
         tbl_domains d
       ON
         t.domain = d.domain
-      JOIN
+      LEFT JOIN
         tbl_users u
       ON
-        d.userID = u.id
+        d.userid = u.id
       WHERE
         ".$condition.$acl."
       ORDER BY id DESC");
@@ -527,8 +527,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    contact to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveContact($contact, $userID = 1) {
-    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact, TRUE, null, $userID);
+  public function retrieveContact($contact, $userid = 1) {
+    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact, TRUE, null, $userid);
     if ( ($tmp === FALSE) || (count($tmp) <> 1) )
       return FALSE;
     else
@@ -542,8 +542,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    domain to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveDomain($domain, $userID = 1) {
-    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain, TRUE, null, $userID);
+  public function retrieveDomain($domain, $userid = 1) {
+    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain, TRUE, null, $userid);
     if ( ($tmp === FALSE) || (count($tmp) <> 1) )
       return FALSE;
     else

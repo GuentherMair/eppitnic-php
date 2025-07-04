@@ -1,3 +1,23 @@
+Version 3.6
+===========
+The isTrue method inside of the Contact object did a value and type check
+on it's argument and therefor compared only to numeric 1 instead of also
+comparing to the string "1". Fixed.
+
+Parent contstructors (domain / contact objects) are now called as first thing
+in the objects own constructor.
+
+Some troubles found when using Smarty 3 with PHP 5.2 (ie. Ubuntu 8.04 LTS).
+I'm still undecided whether to downgraade back to Smarty 2 or not.
+
+When updating the registrant and using the updateDB domain method, the
+owning userID (agent ID) is now changed. The variable name userID has now be
+changed to lowercase "userid" everywhere. This could have some impact in
+different places - please pay attention to it!
+
+You can now remove the fax value from a contact by leaving it blank.
+
+
 Version 3.5
 ===========
 Changed all calls to Smarty's clear_all_assign to clearAllAssign.

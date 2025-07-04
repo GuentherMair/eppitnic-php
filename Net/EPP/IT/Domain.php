@@ -1,6 +1,7 @@
 <?php
 
 require_once 'Net/EPP/IT/AbstractObject.php';
+require_once 'Net/EPP/IT/Contact.php';
 
 /*
  * idna_convert class (for punycode generation)
@@ -66,11 +67,12 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 312 2011-01-13 19:34:22Z gunny $
+ * $Id: Domain.php 322 2011-03-08 13:05:43Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
   //         name              // change flag
+  protected $userid;           // use just in case of an updateRegistrant + change of agent
   protected $status;           // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;           // -
   protected $changes;          // sum
@@ -111,10 +113,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    Net_EPP_IT_StorageInterface  storage class
    */
   function __construct(&$client, &$storage) {
+    parent::__construct($client, $storage);
+
     $this->authinfo = $this->authinfo();
     $this->initValues();
     $this->idn = new idna_convert(array('encode_german_sz' => true));
-    parent::__construct($client, $storage);
   }
 
   /**
@@ -861,7 +864,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB($userID = 1) {
+  public function storeDB($userid = 1) {
     $domain['status'] = $this->status;
     $domain['domain'] = $this->domain;
     $domain['ns'] = $this->ns;
@@ -873,17 +876,17 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['exDate'] = $this->exDate;
 
     // remove existing domain objects when storing (re-transfer-in / re-register / re-import)
-    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice, userID FROM tbl_domains WHERE domain='".$this->domain."'");
+    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice, userid FROM tbl_domains WHERE domain='".$this->domain."'");
     if ( $result !== FALSE )
       if ($result->RecordCount() > 0) {
         // save the lastInvoice value!
         $domain['lastInvoice'] = $result->Fields('lastInvoice');
-        // keep the current userID
-        $userID = $result->Fields('userID');
+        // keep the current userid
+        $userid = $result->Fields('userid');
         $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
       }
 
-    if ( $this->storage->storeDomain($domain, $userID) ) {
+    if ( $this->storage->storeDomain($domain, $userid) ) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -899,7 +902,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($domain = null, $userID = 1) {
+  public function loadDB($domain = null, $userid = 1) {
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
@@ -910,13 +913,14 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveDomain($domain, $userID);
+    $tmp = $this->storage->retrieveDomain($domain, $userid);
     if ( $tmp === FALSE ) {
       $this->setError($this->storage->getError());
       return FALSE;
     } else {
       // initialize data
       foreach ($tmp as $key => $value) {
+        $key = strtolower($key);
         $this->$key = $value;
       }
 
@@ -953,7 +957,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($domain = null, $userID = 1) {
+  public function updateDB($domain = null, $userid = 1) {
     if ($domain === null)
       $domain = $this->domain;
 
@@ -969,14 +973,22 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
     $data['status'] = $this->status;
     if (($this->changes & 1) > 0) $data['ns'] = $this->ns;
-    if (($this->changes & 2) > 0) $data['registrant'] = $this->registrant;
+    if (($this->changes & 2) > 0) {
+      $data['registrant'] = $this->registrant;
+      // get the new reginstrants' userid (agent ID)
+      // btw. it should not be possible to assign a registrant not owned by the current user
+      // (the user interface needs to take care of that!)
+      $tmp = new Net_EPP_IT_Contact($this->client, $this->storage);
+      $tmp->loadDB($this->registrant);
+      $data['userid'] = $tmp->get('userid');
+    }
     if (($this->changes & 4) > 0) $data['admin'] = $this->admin;
     if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
     if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
     $data['crDate'] = $this->crDate;
     $data['exDate'] = $this->exDate;
 
-    if ( $this->storage->updateDomain($data, $domain, $userID) ) {
+    if ( $this->storage->updateDomain($data, $domain, $userid) ) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -1115,8 +1127,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    boolean  list only active domains (TRUE = yes / FALSE = no)
    * @return   array    list of domains
    */
-  public function listDomains($userID = 1, $handle = null, $activeOnly = TRUE) {
-    return $this->storage->listDomains($userID, $handle, $activeOnly);
+  public function listDomains($userid = 1, $handle = null, $activeOnly = TRUE) {
+    return $this->storage->listDomains($userid, $handle, $activeOnly);
   }
 
   /**
@@ -1127,8 +1139,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function deleteDomainDB($domain, $userID = 1) {
-    return $this->storage->deleteDomain($domain, $userID);
+  public function deleteDomainDB($domain, $userid = 1) {
+    return $this->storage->deleteDomain($domain, $userid);
   }
 
   /**
@@ -1139,8 +1151,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function restoreDomainDB($domain, $userID = 1) {
-    return $this->storage->restoreDomain($domain, $userID);
+  public function restoreDomainDB($domain, $userid = 1) {
+    return $this->storage->restoreDomain($domain, $userid);
   }
 
   /**

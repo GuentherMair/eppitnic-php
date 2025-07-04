@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 313 2011-02-03 15:51:13Z gunny $
+ * $Id: AbstractObject.php 318 2011-02-12 14:13:13Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -607,8 +607,8 @@ abstract class Net_EPP_IT_AbstractObject
 
       // look for an extended server error message and code
       if ( is_object($this->xmlResult->response->result->extValue->reason) ) {
-        $this->extValueReasonCode = $this->xmlResult->response->result->extValue->value->reasonCode;
-        $this->extValueReason = $this->xmlResult->response->result->extValue->reason;
+        $this->extValueReasonCode = (string)$this->xmlResult->response->result->extValue->value->reasonCode;
+        $this->extValueReason = (string)$this->xmlResult->response->result->extValue->reason;
       } else {
         $this->extValueReasonCode = '';
         $this->extValueReason = '';
