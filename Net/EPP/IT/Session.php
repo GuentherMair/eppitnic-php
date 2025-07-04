@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 301 2010-12-30 09:10:25Z gunny $
+ * $Id: Session.php 341 2011-05-05 23:11:27Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -59,6 +59,17 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
   protected $messages = null;
   protected $msgID = null;
   protected $msgTitle = null;
+
+  /**
+   * get a single variable/setting from class
+   *
+   * @access   public
+   * @param    string  variable name
+   * @return   mix     value of variable
+   */
+  public function get($var) {
+    return $this->$var;
+  }
 
   /**
    * session start

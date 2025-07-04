@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 318 2011-02-12 14:13:13Z gunny $
+ * $Id: AbstractObject.php 342 2011-05-10 09:45:42Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -421,7 +421,7 @@ abstract class Net_EPP_IT_AbstractObject
               "PR" => "Parma",
               "PV" => "Pavia",
               "PG" => "Perugia",
-              "PS" => "Pesaro e Urbino",
+              "PU" => "Pesaro e Urbino",
               "PE" => "Pescara",
               "PC" => "Piacenza",
               "PI" => "Pisa",

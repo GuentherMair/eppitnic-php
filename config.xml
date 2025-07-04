@@ -4,10 +4,9 @@
   <username>USERNAME</username>
   <password>PASSWORD</password>
   <timezone>Europe/Rome</timezone>
+  <interface></interface>
   <lang>en</lang>
-  <forceUTF8>0</forceUTF8>
-  <timeoutSec>5</timeoutSec>
-  <timeoutMsec>0</timeoutMsec>
+  <clTRIDprefix>USERNAME</clTRIDprefix>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
     <use_sub_dirs></use_sub_dirs>
@@ -34,6 +33,7 @@
     <TECHC>TECHC0001;TECHC0002</TECHC>
     <email>info@yourdomain.it</email>
     <sendallpollmessages>0</sendallpollmessages>
+    <dontsendcustomermessages>0</dontsendcustomermessages>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>
     <displayAccounting>0</displayAccounting>
     <creditForecastDays>60</creditForecastDays>

@@ -67,7 +67,7 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 322 2011-03-08 13:05:43Z gunny $
+ * $Id: Domain.php 347 2011-05-15 22:29:18Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -1125,10 +1125,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @param    string   contact ACL (optional), defaults to null (all domains)
    * @param    boolean  list only active domains (TRUE = yes / FALSE = no)
+   * @param    integer   restrict search to domains older then X months
    * @return   array    list of domains
    */
-  public function listDomains($userid = 1, $handle = null, $activeOnly = TRUE) {
-    return $this->storage->listDomains($userid, $handle, $activeOnly);
+  public function listDomains($userid = 1, $handle = null, $activeOnly = TRUE, $age = 0) {
+    return $this->storage->listDomains($userid, $handle, $activeOnly, $age);
   }
 
   /**

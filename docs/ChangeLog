@@ -1,3 +1,24 @@
+Version 4.0
+===========
+Some smaller fixes and updates (DB layout for webinterface, which now supports
+automatization of TECH-C + DNS updates).
+
+Added an example that shows how to do extend the DB driver for searching
+serialized DB fields.
+
+Support for multiple smarty versions added. The library now comes with a
+version 2 and a verion 3 release. Depending on your PHP_VERSION_ID the correct
+one to be used is selected.
+
+The set method for contacts now makes use of htmlspecialchars() in order to
+convert ampersands and other stuff.
+
+Big switch from the PEAR class HTTP_Client to CURL. This is the main reason
+for the change in major number. The current version now allows you to choose
+the leaving IP/interface, which should be useful for multi-homed servers and
+hosting solutions.
+
+
 Version 3.6
 ===========
 The isTrue method inside of the Contact object did a value and type check

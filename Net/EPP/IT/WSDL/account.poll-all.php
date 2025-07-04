@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll-all.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: account.poll-all.php 341 2011-05-05 23:11:27Z gunny $
  */
 
 /*
@@ -47,8 +47,7 @@ $server->register(
   // METHOD
   'PollAll',
   // INPUT
-  array('msgID'             => 'xsd:int',
-        'store'             => 'xsd:string',
+  array('store'             => 'xsd:string',
         ),
   // OUTPUT
   array('status'            => 'xsd:int',
@@ -93,8 +92,8 @@ function PollAll($store = "true") {
       while ( $c->session->pollMessageCount() > 0 ) {
         $msgID[] = $c->session->pollID();
         $xmlResponse[] = base64_encode($c->session->result['body']);
-        if ( $c->session->poll($store, "req", $c->session->pollID()) ) {
-          $msgTitle[] = $c->session->msgTitle;
+        if ( $c->session->poll($store, "req") ) {
+          $msgTitle[] = $c->session->get('msgTitle');
         } else {
           $msgTitle[] = 'undefined';
           $c->createErrMsg($c->session, 4001);

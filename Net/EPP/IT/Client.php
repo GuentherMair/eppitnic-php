@@ -39,27 +39,26 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 311 2011-01-06 10:36:02Z gunny $
+ * $Id: Client.php 346 2011-05-12 19:04:22Z gunny $
  */
 
-/*
+/**
+ * define the PHP_VERSION_ID (predefined as of 5.2.7)
+ */
+if (!defined('PHP_VERSION_ID')) {
+  $version = explode('.', PHP_VERSION);
+  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
+}
+
+/**
  * using lots of PHP5 functions like __construct, __destruct,
  * simplexml_load_string, simplexml_load_file, this won't work
  * with PHP < 5
  */
-if ( (int)substr(phpversion(),0,strpos(phpversion(), '.')) < 5 ) {
+if ( PHP_VERSION_ID < 50000 ) {
   echo "This class (" . __FILE__ . ") requires PHP5 at least!\n";
   exit;
 }
-
-/**
- * HTTP/Client.php is a PEAR base class and if this throws an
- * error simply typing "pear install HTTP_Client" should solve
- * the problem for you on most systems (pear comes packaged
- * alongside php)
- */
-if ( ! class_exists('HTTP_Client') )
-  require_once 'HTTP/Client.php';
 
 /**
  * This is an unmodified Smarty set. You may get the newest
@@ -67,7 +66,16 @@ if ( ! class_exists('HTTP_Client') )
  * link "framework" to the "libs" subfolder!
  */
 if ( ! class_exists('Smarty') )
-  require_once 'libs/smarty/libs/Smarty.class.php';
+  if ( PHP_VERSION_ID < 50300 )
+    require_once 'libs/smarty2/libs/Smarty.class.php';
+  else
+    require_once 'libs/smarty3/libs/Smarty.class.php';
+
+/**
+ * Include curl class handler
+ */
+if ( ! class_exists('Net_EPP_Curl') )
+  require_once 'Net/EPP/Curl.php';
 
 /**
  * This class extends Smarty (a templating system) so we
@@ -81,14 +89,12 @@ if ( ! class_exists('Smarty') )
 class Net_EPP_IT_Client extends Smarty
 {
   public $EPPCfg;
-  public $EPPClient;
 
   private $clTRID;
-  private $DEFAULT_HEADERS = array('content-type' => 'text/xml; charset=UTF-8');
-  private $forceUTF8 = FALSE;
-  private $timeout = 5.0;
-  private $timeoutSec = 5;
-  private $timeoutMsec = 0;
+  private $headers = array('content-type' => 'text/xml; charset=UTF-8');
+
+  protected $cURLresponse;
+  protected $httpClient;
 
   /**
    * Class constructor
@@ -113,23 +119,11 @@ class Net_EPP_IT_Client extends Smarty
       }
     }
 
-    // setup timeout (seconds)
-    if ( @isset($this->EPPCfg->timeoutSec) )
-      $this->timeoutSec = (int)$this->EPPCfg->timeoutSec;
-
-    // setup timeout (microseconds)
-    if ( @isset($this->EPPCfg->timeoutMsec) )
-      $this->timeoutMsec = (int)$this->EPPCfg->timeoutMsec;
-
     // setup default time zone
     if ( @isset($this->EPPCfg->timezone) )
       date_default_timezone_set($this->EPPCfg->timezone);
     else
       date_default_timezone_set("Europe/Rome");
-
-    // verify if user wants to force utf8-encoding (ie. from ISO-8859-1)
-    if ( @isset($this->EPPCfg->forceUTF8) && ((int)$this->EPPCfg->forceUTF8 == 1) )
-      $this->forceUTF8 = TRUE;
 
     // call Smarty class constructor
     parent::__construct();
@@ -153,15 +147,36 @@ class Net_EPP_IT_Client extends Smarty
         die("[".__FILE__." @ ".__LINE__."] Smarty compile folder '".$this->compile_dir."' is not writeable. Solve problem before trying to continue.\n");
       }
 
-    // initialize HTTP_Client class
-    $this->EPPClient = new HTTP_Client(
-      array(                                                                    // defaultRequestParams
-        'readTimeout' =>   array($this->timeoutSec, $this->timeoutMsec),        //  => reading/writing operations
-        'timeout'     => (float)($this->timeoutSec+($this->timeoutMsec/1000))), //  => socket connect
-      $this->DEFAULT_HEADERS);                                                  // defaultHeaders
+    // initialize httpClient
+    $this->httpClient = new Net_EPP_Curl($this->EPPCfg->server);
+    $this->httpClient->setHeaders($this->headers);
+
+    // setup client certificate
+    if ( ! @empty($this->EPPCfg->certificatefile) ) {
+      if ( is_readable($this->EPPCfg->certificatefile) )
+        $this->httpClient->setClientCert($this->EPPCfg->certificatefile);
+      else if ( is_readable(realpath(dirname(__FILE__).'/../../../'.$this->EPPCfg->certificatefile)) )
+        $this->httpClient->setClientCert(realpath(dirname(__FILE__).'/../../../'.$this->EPPCfg->certificatefile));
+    }
+
+    // setup leaving interface
+    if ( ! @empty($this->EPPCfg->interface) )
+      $this->httpClient->setInterface($this->EPPCfg->interface);
 
     // set client transaction ID
     $this->set_clTRID();
+  }
+
+  /**
+   * smarty version wrapper
+   *
+   * @access   public
+   */
+  public function clearAllAssign() {
+    if ( PHP_VERSION_ID < 50300 )
+      return parent::clear_all_assign(); // Smarty 2
+    else
+      return parent::clearAllAssign();   // Smarty 3
   }
 
   /**
@@ -171,7 +186,7 @@ class Net_EPP_IT_Client extends Smarty
    * @return   string  a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID() {
-    $this->clTRID = $this->EPPCfg->username."-".mktime()."-".substr(md5(rand()), 0, 5);
+    $this->clTRID = $this->EPPCfg->clTRIDprefix."-".mktime()."-".substr(md5(rand()), 0, 5);
     if ( strlen($this->clTRID) > 32 )
       $this->clTRID = substr($this->clTRID, -32);
     return $this->clTRID;
@@ -194,8 +209,11 @@ class Net_EPP_IT_Client extends Smarty
    * @return   array   the HTTP_Client response: (int) code, (array) headers, (string) body
    */
   public function sendRequest($data) {
-    if ( $this->EPPClient->valid() ) $this->EPPClient->next();
-    $this->EPPClient->post($this->EPPCfg->server, ($this->forceUTF8 ? utf8_encode($data) : $data), true);
+    $this->cURLresponse['body'] = $this->httpClient->query($data);
+    $this->cURLresponse['code'] = $this->httpClient->getHttpStatus();
+    $this->cURLresponse['headers'] = $this->httpClient->getHttpHeaders();
+    $this->cURLresponse['error'] = $this->httpClient->getHttpError();
+
     return $this->fetchResponse();
   }
 
@@ -206,7 +224,7 @@ class Net_EPP_IT_Client extends Smarty
    * @return   array   the latest HTTP_Client response: (int) code, (array) headers, (string) body
    */
   public function fetchResponse() {
-    return $this->EPPClient->current();
+    return $this->cURLresponse;
   }
 
   /**
@@ -227,12 +245,10 @@ class Net_EPP_IT_Client extends Smarty
 
   /**
    * class destructor
-   * resets all HTTP_Client data (cookies, responses, default headers)
    *
    * @access   public
    */
   public function __destruct() {
-    if ( is_object($this->EPPClient) ) $this->EPPClient->reset();
   }
 
 }

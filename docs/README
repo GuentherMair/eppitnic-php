@@ -2,8 +2,7 @@ REQUIREMENTS
 ============
 
 1) PHP5 (PHP4 won't work!!)
-2) the PEAR package HTTP_Client (handles communication and cookies);
-   install it using "pear install HTTP_Client"
+2) CURL support for PHP (handling HTTP session and cookies)
 3) either a MySQL database or another database including a new class deriving
    from Net_EPP_IT_StorageInterface to handle this database
 4) if using the WSDL service, make sure you give the webserver appropriate
@@ -44,4 +43,4 @@ F) WSDL interface (see examples-wsdl/ and docs/ folder)
 
 ==
 
-$Id: README 145 2010-10-17 22:44:44Z gunny $
+$Id: README 344 2011-05-10 20:55:46Z gunny $

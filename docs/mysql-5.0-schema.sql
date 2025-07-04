@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 286 2010-12-15 15:56:51Z gunny $
+-- $Id: mysql-5.0-schema.sql 329 2011-04-03 18:59:59Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -98,6 +98,8 @@ create table tbl_domains (
 create table tbl_transfers (
   id                    serial,
   domain                varchar(255) unique NOT NULL,
+  techc                 text,
+  dns                   text,
   registrant            varchar(32) NOT NULL,
   time                  timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),

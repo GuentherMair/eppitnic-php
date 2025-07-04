@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 322 2011-03-08 13:05:43Z gunny $
+ * $Id: Contact.php 340 2011-05-02 22:19:50Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -153,6 +153,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   public function set($var, $val) {
     // convert to lower-case
     $var = strtolower($var);
+    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
     if ( $var == "entitytype" )
       return $this->setEntityType($val);

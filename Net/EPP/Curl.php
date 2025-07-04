@@ -1,0 +1,205 @@
+<?php
+
+/**
+ * A simple class handling HTTP sessions through cURL.
+ *
+ * Available methods:
+ *  - setClientCert
+ *  - setInterface
+ *  - setMaxRedirects
+ *  - setTimeout
+ *  - setReferer
+ *  - setBinaryTransfer
+ *  - setCookieFileLocation
+ *  - setPost
+ *  - setUrl
+ *  - setUserAgent
+ *  - setHeaders
+ *  - query
+ *  - getHttpStatus
+ *  - getHttpHeaders
+ *  - getHttpBody
+ *  - getHttpError
+ *
+ * PHP version 5
+ *
+ * LICENSE:
+ *
+ * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1) Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2) Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3) Neither the name of Günther Mair nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * @category    Net
+ * @package     Net_EPP_Curl
+ * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @license     http://opensource.org/licenses/bsd-license.php New BSD License
+ *
+ * $Id$
+ */
+class Net_EPP_Curl
+{
+  protected $_useragent = 'PHP Net_EPP_Curl 1.0';
+  protected $_url;
+  protected $_certFile;
+  protected $_authName;
+  protected $_authPass;
+  protected $_cookieFileLocation = '/tmp/cookie.txt';
+
+  protected $_referer;
+  protected $_postHeaders = array('Expect:');
+  protected $_post = false;
+  protected $_followLocation = true;
+  protected $_timeout = 30;
+  protected $_maxRedirects = 4;
+  protected $_interface = "";
+  protected $_binaryTransfer = false;
+
+  protected $_status;
+  protected $_headers;
+  protected $_body;
+  protected $_error;
+
+  public function __construct($url, $authName = '', $authPass = '') {
+    $this->_url = $url;
+    $this->_cookieFileLocation = '/tmp/url-'.md5($url).'-cookie.txt';
+    $this->_authName = $authName;
+    $this->_authPass = $authPass;
+  }
+
+  public function setClientCert($certFile) {
+    $this->_certFile = $certFile;
+  }
+
+  public function setInterface($interface) {
+    $this->_interface = $interface;
+  }
+
+  public function setMaxRedirects($maxRedirects) {
+    $this->_maxRedirects = (int)$maxRedirects;
+  }
+
+  public function setTimeout($timeout) {
+    $this->_timeout = (int)$timeout;
+  }
+
+  public function setReferer($referer) {
+    $this->_referer = $referer;
+  }
+
+  public function setCookieFileLocation($path) {
+    $this->_cookieFileLocation = $path;
+  }
+
+  public function setBinaryTransfer($binaryTransfer) {
+    $this->_binaryTransfer = $binaryTransfer ? true : false;
+  }
+
+  public function setFollowLocation($followLocation) {
+    $this->_post = $followLocation ? true : false;
+  }
+
+  public function setPost($post) {
+    $this->_post = $post ? true : false;
+  }
+
+  public function setUrl($url) {
+    $this->_url = $url;
+  }
+
+  public function setUserAgent($userAgent) {
+    $this->_useragent = $userAgent;
+  }
+
+  public function setHeaders($headers) {
+    $this->_postHeaders = array_merge($this->_postHeaders, (array)$headers);
+  }
+
+  public function query($postFields = null) {
+    $ch = curl_init();
+
+    curl_setopt($ch, CURLOPT_URL, $this->_url);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_postHeaders);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $this->_timeout);
+    curl_setopt($ch, CURLOPT_MAXREDIRS, $this->_maxRedirects);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
+    curl_setopt($ch, CURLOPT_COOKIEJAR, $this->_cookieFileLocation);
+    curl_setopt($ch, CURLOPT_COOKIEFILE, $this->_cookieFileLocation);
+    curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent); 
+    curl_setopt($ch, CURLOPT_POST, $this->_post);
+
+    if ( $postFields != null )
+      curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+
+    if ( !empty($this->_interface) )
+      curl_setopt($ch, CURLOPT_INTERFACE, $this->_interface);
+
+    if ( !empty($this->_referer) )
+      curl_setopt($ch, CURLOPT_REFERER, $this->_referer);
+
+    if ( $this->_binaryTransfer )
+      curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
+
+    if ( !empty($this->_authName) )
+      curl_setopt($ch, CURLOPT_USERPWD, $this->_authName.':'.$this->_authPass);
+
+    if ( !empty($this->_certFile) ) {
+      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+      curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
+    }
+
+    $response = curl_exec($ch);
+    $header_size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $this->_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $this->_headers = substr($response, 0, $header_size);
+    $this->_body = substr($response, $header_size);
+    $this->_error = ( $response === false ) ? curl_error($ch) : "";
+    curl_close($ch);
+
+    return $this->_body;
+  }
+
+  public function getHttpStatus() {
+    return $this->_status;
+  }
+
+  public function getHttpHeaders() {
+    return $this->_headers;
+  }
+
+  public function getHttpBody() {
+    return $this->_body;
+  }
+
+  public function getHttpError() {
+    return $this->_error;
+  }
+
+  public function __tostring() {
+    return $this->_body;
+  }
+}
