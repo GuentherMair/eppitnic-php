@@ -1,5 +1,8 @@
 <config>
   <DEBUG>0</DEBUG>
+  <urlRain>https://rain.pubtest.nic.it</urlRain>
+  <serverTesting>https://epp.pubtest.nic.it</serverTesting>
+  <serverProduction>https://epp.pubtest.nic.it</serverProduction>
   <server>https://SERVER</server>
   <port></port>
   <debugfile></debugfile>

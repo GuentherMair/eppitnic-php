@@ -1,3 +1,8 @@
+Version 6.1
+===========
+Some updates to the database schema.
+
+
 Version 6.0
 ===========
 All code and examples updated to be usable with PHP 7. Some code cleanup was
