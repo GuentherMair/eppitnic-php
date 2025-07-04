@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 57 2010-03-07 18:13:24Z gunny $
+ * $Id: Domain.php 67 2010-03-24 20:25:34Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -77,12 +77,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $admin                = "";                         // 4
   protected $tech                 = "";                         // 8
   protected $authinfo             = "";                         // 16
-  protected $remNS                = array();                    // 32
-  protected $addNS                = array();                    // 64
 
-  // these are for internal use only (update)
-  protected $admin_backup         = array();
-  protected $tech_backup          = array();
+  // these are for internal use only (ie. update)
+  protected $ns_initial           = array();
+  protected $admin_initial        = array();
+  protected $tech_initial         = array();
 
   protected $max_check            = 5;
 
@@ -109,9 +108,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function set($var, $val) {
-    if ($var == "ns")
+    if ( $var == "ns" )
       $this->addNS($val);
-    else if (isset($this->$var))
+    else if ( $var == "tech" )
+      $this->addTECH($val);
+    else if ( isset($this->$var) )
       $this->$var = $val;
     else
       return FALSE;
@@ -134,7 +135,47 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix     value of variable
    */
   public function get($var) {
-    return $this->$var;
+    // if tech only holds 1 value (as in most cases) return a string and not an array
+    if ( ($var == "tech") && (count($this->tech) == 1) ) {
+      return current($this->tech);
+    } else {
+      return $this->$var;
+    }
+  }
+
+  /**
+   * remove a technical contact
+   *
+   * @access   public
+   * @param    string  tech contact name
+   * @return   mix     value set or FALSE if variable name does not exist
+   */
+  public function remTECH($name) {
+    if ( isset($this->tech[$name]) ) {
+      unset($this->tech[$name]);
+      $this->changes |= 8;
+      return TRUE;
+    } else {
+      return FALSE;
+    }
+  }
+
+  /**
+   * add a technical contact
+   *
+   * @access   public
+   * @param    string  tech contact name
+   * @return   mix     value set or FALSE if variable name does not exist
+   */
+  public function addTECH($name) {
+    if ( count($this->tech) >= 6 ) {
+      $this->error("You are not allowed to assign more than 6 tech contacts to a domain.");
+      return FALSE;
+    } else {
+      $this->tech[$name] = $name;
+      $this->changes |= 8;
+      return TRUE;
+    }
   }
 
   /**
@@ -145,10 +186,13 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function remNS($name) {
-    unset($this->ns[$name]);
-    $this->remNS[$name] = $name;
-    $this->changes |= 32;
-    return TRUE;
+    if ( isset($this->ns[$name]) ) {
+      unset($this->ns[$name]);
+      $this->changes |= 1;
+      return TRUE;
+    } else {
+      return FALSE;
+    }
   }
 
   /**
@@ -159,12 +203,12 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    mix     ip addresses to set (an array of two, one or a string)
    * @return   mix     value set or FALSE if variable name does not exist
    */
-  public function addNS($name, $addr = null, $mode = "add") {
+  public function addNS($name, $addr = null) {
     $dns1 = "";
     $dns2 = "";
 
     if ( count($this->ns) >= 6 ) {
-      $this->error("You are not allowed to assign more than 6 NS to a domain");
+      $this->error("You are not allowed to assign more than 6 NS to a domain.");
       return FALSE;
     }
 
@@ -198,27 +242,23 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       return FALSE;
     }
 
-    unset($this->ns[$name]);
+    // if a nameserver by this name was already set, remove all info about it
+    if ( isset($this->ns[$name]) )
+      unset($this->ns[$name]);
+
     $this->ns[$name]['name'] = $name;
-    if ( $mode == "add" ) {
-      unset($this->addNS[$name]);
-      $this->addNS[$name]['name'] = $name;
-    }
+
     if ( ! empty($dns1) ) {
       $type = strpos($dns1, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
-      if ( $mode == "add" )
-        $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
     }
+
     if ( ! empty($dns2) ) {
       $type = strpos($dns2, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
-      if ( $mode == "add" )
-        $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
     }
 
     $this->changes |= 1;
-    if ( $mode == "add" ) $this->changes |= 64;
     return TRUE;
   }
 
@@ -397,9 +437,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
     // query server and return answer (no handling of special return values)
     if ( $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
-      $this->addNS = array();
-      $this->remNS = array();
       $this->changes = 0;
+      $this->ns_initial = $this->ns;
+      $this->admin_initial = $this->admin;
+      $this->tech_initial = $this->tech;
       return TRUE;
     } else {
       return FALSE;
@@ -443,7 +484,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->authinfo = (string)$tmp->infData->authInfo->pw;
       foreach ($tmp->infData->contact as $contact) {
         $type = $contact->attributes()->type;
-        $this->$type = (string)$contact;
+        if ( $type == "tech" ) {
+          $this->addTECH((string)$contact);
+        } else {
+          $this->$type = (string)$contact;
+        }
       }
 
       // if the NS were not properly configured EPP will not report them yet!
@@ -453,14 +498,15 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
           foreach ($hostAttr->hostAddr as $ip) {
             $addr[] = $ip;
           }
-          $this->addNS((string)$hostAttr->hostName, $addr, "fetch");
+          $this->addNS((string)$hostAttr->hostName, $addr);
         }
 
       // reset changes at the bottom
       $this->changes = 0;
       $this->status = 0;
-      $this->admin_backup = $this->admin;
-      $this->tech_backup = $this->tech;
+      $this->ns_initial = $this->ns;
+      $this->admin_initial = $this->admin;
+      $this->tech_initial = $this->tech;
       return TRUE;
     } else {
       return FALSE;
@@ -536,31 +582,56 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $this->domain);
     if (($this->changes & 1) > 0) {
-      $this->client->assign('nameservers_add_num', count($this->addNS));
-      $this->client->assign('nameservers_add', $this->addNS);
+
+      // strip everything down to a 1-dimensional array
+      foreach ($this->ns as $name => $values)
+        $tmpA[] = $name;
+      foreach ($this->ns_initial as $name => $values)
+        $tmpB[] = $name;
+
+      // which to add
+      $diffAB = array_diff($tmpA, $tmpB);
+      $tmp = array();
+      foreach ($diffAB as $name)
+        $tmp[$name] = $this->ns[$name];
+      $this->client->assign('nameservers_add_num', count($tmp));
+      $this->client->assign('nameservers_add', $tmp);
+      print_r($tmp);
+
+      // which to remove
+      $diffBA = array_diff($tmpB, $tmpA);
+      $tmp = array();
+      foreach ($diffBA as $name)
+        $tmp[$name] = $this->ns_initial[$name];
+      $this->client->assign('nameservers_rem_num', count($tmp));
+      $this->client->assign('nameservers_rem', $tmp);
+      print_r($tmp);
     }
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);
-      $this->client->assign('admin_rem', $this->admin_backup);
+      $this->client->assign('admin_rem', $this->admin_initial);
     }
     if (($this->changes & 8) > 0) {
-      $this->client->assign('tech_add', $this->tech);
-      $this->client->assign('tech_rem', $this->tech_backup);
+      // which to add
+      $tmp = array_diff($this->tech, $this->tech_initial);
+      $this->client->assign('tech_add_num', count($tmp));
+      $this->client->assign('tech_add', $tmp);
+      // which to remove
+      $tmp = array_diff($this->tech_initial, $this->tech);
+      $this->client->assign('tech_rem_num', count($tmp));
+      $this->client->assign('tech_rem', $tmp);
     }
     if (($this->changes & 16) > 0)
       $this->client->assign('authinfo', $this->authinfo);
-    if (($this->changes & 32) > 0) {
-      $this->client->assign('nameservers_rem_num', count($this->remNS));
-      $this->client->assign('nameservers_rem', $this->remNS);
-    }
     $this->xmlQuery = $this->client->fetch("update-domain");
     $this->client->clear_all_assign();
 
     // query server
     if ( $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
-      $this->addNS = array();
-      $this->remNS = array();
       $this->changes = 0;
+      $this->ns_initial = $this->ns;
+      $this->admin_initial = $this->admin;
+      $this->tech_initial = $this->tech;
       return TRUE;
     } else {
       return FALSE;

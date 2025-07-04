@@ -21,7 +21,9 @@
         </domain:ns>
         <domain:registrant>{$registrant}</domain:registrant>
         <domain:contact type="admin">{$admin}</domain:contact>
-        <domain:contact type="tech">{$tech}</domain:contact>
+        {foreach from=$tech item=single_tech}
+        <domain:contact type="tech">{$single_tech}</domain:contact>
+        {/foreach}
         <domain:authInfo>
           <domain:pw>{$authinfo}</domain:pw>
         </domain:authInfo>

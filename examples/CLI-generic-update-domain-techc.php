@@ -1,7 +1,5 @@
 <?php
 
-set_include_path('.:'.ini_get('include_path'));
-
 require_once 'Net/EPP/IT/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 require_once 'Net/EPP/IT/Session.php';
@@ -15,12 +13,19 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
-if ( $argc < 2 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN\n";
+if ( $argc < 4 ) {
+  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] CONTACT\n";
   exit(1);
 }
 
 $name = $argv[1];
+$op_type = strtolower($argv[2]);
+$contact = $argv[3];
+
+if ( $op_type != 'add' && $op_type != 'remove' ) {
+  echo "Syntax error: operation type '".$op_type."' not supported, please use 'add' or 'remove' instead\n";
+  exit(1);
+}
 
 // send "hello"
 if ( ! $session->hello() ) {
@@ -35,35 +40,37 @@ if ( ! $session->hello() ) {
   } else {
     echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
 
-    // lookup domain
-    switch ( $domain->check($name) ) {
+    // recreate domain object
+    $domain = new Net_EPP_IT_Domain($nic, $db);
+    $domain->debug = LOG_DEBUG;
+
+    // load domain object
+    $domain->fetch($name);
+
+    // change technical contacts
+    switch ($op_type) {
+      case 'add':
+        $domain->addTECH($contact);
+        break;
+      case 'remove':
+        $domain->remTECH($contact);
+        break;
+    }
+
+    // update domain
+    switch ( $domain->update() ) {
       case TRUE:
-        echo "Domain '".$name."' is still available, sorry!\n";
+        echo "Domain '".$name."' is now up to date.\n";
         break;
       case FALSE:
-        echo "Domain '".$name."' not available, fetching information...\n";
-        if ( $domain->fetch($name) ) {
-          echo " - Registrant: " . $domain->get('registrant') . "\n";
-          echo " - Admin-C: " . $domain->get('admin') . "\n";
-          $tech = $domain->get('tech');
-          if ( ! is_array($tech) ) {
-            echo " - Tech-C: " . $tech . "\n";
-          } else foreach ($tech as $single_tech) {
-            echo " - Tech-C: " . $single_tech . "\n";
-          }
-          echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
-          echo " - Status: " . $domain->state() . "\n";
-          $ns = $domain->get('ns');
-          foreach ($ns as $name) {
-            echo " - NS: " . $name['name'] . "\n";
-          }
-        } else {
-          echo "FAILED\n";
-        }
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
-        break;
-      default:
-        echo "Error: '".$name."'.\n";
+        echo "Update to domain '".$name."' FAILED!.\n";
+        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."', '".$domain->extValueReason."'.\n";
+        echo "\n";
+        echo "Query:\n";
+        print_r($domain->xmlQuery);
+        echo "\n";
+        echo "Result:\n";
+        print_r($domain->result);
         break;
     }
 

@@ -1,3 +1,21 @@
+Version 2.6
+===========
+The changes applied to Domain.php between r45 and r57 have been undone and
+simplified by using array_diff.
+
+The library should now correctly handle multiple technical contacts (also by
+using array_diff's). Technical contact handling has been adapted in both the
+create and update domain templates. Thanks Marco for your input!
+
+Please pay attention that a get()-method-call for the value of 'tech' will
+still result in a string instead of an array when only one contact is set. This
+may cause some issues if you end up with a domain that owns more than one, so
+better DON'T rely on it being a string!
+
+Please see the included sample files "CLI-generic-fetch-domain.php",
+"CLI-generic-update-domain-techc.php" and "028-enhanced-db-layout.php".
+
+
 Version 2.5
 ===========
 The only major change can be found in class Client. Its contstructor now

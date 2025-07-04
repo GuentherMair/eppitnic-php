@@ -8,7 +8,7 @@
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                      xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
         <domain:name>{$domain}</domain:name>
-        {if $nameservers_add_num > 0 or $admin_add ne "" or $tech_add ne ""}
+        {if $nameservers_add_num > 0 or $admin_add ne "" or $tech_add_num > 0}
         <domain:add>
           {if $nameservers_add_num > 0}
           <domain:ns>
@@ -25,12 +25,14 @@
           {if $admin_add ne ""}
           <domain:contact type="admin">{$admin_add}</domain:contact>
           {/if}
-          {if $tech_add ne ""}
-          <domain:contact type="tech">{$tech_add}</domain:contact>
+          {if $tech_add_num > 0}
+          {foreach from=$tech_add item=single_tech_add}
+          <domain:contact type="tech">{$single_tech_add}</domain:contact>
+          {/foreach}
           {/if}
         </domain:add>
         {/if}
-        {if $nameservers_rem_num > 0 or $admin_rem ne "" or $tech_rem ne ""}
+        {if $nameservers_rem_num > 0 or $admin_rem ne "" or $tech_rem_num > 0}
         <domain:rem>
           {if $nameservers_rem_num > 0}
           <domain:ns>
@@ -44,8 +46,10 @@
           {if $admin_rem ne ""}
           <domain:contact type="admin">{$admin_rem}</domain:contact>
           {/if}
-          {if $tech_rem ne ""}
-          <domain:contact type="tech">{$tech_rem}</domain:contact>
+          {if $tech_rem_num > 0}
+          {foreach from=$tech_rem item=single_tech_rem}
+          <domain:contact type="tech">{$single_tech_rem}</domain:contact>
+          {/foreach}
           {/if}
         </domain:rem>
         {/if}

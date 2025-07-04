@@ -5,6 +5,10 @@ set_include_path('.:'.ini_get('include_path'));
 require_once 'Net/EPP/IT/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 
+/**
+ * This class is an sample extension of the storage driver provided with the
+ * library. It shows how to add an alternative, public "myRetrieve" method.
+ */
 class MyStorageWrapper extends Net_EPP_IT_StorageDB
 {
   function __construct($cfg) {
