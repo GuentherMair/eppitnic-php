@@ -1,3 +1,16 @@
+Version 6.6
+===========
+Commented out $slast in idna_convert.class.php (was never used anyway and PHP
+complained about creating it as a dynamic property)
+
+
+Version 6.5
+===========
+Replaced obsolete/unmantained phpwhois-4.2.2 with phpwhois-kevinoo-6.3 while
+adding libs/phpwhois/whois.main.php as a wrapper in order to keep the previous
+interface.
+
+
 Version 6.4
 ===========
 Some adjustments to make the library and its components compatibile to newer

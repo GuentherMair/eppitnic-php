@@ -6,6 +6,10 @@
 //      Btw. the whole thing belongs into the parameter setter method
 //      since that method may be called again to change the setting.
 //
+// DEPRECATED: Creation of dynamic property idna_convert::$slast is
+//             deprecated on line 104 ($slast is not used anywhere
+//             in the class).
+//
 //      Günther Mair <info@inet-services.it>
 
 // {{{ license
@@ -101,7 +105,7 @@ class idna_convert
      */
     public function __construct($options = false)
     {
-        $this->slast = $this->_sbase + $this->_lcount * $this->_vcount * $this->_tcount;
+        //$this->slast = $this->_sbase + $this->_lcount * $this->_vcount * $this->_tcount;
         // If parameters are given, pass these to the respective method
         if (is_array($options)) return $this->set_parameter($options);
     }

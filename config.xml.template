@@ -44,7 +44,8 @@
     <DNSnotifyScript></DNSnotifyScript>
     <DNS>DNS1;DNS2</DNS>
     <TECHC>TECHC1</TECHC>
-    <email>EMAIL</email>
+    <email_from>EMAIL</email_from>
+    <email_rcpt>EMAIL</email_rcpt>
     <sendallpollmessages>SENDALL</sendallpollmessages>
     <dontsendcustomermessages>0</dontsendcustomermessages>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>

@@ -1,0 +1,5 @@
+{
+    "require": {
+        "kevinoo/phpwhois": "^6.3"
+    }
+}

@@ -1,0 +1,182 @@
+{
+    "packages": [
+        {
+            "name": "algo26-matthias/idna-convert",
+            "version": "v3.1.1",
+            "version_normalized": "3.1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/algo26-matthias/idna-convert.git",
+                "reference": "d8dbf18599548b8460ab0c462f299a15cacf6e66"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/algo26-matthias/idna-convert/zipball/d8dbf18599548b8460ab0c462f299a15cacf6e66",
+                "reference": "d8dbf18599548b8460ab0c462f299a15cacf6e66",
+                "shasum": ""
+            },
+            "require": {
+                "ext-pcre": "*",
+                "jakeasmith/http_build_url": "^1",
+                "php": ">=7.2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "8.0"
+            },
+            "suggest": {
+                "ext-iconv": "Install ext/iconv for using input / output other than UTF-8 or ISO-8859-1",
+                "ext-mbstring": "Install ext/mbstring for using input / output other than UTF-8 or ISO-8859-1"
+            },
+            "time": "2024-03-18T16:24:08+00:00",
+            "type": "library",
+            "installation-source": "source",
+            "autoload": {
+                "psr-4": {
+                    "Algo26\\IdnaConvert\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1+"
+            ],
+            "authors": [
+                {
+                    "name": "Matthias Sommerfeld",
+                    "email": "matthias.sommerfeld@algo26.de",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A library for encoding and decoding internationalized domain names",
+            "homepage": "http://idnaconv.net/",
+            "keywords": [
+                "idn",
+                "idna",
+                "php"
+            ],
+            "support": {
+                "issues": "https://github.com/algo26-matthias/idna-convert/issues",
+                "source": "https://github.com/algo26-matthias/idna-convert/tree/v3.1.1"
+            },
+            "install-path": "../algo26-matthias/idna-convert"
+        },
+        {
+            "name": "jakeasmith/http_build_url",
+            "version": "1.0.1",
+            "version_normalized": "1.0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/jakeasmith/http_build_url.git",
+                "reference": "93c273e77cb1edead0cf8bcf8cd2003428e74e37"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/jakeasmith/http_build_url/zipball/93c273e77cb1edead0cf8bcf8cd2003428e74e37",
+                "reference": "93c273e77cb1edead0cf8bcf8cd2003428e74e37",
+                "shasum": ""
+            },
+            "time": "2017-05-01T15:36:40+00:00",
+            "type": "library",
+            "installation-source": "source",
+            "autoload": {
+                "files": [
+                    "src/http_build_url.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jake A. Smith",
+                    "email": "theman@jakeasmith.com"
+                }
+            ],
+            "description": "Provides functionality for http_build_url() to environments without pecl_http.",
+            "support": {
+                "issues": "https://github.com/jakeasmith/http_build_url/issues",
+                "source": "https://github.com/jakeasmith/http_build_url"
+            },
+            "install-path": "../jakeasmith/http_build_url"
+        },
+        {
+            "name": "kevinoo/phpwhois",
+            "version": "v6.3.2",
+            "version_normalized": "6.3.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/kevinoo/phpWhois.git",
+                "reference": "50f6a95f32f40104e31b44818484bd9c78c3a90d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/kevinoo/phpWhois/zipball/50f6a95f32f40104e31b44818484bd9c78c3a90d",
+                "reference": "50f6a95f32f40104e31b44818484bd9c78c3a90d",
+                "shasum": ""
+            },
+            "require": {
+                "algo26-matthias/idna-convert": "^3.1",
+                "php": ">=7.2"
+            },
+            "require-dev": {
+                "dms/phpunit-arraysubset-asserts": "~0.5",
+                "phpunit/phpunit": "^8.0 || ^9.0 || ^10.0"
+            },
+            "suggest": {
+                "lib-openssl": "*"
+            },
+            "time": "2023-10-27T12:32:12+00:00",
+            "type": "library",
+            "installation-source": "source",
+            "autoload": {
+                "psr-4": {
+                    "phpWhois\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Kevin Lucich",
+                    "email": "info@lucichkevin.it"
+                },
+                {
+                    "name": "Mark Jeftovic",
+                    "email": "markjr@easydns.com"
+                },
+                {
+                    "name": "David Saez Padros",
+                    "email": "david@ols.es"
+                },
+                {
+                    "name": "Ross Golder",
+                    "email": "ross@golder.org"
+                },
+                {
+                    "name": "Dmitry Lukashin",
+                    "email": "dmitry@lukashin.ru"
+                },
+                {
+                    "name": "Joshua Smith",
+                    "email": "jsmith@jssm.com"
+                }
+            ],
+            "description": "phpWhois - library for querying whois services and parsing results.",
+            "homepage": "https://www.lucichkevin.it/phpWhois/",
+            "keywords": [
+                "php",
+                "phpwhois",
+                "whois"
+            ],
+            "support": {
+                "issues": "https://github.com/kevinoo/phpWhois/issues",
+                "source": "https://github.com/kevinoo/phpWhois/tree/v6.3.2"
+            },
+            "install-path": "../kevinoo/phpwhois"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}
