@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 40 2010-01-26 17:53:15Z gunny $
+ * $Id: StorageDB.php 46 2010-02-03 14:42:42Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -263,33 +263,70 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   }
 
   /**
+   * set the maximum value for dbMaxEntries (default: 50)
+   * Use 0 for no limit!
+   *
+   * @access   public
+   * @param    integer   the maximum value for dbMaxEntries
+   */
+  public function setDBMaxEntries($dbMaxEntries) {
+    if ( (int)$dbMaxEntries < 0 )
+      $dbMaxEntries = 0;
+    return $this->dbMaxEntries = (int)$dbMaxEntries;
+  }
+
+  /**
    * retrieve information from DB
    *
    * @access   protected
    * @param    string    the table to retrieve information from
    * @param    string    the column to look at
    * @param    string    the value to look up
+   * @param    boolean   whether or not to use a strict comparison between for value on column
+   * @param    string    parameter to SQLs "ORDER BY"-clause (ie. "id DESC") - modify at own risk!
    * @return   array     results OR FALSE in case of failure
    */
-  protected function doRetrieve($table, $index, $value) {
+  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null) {
     $elements = array();
 
-    // use $dbMaxEntries
-    if ($value == null) {
-      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." ORDER BY id DESC", $this->dbMaxEntries);
+    // if no value was specified, multiple results are requested
+    if ( $value === null ) {
+      // set this as a placeholder (it will always evaluate to TRUE in SQL)
+      $condition = "1 = 1";
     } else {
-      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$index."='".$value."'");
+      // choose whether to use a strict comparison for the values in column $index
+      if ( $strict === TRUE ) {
+        $condition = $index." = '".$value."'";
+      } else {
+        $condition = $index." like '".$value."'";
+      }
     }
+
+    // if requested choose a different sort order
+    if ( $order === null ) {
+      $sort_order = "id DESC";
+    } else {
+      $sort_order = $order;
+    }
+
+    // execute query
+    if ( $this->dbMaxEntries == 0 ) {
+      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$condition." ORDER BY ".$sort_order);
+    } else {
+      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." WHERE ".$condition. " ORDER BY ".$sort_order, $this->dbMaxEntries);
+    }
+
+    // first evaluation of the result
     if ( $result === FALSE )
       return $this->error(8, "unable to get data from '".$table."'");
 
-
+    // construct return array
     $x = 0;
     $prefix_length = strlen($this->dbSerializePrefix);
     while ( !$result->EOF ) {
       for ( $i = 0, $num = $result->FieldCount(); $i < $num; $i++ ) {
         $field = $result->FetchField($i);
-        if ( substr($result->Fields[$i], 0, $prefix_length) == $this->dbSerializePrefix ) {
+        if ( substr($result->Fields($field->name), 0, $prefix_length) == $this->dbSerializePrefix ) {
           $elements[$x][$field->name] = unserialize(base64_decode(substr($result->Fields($field->name), $prefix_length)));
         } else {
           $elements[$x][$field->name] = $result->Fields($field->name);

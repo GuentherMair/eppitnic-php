@@ -15,6 +15,14 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
+if ( $argc < 3 ) {
+  echo "SYNTAX: " . $argv[0] . " DOMAIN AUTHINFO\n";
+  exit(1);
+}
+
+$name = $argv[1];
+$authinfo = $argv[2];
+
 // send "hello"
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
@@ -28,23 +36,41 @@ if ( ! $session->hello() ) {
   } else {
     echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
 
-    // lookup domain
-    $name = "test1234567890.it";
+    // some details
     switch ( $domain->check($name) ) {
       case TRUE:
-        echo "Domain '".$name."' is still available, sorry!\n";
+        echo "Domain '".$name."' is available.\n";
+        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       case FALSE:
-        echo "Domain '".$name."' not available, trying to delete...";
-        if ( $domain->delete($name) ) {
-          echo " OK.\n";
-        } else {
-          echo " FAILED.\n";
-        }
+        echo "Domain '".$name."' is NOT available.\n";
         echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       default:
         echo "Error: '".$name."'.\n";
+        exit;
+        break;
+    }
+
+    // destroy domain object
+    unset($domain);
+
+    // recreate domain object
+    $domain = new Net_EPP_IT_Domain($nic, $db);
+    $domain->debug = LOG_DEBUG;
+
+    // load domain object
+    $domain->fetch($name);
+
+    // update domain
+    $domain->set('tech', $tech_new);
+    switch ( $domain->update() ) {
+      case TRUE:
+        echo "Domain '".$name."' is now up to date.\n";
+        break;
+      case FALSE:
+        echo "Update to domain '".$name."' FAILED!.\n";
+        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
     }
 

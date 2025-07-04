@@ -1,5 +1,7 @@
 <?php
 
+set_include_path('.:'.ini_get('include_path'));
+
 require_once 'Net/EPP/IT/Client.php';
 
 $nic = new Net_EPP_IT_Client();

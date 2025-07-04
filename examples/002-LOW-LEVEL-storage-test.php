@@ -1,5 +1,7 @@
 <?php
 
+set_include_path('.:'.ini_get('include_path'));
+
 require_once 'Net/EPP/IT/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 

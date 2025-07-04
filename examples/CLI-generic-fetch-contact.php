@@ -6,14 +6,20 @@ require_once 'Net/EPP/IT/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 require_once 'Net/EPP/IT/Session.php';
 require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
 
 $nic = new Net_EPP_IT_Client("config.xml");
 $db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
 $session = new Net_EPP_IT_Session($nic, $db);
 $session->debug = LOG_DEBUG;
-$domain = new Net_EPP_IT_Domain($nic, $db);
-$domain->debug = LOG_DEBUG;
+$contact = new Net_EPP_IT_Contact($nic, $db);
+$contact->debug = LOG_DEBUG;
+
+if ( $argc < 2 ) {
+  echo "SYNTAX: " . $argv[0] . " CONTACT\n";
+  exit(1);
+}
+
+$name = $argv[1];
 
 // send "hello"
 if ( ! $session->hello() ) {
@@ -28,20 +34,21 @@ if ( ! $session->hello() ) {
   } else {
     echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
 
-    // lookup domain
-    $name = "test1234567890.it";
-    switch ( $domain->check($name) ) {
+    // test check contact
+    switch ( $contact->check($name) ) {
       case TRUE:
-        echo "Domain '".$name."' is still available, sorry!\n";
+        echo "Contact '".$name."' is available.\n";
+        echo "Result code ".$contact->svCode.", '".$contact->svMsg."'.\n";
         break;
       case FALSE:
-        echo "Domain '".$name."' not available, trying to delete...";
-        if ( $domain->delete($name) ) {
-          echo " OK.\n";
+        echo "Contact '".$name."' exists:\n";
+        if ( $contact->fetch($name) ) {
+          echo " - name '" . $contact->get('name') . "'\n";
+          echo " - street '" . $contact->get('street') . "'\n";
+          echo " - city '" . $contact->get('city') . "'\n";
         } else {
-          echo " FAILED.\n";
+          echo "Error: code ".$contact->svCode.", '".$contact->svMsg."'.\n";
         }
-        echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;
       default:
         echo "Error: '".$name."'.\n";
@@ -58,6 +65,6 @@ if ( ! $session->hello() ) {
     // print credit
     echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
   }
-}  
+}
 
 ?>

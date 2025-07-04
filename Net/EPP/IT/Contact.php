@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 27 2009-10-17 17:41:11Z gunny $
+ * $Id: Contact.php 45 2010-02-03 14:17:48Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -356,7 +356,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server
-    if ( $this->ExecuteQuery("check-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
+    if ( $this->ExecuteQuery("check-contact", implode(";", $contact), ($this->debug >= LOG_DEBUG)) ) {
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
       if ( count($tmp->chkData->cd) == 1 ) {
         return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;

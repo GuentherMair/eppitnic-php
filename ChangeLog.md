@@ -1,7 +1,20 @@
+Version 2.3
+===========
+Added "set_include_path('.:'.ini_get('include_path'));" to all examples. This
+should help conflicts with "Net/" include paths defined in the system wide
+include_path setting.
+
+Handling of domain and contact arrays in check commands adjusted for DB usage.
+
+Added some more examples on how to use class extension on the StorageDB driver
+class.
+
+
 Version 2.2
 ===========
 Bugfix release. Changed an error in StorageDB.php which would log empty data
 when using the retrieveDomain method. Thanks to Luca for this hint!
+
 
 Version 2.1
 ===========

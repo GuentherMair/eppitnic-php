@@ -15,6 +15,13 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
+if ( $argc < 2 ) {
+  echo "SYNTAX: " . $argv[0] . " DOMAIN\n";
+  exit(1);
+}
+
+$name = $argv[1];
+
 // send "hello"
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
@@ -29,17 +36,24 @@ if ( ! $session->hello() ) {
     echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
 
     // lookup domain
-    $name = "test1234567890.it";
     switch ( $domain->check($name) ) {
       case TRUE:
         echo "Domain '".$name."' is still available, sorry!\n";
         break;
       case FALSE:
-        echo "Domain '".$name."' not available, trying to delete...";
-        if ( $domain->delete($name) ) {
-          echo " OK.\n";
+        echo "Domain '".$name."' not available, fetching information...\n";
+        if ( $domain->fetch($name) ) {
+          echo " - Registrant: " . $domain->get('registrant') . "\n";
+          echo " - Admin-C: " . $domain->get('admin') . "\n";
+          echo " - Tech-C: " . $domain->get('tech') . "\n";
+          echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
+          echo " - Status: " . $domain->state() . "\n";
+          $ns = $domain->get('ns');
+          foreach ($ns as $name) {
+            echo " - NS: " . $name['name'] . "\n";
+          }
         } else {
-          echo " FAILED.\n";
+          echo "FAILED\n";
         }
         echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";
         break;

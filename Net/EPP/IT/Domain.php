@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 29 2009-10-24 12:38:30Z gunny $
+ * $Id: Domain.php 45 2010-02-03 14:17:48Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -335,7 +335,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server
-    if ( $this->ExecuteQuery("check-domain", $contact, ($this->debug >= LOG_DEBUG)) ) {
+    if ( $this->ExecuteQuery("check-domain", implode(";", $domain), ($this->debug >= LOG_DEBUG)) ) {
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
       if ( count($tmp->chkData->cd) == 1 ) {
         if ( $tmp->chkData->cd->name->attributes()->avail == "true" ) {
