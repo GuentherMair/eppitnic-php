@@ -45,7 +45,9 @@ if ( ! $session->hello() ) {
           } else foreach ($tech as $single_tech) {
             echo " - Tech-C: " . $single_tech . "\n";
           }
-          echo " - Status: " . $domain->state() . "\n";
+          $state = $domain->get('status');
+          foreach ( $state as $s )
+            echo " - state '" . $s . "'\n";
           $ns = $domain->get('ns');
           foreach ($ns as $name) {
             echo " - NS: " . $name['name'] . "\n";

@@ -1,6 +1,6 @@
 <config>
   <DEBUG>0</DEBUG>
-  <server>https://epp-gtl.nic.it</server>
+  <server>https://epp.nic.it</server>
   <username>USERNAME</username>
   <password>PASSWORD</password>
   <lang>en</lang>
@@ -28,6 +28,9 @@
     <DNS>ns1.yourdomain.it[8.8.4.4][8.8.8.8];ns2.yourdomain.it</DNS>
     <TECHC>TECHC0001;TECHC0002</TECHC>
     <email>info@yourdomain.it</email>
+    <baseurl>http://eppitnic.yourdomain.it</baseurl>
+    <creditForecastDays>60</creditForecastDays>
+    <creditForecastItemPrice>4.50</creditForecastItemPrice>
   </webinterface>
   <billing>
     <CDR>/var/log/itnic_billing.cdr</CDR>

@@ -8,7 +8,6 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  *  - check domain (single and bulk operations supported)
  *  - create domain (EPP create command)
  *  - fetch domain (EPP info command)
- *  - state of domain (may be called after executing fetch)
  *  - update domain
  *  - update domain registrant
  *  - update domain status
@@ -61,22 +60,24 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 231 2010-10-29 13:44:03Z gunny $
+ * $Id: Domain.php 248 2010-11-11 00:16:04Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
   //         name              // change flag
-  protected $status;           // -
+  protected $status;           // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold + server-side states)
   protected $domain;           // -
   protected $changes;          // sum
-
-  protected $state;            // server-side
 
   protected $ns;               // 1
   protected $registrant;       // 2
   protected $admin;            // 4
   protected $tech;             // 8
   protected $authinfo;         // 16
+
+  // domain lifecycle
+  protected $crDate;
+  protected $exDate;
 
   // these are for internal use only (ie. update)
   protected $ns_initial;
@@ -111,7 +112,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @access   protected
    */
   protected function initValues() {
-    $this->status        = 0;
+    $this->status        = array();
     $this->domain        = "";
     $this->registrant    = "";
     $this->admin         = "";
@@ -122,8 +123,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->ns_initial    = array();
     $this->authinfo      = "";
     $this->changes       = 0;
-    $this->state         = null;
     $this->max_check     = 5;
+    $this->crDate        = "";
+    $this->exDate        = "";
     $this->trStatus      = "";
     $this->reID          = "";
     $this->acID          = "";
@@ -248,6 +250,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   public function addNS($name, $addr = null) {
     $dns1 = "";
     $dns2 = "";
+
+    // don't allow empty values
+    if ( empty($name) )
+      return FALSE;
 
     // if a nameserver by this name was already set stop here
     if ( ! isset($this->ns[$name]) ) {
@@ -487,6 +493,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     // query server and return answer (no handling of special return values)
     if ( $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
       $this->changes = 0;
+      $this->status = array('ok');
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
@@ -533,10 +540,15 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
 
       $this->domain = $domain;
-      $this->state = (string)$tmp->infData->status->attributes()->s;
+      $this->status = array();
+
       $this->registrant = (string)$tmp->infData->registrant;
       $this->authinfo = (string)$tmp->infData->authInfo->pw;
-      foreach ($tmp->infData->contact as $contact) {
+      $this->crDate = (string)$tmp->infData->crDate;
+      $this->exDate = (string)$tmp->infData->exDate;
+      foreach ( $tmp->infData->status as $singleState )
+        $this->status[] = (string)$singleState->attributes()->s;
+      foreach ( $tmp->infData->contact as $contact ) {
         $type = $contact->attributes()->type;
         if ( $type == "tech" ) {
           $this->addTECH((string)$contact);
@@ -557,7 +569,6 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
       // reset changes at the bottom
       $this->changes = 0;
-      $this->status = 0;
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
@@ -568,14 +579,14 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * print domain status - the state will be set after a call to fetch()
+   * print domain status - the states will be set after a call to fetch()
    *
    * @access   public
    * @return   mix     server side state (text-string or FALSE)
    */
   public function state() {
-    if ($this->state !== null)
-      return $this->state;
+    if ($this->status !== null)
+      return $this->status;
     else
       return FALSE;
   }
@@ -761,16 +772,20 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     switch ($state) {
       case "clientDeleteProhibited":
       case "clientUpdateProhibited":
+      case "clientTransferProhibited":
       case "clientHold":
         break;
       default;
-        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientHold'.");
+        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited', 'clientHold'.");
         return FALSE;
     }
 
     switch ($adddel) {
       case "add":
+        $this->status = array_merge($this->status, array($state));
+        break;
       case "rem":
+        $this->status = array_diff($this->status, array($state));
         break;
       default:
         $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
@@ -787,7 +802,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server
-    return $this->ExecuteQuery("update-domain-status", $this->handle, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("update-domain-status", $this->domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -830,11 +845,19 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['admin'] = $this->admin;
     $domain['tech'] = $this->tech;
     $domain['authinfo'] = $this->authinfo;
+    $domain['crDate'] = $this->crDate;
+    $domain['exDate'] = $this->exDate;
 
     // resolve a not very common case:
-    // - remove existing domain objects when storing (in case of a re-transfer-in or re-register)
-    // - don't delete if it is still marked as 'active' (that would confuse the value for 'lastInvoice')
-    $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."' AND active=0");
+    // - remove existing domain objects when storing (in case of a re-transfer-in or re-register or re-import)
+    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice FROM tbl_domains WHERE domain='".$this->domain."'");
+    if ( $result !== FALSE ) {
+      // - either don't delete if it is still marked as 'active' (that would confuse the value for 'lastInvoice')
+      // $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."' AND active=0");
+      // - or save the lastInvoice value!
+      $domain['lastInvoice'] = $result->Fields('lastInvoice');
+      $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
+    }
 
     if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;
@@ -926,6 +949,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if (($this->changes & 4) > 0) $data['admin'] = $this->admin;
     if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
     if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
+    $data['crDate'] = $this->crDate;
+    $data['exDate'] = $this->exDate;
 
     if ( $this->storage->updateDomain($data, $domain, $userID) ) {
       return TRUE;

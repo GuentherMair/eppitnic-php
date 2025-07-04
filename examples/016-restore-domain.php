@@ -23,7 +23,9 @@ function dump_domain($domain) {
     echo " - Registrant: " . $domain->get('registrant') . "\n";
     echo " - Admin-C: " . $domain->get('admin') . "\n";
     echo " - Tech-C: " . $domain->get('tech') . "\n";
-    echo " - Status: " . $domain->state() . "\n";
+    $state = $domain->get('status');
+    foreach ( $state as $s )
+      echo " - state '" . $s . "'\n";
     $ns = $domain->get('ns');
     foreach ($ns as $name) {
       echo " - NS: " . $name['name'] . "\n";

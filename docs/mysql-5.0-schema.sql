@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 231 2010-10-29 13:44:03Z gunny $
+-- $Id: mysql-5.0-schema.sql 247 2010-11-10 23:56:23Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -87,6 +87,8 @@ create table tbl_domains (
   authinfo              varchar(64),
   lastInvoice           timestamp DEFAULT CURRENT_TIMESTAMP,
   active                tinyint DEFAULT 1,
+  crDate                date,
+  exDate                date,
   PRIMARY KEY (id),
   CONSTRAINT FOREIGN KEY (userID) REFERENCES tbl_users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES tbl_contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE

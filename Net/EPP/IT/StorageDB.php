@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 230 2010-10-28 15:49:46Z gunny $
+ * $Id: StorageDB.php 240 2010-11-09 11:07:50Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -478,6 +478,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     $result = $this->dbConnect->Execute("
       SELECT
         t.*,
+        ".$this->dbConnect->SQLDate('d-m-Y', 'createdTime')." as date,
         d.userID,
         d.registrant
       FROM
@@ -488,7 +489,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
         t.domain = d.domain
       WHERE
         ".$condition.$acl."
-      ORDER BY id ASC"); // DON'T CHANGE!! A new transfer state message should overwrite an existing entry when transforming into an associative array
+      ORDER BY id DESC");
 
     // first evaluation of the result
     if ( $result === FALSE )

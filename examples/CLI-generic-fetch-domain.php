@@ -52,7 +52,9 @@ if ( ! $session->hello() ) {
             echo " - Tech-C: " . $single_tech . "\n";
           }
           echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
-          echo " - Status: " . $domain->state() . "\n";
+          $state = $domain->get('status');
+          foreach ( $state as $s )
+            echo " - state '" . $s . "'\n";
           $ns = $domain->get('ns');
           foreach ($ns as $name) {
             echo " - NS: " . $name['name'] . "\n";

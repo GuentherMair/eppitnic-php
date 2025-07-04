@@ -1,3 +1,20 @@
+Version 3.1
+===========
+A typo inside the domain object fixed. Thanks Luca!
+
+Support for clientTransferProhibited added to the domain object. Thanks
+to the guys at the registry and the new accreditation test!
+
+Support for multiple domain states added to the domain object including
+updates to all examples.
+
+Added support for the exDate domain information. This is a small update to the
+DB as well, with the big advantage that you could do credit-forecasts. This
+would only be an approximation though, and you will have to take into account
+how many domains you usualy register in any period of time (the crDate may be
+of some help in doing so).
+
+
 Version 3.0
 ===========
 Access to trStatus property in examples 019/020/021 fixed.
