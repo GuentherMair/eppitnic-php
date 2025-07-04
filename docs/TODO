@@ -11,13 +11,9 @@ After a little testing the PEAR System_Daemon class seems to be the right
 starting point... just see the "private/" folder. Any help would be welcome
 and that includes testing and finding bugs too...
 
-TODO 2
-------
-As soon as Smarty 3.0 is available make use of $_file_perms and $_dir_perms
-in the compile-dir failback function (see Client constructor).
-
 
 ==
+
 
 DONE 1
 ------
@@ -28,7 +24,11 @@ DONE 2
 ------
 WSDL backend interface implementation.
 
+DONE 3
+------
+As soon as Smarty 3.0 is available make use of $_file_perms and $_dir_perms
+in the compile-dir failback function (see Client constructor).
 
-==
 
-$Id: TODO 211 2010-10-25 12:00:00Z gunny $
+--
+$Id: TODO 291 2010-12-19 20:59:01Z gunny $

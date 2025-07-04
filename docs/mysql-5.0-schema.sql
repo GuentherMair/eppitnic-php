@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 254 2010-11-12 17:35:27Z gunny $
+-- $Id: mysql-5.0-schema.sql 286 2010-12-15 15:56:51Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -51,7 +51,7 @@ create table tbl_msgqueue (
 create table tbl_contacts (
   id                    serial,
   userID                bigint unsigned NOT NULL DEFAULT 1,
-  status                tinyint unsigned,
+  status                text,
   handle                varchar(32) unique NOT NULL,
   name                  varchar(64),
   org                   varchar(64),
@@ -79,7 +79,7 @@ create table tbl_contacts (
 create table tbl_domains (
   id                    serial,
   userID                bigint unsigned NOT NULL DEFAULT 1,
-  status                tinyint unsigned,
+  status                text,
   domain                varchar(255) unique NOT NULL,
   ns                    text,
   registrant            varchar(32) NOT NULL,

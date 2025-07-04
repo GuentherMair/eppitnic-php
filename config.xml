@@ -33,6 +33,7 @@
     <email>info@yourdomain.it</email>
     <sendallpollmessages>0</sendallpollmessages>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>
+    <displayAccounting>0</displayAccounting>
     <creditForecastDays>60</creditForecastDays>
     <creditForecastItemPrice>5.40</creditForecastItemPrice>
     <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>

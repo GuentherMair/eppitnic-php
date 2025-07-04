@@ -1,3 +1,18 @@
+Version 3.4
+===========
+Updated the status fields for tbl_contacts and tbl_domains, which were still
+and wrongly set to tinyint. They need to be text in order to support
+serialized status information (text array). Thanks Marcello!
+
+Added displayAccounting switch for the webinterface. When set, the
+webinterface will display accounting information in the same way the polling
+queue is displayed.
+
+Updated Smarty to version 3.0.6. The client-constructor now uses the
+$_file_perms and $_dir_perms variables when failback to /tmp for compile_dir
+is active. The failback now emitts a E_USER_NOTICE instead of E_USER_WARNING.
+
+
 Version 3.3
 ===========
 Updated the update-contact template in order to support authinfo-updates on

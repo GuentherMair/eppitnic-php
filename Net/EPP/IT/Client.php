@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 271 2010-11-17 15:43:31Z gunny $
+ * $Id: Client.php 296 2010-12-19 21:14:33Z gunny $
  */
 
 /*
@@ -80,8 +80,8 @@ if ( ! class_exists('Smarty') )
  */
 class Net_EPP_IT_Client extends Smarty
 {
-  var $EPPCfg;
-  var $EPPClient;
+  public $EPPCfg;
+  public $EPPClient;
 
   private $clTRID;
   private $DEFAULT_HEADERS = array('content-type' => 'text/xml; charset=UTF-8');
@@ -97,7 +97,7 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @param    string  configuration file or XML configuration string
    */
-  function __construct($cfg = null) {
+  public function __construct($cfg = null) {
     if ( $cfg === null )
       $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
 
@@ -132,8 +132,9 @@ class Net_EPP_IT_Client extends Smarty
     if ( ! is_writeable($this->compile_dir) )
       if ( is_writeable('/tmp') ) {
         // I'm not using "umask" because of the notice here: http://www.php.net/umask
-        // Smarty 3 will support file/directory permissions!
-        trigger_error("The folder '".$this->compile_dir."' was not writable and a failback to '/tmp' is currently active. Grant write permissions to the correct folder!", E_USER_WARNING);
+        trigger_error("The folder '".$this->compile_dir."' was not writable and a failback to '/tmp' is currently active. Grant write permissions to the correct folder!", E_USER_NOTICE);
+        $this->_file_perms = 0600;
+        $this->_dir_perms = 0700;
         $this->compile_dir = '/tmp';
       } else {
         die("[".__FILE__." @ ".__LINE__."] Smarty compile folder '".$this->compile_dir."' is not writeable. Solve problem before trying to continue.\n");
@@ -150,7 +151,7 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @return   string  a random transaction ID, also stored to $clTRID
    */
-  function set_clTRID() {
+  public function set_clTRID() {
     $this->clTRID = $this->EPPCfg->username."-".mktime()."-".substr(md5(rand()), 0, 5);
     if ( strlen($this->clTRID) > 32 )
       $this->clTRID = substr($this->clTRID, -32);
@@ -163,7 +164,7 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @return   string  the current transaction ID stored in $clTRID
    */
-  function get_clTRID() {
+  public function get_clTRID() {
     return $this->clTRID;
   }
 
@@ -173,7 +174,7 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @return   array   the HTTP_Client response: (int) code, (array) headers, (string) body
    */
-  function sendRequest($data) {
+  public function sendRequest($data) {
     if ( $this->EPPClient->valid() ) $this->EPPClient->next();
     $this->EPPClient->post($this->EPPCfg->server, ($this->forceUTF8 ? utf8_encode($data) : $data), true);
     return $this->fetchResponse();
@@ -185,7 +186,7 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @return   array   the latest HTTP_Client response: (int) code, (array) headers, (string) body
    */
-  function fetchResponse() {
+  public function fetchResponse() {
     return $this->EPPClient->current();
   }
 
@@ -196,7 +197,7 @@ class Net_EPP_IT_Client extends Smarty
    * @param    string  option xml string to be parsed
    * @return   object  xml class structure
    */
-  function parseResponse($xml = null) {
+  public function parseResponse($xml = null) {
     if ( $xml == null ) {
       $response = $this->fetchResponse();
       return @simplexml_load_string($response[body]);
@@ -211,7 +212,7 @@ class Net_EPP_IT_Client extends Smarty
    *
    * @access   public
    */
-  function __destruct() {
+  public function __destruct() {
     if ( is_object($this->EPPClient) ) $this->EPPClient->reset();
   }
 
