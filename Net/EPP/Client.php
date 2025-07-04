@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 367 2011-06-06 14:26:42Z gunny $
+ * $Id: Client.php 379 2011-08-18 11:55:08Z gunny $
  */
 
 /**
@@ -156,10 +156,11 @@ class Net_EPP_Client extends Smarty
 
     // set server port
     if ( ! @empty($this->EPPCfg->port) )
-      if ( is_numeric($this->EPPCfg->port) )
-        $this->httpClient->setPort($this->EPPCfg->port);
-      else
-        exit("The port specified in the configuration file (".$this->EPPCfg->port.") is not numeric.\n");
+      $this->httpClient->setPort((int)$this->EPPCfg->port);
+
+    // set server port
+    if ( ! @empty($this->EPPCfg->debugfile) )
+      $this->httpClient->setDebugFile((int)$this->EPPCfg->debugfile);
 
     // setup client certificate
     if ( ! @empty($this->EPPCfg->certificatefile) ) {

@@ -1,3 +1,12 @@
+Version 4.4
+===========
+Added missing userID field to tbl_transfer. Renamed apache configuration file
+for WSDL to docs/apache-vhost-wsdl.
+
+Fixed a typo in Net/EPP/IT/WSDL/contact.info.php (space character after name
+column field removed).
+
+
 Version 4.3
 ===========
 Now checking PHP Version in order not to break php version older than 5.2.3

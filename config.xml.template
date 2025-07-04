@@ -1,13 +1,14 @@
 <config>
   <DEBUG>0</DEBUG>
-  <server>https://epp.nic.it</server>
+  <server>https://SERVER</server>
   <port></port>
+  <debugfile></debugfile>
   <username>USERNAME</username>
   <password>PASSWORD</password>
   <timezone>Europe/Rome</timezone>
   <interface></interface>
   <lang>en</lang>
-  <clTRIDprefix>USERNAME</clTRIDprefix>
+  <clTRIDprefix>CLTRIDPREFIX</clTRIDprefix>
   <cookie_dir>/tmp</cookie_dir>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
@@ -27,14 +28,14 @@
     <dbmagicquotes>1</dbmagicquotes>
   </adodb>
   <webinterface>
-    <handleprefix>USERNAME-</handleprefix>
+    <handleprefix>HANDLEPREFIX-</handleprefix>
     <locale>it_IT</locale>
     <fetchDBonly>0</fetchDBonly>
-    <DNSnotifyScript>/usr/local/sbin/domain_notify.sh</DNSnotifyScript>
-    <DNS>ns1.yourdomain.it[8.8.4.4][8.8.8.8];ns2.yourdomain.it</DNS>
-    <TECHC>TECHC0001;TECHC0002</TECHC>
-    <email>info@yourdomain.it</email>
-    <sendallpollmessages>0</sendallpollmessages>
+    <DNSnotifyScript></DNSnotifyScript>
+    <DNS>DNS1;DNS2</DNS>
+    <TECHC>TECHC1</TECHC>
+    <email>EMAIL</email>
+    <sendallpollmessages>SENDALL</sendallpollmessages>
     <dontsendcustomermessages>0</dontsendcustomermessages>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>
     <displayAccounting>0</displayAccounting>

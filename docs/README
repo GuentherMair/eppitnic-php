@@ -12,7 +12,14 @@ REQUIREMENTS
 HOWTO USE
 =========
 
-Simply try to have a look at the 'examples' folder!
+Create a copy of the "config.xml.template", naming it "config.xml". Choose one
+of the following as server name:
+
+ - epp.nic.it (for production use)
+ - pub-test.nic.it (for testing purposes)
+
+After you have set up the remaining configuration file, simply try to have a
+look at the 'examples' folder!
 
 If you want to use the WSDL interface, there is little to be said. Scripts for
 testing are included in the 'examples-wsdl' folder and documentation can be
@@ -43,4 +50,4 @@ F) WSDL interface (see examples-wsdl/ and docs/ folder)
 
 ==
 
-$Id: README 344 2011-05-10 20:55:46Z gunny $
+$Id: README 389 2011-09-14 15:26:04Z gunny $

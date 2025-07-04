@@ -15,6 +15,7 @@
  *  - setUrl
  *  - setUserAgent
  *  - setHeaders
+ *  - setDebugFile
  *  - query
  *  - getHttpStatus
  *  - getHttpHeaders
@@ -77,6 +78,7 @@ class Net_EPP_Curl
   protected $_maxRedirects = 4;
   protected $_interface = "";
   protected $_binaryTransfer = false;
+  protected $_debugFile = false;
 
   protected $_status;
   protected $_headers;
@@ -97,12 +99,24 @@ class Net_EPP_Curl
         exit("FATAL ERROR: cookie file FOLDER '".dirname($this->_cookieFileLocation)."' is NOT writeable\n");
   }
 
+  public function __destruct() {
+    if ( $this->_debugFile !== false )
+      fclose($this->_debugFile);
+  }
+
   public function setClientCert($certFile) {
     $this->_certFile = $certFile;
   }
 
   public function setInterface($interface) {
     $this->_interface = $interface;
+  }
+
+  public function setDebugFile($file) {
+    if ( is_writeable((file_exists($file) ? $file : dirname($file))) )
+      $this->_debugFile = fopen($file, 'a+');
+    else
+      exit("FATAL ERROR: debug file '".$file."' is NOT writeable\n");
   }
 
   public function setMaxRedirects($maxRedirects) {
@@ -185,6 +199,11 @@ class Net_EPP_Curl
     if ( !empty($this->_certFile) ) {
       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
       curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
+    }
+
+    if ( $this->_debugFile !== false ) {
+      curl_setopt($ch, CURLOPT_VERBOSE, true);
+      curl_setopt($ch, CURLOPT_STDERR, $this->_debugFile);
     }
 
     $response = curl_exec($ch);

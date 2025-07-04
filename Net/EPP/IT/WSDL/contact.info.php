@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: contact.info.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: contact.info.php 397 2012-01-05 11:35:04Z gunny $
  */
 
 /*
@@ -52,7 +52,7 @@ $server->register(
   array('status'               => 'xsd:int',
         'statusDescription'    => 'xsd:string',
         'handle'               => 'xsd:string',
-        'name '                => 'xsd:string',
+        'name'                 => 'xsd:string',
         'org'                  => 'xsd:string',
         'street'               => 'xsd:string',
         'street2'              => 'xsd:string',
@@ -102,7 +102,7 @@ function ContactInfo($handle) {
   return array('status'               => $c->statusCode,
                'statusDescription'    => $c->statusDescription(),
                'handle'               => $c->contact->get('handle'),
-               'name '                => $c->contact->get('name'),
+               'name'                 => $c->contact->get('name'),
                'org'                  => $c->contact->get('org'),
                'street'               => $c->contact->get('street'),
                'street2'              => $c->contact->get('street2'),

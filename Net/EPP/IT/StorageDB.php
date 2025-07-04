@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 324 2011-03-08 14:43:08Z gunny $
+ * $Id: StorageDB.php 382 2011-09-02 09:21:36Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -71,7 +71,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
       $this->dbForceQuotes = TRUE;
     $this->dbConnect = ADONewConnection($cfg->dbtype);
     if ( ! $this->dbConnect )
-      return $this->setError(1, "unable to load adodb database driver '".$cfg->dbConnecttype."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(1, "unable to load adodb database driver '".$cfg->dbtype."': ".$this->dbConnect->ErrorMsg());
     if ( ! $this->dbConnect->Connect($cfg->dbhost, $cfg->dbuser, $cfg->dbpwd, $cfg->dbname) )
       return $this->setError(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."': ".$this->dbConnect->ErrorMsg());
     $this->dbConnect->setFetchMode(ADODB_FETCH_ASSOC);
@@ -163,7 +163,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     }
 
     // ACL settings
-    if ( in_array($table, array('tbl_contacts', 'tbl_domains')) ) {
+    if ( in_array($table, array('tbl_contacts', 'tbl_domains', 'tbl_transfers')) ) {
       $keys[] = 'userid';
       $values[] = $this->escape($userid);
     }

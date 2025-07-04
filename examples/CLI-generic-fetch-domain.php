@@ -46,19 +46,19 @@ if ( ! $session->hello() ) {
           echo " - Registrant: " . $domain->get('registrant') . "\n";
           echo " - Admin-C: " . $domain->get('admin') . "\n";
           $tech = $domain->get('tech');
-          if ( ! is_array($tech) ) {
+          if ( ! is_array($tech) )
             echo " - Tech-C: " . $tech . "\n";
-          } else foreach ($tech as $single_tech) {
+          else foreach ($tech as $single_tech)
             echo " - Tech-C: " . $single_tech . "\n";
-          }
           echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
           $state = $domain->get('status');
           foreach ( $state as $s )
             echo " - state '" . $s . "'\n";
           $ns = $domain->get('ns');
-          foreach ($ns as $name) {
+          foreach ($ns as $name)
             echo " - NS: " . $name['name'] . "\n";
-          }
+          echo " - crDate: " . $domain->get('crDate') . "\n";
+          echo " - exDate: " . $domain->get('exDate') . "\n";
         } else {
           echo "FAILED (".$domain->getError().").\n";
         }
