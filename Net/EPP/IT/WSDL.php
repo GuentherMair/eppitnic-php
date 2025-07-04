@@ -45,7 +45,7 @@ require_once 'Net/EPP/IT/Domain.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id$
+ * $Id: WSDL.php 162 2010-10-18 00:27:43Z gunny $
  */
 
 class Net_EPP_IT_WSDL

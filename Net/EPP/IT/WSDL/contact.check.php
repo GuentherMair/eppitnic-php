@@ -1,5 +1,45 @@
 <?php
 
+/**
+ * This file is part of the WSDL interface to the EPP library.
+ *
+ * PHP version 5
+ *
+ * LICENSE:
+ *
+ * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1) Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2) Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3) Neither the name of Günther Mair nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @license     http://opensource.org/licenses/bsd-license.php New BSD License
+ *
+ * $Id: contact.check.php 163 2010-10-18 00:44:24Z gunny $
+ */
+
 /*
  * register the SOAP method
  */
@@ -16,16 +56,7 @@ $server->register(
   // OUTPUT
   array('status'            => 'xsd:int',
         'statusDescription' => 'xsd:string',
-        'handle1'           => 'xsd:string',
-        'statusHandle1'     => 'xsd:string',
-        'handle2'           => 'xsd:string',
-        'statusHandle2'     => 'xsd:string',
-        'handle3'           => 'xsd:string',
-        'statusHandle3'     => 'xsd:string',
-        'handle4'           => 'xsd:string',
-        'statusHandle4'     => 'xsd:string',
-        'handle5'           => 'xsd:string',
-        'statusHandle5'     => 'xsd:string',
+        'ContactCheckArray' => 'tns:ContactCheckArray',
         ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
@@ -43,13 +74,16 @@ $server->register(
  * now implement the SOAP method in PHP
  */
 function ContactCheck($handle1,
-                      $handle2,
-                      $handle3,
-                      $handle4,
-                      $handle5) {
+                      $handle2 = "",
+                      $handle3 = "",
+                      $handle4 = "",
+                      $handle5 = "") {
 
   // create object
   $c = new Net_EPP_IT_WSDL();
+  $ContactCheckArray = array();
+  $contacts = array();
+  $states = array();
 
   // verify that we have at least one handle
   if ( empty($handle1) )
@@ -57,12 +91,28 @@ function ContactCheck($handle1,
 
   // connect and check contacts
   if ( ($c->statusCode == 1000) && $c->connect() ) {
-    $statusHandle1 = $c->contact->check($handle1) ? "available" : "unavailable";
-    if ( !empty($handle2) ) $statusHandle2 = $c->contact->check($handle2) ? "available" : "unavailable";
-    if ( !empty($handle3) ) $statusHandle3 = $c->contact->check($handle3) ? "available" : "unavailable";
-    if ( !empty($handle4) ) $statusHandle4 = $c->contact->check($handle4) ? "available" : "unavailable";
-    if ( !empty($handle5) ) $statusHandle5 = $c->contact->check($handle5) ? "available" : "unavailable";
+    $contacts[] = $handle1;
+    $states[] = $c->contact->check($handle1) ? "available" : "unavailable";
+    if ( !empty($handle2) ) {
+      $contacts[] = $handle2;
+      $states[] = $c->contact->check($handle2) ? "available" : "unavailable";
+    }
+    if ( !empty($handle3) ) {
+      $contacts[] = $handle3;
+      $states[] = $c->contact->check($handle3) ? "available" : "unavailable";
+    }
+    if ( !empty($handle4) ) {
+      $contacts[] = $handle4;
+      $states[] = $c->contact->check($handle4) ? "available" : "unavailable";
+    }
+    if ( !empty($handle5) ) {
+      $contacts[] = $handle5;
+      $states[] = $c->contact->check($handle5) ? "available" : "unavailable";
+    }
   }
+
+  $ContactCheckArray = array('contact' => $contacts,
+                             'status'  => $states);
 
   // disconnect
   $c->disconnect();
@@ -70,16 +120,7 @@ function ContactCheck($handle1,
   // return values as defined by the SOAP interface description above
   return array('status'            => $c->statusCode,
                'statusDescription' => $c->statusDescription(),
-               'handle1'           => $handle1,
-               'statusHandle1'     => $statusHandle1,
-               'handle2'           => $handle2,
-               'statusHandle2'     => $statusHandle2,
-               'handle3'           => $handle3,
-               'statusHandle3'     => $statusHandle3,
-               'handle4'           => $handle4,
-               'statusHandle4'     => $statusHandle4,
-               'handle5'           => $handle5,
-               'statusHandle5'     => $statusHandle5,
+               'ContactCheckArray' => $ContactCheckArray,
                );
 }
 

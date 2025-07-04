@@ -13,3 +13,27 @@ $server->wsdl->addComplexType(
   )
 );
 
+$server->wsdl->addComplexType(
+  'ContactCheckArray',
+  'complexType',
+  'struct',
+  'sequence',
+  '',
+  array(
+    'contact' => array('name' => 'contact', 'type' => 'xsd:string', 'minOccurs' => '1', 'maxOccurs' => '5'),
+    'status'  => array('name' => 'status',  'type' => 'xsd:string', 'minOccurs' => '1', 'maxOccurs' => '5'),
+  )
+);
+
+$server->wsdl->addComplexType(
+  'DomainCheckArray',
+  'complexType',
+  'struct',
+  'sequence',
+  '',
+  array(
+    'domain' => array('name' => 'domain', 'type' => 'xsd:string', 'minOccurs' => '1', 'maxOccurs' => '5'),
+    'status' => array('name' => 'status', 'type' => 'xsd:string', 'minOccurs' => '1', 'maxOccurs' => '5'),
+  )
+);
+

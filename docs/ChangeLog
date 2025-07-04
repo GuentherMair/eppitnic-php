@@ -4,6 +4,8 @@ The DB layout changed in order to support user ownership on objects (mandants).
 This obviously constitutes a breach in the continuity of some DB access
 methods and is underlined by an upgrade of the major version number.
 
+WSDL support is here! All functions can be accessed as webservices now.
+
 Minor changes include, but are not restricted to the following:
 ---------------------------------------------------------------
 
