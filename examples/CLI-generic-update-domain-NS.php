@@ -14,7 +14,7 @@ $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
 if ( $argc < 4 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] NS\n";
+  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] NS[:NS:NS:NS:NS:NS]\n";
   exit(1);
 }
 
@@ -47,13 +47,22 @@ if ( ! $session->hello() ) {
     // load domain object
     $domain->fetch($name);
 
+    // split NS record information
+    $ns_array = array_slice(split(":", $ns), 0, 6);
+
     // change technical contacts
     switch ($op_type) {
       case 'add':
-        $domain->addNS($ns);
+        foreach ($ns_array as $single_ns) {
+          echo "Adding NS: ".$single_ns."\n";
+          $domain->addNS($single_ns);
+        }
         break;
       case 'remove':
-        $domain->remNS($ns);
+        foreach ($ns_array as $single_ns) {
+          echo "Removing NS: ".$single_ns."\n";
+          $domain->remNS($single_ns);
+        }
         break;
     }
 

@@ -38,7 +38,7 @@
           <domain:ns>
             {foreach from=$nameservers_rem item=ns}
             <domain:hostAttr>
-              <domain:hostName>{$ns}</domain:hostName>
+              <domain:hostName>{$ns.name}</domain:hostName>
             </domain:hostAttr>
             {/foreach}
           </domain:ns>

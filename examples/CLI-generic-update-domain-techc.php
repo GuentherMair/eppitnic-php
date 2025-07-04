@@ -14,7 +14,7 @@ $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
 if ( $argc < 4 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] CONTACT\n";
+  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] CONTACT[:CONTACT:CONTACT:CONTACT:CONTACT:CONTACT]\n";
   exit(1);
 }
 
@@ -47,13 +47,22 @@ if ( ! $session->hello() ) {
     // load domain object
     $domain->fetch($name);
 
+    // split CONTACT information
+    $contact_array = array_slice(split(":", $contact), 0, 6);
+
     // change technical contacts
     switch ($op_type) {
       case 'add':
-        $domain->addTECH($contact);
+        foreach ($contact_array as $single_contact) {
+          echo "Adding NS: ".$single_contact."\n";
+          $domain->addTECH($single_contact);
+        }
         break;
       case 'remove':
-        $domain->remTECH($contact);
+        foreach ($contact_array as $single_contact) {
+          echo "Removing NS: ".$single_contact."\n";
+          $domain->remTECH($single_contact);
+        }
         break;
     }
 

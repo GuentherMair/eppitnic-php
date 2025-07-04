@@ -1,3 +1,10 @@
+Version 2.8
+===========
+Removed a minor error from the update-domain template. Also updated both CLI
+examples for updating NS and tech-c records in order to support adding or
+removing of multiple values in one go. Thanks Marco for pointing both out!
+
+
 Version 2.7
 ===========
 Adding NS records and technical contacts that already exist will no longer be

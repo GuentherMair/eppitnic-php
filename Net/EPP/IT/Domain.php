@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 71 2010-03-29 07:15:58Z gunny $
+ * $Id: Domain.php 78 2010-04-09 08:23:13Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -597,6 +597,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if (($this->changes & 1) > 0) {
 
       // strip everything down to a 1-dimensional array
+      $tmpA = array();
+      $tmpB = array();
       foreach ($this->ns as $name => $values)
         $tmpA[] = $name;
       foreach ($this->ns_initial as $name => $values)
