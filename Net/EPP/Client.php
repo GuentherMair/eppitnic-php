@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 379 2011-08-18 11:55:08Z gunny $
+ * $Id: Client.php 400 2012-02-05 16:55:02Z gunny $
  */
 
 /**
@@ -197,7 +197,7 @@ class Net_EPP_Client extends Smarty
    * @return   string  a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID() {
-    $this->clTRID = $this->EPPCfg->clTRIDprefix."-".mktime()."-".substr(md5(rand()), 0, 5);
+    $this->clTRID = $this->EPPCfg->clTRIDprefix."-".time()."-".substr(md5(rand()), 0, 5);
     if ( strlen($this->clTRID) > 32 )
       $this->clTRID = substr($this->clTRID, -32);
     return $this->clTRID;

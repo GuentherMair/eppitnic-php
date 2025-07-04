@@ -41,7 +41,7 @@ require_once 'libs/nusoap/nusoap.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.update.php 210 2010-10-25 11:50:40Z gunny $
+ * $Id: domain.update.php 403 2012-03-26 12:53:15Z gunny $
  */
 
 $client = new nusoap_client('http://127.0.0.1:8090/wsdl.php?wsdl', true);
@@ -53,7 +53,7 @@ if ($err) {
 }
 
 $input = array('domain' => 'test-guentherABC.it',
-               'addtech1' => 'GMHNDL0002',
+               'addtech' => 'GMHNDL0002',
                'authInfo' => 'testdomain12345abc',
                );
 $output = $client->call('DomainUpdate', $input);

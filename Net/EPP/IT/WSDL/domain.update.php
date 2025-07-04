@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.update.php 349 2011-05-23 08:53:16Z gunny $
+ * $Id: domain.update.php 401 2012-03-26 12:26:34Z gunny $
  */
 
 /*
@@ -50,16 +50,11 @@ $server->register(
   array('domain'            => 'xsd:string',
         'admin'             => 'xsd:string',
         'authInfo'          => 'xsd:string',
-        'addtech1'          => 'xsd:string',
-        'addtech2'          => 'xsd:string',
-        'remtech1'          => 'xsd:string',
-        'remtech2'          => 'xsd:string',
-        'addns1'            => 'xsd:string',
-        'addns1ip'          => 'xsd:string',
-        'addns2'            => 'xsd:string',
-        'addns2ip'          => 'xsd:string',
-        'remns1'            => 'xsd:string',
-        'remns2'            => 'xsd:string',
+        'addtech'           => 'xsd:string', // separate by semicolon
+        'remtech'           => 'xsd:string', // separate by semicolon
+        'addns'             => 'xsd:string', // separate by semicolon
+        'addnsIP'           => 'xsd:string', // separate by semicolon
+        'remns'             => 'xsd:string', // separate by semicolon
         ),
   // OUTPUT
   array('status'            => 'xsd:int',
@@ -85,16 +80,11 @@ $server->register(
 function DomainUpdate($domain,
                       $admin = "",
                       $authInfo = "",
-                      $addtech1 = "",
-                      $addtech2 = "",
-                      $remtech1 = "",
-                      $remtech2 = "",
-                      $addns1 = "",
-                      $addns1ip = "",
-                      $addns2 = "",
-                      $addns2ip = "",
-                      $remns1 = "",
-                      $remns2 = "") {
+                      $addtech = "",
+                      $remtech = "",
+                      $addns = "",
+                      $addnsIP = "",
+                      $remns = "") {
 
   // create object
   $c = new Net_EPP_IT_WSDL();
@@ -122,15 +112,20 @@ function DomainUpdate($domain,
     if ( !empty($admin) )      $c->domain->set('admin',      $admin);
     if ( !empty($authInfo) )   $c->domain->set('authinfo',   $authInfo);
 
-    if ( !empty($addtech1) )   $c->domain->addTECH($addtech1);
-    if ( !empty($addtech2) )   $c->domain->addTECH($addtech2);
-    if ( !empty($remtech1) )   $c->domain->remTECH($remtech1);
-    if ( !empty($remtech2) )   $c->domain->remTECH($remtech2);
+    $tech_list = explode(";", $addtech);
+    foreach ($tech_list as $tech)
+      $c->domain->addTECH($tech);
+    $tech_list = explode(";", $remtech);
+    foreach ($tech_list as $tech)
+      $c->domain->remTECH($tech);
 
-    if ( !empty($addns1) )     $c->domain->addNS($addns1, $addns1ip);
-    if ( !empty($addns2) )     $c->domain->addNS($addns2, $addns2ip);
-    if ( !empty($remns1) )     $c->domain->remNS($remns1);
-    if ( !empty($remns2) )     $c->domain->remNS($remns2);
+    $ns_list = explode(";", $remns);
+    foreach ($ns_list as $ns)
+      $c->domain->remNS($ns);
+    $ns_list = explode(";", $addns);
+    $ip_list = explode(";", $addnsIP);
+    for ($i = 0; $i < count($ns_list); $i++)
+      $c->domain->addNS($ns_list[$i], $ip_list[$i]);
 
     if ( ! $c->domain->update() )
       $c->createErrMsg($c->domain, 4001);

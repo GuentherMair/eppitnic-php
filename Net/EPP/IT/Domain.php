@@ -67,7 +67,7 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 369 2011-06-08 08:36:22Z gunny $
+ * $Id: Domain.php 400 2012-02-05 16:55:02Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
@@ -115,7 +115,6 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   function __construct(&$client, &$storage) {
     parent::__construct($client, $storage);
 
-    $this->authinfo = $this->authinfo();
     $this->initValues();
     //$this->idn = new idna_convert(array('encode_german_sz' => true));
     $this->idn = new idna_convert();
@@ -136,7 +135,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->tech_initial  = array();
     $this->ns            = array();
     $this->ns_initial    = array();
-    $this->authinfo      = "";
+    $this->authinfo      = $this->authinfo();
     $this->changes       = 0;
     $this->max_check     = 5;
     $this->crDate        = "";

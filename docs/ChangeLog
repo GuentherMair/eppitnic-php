@@ -1,3 +1,9 @@
+Version 4.5
+===========
+Updated the DomainUpdate WSDL function so the amount of contacts and ns records
+to add/remove is not static (to be devided by semicolons).
+
+
 Version 4.4
 ===========
 Added missing userID field to tbl_transfer. Renamed apache configuration file
