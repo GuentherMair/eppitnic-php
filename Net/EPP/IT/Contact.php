@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: Contact.php 21 2009-10-12 19:44:37Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -277,30 +277,40 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $this->org = $this->name;
 
     /*
-     * relation entitytype 1, nationalitycode IT <=> regcode
+     * relation entitytype <=> regcode
+     *
+     * These checks are a rough guess at some points.
+     *
+     * Thanks to Mr. Fundinger for pointing out a previous mistake!
      */
-    if ( (($this->entitytype == 1) &&
-          ($this->nationalitycode == "IT")) &&
-       ! ((strlen($this->regcode) == 16) &&
-          (ctype_alnum($this->regcode)) &&
-          (ctype_digit(substr($this->regcode, 6, 2))) &&
-          (ctype_digit(substr($this->regcode, 9, 2))) &&
-          (ctype_digit(substr($this->regcode, 12, 3)))) )
-      $error |= 128;
-
-    /*
-     * relation entitytype != 1 <=> regcode
-     */
-    if ( ($this->entitytype > 1) &&
-         ( ! ctype_digit($this->regcode)) )
-      $error |= 256;
-
-    /*
-     * relation entitytype 4 <=> regcode
-     */
-    if ( ($this->entitytype == 4) &&
-         ( ! (ctype_digit($this->regcode) || ($this->regcode == "n.a.")) ) )
-      $error |= 512;
+    switch ($this->entitytype) {
+      case 1: // persone fisiche italiane e straniere
+        if ( $this->nationalitycode == "IT" ) {
+          if ( ! ((strlen($this->regcode) == 16) &&
+                 ctype_alnum($this->regcode) &&
+                 ctype_digit(substr($this->regcode, 6, 2)) &&
+                 ctype_digit(substr($this->regcode, 9, 2)) &&
+                 ctype_digit(substr($this->regcode, 12, 3))) &&
+               ($this->regcode <> "n.a.") )
+            $error |= 128;
+        } else {
+          // content of regcode is not defined for this case
+        }
+        break;
+      case 4: // enti no-profit
+        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a.") )
+          $error |= 512;
+        break;
+      case 2: // società/imprese individuali
+      case 3: // liberi professionisti/ordini professionali
+      case 5: // enti pubblici
+      case 6: // altri soggetti
+        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11 )
+          $error |= 256;
+        break;
+      case 7: // soggetti stranieri equiparati ai precedenti escluso le persone fisiche
+        break;
+    }
 
     /*
      * basic data must be filled in

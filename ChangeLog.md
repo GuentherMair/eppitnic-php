@@ -1,3 +1,11 @@
+Version 1.2
+===========
+
+Added an optional "newPW" parameter to Net_EPP_IT_Session's login method.
+Updated basic checks related to the Domain and Contact classes EntityType
+property.
+
+
 Version 1.1
 ===========
 

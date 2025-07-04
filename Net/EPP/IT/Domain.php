@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 19 2009-10-03 17:39:44Z gunny $
+ * $Id: Domain.php 21 2009-10-12 19:44:37Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -269,11 +269,26 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
     /*
      * different contacts
+     *
+     * This check is temporarily disabled because it depends on the registrants
+     * "EntityType" value as specified by the registry:
+     *
+     *   'Se il Registrante è una persona fisica (EntityType = 1) il
+     *    Registrante ed il contatto am- ministrativo (admin) devono
+     *    coincidere. Tali campi dovranno, pertanto, contenere lo
+     *    stesso contact-ID associato ad un contatto, già registrato
+     *    nel Database del Registro, completo dell’estensione relativa
+     *    ai dati del Registrante.'
+     *
+     * To re-enable this check, we would need to execute a info-contact command
+     * and then compare the return value for EntityType.
+     *
+     * Thanks to Mr. Fundinger for pointing this out!
      */
-    if ( ($this->registrant == $this->admin) ||
-         ($this->registrant == $this->tech) ||
-         ($this->admin == $this->tech) )
-      $error |= 64;
+    //if ( ($this->registrant == $this->admin) ||
+    //     ($this->registrant == $this->tech) ||
+    //     ($this->admin == $this->tech) )
+    //  $error |= 64;
 
     /*
      * glue records (this does not care about v4/v6)

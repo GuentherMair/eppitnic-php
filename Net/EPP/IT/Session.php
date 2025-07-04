@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: Session.php 21 2009-10-12 19:44:37Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -111,13 +111,15 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
    * session login
    *
    * @access   public
+   * @param    string optional new password
    * @return   mix    status (FALSE or EPP status code)
    */
-  public function login() {
+  public function login($newPW = "") {
     // fill xml template
     $this->client->assign('username', $this->client->EPPCfg->username);
     $this->client->assign('password', $this->client->EPPCfg->password);
     $this->client->assign('lang', $this->client->EPPCfg->lang);
+    if ( $newPW != "" ) $this->client->assign('newPW', $newPW);
 
     return $this->loginout("login");
   }
