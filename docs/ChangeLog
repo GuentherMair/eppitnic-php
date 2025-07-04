@@ -1,3 +1,29 @@
+Version 5.3
+===========
+Contact objects now allow for "entitytype = 0" (for example a TECHC without
+any details except address information).
+
+infContacts support added to domain object and WSDL interface. This includes
+examples.
+
+Minor issue related to default userid assignment to domain object fixed, which
+mainly only relates to the user (agent) management provided by the grafical
+interface.
+
+
+Version 5.2
+===========
+Examples folder cleaned up. Modified the add/rem methods used by the Domain
+object in order to allow modification when there are already 6 NS or tech
+contacts assigned to a domain.
+
+
+Version 5.1
+===========
+Bugfix which relates to extValueReasonCode in Net/EPP/AbstractObject.php (this
+value has been placed underneath the extepp namespace by IT#NIC's 2.0 release.
+
+
 Version 5.0
 ===========
 This version now supports IT-NIC's 2.0 release.

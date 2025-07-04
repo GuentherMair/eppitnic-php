@@ -75,7 +75,7 @@ if ( ! defined('PHP_VERSION_ID')) {
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 425 2012-06-22 13:25:53Z gunny $
+ * $Id: Domain.php 451 2013-08-19 19:40:48Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
@@ -108,6 +108,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   // max checks allowed
   protected $max_check;
 
+  // infContacts
+  protected $infcontacts;
+
   // IDN <=> punycode converter class
   protected $idn;
 
@@ -134,6 +137,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   protected
    */
   protected function initValues() {
+    $this->userid        = 1;
     $this->status        = array();
     $this->domain        = "";
     $this->registrant    = "";
@@ -151,6 +155,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->trStatus      = "";
     $this->reID          = "";
     $this->acID          = "";
+    $this->infcontacts   = array();
   }
 
   /**
@@ -240,12 +245,6 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // if a technical contact by this name was already set stop here
     if ( ! isset($this->tech[$name]) ) {
 
-      // check that we are not exceeding the maximum number of allowed technical contacts
-      if ( count($this->tech) >= 6 ) {
-        $this->setError("You are not allowed to assign more than 6 tech contacts to a domain.");
-        return FALSE;
-      }
-
       // assign technical contact
       $this->tech[$name] = $name;
       $this->changes |= 8;
@@ -331,12 +330,6 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
         $this->remNS($name);
       else
         return $name;
-    }
-
-    // check that we are not exceeding the maximum number of allowed NS records
-    if ( count($this->ns) >= 6 ) {
-      $this->setError("You are not allowed to assign more than 6 NS to a domain.");
-      return FALSE;
     }
 
     // assign NS name
@@ -562,9 +555,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   public
    * @param    string  domain to load
    * @param    string  authinfo string (domain sponsored by other registrar)
+   * @param    string  
    * @return   boolean status
    */
-  public function fetch($domain = null, $authinfo = null) {
+  public function fetch($domain = null, $authinfo = null, $infContacts = '') {
     if ($domain === null)
       $domain = $this->domain;
 
@@ -573,6 +567,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       return FALSE;
     }
 
+    $infContacts = strtolower($infContacts);
+    if ( ! in_array($infContacts, array("all", "registrant", "admin", "tech")))
+      $infContacts = '';
+
     // if authinfo was not given as an argument, but has been set
     if ( ($authinfo === null) && ($this->changes & 16) )
       $authinfo = $this->authinfo;
@@ -580,6 +578,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
+    $this->client->assign('infContacts', $infContacts);
     if ( ! empty($authinfo) )
       $this->client->assign('authinfo', $authinfo);
     $this->xmlQuery = $this->client->fetch("info-domain");
@@ -620,6 +619,62 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
           }
           $this->addNS((string)$hostAttr->hostName, $addr);
         }
+
+      // if infContactsData is set
+      if ( isset($ns['extdom']) ) {
+        $this->infcontacts = array();
+        $tmp = $this->xmlResult->response->extension->children($ns['extdom']);
+        if ( @is_object($tmp->infContactsData->registrant) ) {
+          $infContact = $tmp->infContactsData->registrant->infContact->children($ns['contact']);
+          $extInfo = $tmp->infContactsData->registrant->extInfo->children($ns['extcon']);
+          $this->infcontacts[] = array(
+            'type'                 => 'registrant',
+            'id'                   => (string)$infContact->id,
+            'name'                 => (string)$infContact->postalInfo->name,
+            'org'                  => (string)$infContact->postalInfo->org,
+            'street'               => (string)$infContact->postalInfo->addr->street[0],
+            'street2'              => (string)$infContact->postalInfo->addr->street[1],
+            'street3'              => (string)$infContact->postalInfo->addr->street[2],
+            'city'                 => (string)$infContact->postalInfo->addr->city,
+            'province'             => (string)$infContact->postalInfo->addr->sp,
+            'postalcode'           => (string)$infContact->postalInfo->addr->pc,
+            'countrycode'          => (string)$infContact->postalInfo->addr->cc,
+            'voice'                => (string)$infContact->voice,
+            'fax'                  => (string)$infContact->fax,
+            'email'                => (string)$infContact->email,
+            'consentforpublishing' => (string)$extInfo->consentForPublishing,
+            'nationalitycode'      => (string)$extInfo->registrant->nationalityCode,
+            'entitytype'           => (string)$extInfo->registrant->entityType,
+            'regcode'              => (string)$extInfo->registrant->regCode,
+          );
+        }
+        if ( @is_object($tmp->infContactsData->contact[0]) ) {
+          foreach ($tmp->infContactsData->contact as $contact) {
+            $infContact = $contact->infContact->children($ns['contact']);
+            $extInfo = $contact->extInfo->children($ns['extcon']);
+            $this->infcontacts[] = array(
+              'type'                 => (string)$contact->attributes()->type,
+              'id'                   => (string)$infContact->id,
+              'name'                 => (string)$infContact->postalInfo->name,
+              'org'                  => (string)$infContact->postalInfo->org,
+              'street'               => (string)$infContact->postalInfo->addr->street[0],
+              'street2'              => (string)$infContact->postalInfo->addr->street[1],
+              'street3'              => (string)$infContact->postalInfo->addr->street[2],
+              'city'                 => (string)$infContact->postalInfo->addr->city,
+              'province'             => (string)$infContact->postalInfo->addr->sp,
+              'postalcode'           => (string)$infContact->postalInfo->addr->pc,
+              'countrycode'          => (string)$infContact->postalInfo->addr->cc,
+              'voice'                => (string)$infContact->voice,
+              'fax'                  => (string)$infContact->fax,
+              'email'                => (string)$infContact->email,
+              'consentforpublishing' => (string)$extInfo->consentForPublishing,
+              'nationalitycode'      => (string)$extInfo->registrant->nationalityCode,
+              'entitytype'           => (string)$extInfo->registrant->entityType,
+              'regcode'              => (string)$extInfo->registrant->regCode,
+            );
+          }
+        }
+      }
 
       // reset changes at the bottom
       $this->changes = 0;
@@ -703,6 +758,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('domain', $this->domain);
     if (($this->changes & 1) > 0) {
 
+      // limit to a maximum of 6 ns
+      $this->ns = array_slice($this->ns, 0, 6);
+
       // strip everything down to a 1-dimensional array (names including ip's)
       $tmpA = array();
       $tmpB = array();
@@ -746,6 +804,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->client->assign('admin_rem', $this->admin_initial);
     }
     if (($this->changes & 8) > 0) {
+      // limit to a maximum of 6 techc's
+      $this->tech = array_slice($this->tech, 0, 6);
       // which to add
       $tmp = array_diff($this->tech, $this->tech_initial);
       $this->client->assign('tech_add_num', count($tmp));
@@ -1004,6 +1064,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
+    $data['userid'] = $this->userid;
     if (($this->changes & 1) > 0) $data['ns'] = $this->ns;
     if (($this->changes & 2) > 0) {
       $data['registrant'] = $this->registrant;
@@ -1215,6 +1276,19 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    */
   public function renewDomains() {
     return $this->storage->renewDomains();
+  }
+
+  /**
+   * listUsers wrapper (storage function provided by WI storage class!)
+   *
+   * @access   public
+   * @return   array    list of contacts
+   */
+  public function listUsers($userid) {
+    if ($userid <> 1)
+      return array();
+    else
+      return $this->storage->listUsers();
   }
 
 }

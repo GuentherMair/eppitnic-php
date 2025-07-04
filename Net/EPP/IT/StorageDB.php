@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 382 2011-09-02 09:21:36Z gunny $
+ * $Id: StorageDB.php 450 2013-08-19 15:26:08Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -202,7 +202,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userid)) )
       return $this->setError(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
     else
-      return $this->setError(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userid."': ".$this->dbConnect->ErrorMsg());
+      return $this->setError(16, $this->dbConnect->ErrorMsg() . ": UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userid));
+    //return $this->setError(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userid."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**

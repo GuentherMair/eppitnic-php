@@ -53,7 +53,7 @@ require_once 'Net/EPP/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 411 2012-05-18 13:15:17Z gunny $
+ * $Id: Contact.php 443 2013-08-15 14:24:03Z gunny $
  */
 
 /**
@@ -133,7 +133,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->authinfo             = "";
     $this->consentforpublishing = 0;
     $this->nationalitycode      = "";
-    $this->entitytype           = 2;
+    $this->entitytype           = 0;
     $this->regcode              = "";
     $this->max_check            = 5;
   }
@@ -236,7 +236,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   protected function setEntityType($type) {
     $tmp = (int)$type;
     if ( ($tmp < 1) && ($tmp > 7) )
-      $tmp = 2; // failback to the default value
+      $tmp = 0; // failback to the default value
 
     if ( $this->entitytype == $tmp )
       return FALSE;
@@ -827,6 +827,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
+    $data['userid'] = $this->userid;
     if (($this->changes & 1) > 0) $data['name'] = $this->name;
     if (($this->changes & 2) > 0) $data['org'] = $this->org;
     if (($this->changes & 4) > 0) $data['street'] = $this->street;

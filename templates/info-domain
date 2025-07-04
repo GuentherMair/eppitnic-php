@@ -14,6 +14,13 @@
         {/if}
       </domain:info>
     </info>
+    {if $authinfo ne "" and $infContacts ne ""}
+    <extension>
+      <extdom:infContacts op="{$infContacts}"
+                          xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0"
+                          xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-2.0 extdom-2.0.xsd"/>
+    </extension>
+    {/if}
     <clTRID>{$clTRID}</clTRID>
   </command>
 </epp>

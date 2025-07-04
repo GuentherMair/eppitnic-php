@@ -15,13 +15,6 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
-if ( $argc < 2 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN\n";
-  exit(1);
-}
-
-$name = $argv[1];
-
 // send "hello"
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
@@ -36,20 +29,41 @@ if ( ! $session->hello() ) {
     echo "Login OK.\n";
 
     // lookup domain
+    $name = "afasdfasfasdf.it";
+    $authinfo = "638af510ab3052a2";
     switch ( $domain->check($name) ) {
       case TRUE:
         echo "Domain '".$name."' is still available, sorry!\n";
         break;
       case FALSE:
-        echo "Domain '".$name."' not available, trying to delete...";
-        if ( $domain->delete($name) ) {
-          echo " OK.\n";
+        echo "Domain '".$name."' not available, fetching information...\n";
+        if ( $domain->fetch($name, $authinfo, 'all') ) {
+          echo " - Registrant: " . $domain->get('registrant') . "\n";
+          echo " - Admin-C: " . $domain->get('admin') . "\n";
+          $tech = $domain->get('tech');
+          if ( ! is_array($tech) ) {
+            echo " - Tech-C: " . $tech . "\n";
+          } else foreach ($tech as $single_tech) {
+            echo " - Tech-C: " . $single_tech . "\n";
+          }
+          $state = $domain->get('status');
+          foreach ( $state as $s )
+            echo " - state '" . $s . "'\n";
+          $ns = $domain->get('ns');
+          foreach ($ns as $name)
+            echo " - NS: " . $name['name'] . "\n";
+          $infcontacts = $domain->get('infcontacts');
+          foreach ($infcontacts as $contact) {
+            echo " - infContact : ";
+            print_r($contact);
+          }
+          //print_r($domain->result);
         } else {
-          echo " FAILED (".$domain->getError().").\n";
+          echo "FAILED (".$domain->getError().")\n";
         }
         break;
       default:
-        echo "Error: '".$name."' (".$domain->getError().").\n";
+        echo "Error: '".$name."'.\n";
         break;
     }
 
@@ -63,5 +77,4 @@ if ( ! $session->hello() ) {
     // print credit
     echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
   }
-}  
-
+}

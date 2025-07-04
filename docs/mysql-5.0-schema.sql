@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 389 2011-09-14 15:26:04Z gunny $
+-- $Id: mysql-5.0-schema.sql 432 2012-08-16 14:18:57Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -12,7 +12,7 @@ create table tbl_users (
   dns                   text,
   techc                 text,
   PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_transactions (
   id                    serial,
@@ -20,7 +20,7 @@ create table tbl_transactions (
   clTRType              varchar(32),
   clTRObject            varchar(256),
   clTRData              text
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_responses (
   id                    serial,
@@ -33,7 +33,7 @@ create table tbl_responses (
   svHTTPData            text,
   extValueReasonCode    varchar(4),
   extValueReason        text
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_msgqueue (
   id                    serial,
@@ -44,7 +44,7 @@ create table tbl_msgqueue (
   svHTTPCode            smallint unsigned,
   svHTTPHeaders         text,
   svHTTPData            text
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_contacts (
   id                    serial,
@@ -72,7 +72,7 @@ create table tbl_contacts (
   PRIMARY KEY (id),
   KEY (handle),
   CONSTRAINT FOREIGN KEY (userID) REFERENCES tbl_users(id) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_domains (
   id                    serial,
@@ -91,7 +91,7 @@ create table tbl_domains (
   PRIMARY KEY (id),
   CONSTRAINT FOREIGN KEY (userID) REFERENCES tbl_users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES tbl_contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_transfers (
   id                    serial,
@@ -103,7 +103,7 @@ create table tbl_transfers (
   time                  timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES tbl_contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;
 
 create table tbl_messages (
   id                    serial,
@@ -119,4 +119,4 @@ create table tbl_messages (
   archivedTime          datetime,
   createdTime           timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_bin;

@@ -177,7 +177,8 @@ class Net_EPP_Curl
     curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_postHeaders);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->_timeout);
     curl_setopt($ch, CURLOPT_MAXREDIRS, $this->_maxRedirects);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
+    if ( ! ini_get('safe_mode') && ! ini_get('open_basedir'))
+      curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
     curl_setopt($ch, CURLOPT_COOKIEJAR, $this->_cookieFileLocation);
     curl_setopt($ch, CURLOPT_COOKIEFILE, $this->_cookieFileLocation);
     curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent); 

@@ -53,8 +53,7 @@ if ( ! $session->hello() ) {
     }
 
     // logout
-    if ( ! $session->logout() ) {
+    if ( ! $session->logout() )
       echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
-    }
   }
 }  

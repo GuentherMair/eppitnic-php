@@ -51,18 +51,18 @@ if ( ! $session->hello() ) {
     // load domain object
     $domain->fetch($name);
 
-    // add NS records
-    foreach ($ns_add as $single_ns)
-      if ( ! empty($single_ns) ) {
-        echo "Adding NS: ".$single_ns."\n";
-        $domain->addNS($single_ns);
-      }
-
     // remove NS records
     foreach ($ns_remove as $single_ns)
       if ( ! empty($single_ns) ) {
         echo "Removing NS: ".$single_ns."\n";
         $domain->remNS($single_ns);
+      }
+
+    // add NS records
+    foreach ($ns_add as $single_ns)
+      if ( ! empty($single_ns) ) {
+        echo "Adding NS: ".$single_ns."\n";
+        $domain->addNS($single_ns);
       }
 
     // update domain

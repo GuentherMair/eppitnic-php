@@ -47,7 +47,7 @@ require_once 'Net/EPP/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 363 2011-06-06 13:19:23Z gunny $
+ * $Id: AbstractObject.php 449 2013-08-16 14:34:22Z gunny $
  */
 abstract class Net_EPP_AbstractObject
 {
@@ -545,8 +545,7 @@ abstract class Net_EPP_AbstractObject
     }
 
     if ( $this->debug == LOG_DEBUG )
-      $msg = "<pre class='error'>\n".
-             "Generic error (if set):\n".
+      $msg = "Generic error (if set):\n".
              "-----------------------\n".
              $msg."\n".
              "\n".
@@ -556,8 +555,7 @@ abstract class Net_EPP_AbstractObject
              "\n".
              "Response received from server:\n".
              "------------------------------\n".
-             $this->result['body']."\n".
-             "</pre>";
+             $this->result['body']."\n";
 
     return $msg;
   }
@@ -607,7 +605,9 @@ abstract class Net_EPP_AbstractObject
 
       // look for an extended server error message and code
       if ( is_object($this->xmlResult->response->result->extValue->reason) ) {
-        $this->extValueReasonCode = (string)$this->xmlResult->response->result->extValue->value->reasonCode;
+        $ns = $this->xmlResult->getNamespaces(TRUE);
+        $tmp = $this->xmlResult->response->result->extValue->value->children($ns['extepp']);
+        $this->extValueReasonCode = (string)$tmp->reasonCode;
         $this->extValueReason = (string)$this->xmlResult->response->result->extValue->reason;
       } else {
         $this->extValueReasonCode = '';

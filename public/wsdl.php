@@ -109,6 +109,7 @@ require_once 'Net/EPP/IT/WSDL/domain.changeRegistrant.php';
 require_once 'Net/EPP/IT/WSDL/domain.create.php';
 require_once 'Net/EPP/IT/WSDL/domain.check.php';
 require_once 'Net/EPP/IT/WSDL/domain.info.php';
+require_once 'Net/EPP/IT/WSDL/domain.infContacts.php';
 require_once 'Net/EPP/IT/WSDL/domain.update.php';
 require_once 'Net/EPP/IT/WSDL/domain.delete.php';
 require_once 'Net/EPP/IT/WSDL/domain.restore.php';

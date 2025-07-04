@@ -53,4 +53,3 @@ if ( ! $session->hello() ) {
       echo "Logout FAILED (".$session->getError().").\n";
   }
 }
-
