@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 38 2010-01-06 12:46:35Z gunny $
+ * $Id: StorageDB.php 40 2010-01-26 17:53:15Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -359,7 +359,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
   public function retrieveDomain($domain) {
-    $tmp = $this->doRetrieve("tbl_domains", "domain", $contact);
+    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain);
     if ( ($tmp === FALSE) || (count($tmp) <> 1) ) {
       return FALSE;
     } else {

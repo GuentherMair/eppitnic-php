@@ -1,3 +1,8 @@
+Version 2.2
+===========
+Bugfix release. Changed an error in StorageDB.php which would log empty data
+when using the retrieveDomain method. Thanks to Luca for this hint!
+
 Version 2.1
 ===========
 Bugfix release. An error was introduced in v2.0 which caused a warning to be
