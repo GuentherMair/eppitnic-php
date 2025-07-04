@@ -13,19 +13,21 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
-if ( $argc < 4 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] NS[:NS:NS:NS:NS:NS]\n";
+
+// retrieve and test command line options
+$options = getopt("d:a:r:");
+if ( ! isset($options['d']) ||
+     (! isset($options['a']) && ! isset($options['r'])) ) {
+  echo "SYNTAX: " . $argv[0] . " -d DOMAIN -a NS[:NS:NS:NS:NS:NS] -r NS[:NS:NS:NS:NS:NS]\n";
   exit(1);
 }
 
-$name = $argv[1];
-$op_type = strtolower($argv[2]);
-$ns = $argv[3];
 
-if ( $op_type != 'add' && $op_type != 'remove' ) {
-  echo "Syntax error: operation type '".$op_type."' not supported, please use 'add' or 'remove' instead\n";
-  exit(1);
-}
+// set values
+$name = $options['d'];
+$ns_add = array_slice(split(":", $options['a']), 0, 6);
+$ns_remove = array_slice(split(":", $options['r']), 0, 6);
+
 
 // send "hello"
 if ( ! $session->hello() ) {
@@ -47,24 +49,19 @@ if ( ! $session->hello() ) {
     // load domain object
     $domain->fetch($name);
 
-    // split NS record information
-    $ns_array = array_slice(split(":", $ns), 0, 6);
+    // add NS records
+    foreach ($ns_add as $single_ns)
+      if ( ! empty($single_ns) ) {
+        echo "Adding NS: ".$single_ns."\n";
+        $domain->addNS($single_ns);
+      }
 
-    // change technical contacts
-    switch ($op_type) {
-      case 'add':
-        foreach ($ns_array as $single_ns) {
-          echo "Adding NS: ".$single_ns."\n";
-          $domain->addNS($single_ns);
-        }
-        break;
-      case 'remove':
-        foreach ($ns_array as $single_ns) {
-          echo "Removing NS: ".$single_ns."\n";
-          $domain->remNS($single_ns);
-        }
-        break;
-    }
+    // remove NS records
+    foreach ($ns_remove as $single_ns)
+      if ( ! empty($single_ns) ) {
+        echo "Removing NS: ".$single_ns."\n";
+        $domain->remNS($single_ns);
+      }
 
     // update domain
     switch ( $domain->update() ) {

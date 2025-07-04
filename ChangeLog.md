@@ -1,3 +1,10 @@
+Version 2.8.1
+=============
+Cleaned up the 'CLI-generic-update-domain-authinfo.php' example and combined
+a common interface to all major update operations inside of a single example
+called 'CLI-generic-domain-script.php'.
+
+
 Version 2.8
 ===========
 Removed a minor error from the update-domain template. Also updated both CLI

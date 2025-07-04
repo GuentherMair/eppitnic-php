@@ -63,7 +63,7 @@ if ( ! $session->hello() ) {
     $domain->fetch($name);
 
     // update domain
-    $domain->set('tech', $tech_new);
+    $domain->set('authinfo', $authinfo);
     switch ( $domain->update() ) {
       case TRUE:
         echo "Domain '".$name."' is now up to date.\n";

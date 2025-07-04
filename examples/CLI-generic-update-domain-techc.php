@@ -13,19 +13,21 @@ $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
 $domain->debug = LOG_DEBUG;
 
-if ( $argc < 4 ) {
-  echo "SYNTAX: " . $argv[0] . " DOMAIN [add|remove] CONTACT[:CONTACT:CONTACT:CONTACT:CONTACT:CONTACT]\n";
+
+// retrieve and test command line options
+$options = getopt("d:a:r:");
+if ( ! isset($options['d']) ||
+     (! isset($options['a']) && ! isset($options['r'])) ) {
+  echo "SYNTAX: " . $argv[0] . " -d DOMAIN -a CONTACT[:CONTACT:CONTACT:CONTACT:CONTACT:CONTACT] -r CONTACT[:CONTACT:CONTACT:CONTACT:CONTACT:CONTACT]\n";
   exit(1);
 }
 
-$name = $argv[1];
-$op_type = strtolower($argv[2]);
-$contact = $argv[3];
 
-if ( $op_type != 'add' && $op_type != 'remove' ) {
-  echo "Syntax error: operation type '".$op_type."' not supported, please use 'add' or 'remove' instead\n";
-  exit(1);
-}
+// set values
+$name = $options['d'];
+$contact_add = array_slice(split(":", $options['a']), 0, 6);
+$contact_remove = array_slice(split(":", $options['r']), 0, 6);
+
 
 // send "hello"
 if ( ! $session->hello() ) {
@@ -47,24 +49,19 @@ if ( ! $session->hello() ) {
     // load domain object
     $domain->fetch($name);
 
-    // split CONTACT information
-    $contact_array = array_slice(split(":", $contact), 0, 6);
+    // add technical contact
+    foreach ($contact_add as $single_contact)
+      if ( ! empty($single_contact) ) {
+        echo "Adding TECH-C: ".$single_contact."\n";
+        $domain->addTECH($single_contact);
+      }
 
-    // change technical contacts
-    switch ($op_type) {
-      case 'add':
-        foreach ($contact_array as $single_contact) {
-          echo "Adding NS: ".$single_contact."\n";
-          $domain->addTECH($single_contact);
-        }
-        break;
-      case 'remove':
-        foreach ($contact_array as $single_contact) {
-          echo "Removing NS: ".$single_contact."\n";
-          $domain->remTECH($single_contact);
-        }
-        break;
-    }
+    // remove technical contact
+    foreach ($contact_remove as $single_contact)
+      if ( ! empty($single_contact) ) {
+        echo "Removing TECH-C: ".$single_contact."\n";
+        $domain->remTECH($single_contact);
+      }
 
     // update domain
     switch ( $domain->update() ) {
