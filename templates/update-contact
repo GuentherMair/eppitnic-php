@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
+                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
+        <contact:id>{$id}</contact:id>
+        <contact:chg>
+        {if $postalinfo ne "" or $addr ne ""}
+          <contact:postalInfo type="loc">
+          {foreach from=$postalinfo item=i}
+            {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+          {/foreach}
+          {if $addr ne ""}
+            <contact:addr>
+            {foreach from=$addr item=i}
+              {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+            {/foreach}
+            </contact:addr>
+          {/if}
+          </contact:postalInfo>
+        {/if}
+        {foreach from=$contact item=i}
+          {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+        {/foreach}
+        </contact:chg>
+      </contact:update>
+    </update>
+    {if $consentForPublishing ne "" or $registrant ne ""}
+    <extension>
+      <extcon:update xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extcon-1.0 extcon-1.0.xsd">
+        {if $consentForPublishing ne ""}
+        <extcon:consentForPublishing>{$consentForPublishing}</extcon:consentForPublishing>
+        {/if}
+        {if $registrant ne ""}
+        <extcon:registrant>
+          <extcon:nationalityCode>{$registrant.nationalityCode}</extcon:nationalityCode>
+          <extcon:entityType>{$registrant.entityType}</extcon:entityType>
+          <extcon:regCode>{$registrant.regCode}</extcon:regCode>
+        </extcon:registrant>
+        {/if}
+      </extcon:update>
+    </extension>
+    {/if}
+    <clTRID>{$clTRID}</clTRID>
+  </command>
+</epp>

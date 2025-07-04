@@ -1,0 +1,374 @@
+<?php
+
+require_once 'Net/EPP/IT/StorageInterface.php';
+require_once 'libs/adodb/adodb.inc.php';
+
+/**
+ * A simple class handling the EPP registrations with IT-NIC in a database.
+ *
+ * PHP version 5
+ *
+ * LICENSE:
+ *
+ * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1) Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2) Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3) Neither the name of Günther Mair nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * @category    Net
+ * @package     Net_EPP_IT_StorageDB
+ * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @license     http://opensource.org/licenses/bsd-license.php New BSD License
+ *
+ * $Id: StorageDB.php 17 2009-05-23 21:00:39Z gunny $
+ */
+class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
+{
+  var $dbConnect;
+  var $dberrCode;
+  var $dberrMsg;
+  var $dbMaxEntries = 50;
+  var $dbSerializePrefix = "__SERIALIZED:";
+
+  /**
+   * Class constructor
+   *
+   *  - initialize database connection
+   *
+   * @access   public
+   * @param    array  db connection paramenters (dbtype, dbhost, dbuser, dbpwd, dbname)
+   */
+  function __construct($cfg) {
+    $this->dbConnect = ADONewConnection($cfg->dbtype);
+    if ( ! $this->dbConnect )
+      return $this->error(1, "unable to load adodb database driver '".$cfg->dbConnecttype."'");
+    if ( ! $this->dbConnect->Connect($cfg->dbhost, $cfg->dbuser, $cfg->dbpwd, $cfg->dbname) )
+      return $this->error(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."'");
+    $this->dbConnect->setFetchMode(ADODB_FETCH_ASSOC);
+  }
+
+  /**
+   * internal error handling function
+   * (reduce size)
+   *
+   * @access   protected
+   * @param    int       error number
+   * @param    string    error message
+   * @return   boolean   status
+   */
+  protected function error($errno, $error) {
+    $this->dberrCode = $errno;
+    $this->dberrMsg = $error;
+    return ($errno == 0 ) ? TRUE : FALSE;
+  }
+
+  /**
+   * store data to DB
+   *
+   * @access   protected
+   * @param    string    information store (tbl_transactions, tbl_responses, tbl_msgqueue, ...)
+   * @param    array     information to be stored
+   * @return   boolean   status
+   */
+  protected function doStore($table, $elements) {
+    if ( ! is_array($elements) )
+      return $this->error(4, "second paramenter must be an array!");
+
+    $keys = array();
+    $values = array();
+    foreach ($elements as $key => $value) {
+      $keys[] = $key;
+      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) ) {
+        $values[] = $this->dbSerializePrefix.base64_encode(serialize($value));
+      } else {
+        $values[] = $value;
+      }
+    }
+
+    if ( $this->dbConnect->Execute("INSERT INTO ".$table." (".implode(",", $keys).") VALUES ('".implode("','", $values)."')") )
+      return $this->error(0, "information stored to '".$table."'");
+    else
+      return $this->error(8, "unable to store given data to '".$table."'");
+  }
+
+  /**
+   * update data in DB
+   *
+   * @access   protected
+   * @param    string    information store (tbl_transactions, tbl_responses, tbl_msgqueue, ...)
+   * @param    array     information to be stored
+   * @param    string    the column to look at
+   * @param    string    the value to look up
+   * @return   boolean   status
+   */
+  protected function doUpdate($table, $elements, $index, $handle) {
+    if ( ! is_array($elements) )
+      return $this->error(4, "second paramenter must be an array!");
+
+    $update = array();
+    foreach ($elements as $key => $value) {
+      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) ) {
+        $update[] = $key . "='".$this->dbSerializePrefix.base64_encode(serialize($value))."'";
+      } else {
+        $update[] = $key . "='".$value."'";
+      }
+    }
+
+    if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'") )
+      return $this->error(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
+    else
+      return $this->error(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."'");
+  }
+
+  /**
+   * store transaction data to DB (doStore wrapper)
+   *
+   * @access   public
+   * @param    string    client transaction ID
+   * @param    string    client transaction type
+   * @param    string    client transaction data
+   * @return   boolean   status
+   */
+  public function storeTransaction($clTRID, $clTRType, $clTRObject, $clTRData) {
+    return $this->doStore("tbl_transactions",
+      array("clTRID"        => $clTRID,
+            "clTRType"      => $clTRType,
+            "clTRObject"    => $clTRObject,
+            "clTRData"      => $clTRData));
+  }
+
+  /**
+   * store answers from EPP server to DB (doStore wrapper)
+   *
+   * @access   protected
+   * @param    string    client transaction ID
+   * @param    string    server transaction ID
+   * @param    string    server EPP response code
+   * @param    string    status flag (should be "0" for initialization)
+   * @param    array     server HTTP response code, headers and body
+   * @param    string    table name
+   * @return   boolean   status
+   */
+  protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table) {
+    return $this->doStore($table,
+      array("clTRID"        => $clTRID,
+            "svTRID"        => $svTRID,
+            "svEPPCode"     => $svEPPCode,
+            "status"        => $status,
+            "svHTTPCode"    => $response['code'],
+            "svHTTPHeaders" => $response['headers'],
+            "svHTTPData"    => $response['body']));
+  }
+
+  /**
+   * store responses to DB (doStore wrapper)
+   *
+   * @access   public
+   * @param    string    client transaction ID
+   * @param    string    server transaction ID
+   * @param    string    server EPP response code
+   * @param    string    status flag (should be "0" for initialization)
+   * @param    array     server HTTP response code, headers and body
+   * @return   boolean   status
+   */
+  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response) {
+    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_responses");
+  }
+
+  /**
+   * store message (poll) data to DB (doStore wrapper)
+   *
+   * @access   public
+   * @param    string    client transaction ID
+   * @param    string    server transaction ID
+   * @param    string    server EPP response code
+   * @param    string    status flag (should be "0" for initialization)
+   * @param    array     server HTTP response code, headers and body
+   * @return   boolean   status
+   */
+  public function storeMessage($clTRID, $svTRID, $svCode, $status, $response) {
+    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_msgqueue");
+  }
+
+  /**
+   * store contact to DB
+   *
+   * @access   public
+   * @param    array     contact information to be stored
+   * @return   boolean   status
+   */
+  public function storeContact($elements) {
+    return $this->doStore("tbl_contacts", $elements);
+  }
+
+  /**
+   * store domain to DB
+   *
+   * @access   public
+   * @param    array     domain information to be stored
+   * @return   boolean   status
+   */
+  public function storeDomain($elements) {
+    return $this->doStore("tbl_domains", $elements);
+  }
+
+  /**
+   * update stored contact in DB
+   *
+   * @access   public
+   * @param    array     contact information to be updated
+   * @param    string    contact to be updated
+   * @return   boolean   status
+   */
+  public function updateContact($elements, $contact) {
+    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact);
+  }
+
+  /**
+   * update stored domain in DB
+   *
+   * @access   public
+   * @param    array     domain information to be updated
+   * @param    string    domain to be updated
+   * @return   boolean   status
+   */
+  public function updateDomain($elements, $domain) {
+    return $this->doUpdate("tbl_domains", $elements, "domain", $domain);
+  }
+
+  /**
+   * retrieve information from DB
+   *
+   * @access   protected
+   * @param    string    the table to retrieve information from
+   * @param    string    the column to look at
+   * @param    string    the value to look up
+   * @return   array     results OR FALSE in case of failure
+   */
+  protected function doRetrieve($table, $index, $value) {
+    $elements = array();
+
+    // use $dbMaxEntries
+    if ($value == null) {
+      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." ORDER BY id DESC", $this->dbMaxEntries);
+    } else {
+      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$index."='".$value."'");
+    }
+    if ( $result === FALSE )
+      return $this->error(8, "unable to get data from '".$table."'");
+
+
+    $x = 0;
+    $prefix_length = strlen($this->dbSerializePrefix);
+    while ( !$result->EOF ) {
+      for ( $i = 0, $num = $result->FieldCount(); $i < $num; $i++ ) {
+        $field = $result->FetchField($i);
+        if ( substr($result->Fields[$i], 0, $prefix_length) == $this->dbSerializePrefix ) {
+          $elements[$x][$field->name] = unserialize(base64_decode(substr($result->Fields($field->name), $prefix_length)));
+        } else {
+          $elements[$x][$field->name] = $result->Fields($field->name);
+        }
+      }
+      $result->MoveNext();
+      $x++;
+    }
+  
+    return $elements;
+  }
+
+  /**
+   * retrieve transactions from DB
+   *
+   * @access   protected
+   * @param    string    optional transaction ID to look up
+   * @return   array     results OR FALSE in case of failure
+   */
+  public function retrieveTransaction($clTRID = null) {
+    return $this->doRetrieve("tbl_transactions", "clTRID", $clTRID);
+  }
+ 
+  /**
+   * retrieve responses from DB
+   *
+   * @access   protected
+   * @param    string    optional transaction ID to look up
+   * @return   array     results OR FALSE in case of failure
+   */
+  public function retrieveResponse($clTRID = null) {
+    return $this->doRetrieve("tbl_responses", "clTRID", $clTRID);
+  }
+ 
+  /**
+   * retrieve messages from DB
+   *
+   * @access   protected
+   * @param    string    optional transaction ID to look up
+   * @return   array     results OR FALSE in case of failure
+   */
+  public function retrieveMessage($clTRID = null) {
+    return $this->doRetrieve("tbl_msgqueue", "clTRID", $clTRID);
+  }
+
+  /**
+   * retrieve a contact from DB
+   *
+   * @access   protected
+   * @param    string    contact to look up
+   * @return   array     result OR FALSE in case of failure or ambiguity
+   */
+  public function retrieveContact($contact) {
+    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact);
+    if ( ($tmp === FALSE) || (count($tmp) <> 1) ) {
+      return FALSE;
+    } else {
+      return $tmp[0];
+    }
+  }
+
+  /**
+   * retrieve a domain from DB
+   *
+   * @access   protected
+   * @param    string    domain to look up
+   * @return   array     result OR FALSE in case of failure or ambiguity
+   */
+  public function retrieveDomain($domain) {
+    $tmp = $this->doRetrieve("tbl_domains", "domain", $contact);
+    if ( ($tmp === FALSE) || (count($tmp) <> 1) ) {
+      return FALSE;
+    } else {
+      return $tmp[0];
+    }
+  }
+
+  /**
+   * class destructor
+   */
+  function __destruct() {
+    $this->dbConnect->Close();
+  }
+}
+
+?>

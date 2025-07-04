@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
+                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                     xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+        <domain:name>{$domain}</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:ns>
+          {foreach from=$nameservers item=ns}
+          <domain:hostAttr>
+            <domain:hostName>{$ns.name}</domain:hostName>
+            {foreach from=$ns.ip item=ip}
+            <domain:hostAddr ip="{$ip.type}">{$ip.address}</domain:hostAddr>
+            {/foreach}
+          </domain:hostAttr>
+          {/foreach}
+        </domain:ns>
+        <domain:registrant>{$registrant}</domain:registrant>
+        <domain:contact type="admin">{$admin}</domain:contact>
+        <domain:contact type="tech">{$tech}</domain:contact>
+        <domain:authInfo>
+          <domain:pw>{$authinfo}</domain:pw>
+        </domain:authInfo>
+      </domain:create>
+    </create>
+    <clTRID>{$clTRID}</clTRID>
+  </command>
+</epp>

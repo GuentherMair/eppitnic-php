@@ -1,0 +1,730 @@
+<?php
+
+require_once 'Net/EPP/IT/AbstractObject.php';
+
+/**
+ * This class handles contacts and supports the following operations on them:
+ *
+ *  - check contact (one only, even though NIC supports a bulk operation)
+ *  - create contact (EPP create command)
+ *  - fetch contact (EPP info command)
+ *  - update contact
+ *  - update contact status
+ *  - update contact registrant fields
+ *  - delete contact
+ *
+ *  - storeDB store contact to DB
+ *  - loadDB load contact from DB
+ *  - updateDB update contact stored in DB
+ *
+ * PHP version 5
+ *
+ * LICENSE:
+ *
+ * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1) Redistributions of source code must retain the above copyright notice,
+ *    this list of conditions and the following disclaimer.
+ * 2) Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ * 3) Neither the name of Günther Mair nor the names of its contributors may be
+ *    used to endorse or promote products derived from this software without
+ *    specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * @category    Net
+ * @package     Net_EPP_IT_Contact
+ * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @license     http://opensource.org/licenses/bsd-license.php New BSD License
+ *
+ * $Id: Contact.php 17 2009-05-23 21:00:39Z gunny $
+ */
+class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
+{
+  //         name                 = value                       // change flag
+  protected $status               = 0;                          // -
+  protected $handle               = "";                         // -
+  protected $changes              = 0;                          // sum
+
+  protected $name                 = "";                         // 1
+  protected $org                  = "";                         // 2
+  protected $street               = "";                         // 4
+  protected $street2              = "";                         // 8
+  protected $street3              = "";                         // 16
+  protected $city                 = "";                         // 32
+  protected $province             = "";                         // 64
+  protected $postalcode           = "";                         // 128
+  protected $countrycode          = "";                         // 256
+  protected $voice                = "";                         // 512
+  protected $fax                  = "";                         // 1024
+  protected $email                = "";                         // 2048
+  protected $authinfo             = "";                         // 4096
+  protected $consentforpublishing = "false";                    // 8192
+  protected $nationalitycode      = "";                         // 16384
+  protected $entitytype           = 2;                          // 32768
+  protected $regcode              = "";                         // 65536
+
+  /**
+   * Class constructor
+   *
+   * (initializes authinfo)
+   *
+   * @access   public
+   * @param    Net_EPP_IT_Client            client class
+   * @param    Net_EPP_IT_StorageInterface  storage class
+   */
+  function __construct(&$client, &$storage) {
+    $this->authinfo = $this->authinfo();
+    parent::__construct($client, $storage);
+  }
+
+  /**
+   * restrict access to variables, so we can keep track of changes to them
+   *
+   * @access   public
+   * @param    string  variable name
+   * @param    mix     value to set
+   * @return   mix     value set or FALSE if variable name does not exist
+   */
+  public function set($var, $val) {
+    if ($var == "entitytype")
+      $this->setEntityType($val);
+    else if ($var == "consentforpublishing" && in_array($val, $this->trues))
+      $this->setConsent();
+    else if ($var == "consentforpublishing" && in_array($val, $this->falses))
+      $this->unsetConsent();
+    else if (isset($this->$var))
+      $this->$var = $val;
+    else
+      return FALSE;
+
+    switch ( $var ) {
+      case "name":                 $this->changes |= 1;     break;
+      case "org":                  $this->changes |= 2;     break;
+      case "street":               $this->changes |= 4;     break;
+      case "street2":              $this->changes |= 8;     break;
+      case "street3":              $this->changes |= 16;    break;
+      case "city":                 $this->changes |= 32;    break;
+      case "province":             $this->changes |= 64;    break;
+      case "postalcode":           $this->changes |= 128;   break;
+      case "countrycode":          $this->changes |= 256;   break;
+      case "voice":                $this->changes |= 512;   break;
+      case "fax":                  $this->changes |= 1024;  break;
+      case "email":                $this->changes |= 2048;  break;
+      case "authinfo":             $this->changes |= 4096;  break;
+      case "consentforpublishing": $this->changes |= 8192;  break;
+      case "nationalitycode":      $this->changes |= 16384; break;
+      case "entitytype":           $this->changes |= 32768; break;
+      case "regcode":              $this->changes |= 65536; break;
+    }
+    return $this->$var;
+  }
+
+  /**
+   * get a single variable/setting from class
+   *
+   * @access   public
+   * @param    string  variable name
+   * @return   mix     value of variable
+   */
+  public function get($var) {
+    return $this->$var;
+  }
+
+  /**
+   * set the entity type which may be one of
+   *
+   * 0 - NON REGISTRANT CONTACT (admin-c/tech-c)
+   * 1 - persone fisiche
+   * 2 - società/imprese individuali
+   * 3 - liberi professionisti
+   * 4 - enti no-profit
+   * 5 - enti pubblici
+   * 6 - altri soggetti
+   * 7 - soggetti stranieri equiparati ai precedenti escluso persone fisiche
+   *
+   * @access   protected
+   * @param    int       entity type
+   * @return   boolean   status
+   */
+  protected function setEntityType($type) {
+    $tmp = (int)$type;
+    if ( ($tmp >= 0) && ($tmp <= 7) )
+      return $this->entitytype = $tmp;
+    else
+      return $this->entitytype = 2; // default value
+  }
+
+  /**
+   * set consent for publishing
+   *
+   * @access   public
+   * @return   string "true"
+   */
+  public function setConsent() {
+    return $this->consentforpublishing = "true";
+  }
+
+  /**
+   * unset consent for publishing
+   *
+   * @access   public
+   * @return   string "false"
+   */
+  public function unsetConsent() {
+    return $this->consentforpublishing = "false";
+  }
+
+  /**
+   * do sanity checks before sending changes to NIC
+   *
+   * @access   protected
+   * @return   boolean   status
+   */
+  protected function sanity_checks() {
+    $error = 0;
+
+    /*
+     * the name rules:
+     *
+     * 1) remove hyphens
+     * 2) the rest must be alphanumeric
+     */
+    if ( !ctype_alnum(implode("", explode("-", $this->handle))) )
+      $error |= 1;
+
+    /*
+     * the voice rules:
+     *
+     * 1) must begin with "+"
+     * 2) must have an int. prefix separated by "." from the national part
+     * 3) E.164 requests the country code to be of max. 3 digits
+     * 4) E.164 specifies the full number to be max. 15 digits
+     * 5) may not contain anything else (don't use int typecasts!)
+     */
+    $tmp = explode(".", substr($this->voice, 1));
+    $tmp[0] = ctype_digit($tmp[0]) ? $tmp[0] : "";
+    $tmp[1] = ctype_digit($tmp[1]) ? $tmp[1] : "";
+    if ( (substr($this->voice, 0, 1) != "+") ||
+         (count($tmp) <> 2) ||
+         (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
+         (strlen($tmp[1]) > (15-strlen($tmp[0])) || strlen($tmp[1]) < 1) ||
+         ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice) )
+      $error |= 2;
+
+    /*
+     * the email rules:
+     * this could become somewhat complex, so...
+     *
+     * 1) make sure there is a MX record for the domain part
+     * 2) make sure the first element has at least one character
+     */
+    $tmp = explode("@", $this->email);
+    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) ||
+         (strlen($tmp[0]) < 1) )
+      $error |= 4;
+
+    /*
+     * the country code
+     */
+    if ( ! $this->is_iso3166_1($this->countrycode) )
+      $error |= 8;
+
+    /*
+     * the province code
+     */
+    if ( ($this->countrycode == "IT") &&
+         ( ! $this->is_iso3166_2IT($this->province)) )
+      $error |= 16;
+
+    /*
+     * relation entitytype <=> countrycode
+     */
+    if ( ($this->entitytype > 1) &&
+         ( ! $this->is_iso3166_1EU($this->countrycode)) )
+      $error |= 32;
+
+    /*
+     * relation entitytype 1 <=> countrycode or nationalitycode
+     */
+    if ( ($this->entitytype == 1) &&
+         ( ! $this->is_iso3166_1EU($this->countrycode)) &&
+         ( ! $this->is_iso3166_1EU($this->nationalitycode)) )
+      $error |= 64;
+
+    /*
+     * entitytype 1: name => org
+     */
+    if ( ($this->entitytype == 1) )
+      $this->org = $this->name;
+    if ( empty($this->org) )
+      $this->org = $this->name;
+
+    /*
+     * relation entitytype 1, nationalitycode IT <=> regcode
+     */
+    if ( (($this->entitytype == 1) &&
+          ($this->nationalitycode == "IT")) &&
+       ! ((strlen($this->regcode) == 16) &&
+          (ctype_alnum($this->regcode)) &&
+          (ctype_digit(substr($this->regcode, 6, 2))) &&
+          (ctype_digit(substr($this->regcode, 9, 2))) &&
+          (ctype_digit(substr($this->regcode, 12, 3)))) )
+      $error |= 128;
+
+    /*
+     * relation entitytype != 1 <=> regcode
+     */
+    if ( ($this->entitytype > 1) &&
+         ( ! ctype_digit($this->regcode)) )
+      $error |= 256;
+
+    /*
+     * relation entitytype 4 <=> regcode
+     */
+    if ( ($this->entitytype == 4) &&
+         ( ! (ctype_digit($this->regcode) || ($this->regcode == "n.a.")) ) )
+      $error |= 512;
+
+    /*
+     * basic data must be filled in
+     */
+    if ( ($this->handle == "") ||
+         ($this->name == "") ||
+         ($this->street == "") ||
+         ($this->city == "") ||
+         ($this->province == "") ||
+         ($this->postalcode == "") ||
+         ($this->countrycode == "") ||
+         ($this->voice == "") ||
+         ($this->email == "") )
+      $error |= 1024;
+
+    return $error;
+  }
+
+  /**
+   * check contact
+   *
+   * @access   public
+   * @param    string  optional contact to check (set handle!)
+   * @return   boolean status (TRUE = available, FALSE = unavailable, -1 on error)
+   */
+  public function check($contact = null) {
+    if ($contact === null)
+      $contact = $this->handle;
+    if ($contact == "") {
+      $this->error("Operation not allowed, set a handle!");
+      return FALSE;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $contact);
+    $this->xmlQuery = $this->client->fetch("check-contact");
+    $this->client->clear_all_assign();
+
+    // query server
+    if ( $this->ExecuteQuery("check-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
+      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
+      return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
+    } else {
+      // distinguish between errors and boolean states...
+      return -1;
+    }
+  }
+
+  /**
+   * create contact
+   *
+   * @access   public
+   * @return   boolean status
+   */
+  public function create() {
+    $sanity = $this->sanity_checks();
+    if ($sanity <> 0) {
+      $this->error("Sanity checks failed with code '".$sanity."'!");
+      return FALSE;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $this->handle);
+    $this->client->assign('name', $this->name);
+    $this->client->assign('org', $this->org);
+    $this->client->assign('street', $this->street);
+    $this->client->assign('street2', $this->street2);
+    $this->client->assign('street3', $this->street3);
+    $this->client->assign('city', $this->city);
+    $this->client->assign('sp', $this->province);
+    $this->client->assign('pc', $this->postalcode);
+    $this->client->assign('cc', $this->countrycode);
+    $this->client->assign('voice', $this->voice);
+    $this->client->assign('fax', $this->fax);
+    $this->client->assign('email', $this->email);
+    $this->client->assign('authinfo', $this->authinfo);
+    $this->client->assign('consentForPublishing', $this->consentforpublishing);
+    $this->client->assign('nationalityCode', $this->nationalitycode);
+    $this->client->assign('entityType', $this->entitytype);
+    $this->client->assign('regCode', $this->regcode);
+    $this->xmlQuery = $this->client->fetch("create-contact");
+    $this->client->clear_all_assign();
+
+    // query server and return answer (no handling of special return values)
+    return $this->ExecuteQuery("create-contact", $this->handle, ($this->debug >= LOG_DEBUG));
+  }
+
+  /**
+   * fetch contact through EPP
+   *
+   * @access   public
+   * @param    string  contact to load
+   * @return   boolean status
+   */
+  public function fetch($contact = null) {
+    if ($contact === null)
+      $contact = $this->handle;
+    if ($contact == "") {
+      $this->error("Operation not allowed, set a handle!");
+      return FALSE;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $contact);
+    $this->xmlQuery = $this->client->fetch("info-contact");
+    $this->client->clear_all_assign();
+
+    // query server
+    if ( $this->ExecuteQuery("info-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
+      $this->changes = 0;
+      $this->status = 0;
+      $this->handle = $contact;
+
+      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
+
+      $this->name =        (string)$tmp->infData->postalInfo->name;
+      $this->org =         (string)$tmp->infData->postalInfo->org;
+      $this->street =      (string)$tmp->infData->postalInfo->addr->street[0];
+      $this->street2 =     (string)$tmp->infData->postalInfo->addr->street[1];
+      $this->street3 =     (string)$tmp->infData->postalInfo->addr->street[2];
+      $this->city =        (string)$tmp->infData->postalInfo->addr->city;
+      $this->province =    (string)$tmp->infData->postalInfo->addr->sp;
+      $this->postalcode =  (string)$tmp->infData->postalInfo->addr->pc;
+      $this->countrycode = (string)$tmp->infData->postalInfo->addr->cc;
+      $this->voice =       (string)$tmp->infData->voice;
+      $this->fax =         (string)$tmp->infData->fax;
+      $this->email =       (string)$tmp->infData->email;
+
+      $tmp = $this->xmlResult->response->extension->children('http://www.nic.it/ITNIC-EPP/extcon-1.0');
+
+      $this->consentforpublishing = (string)$tmp->infData->consentForPublishing;
+      $this->nationalitycode =      (string)$tmp->infData->registrant->nationalityCode;
+      $this->entitytype =              (int)$tmp->infData->registrant->entityType;
+      $this->regcode =              (string)$tmp->infData->registrant->regCode;
+
+      return TRUE;
+    } else {
+      return FALSE;
+    }
+  }
+
+  /**
+   * delete contact
+   *
+   * @access   public
+   * @return   boolean status
+   */
+  public function delete($contact = null) {
+    if ($contact === null)
+      $contact = $this->handle;
+    if ($contact == "") {
+      $this->error("Operation not allowed, set a handle!");
+      return FALSE;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $contact);
+    $this->xmlQuery = $this->client->fetch("delete-contact");
+    $this->client->clear_all_assign();
+
+    // query server
+    return $this->ExecuteQuery("delete-contact", $contact, ($this->debug >= LOG_DEBUG));
+  }
+
+  /**
+   * update contact
+   *
+   * @access   public
+   * @return   boolean status
+   */
+  public function update() {
+    if ($this->handle == "") {
+      $this->error("Operation not allowed, fetch a handle first!");
+      return FALSE;
+    }
+    if ($this->changes == 0) {
+      $this->error("Handle did not change!");
+      return FALSE;
+    }
+    $sanity = $this->sanity_checks();
+    if ($sanity <> 0) {
+      $this->error("Sanity checks failed with code '".$sanity."'!");
+      return FALSE;
+    }
+
+    // postalinfo
+    $postalinfo = array();
+    if (($this->changes & 1) > 0)
+      $postalinfo[] = array('name' => 'name', 'value' => $this->name);
+    if (($this->changes & 2) > 0)
+      $postalinfo[] = array('name' => 'org', 'value' => $this->org);
+
+    // address
+    $addr = array();
+    if (($this->changes & 508) > 0) {
+      // 4 & 8 & 16 & 32 & 64 & 128 & 256
+      $addr[] = array('name' => 'street', 'value' => $this->street);
+      $addr[] = array('name' => 'street', 'value' => $this->street2);
+      $addr[] = array('name' => 'street', 'value' => $this->street3);
+      $addr[] = array('name' => 'city', 'value' => $this->city);
+      $addr[] = array('name' => 'sp', 'value' => $this->province);
+      $addr[] = array('name' => 'pc', 'value' => $this->postalcode);
+      $addr[] = array('name' => 'cc', 'value' => $this->countrycode);
+    }
+
+    // contact information
+    $contact = array();
+    if (($this->changes & 512) > 0)
+      $contact[] = array('name' => 'voice', 'value' => $this->voice);
+    if (($this->changes & 1024) > 0)
+      $contact[] = array('name' => 'fax', 'value' => $this->fax);
+    if (($this->changes & 2048) > 0)
+      $contact[] = array('name' => 'email', 'value' => $this->email);
+    if (($this->changes & 4096) > 0)
+      $contact[] = array('name' => 'authinfo', 'value' => $this->authinfo);
+
+    // consent for publishing
+    $consent = "";
+    if (($this->changes & 8192) > 0)
+      $consent = $this->consentforpublishing;
+
+    // registrant information
+    $registrant = array();
+    if (($this->changes & 114688) > 0) {
+      // 16384 & 32768 & 65536
+      $registrant['nationalityCode'] = $this->nationalitycode;
+      $registrant['entityType'] = $this->entitytype;
+      $registrant['regCode'] = $this->regcode;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $this->handle);
+
+    if ( empty($postalinfo) )
+      $this->client->assign('postalinfo', '');
+    else
+      $this->client->assign('postalinfo', $postalinfo);
+
+    if ( empty($addr) )
+      $this->client->assign('addr', '');
+    else
+      $this->client->assign('addr', $addr);
+
+    if ( empty($consent) )
+      $this->client->assign('consentForPublishing', '');
+    else
+      $this->client->assign('consentForPublishing', $this->consentforpublishing);
+
+    if ( empty($contact) )
+      $this->client->assign('contact', '');
+    else
+      $this->client->assign('contact', $contact);
+
+    if ( empty($registrant) )
+      $this->client->assign('registrant', '');
+    else
+      $this->client->assign('registrant', $registrant);
+
+    $this->xmlQuery = $this->client->fetch("update-contact");
+    $this->client->clear_all_assign();
+
+    // query server
+    return $this->ExecuteQuery("update-contact", $this->handle, ($this->debug >= LOG_DEBUG));
+  }
+
+  /**
+   * update contact status
+   *
+   * @access   public
+   * @param    string  clientDeleteProhibited, clientUpdateProhibited
+   * @param    string  add, rem (optional, defaults to add)
+   * @return   boolean status
+   */
+  public function updateStatus($state, $adddel = "add") {
+    if ($this->handle == "") {
+      $this->error("Operation not allowed, fetch a handle first!");
+      return FALSE;
+    }
+
+    switch ($state) {
+      case "clientDeleteProhibited":
+      case "clientUpdateProhibited":
+        break;
+      default;
+        $this->error("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited' or 'clientUpdateProhibited'.");
+        return FALSE;
+    }
+
+    switch ($adddel) {
+      case "add":
+      case "rem":
+        break;
+      default:
+        $this->error("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
+        return FALSE;
+        break;
+    }
+
+    // fill xml template
+    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->client->assign('id', $this->handle);
+    $this->client->assign('adddel', $adddel);
+    $this->client->assign('state', $state);
+    $this->xmlQuery = $this->client->fetch("update-contact-status");
+    $this->client->clear_all_assign();
+
+    // query server
+    return $this->ExecuteQuery("update-contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
+  }
+
+  /**
+   * store contact to DB
+   *
+   * @access   public
+   * @return   boolean status
+   */
+  public function storeDB() {
+    $contact['status'] = $this->status;
+    $contact['handle'] = $this->handle;
+    $contact['name'] = $this->name;
+    $contact['org'] = $this->org;
+    $contact['street'] = $this->street;
+    $contact['street2'] = $this->street2;
+    $contact['street3'] = $this->street3;
+    $contact['city'] = $this->city;
+    $contact['province'] = $this->province;
+    $contact['postalcode'] = $this->postalcode;
+    $contact['countrycode'] = $this->countrycode;
+    $contact['voice'] = $this->voice;
+    $contact['fax'] = $this->fax;
+    $contact['email'] = $this->email;
+    $contact['authinfo'] = $this->authinfo;
+    $contact['consentforpublishing'] = $this->consentforpublishing;
+    $contact['nationalitycode'] = $this->nationalitycode;
+    $contact['entitytype'] = $this->entitytype;
+    $contact['regcode'] = $this->regcode;
+
+    if ( $this->storage->storeContact($contact) ) {
+      return TRUE;
+    } else {
+      $this->error($this->storage->dberrMsg);
+      return FALSE;
+    }
+  }
+
+  /**
+   * load contact from DB
+   *
+   * @access   public
+   * @param    string  contact to load
+   * @return   boolean status
+   */
+  public function loadDB($contact = null) {
+    if ($contact === null)
+      $contact = $this->handle;
+    if ($contact == "") {
+      $this->error("Operation not allowed, set a handle!");
+      return FALSE;
+    }
+
+    $tmp = $this->storage->retrieveContact($contact);
+    if ( $tmp === FALSE ) {
+      $this->error($this->storage->dberrMsg);
+      return FALSE;
+    } else {
+      $this->changes = 0;
+      foreach ($tmp as $key => $value) {
+        $this->$key = $value;
+      }
+      return TRUE;
+    }
+  }
+
+  /**
+   * update contact stored in DB
+   *
+   * @access   public
+   * @param    string  contact to update
+   * @return   boolean status
+   */
+  public function updateDB($contact = null) {
+    if ($contact === null)
+      $contact = $this->handle;
+    if ($contact == "") {
+      $this->error("Operation not allowed, fetch a handle first!");
+      return FALSE;
+    }
+    if ($this->changes == 0) {
+      $this->error("Handle did not change!");
+      return FALSE;
+    }
+
+    $data['status'] = $this->status;
+    if (($this->changes & 1) > 0) $data['name'] = $this->name;
+    if (($this->changes & 2) > 0) $data['org'] = $this->org;
+    if (($this->changes & 4) > 0) $data['street'] = $this->street;
+    if (($this->changes & 8) > 0) $data['street2'] = $this->street2;
+    if (($this->changes & 16) > 0) $data['street3'] = $this->street3;
+    if (($this->changes & 32) > 0) $data['city'] = $this->city;
+    if (($this->changes & 64) > 0) $data['province'] = $this->province;
+    if (($this->changes & 128) > 0) $data['postalcode'] = $this->postalcode;
+    if (($this->changes & 256) > 0) $data['countrycode'] = $this->countrycode;
+    if (($this->changes & 512) > 0) $data['voice'] = $this->voice;
+    if (($this->changes & 1024) > 0) $data['fax'] = $this->fax;
+    if (($this->changes & 2048) > 0) $data['email'] = $this->email;
+    if (($this->changes & 4096) > 0) $data['authinfo'] = $this->authinfo;
+    if (($this->changes & 8192) > 0) $data['consentforpublishing'] = $this->consentforpublishing;
+    if (($this->changes & 16384) > 0) $data['nationalitycode'] = $this->nationalitycode;
+    if (($this->changes & 32768) > 0) $data['entitytype'] = $this->entitytype;
+    if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
+
+    if ( $this->storage->updateContact($data, $contact) ) {
+      return TRUE;
+    } else {
+      $this->error($this->storage->dberrMsg);
+      return FALSE;
+    }
+  }
+
+}
+
+?>
