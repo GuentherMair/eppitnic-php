@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 78 2010-04-09 08:23:13Z gunny $
+ * $Id: Domain.php 87 2010-04-27 11:30:57Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -509,7 +509,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
         foreach ($tmp->infData->ns->hostAttr as $hostAttr) {
           $addr = array();
           foreach ($hostAttr->hostAddr as $ip) {
-            $addr[] = $ip;
+            $addr[] = (string)$ip;
           }
           $this->addNS((string)$hostAttr->hostName, $addr);
         }

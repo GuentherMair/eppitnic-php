@@ -40,7 +40,7 @@ create table tbl_domains (
   ns                    text,
   registrant            varchar(32),
   admin                 varchar(32),
-  tech                  varchar(32),
+  tech                  text,
   authinfo              varchar(64)
 );
 

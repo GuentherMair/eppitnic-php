@@ -1,3 +1,8 @@
+Version 2.10
+============
+Some code cleanup suggested by Luca!
+
+
 Version 2.9
 ===========
 Two more bugs found by Luca have been corrected.
