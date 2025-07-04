@@ -1,3 +1,15 @@
+Version 6.3
+===========
+If a message was not successfully stored by poll() in Net/EPP/IT/Session.php
+return FALSE.
+
+
+Version 6.2
+===========
+This update includes support for the EDU SLD – please mind the schema update
+to tbl_contacts!
+
+
 Version 6.1
 ===========
 Some updates to the database schema.

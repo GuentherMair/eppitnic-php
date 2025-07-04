@@ -239,10 +239,8 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 
       // parse message (only in case of a poll "req") and store it
       if ((strtolower($type) == "req") && ($store === TRUE))
-        $this->storage->storeParsedMessage(
-          array_merge(
-            $this->parsePollReq(),
-            array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID)));
+        if ( ! $this->storage->storeParsedMessage(array_merge($this->parsePollReq(), array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID))))
+	  return FALSE;
     } else if ($qrs === TRUE) {
       $this->messages = 0;
     }
