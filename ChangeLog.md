@@ -1,3 +1,10 @@
+Version 2.11
+============
+Initialization of change-relevant information in domain objects after calls
+to loadDB added. Some more cleanups to various methods as suggested by Luca.
+Thanks again!
+
+
 Version 2.10
 ============
 Some code cleanup suggested by Luca!

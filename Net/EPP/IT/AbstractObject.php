@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 84 2010-04-10 15:11:32Z gunny $
+ * $Id: AbstractObject.php 90 2010-05-15 12:43:40Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -225,7 +225,7 @@ abstract class Net_EPP_IT_AbstractObject
     }
 
     // look for a server transaction ID
-    if ( is_object($this->xmlResult->response->trID->svTRID) )
+    if ( isset($this->xmlResult->response->trID->svTRID) && is_object($this->xmlResult->response->trID->svTRID) )
       $this->svTRID = $this->xmlResult->response->trID->svTRID;
     else
       $this->svTRID = "";

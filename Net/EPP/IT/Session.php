@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 21 2009-10-12 19:44:37Z gunny $
+ * $Id: Session.php 90 2010-05-15 12:43:40Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -206,7 +206,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server
-    $qrs = $this->ExecuteQuery("poll", $contact, ($this->debug >= LOG_DEBUG));
+    $qrs = $this->ExecuteQuery("poll", "poll", ($this->debug >= LOG_DEBUG));
 
     // look at message counter
     if ( is_object($this->xmlResult->response->msgQ[0]) ) {

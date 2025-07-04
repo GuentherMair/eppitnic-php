@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 87 2010-04-27 11:30:57Z gunny $
+ * $Id: Domain.php 90 2010-05-15 12:43:40Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -800,6 +800,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       return FALSE;
     } else {
       $this->changes = 0;
+      $this->ns_initial = $this->ns;
+      $this->admin_initial = $this->admin;
+      $this->tech_initial = $this->tech;
       foreach ($tmp as $key => $value) {
         $this->$key = $value;
       }

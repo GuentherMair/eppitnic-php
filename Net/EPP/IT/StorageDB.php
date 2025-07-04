@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 46 2010-02-03 14:42:42Z gunny $
+ * $Id: StorageDB.php 90 2010-05-15 12:43:40Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -213,7 +213,14 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @return   boolean   status
    */
   public function storeMessage($clTRID, $svTRID, $svCode, $status, $response) {
-    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_msgqueue");
+    return $this->doStore("tbl_msgqueue",
+      array("clTRID"             => $clTRID,
+            "svTRID"             => $svTRID,
+            "svEPPCode"          => $svEPPCode,
+            "status"             => $status,
+            "svHTTPCode"         => $response['code'],
+            "svHTTPHeaders"      => $response['headers'],
+            "svHTTPData"         => $response['body']));
   }
 
   /**
