@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 188 2010-10-22 12:37:23Z gunny $
+ * $Id: Contact.php 312 2011-01-13 19:34:22Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -150,6 +150,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function set($var, $val) {
+    // convert to lower-case
+    $var = strtolower($var);
+
     if ( $var == "entitytype" )
       return $this->setEntityType($val);
     else if ( $var == "consentforpublishing" && $this->isTrue($val) )
@@ -164,7 +167,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     else
       return FALSE; // value doesn't exist!
 
-    switch ( strtolower($var) ) {
+    switch ($var) {
       case "name":                 $this->changes |= 1;     break;
       case "org":                  $this->changes |= 2;     break;
       case "street":               $this->changes |= 4;     break;
@@ -414,7 +417,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('ids', array_slice($contact, 0, $this->max_check));
     $this->xmlQuery = $this->client->fetch("check-contact");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     if ( $this->ExecuteQuery("check-contact", implode(";", $contact), ($this->debug >= LOG_DEBUG)) ) {
@@ -471,7 +474,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->assign('entityType', $this->entitytype);
     $this->client->assign('regCode', $this->regcode);
     $this->xmlQuery = $this->client->fetch("create-contact");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
     $response = $this->ExecuteQuery("create-contact", $this->handle, ($this->debug >= LOG_DEBUG));
@@ -502,7 +505,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $contact);
     $this->xmlQuery = $this->client->fetch("info-contact");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // re-initialize object data
     $this->initValues();
@@ -561,7 +564,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $contact);
     $this->xmlQuery = $this->client->fetch("delete-contact");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("delete-contact", $contact, ($this->debug >= LOG_DEBUG));
@@ -659,7 +662,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $this->client->assign('registrant', $registrant);
 
     $this->xmlQuery = $this->client->fetch("update-contact");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("update-contact", $this->handle, ($this->debug >= LOG_DEBUG));
@@ -707,7 +710,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->assign('adddel', $adddel);
     $this->client->assign('state', $state);
     $this->xmlQuery = $this->client->fetch("update-contact-status");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     $result = $this->ExecuteQuery("update-contact-status", $this->handle, ($this->debug >= LOG_DEBUG));

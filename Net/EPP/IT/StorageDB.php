@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 251 2010-11-12 09:42:12Z gunny $
+ * $Id: StorageDB.php 300 2010-12-20 21:58:05Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -470,7 +470,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 
     // set primary condition (archived or not)
     if ( $active )
-      $condition = 'archived = 0';
+      $condition = 't.archived = 0';
     else
       $condition = '1 = 1';
 
@@ -486,13 +486,18 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
         t.*,
         ".$this->dbConnect->SQLDate('d-m-Y', 'createdTime')." as date,
         d.userID,
-        d.registrant
+        d.registrant,
+        u.billingID
       FROM
         tbl_messages t
       LEFT JOIN
         tbl_domains d
       ON
         t.domain = d.domain
+      JOIN
+        tbl_users u
+      ON
+        d.userID = u.id
       WHERE
         ".$condition.$acl."
       ORDER BY id DESC");

@@ -42,13 +42,29 @@ if ( ! $session->hello() ) {
       case FALSE:
         echo "Contact '".$name."' exists:\n";
         if ( $contact->fetch($name) ) {
+          // get values
+          $values = array();
+          $values['name'] = $contact->get('name');
+          $values['street'] = $contact->get('street');
+          $values['city'] = $contact->get('city');
+          $values['province'] = $contact->get('province');
+          $values['postalcode'] = $contact->get('postalcode');
+          $values['voice'] = $contact->get('voice');
+          $values['fax'] = $contact->get('fax');
+          $values['email'] = $contact->get('email');
+          $values['authinfo'] = $contact->get('authinfo');
+          $values['nationalitycode'] = $contact->get('nationalitycode');
+          $values['entitytype'] = $contact->get('entitytype');
+          $values['regcode'] = $contact->get('regcode');
+          $values['consentforpublishing'] = $contact->get('consentforpublishing');
+
+          // print states
           $status = $contact->get('status');
-          foreach ( $status as $state )
-            echo " - status '" . $state . "'\n";
-          echo " - name '" . $contact->get('name') . "'\n";
-          echo " - street '" . $contact->get('street') . "'\n";
-          echo " - city '" . $contact->get('city') . "'\n";
-          echo " - consent for publishing '" . $contact->get('consentforpublishing') . "'\n";
+          echo " - states '".implode("' / '", $status)."'\n";
+
+          // print remaining values
+          foreach ( $values as $key => $value )
+            if ( !empty($value) ) echo " - ".$key." '" . $value . "'\n";
         } else {
           echo "Fetch contact FAILED (".$contact->getError().").\n";
         }

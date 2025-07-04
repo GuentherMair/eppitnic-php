@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 186 2010-10-21 16:45:38Z gunny $
+ * $Id: AbstractObject.php 313 2011-02-03 15:51:13Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -589,12 +589,12 @@ abstract class Net_EPP_IT_AbstractObject
 
       // look for a server message
       if ( is_object($this->xmlResult->response->result->msg) )
-        $this->svMsg = $this->xmlResult->response->result->msg;
+        $this->svMsg = (string)$this->xmlResult->response->result->msg;
       else
         $this->svMsg = "";
 
       // look for a server message code
-      $this->svCode = $this->xmlResult->response->result['code'];
+      $this->svCode = (string)$this->xmlResult->response->result['code'];
       switch ( substr($this->svCode, 0, 1) ) {
         case "1":
           $return_code = TRUE;

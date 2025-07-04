@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 277 2010-11-20 15:05:14Z gunny $
+ * $Id: Session.php 301 2010-12-30 09:10:25Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -69,7 +69,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
   public function hello() {
     // fill xml template
     $this->xmlQuery = $this->client->fetch("hello");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server (will return false)
     $this->ExecuteQuery("hello", "", ($this->debug >= LOG_DEBUG));
@@ -93,7 +93,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
   private function loginout($which) {
     // fetch template
     $this->xmlQuery = $this->client->fetch($which);
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     if ( $this->ExecuteQuery($which, "", ($this->debug >= LOG_DEBUG)) ) {
@@ -204,7 +204,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 
     // fetch template
     $this->xmlQuery = $this->client->fetch("poll");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     $qrs = $this->ExecuteQuery("poll", "poll", ($this->debug >= LOG_DEBUG));

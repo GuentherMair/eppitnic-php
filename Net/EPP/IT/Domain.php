@@ -66,7 +66,7 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 278 2010-11-20 15:22:17Z gunny $
+ * $Id: Domain.php 312 2011-01-13 19:34:22Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -151,6 +151,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function set($var, $val) {
+    // convert to lower-case
+    $var = strtolower($var);
+
     if ( $var == "ns" )
       return $this->addNS($val);
     else if ( $var == "tech" )
@@ -163,7 +166,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     else
       return FALSE; // value doesn't exist!
 
-    switch ( $var ) {
+    switch ($var) {
       //case "ns":           $this->changes |= 1;  break; // to be handled by addNS
       case "registrant":   $this->changes |= 2;  break;
       case "admin":        $this->changes |= 4;  break;
@@ -447,7 +450,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domains', array_slice($domain, 0, $this->max_check));
     $this->xmlQuery = $this->client->fetch("check-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     if ( $this->ExecuteQuery("check-domain", implode(";", $domain), ($this->debug >= LOG_DEBUG)) ) {
@@ -504,7 +507,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('tech', $this->tech);
     $this->client->assign('authinfo', $this->authinfo);
     $this->xmlQuery = $this->client->fetch("create-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
     if ( $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
@@ -546,7 +549,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ( ! empty($authinfo) )
       $this->client->assign('authinfo', $authinfo);
     $this->xmlQuery = $this->client->fetch("info-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // re-initialize object data
     $this->initValues();
@@ -626,7 +629,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
     $this->xmlQuery = $this->client->fetch("delete-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("delete-domain", $domain, ($this->debug >= LOG_DEBUG));
@@ -720,7 +723,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if (($this->changes & 16) > 0)
       $this->client->assign('authinfo', $this->authinfo);
     $this->xmlQuery = $this->client->fetch("update-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     if ( $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
@@ -769,7 +772,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->client->assign('admin_rem', $this->admin_initial);
     }
     $this->xmlQuery = $this->client->fetch("update-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG));
@@ -820,7 +823,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('adddel', $adddel);
     $this->client->assign('state', $state);
     $this->xmlQuery = $this->client->fetch("update-domain-status");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("update-domain-status", $this->domain, ($this->debug >= LOG_DEBUG));
@@ -845,7 +848,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
     $this->xmlQuery = $this->client->fetch("update-domain-restore");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("update-domain-restore", $domain, ($this->debug >= LOG_DEBUG));
@@ -1006,7 +1009,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if ( ! empty($authinfo) )
       $this->client->assign('authinfo', $authinfo);
     $this->xmlQuery = $this->client->fetch("transfer-query");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     if ( $this->ExecuteQuery("transfer-query", $domain, ($this->debug >= LOG_DEBUG)) ) {
@@ -1061,7 +1064,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     else
       $this->client->assign('newauthinfo', $newauthinfo);
     $this->xmlQuery = $this->client->fetch("transfer-domain");
-    $this->client->clear_all_assign();
+    $this->client->clearAllAssign();
 
     // query server
     return $this->ExecuteQuery("transfer-domain-".$operation, $domain, ($this->debug >= LOG_DEBUG));

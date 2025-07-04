@@ -6,6 +6,8 @@
   <timezone>Europe/Rome</timezone>
   <lang>en</lang>
   <forceUTF8>0</forceUTF8>
+  <timeoutSec>5</timeoutSec>
+  <timeoutMsec>0</timeoutMsec>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
     <use_sub_dirs></use_sub_dirs>
@@ -40,6 +42,7 @@
     <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
   </webinterface>
   <billing>
+    <renewByPollQueueMsg>1</renewByPollQueueMsg>
     <CDR>/var/log/itnic_billing.cdr</CDR>
     <delimiter>;</delimiter>
     <enclosure>"</enclosure>

@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 296 2010-12-19 21:14:33Z gunny $
+ * $Id: Client.php 311 2011-01-06 10:36:02Z gunny $
  */
 
 /*
@@ -86,6 +86,9 @@ class Net_EPP_IT_Client extends Smarty
   private $clTRID;
   private $DEFAULT_HEADERS = array('content-type' => 'text/xml; charset=UTF-8');
   private $forceUTF8 = FALSE;
+  private $timeout = 5.0;
+  private $timeoutSec = 5;
+  private $timeoutMsec = 0;
 
   /**
    * Class constructor
@@ -110,9 +113,19 @@ class Net_EPP_IT_Client extends Smarty
       }
     }
 
+    // setup timeout (seconds)
+    if ( @isset($this->EPPCfg->timeoutSec) )
+      $this->timeoutSec = (int)$this->EPPCfg->timeoutSec;
+
+    // setup timeout (microseconds)
+    if ( @isset($this->EPPCfg->timeoutMsec) )
+      $this->timeoutMsec = (int)$this->EPPCfg->timeoutMsec;
+
     // setup default time zone
     if ( @isset($this->EPPCfg->timezone) )
       date_default_timezone_set($this->EPPCfg->timezone);
+    else
+      date_default_timezone_set("Europe/Rome");
 
     // verify if user wants to force utf8-encoding (ie. from ISO-8859-1)
     if ( @isset($this->EPPCfg->forceUTF8) && ((int)$this->EPPCfg->forceUTF8 == 1) )
@@ -141,7 +154,13 @@ class Net_EPP_IT_Client extends Smarty
       }
 
     // initialize HTTP_Client class
-    $this->EPPClient = new HTTP_Client(null, $this->DEFAULT_HEADERS);
+    $this->EPPClient = new HTTP_Client(
+      array(                                                                    // defaultRequestParams
+        'readTimeout' =>   array($this->timeoutSec, $this->timeoutMsec),        //  => reading/writing operations
+        'timeout'     => (float)($this->timeoutSec+($this->timeoutMsec/1000))), //  => socket connect
+      $this->DEFAULT_HEADERS);                                                  // defaultHeaders
+
+    // set client transaction ID
     $this->set_clTRID();
   }
 
