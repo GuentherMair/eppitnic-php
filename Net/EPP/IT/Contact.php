@@ -53,7 +53,7 @@ require_once 'Net/EPP/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 372 2011-06-16 17:45:33Z gunny $
+ * $Id: Contact.php 411 2012-05-18 13:15:17Z gunny $
  */
 
 /**
@@ -437,7 +437,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // query server
     if ( $this->ExecuteQuery("check-contact", implode(";", $contact), ($this->debug >= LOG_DEBUG)) ) {
-      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      $tmp = $this->xmlResult->response->resData->children($ns['contact']);
       if ( count($tmp->chkData->cd) == 1 ) {
         return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
       } else {
@@ -532,7 +533,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       $this->status = array();
       $this->handle = $contact;
 
-      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      $tmp = $this->xmlResult->response->resData->children($ns['contact']);
 
       $this->name =        (string)$tmp->infData->postalInfo->name;
       $this->org =         (string)$tmp->infData->postalInfo->org;
@@ -549,7 +551,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       foreach ( $tmp->infData->status as $singleState )
         $this->status[] =  (string)$singleState->attributes()->s;
 
-      $tmp = $this->xmlResult->response->extension->children('http://www.nic.it/ITNIC-EPP/extcon-1.0');
+      $tmp = $this->xmlResult->response->extension->children($ns['extcon']);
 
       $this->set('consentforpublishing', (string)$tmp->infData->consentForPublishing);
       $this->nationalitycode =      (string)$tmp->infData->registrant->nationalityCode;

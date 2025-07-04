@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 400 2012-02-05 16:55:02Z gunny $
+ * $Id: Client.php 422 2012-06-18 08:14:29Z gunny $
  */
 
 /**
@@ -158,9 +158,9 @@ class Net_EPP_Client extends Smarty
     if ( ! @empty($this->EPPCfg->port) )
       $this->httpClient->setPort((int)$this->EPPCfg->port);
 
-    // set server port
+    // set debug filename
     if ( ! @empty($this->EPPCfg->debugfile) )
-      $this->httpClient->setDebugFile((int)$this->EPPCfg->debugfile);
+      $this->httpClient->setDebugFile($this->EPPCfg->debugfile);
 
     // setup client certificate
     if ( ! @empty($this->EPPCfg->certificatefile) ) {
@@ -188,6 +188,16 @@ class Net_EPP_Client extends Smarty
       return parent::clear_all_assign(); // Smarty 2
     else
       return parent::clearAllAssign();   // Smarty 3
+  }
+
+  /**
+   * reset curl connection by removing the curl cookie file
+   *
+   * @access   public
+   * @return   boolean
+   */
+  public function resetHttpClientCookie() {
+    return unlink($this->httpClient->getCookieFileLocation());
   }
 
   /**
@@ -263,4 +273,3 @@ class Net_EPP_Client extends Smarty
   }
 
 }
-

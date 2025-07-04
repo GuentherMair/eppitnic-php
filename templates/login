@@ -13,9 +13,9 @@
       <objURI>urn:ietf:params:xml:ns:contact-1.0</objURI>
       <objURI>urn:ietf:params:xml:ns:domain-1.0</objURI>
       <svcExtension>
-        <extURI>http://www.nic.it/ITNIC-EPP/extepp-1.0</extURI>
+        <extURI>http://www.nic.it/ITNIC-EPP/extepp-2.0</extURI>
         <extURI>http://www.nic.it/ITNIC-EPP/extcon-1.0</extURI>
-        <extURI>http://www.nic.it/ITNIC-EPP/extdom-1.0</extURI>
+        <extURI>http://www.nic.it/ITNIC-EPP/extdom-2.0</extURI>
         <extURI>urn:ietf:params:xml:ns:rgp-1.0</extURI>
       </svcExtension>
     </svcs>

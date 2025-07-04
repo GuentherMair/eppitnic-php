@@ -51,7 +51,7 @@ require_once 'Net/EPP/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 374 2011-07-08 07:58:02Z gunny $
+ * $Id: Session.php 411 2012-05-18 13:15:17Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 {
@@ -110,8 +110,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     if ( $this->ExecuteQuery($which, "", ($this->debug >= LOG_DEBUG)) ) {
       // see if we got the expected information
       if ( is_object($this->xmlResult->response->extension) ) {
-        $tmp = $this->xmlResult->response->extension->children('http://www.nic.it/ITNIC-EPP/extepp-1.0');
-        $this->credit = (float) $tmp->creditMsgData->credit;
+        $ns = $this->xmlResult->getNamespaces(TRUE);
+        $tmp = $this->xmlResult->response->extension->children($ns['extepp']);
+        $this->credit = (float)$tmp->creditMsgData->credit;
       }
       return TRUE;
     } else {

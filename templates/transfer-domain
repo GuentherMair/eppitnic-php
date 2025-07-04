@@ -5,7 +5,6 @@
   <command>
     <transfer op="{$operation}">
       <domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
-                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                        xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
         <domain:name>{$domain}</domain:name>
         <domain:authInfo>
@@ -15,9 +14,8 @@
     </transfer>
     {if $newregistrant ne ""}
     <extension>
-      <extdom:trade xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-1.0 extdom-1.0.xsd">
+      <extdom:trade xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0"
+                    xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-2.0 extdom-2.0.xsd">
         <extdom:transferTrade>
           <extdom:newRegistrant>{$newregistrant}</extdom:newRegistrant>
           <extdom:newAuthInfo>

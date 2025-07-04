@@ -11,6 +11,7 @@
  *  - setReferer
  *  - setBinaryTransfer
  *  - setCookieFileLocation
+ *  - getCookieFileLocation
  *  - setPost
  *  - setUrl
  *  - setUserAgent
@@ -135,6 +136,10 @@ class Net_EPP_Curl
     $this->_cookieFileLocation = $path;
   }
 
+  public function getCookieFileLocation() {
+    return $this->_cookieFileLocation;
+  }
+
   public function setBinaryTransfer($binaryTransfer) {
     $this->_binaryTransfer = $binaryTransfer ? true : false;
   }
@@ -202,6 +207,7 @@ class Net_EPP_Curl
     }
 
     if ( $this->_debugFile !== false ) {
+      curl_setopt($ch, CURLINFO_HEADER_OUT, 1);
       curl_setopt($ch, CURLOPT_VERBOSE, true);
       curl_setopt($ch, CURLOPT_STDERR, $this->_debugFile);
     }
@@ -212,7 +218,19 @@ class Net_EPP_Curl
     $this->_headers = substr($response, 0, $header_size);
     $this->_body = substr($response, $header_size);
     $this->_error = ( $response === false ) ? curl_error($ch) : "";
+    $header_out = curl_getinfo($ch, CURLINFO_HEADER_OUT);
     curl_close($ch);
+
+    // write debug information
+    if ($this->_debugFile)
+      fwrite($this->_debugFile,
+        __FILE__ . " @ " . __LINE__ . " -- " . date("c") . "\n" .
+        "==== START OUTPUT ====\n" .
+        $header_out . $postFields .
+        "==== END OUTPUT ====\n" .
+        "==== START INPUT ====\n" .
+        $response .
+        "==== END INPUT ====\n\n");
 
     return $this->_body;
   }

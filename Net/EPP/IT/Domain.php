@@ -10,6 +10,14 @@ if ( ! class_exists('idna_convert') )
   require_once 'libs/idna_convert/idna_convert.class.php';
 
 /**
+ * define the PHP_VERSION_ID (predefined as of 5.2.7)
+ */
+if ( ! defined('PHP_VERSION_ID')) {
+  $version = explode('.', PHP_VERSION);
+  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
+}
+
+/**
  * This class handles domains and supports the following operations on them:
  *
  *  - check domain (single and bulk operations supported)
@@ -67,7 +75,7 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 400 2012-02-05 16:55:02Z gunny $
+ * $Id: Domain.php 425 2012-06-22 13:25:53Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
@@ -157,12 +165,18 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    if ( $var == "ns" )
+    // in version 5.2.3 the 4th parameter "double_encode" was added
+    if (PHP_VERSION_ID < 50203)
+      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8');
+    else
+      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+
+    if ($var == "ns")
       return $this->addNS($val);
-    else if ( $var == "tech" )
+    else if ($var == "tech")
       return $this->addTECH($val);
-    else if ( isset($this->$var) )
-      if ( $this->$var == $val )
+    else if (isset($this->$var))
+      if ($this->$var == $val)
         return FALSE; // value didn't change!
       else
         $this->$var = $val;
@@ -269,6 +283,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   public function addNS($name, $addr = null) {
     $dns1 = "";
     $dns2 = "";
+    $ip_changed = FALSE;
 
     // don't allow empty values
     if ( empty($name) )
@@ -277,65 +292,80 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // DNS names must be in punycode format (if below an IDN domain)
     $name = $this->idn->encode($name);
 
-    // if a nameserver by this name was already set stop here
-    if ( ! isset($this->ns[$name]) ) {
-
-      // check that we are not exceeding the maximum number of allowed NS records
-      if ( count($this->ns) >= 6 ) {
-        $this->setError("You are not allowed to assign more than 6 NS to a domain.");
-        return FALSE;
-      }
-
-      // assign NS name
-      $this->ns[$name]['name'] = $name;
-
-      // handle IP addresses (if set)
-      if ( is_array($addr) ) {
-        switch ( count($addr) ) {
-          case 2:
-            $dns1 = $addr[0];
-            $dns2 = $addr[1];
-            break;
-          case 1:
-            $dns1 = $addr[0];
-            break;
-          case 0:
-            break;
-          default:
-            $this->setError("The address must be an array of one or two elements.");
-            return FALSE;
-            break;
-        }
-      } else if ( ! empty($addr) ) {
-        $dns1 = $addr;
-      }
-
-      // assign IP address 1 (if set)
-      if ( ! empty($dns1) ) {
-        if ( @gethostbyaddr($dns1) == "" ) {
-          $this->setError("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
+    // handle IP addresses (if set)
+    if ( is_array($addr) ) {
+      switch ( count($addr) ) {
+        case 2:
+          $dns1 = strtolower($addr[0]);
+          $dns2 = strtolower($addr[1]);
+          break;
+        case 1:
+          $dns1 = strtolower($addr[0]);
+          break;
+        case 0:
+          break;
+        default:
+          $this->setError("The address must be an array of one or two elements.");
           return FALSE;
-        } else {
-          $type = strpos($dns1, '.') ? 'v4' : 'v6';
-          $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
-        }
+          break;
       }
-
-      // assign IP address 2 (if set)
-      if ( ! empty($dns2) ) {
-        if ( @gethostbyaddr($dns2) == "" ) {
-          $this->setError("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
-          return FALSE;
-        } else {
-          $type = strpos($dns2, '.') ? 'v4' : 'v6';
-          $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
-        }
-      }
-
-      // if we get to this point, something has changed
-      $this->changes |= 1;
+    } else if ( ! empty($addr) ) {
+      $dns1 = $addr;
     }
 
+    // if a nameserver by this name was already set and IPs didn't change stop here
+    if ( isset($this->ns[$name]) ) {
+      // create a list of all addresses associated to this NS record
+      $ip_list = array();
+      foreach ($this->ns[$name]['ip'] as $ip)
+        $ip_list[] = $ip['address'];
+
+      // verify if a new IP was added to this NS record
+      if ( ! empty($dns1) && ! in_array($dns1, $ip_list) )
+        $ip_changed = TRUE;
+      if ( ! empty($dns2) && ! in_array($dns2, $ip_list) )
+        $ip_changed = TRUE;
+
+      // if any new IP was added, remove the NS record first, then procede else there was no change and we bail out
+      if ( $ip_changed )
+        $this->remNS($name);
+      else
+        return $name;
+    }
+
+    // check that we are not exceeding the maximum number of allowed NS records
+    if ( count($this->ns) >= 6 ) {
+      $this->setError("You are not allowed to assign more than 6 NS to a domain.");
+      return FALSE;
+    }
+
+    // assign NS name
+    $this->ns[$name]['name'] = $name;
+
+    // assign IP address 1 (if set)
+    if ( ! empty($dns1) ) {
+      if ( @gethostbyaddr($dns1) == "" ) {
+        $this->setError("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
+        return FALSE;
+      } else {
+        $type = strpos($dns1, '.') ? 'v4' : 'v6';
+        $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
+      }
+    }
+
+    // assign IP address 2 (if set)
+    if ( ! empty($dns2) ) {
+      if ( @gethostbyaddr($dns2) == "" ) {
+        $this->setError("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
+        return FALSE;
+      } else {
+        $type = strpos($dns2, '.') ? 'v4' : 'v6';
+        $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
+      }
+    }
+
+    // if we get to this point, something has changed
+    $this->changes |= 1;
     return $name;
   }
 
@@ -457,7 +487,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
     // query server
     if ( $this->ExecuteQuery("check-domain", implode(";", $domain), ($this->debug >= LOG_DEBUG)) ) {
-      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
       if ( count($tmp->chkData->cd) == 1 ) {
         if ( $tmp->chkData->cd->name->attributes()->avail == "true" ) {
           return TRUE;
@@ -559,7 +590,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
     // query server
     if ( $this->ExecuteQuery("info-domain", $domain, ($this->debug >= LOG_DEBUG)) ) {
-      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
 
       $this->domain = $domain;
       $this->status = array();
@@ -584,7 +616,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
         foreach ($tmp->infData->ns->hostAttr as $hostAttr) {
           $addr = array();
           foreach ($hostAttr->hostAddr as $ip) {
-            $addr[] = (string)$ip;
+            $addr[] = strtolower((string)$ip);
           }
           $this->addNS((string)$hostAttr->hostName, $addr);
         }
@@ -1025,7 +1057,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
     // query server
     if ( $this->ExecuteQuery("transfer-query", $domain, ($this->debug >= LOG_DEBUG)) ) {
-      $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
       if ( @is_object($tmp->trnData->trStatus[0]) ) {
         $this->trStatus = $tmp->trnData->trStatus[0];
         $this->reID = @$tmp->trnData->reID;
@@ -1057,8 +1090,16 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
-    if ($authinfo === null)
+
+    if ($authinfo === null) {
       $authinfo = $this->authinfo;
+    } else {
+      // in version 5.2.3 the 4th parameter "double_encode" was added
+      if (PHP_VERSION_ID < 50203)
+        $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8');
+      else
+        $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8', false);
+    }
     if ($authinfo == "") {
       $this->setError("Operation not allowed, state the domain authinfo!");
       return FALSE;

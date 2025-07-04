@@ -5,7 +5,6 @@
   <command>
     <transfer op="query">
       <domain:transfer xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
-                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                        xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
         <domain:name>{$domain}</domain:name>
         {if $authinfo ne ""}
