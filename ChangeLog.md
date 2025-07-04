@@ -1,3 +1,13 @@
+Version 2.4
+===========
+Added support for changing single values for registrant's. If a contact has
+already information set in these fields, only single fields that are still
+empty can be set. Adjusted Contact.php class and update-contact template
+to allow for these specific operations. Thanks Robin!
+
+An example for this is now available as well.
+
+
 Version 2.3
 ===========
 Added "set_include_path('.:'.ini_get('include_path'));" to all examples. This

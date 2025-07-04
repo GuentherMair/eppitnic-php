@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 45 2010-02-03 14:17:48Z gunny $
+ * $Id: Contact.php 51 2010-03-04 15:47:17Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -557,12 +557,12 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 
     // registrant information
     $registrant = array();
-    if (($this->changes & 114688) > 0) {
-      // 16384 & 32768 & 65536
+    if (($this->changes & 16384) > 0)
       $registrant['nationalityCode'] = $this->nationalitycode;
+    if (($this->changes & 32768) > 0)
       $registrant['entityType'] = $this->entitytype;
+    if (($this->changes & 65536) > 0)
       $registrant['regCode'] = $this->regcode;
-    }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());

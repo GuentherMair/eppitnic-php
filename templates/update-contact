@@ -6,6 +6,7 @@
                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                       xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
         <contact:id>{$id}</contact:id>
+        {if $postalinfo ne "" or $addr ne "" or $contact ne ""}
         <contact:chg>
         {if $postalinfo ne "" or $addr ne ""}
           <contact:postalInfo type="loc">
@@ -25,6 +26,7 @@
           {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
         {/foreach}
         </contact:chg>
+        {/if}
       </contact:update>
     </update>
     {if $consentForPublishing ne "" or $registrant ne ""}
@@ -37,9 +39,9 @@
         {/if}
         {if $registrant ne ""}
         <extcon:registrant>
-          <extcon:nationalityCode>{$registrant.nationalityCode}</extcon:nationalityCode>
-          <extcon:entityType>{$registrant.entityType}</extcon:entityType>
-          <extcon:regCode>{$registrant.regCode}</extcon:regCode>
+          {if $registrant.nationalityCode ne ""}<extcon:nationalityCode>{$registrant.nationalityCode}</extcon:nationalityCode>{/if}
+          {if $registrant.entityType ne ""}<extcon:entityType>{$registrant.entityType}</extcon:entityType>{/if}
+          {if $registrant.regCode ne ""}<extcon:regCode>{$registrant.regCode}</extcon:regCode>{/if}
         </extcon:registrant>
         {/if}
       </extcon:update>
