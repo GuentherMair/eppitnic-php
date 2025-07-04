@@ -1,3 +1,23 @@
+Version 3.2
+===========
+Support for clientLock added to the domain object (can only be viewed though).
+
+Added the idna_convert class by phlyLabs. The eppitnic-php class by itself
+should support UTF-8 IDNs as long as you feed UTF-8 data to it, but the
+webinterface will have to feed punycode strings to the DNS notification
+script (DNS's need to run domains in punycode format).
+
+Fixed the sendRequest method in the client class which (wrongly) always used
+utf8_encode() on the data to be sent. This issue led to double-encoding in
+cases where your data was already in UTF-8 format. For those of you feeding
+data in ISO-8859-1 format I added the forceUTF8 configuration parameter.
+
+Added an example for IDN registration (032) and fixed deriving example (011).
+German SZ (ß) will be encoded as 'ss'.
+
+creditMsgData messages in polling queue are now parsed.
+
+
 Version 3.1
 ===========
 A typo inside the domain object fixed. Thanks Luca!

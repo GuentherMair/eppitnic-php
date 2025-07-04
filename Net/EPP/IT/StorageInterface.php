@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 219 2010-10-26 14:45:04Z gunny $
+ * $Id: StorageInterface.php 252 2010-11-12 09:42:57Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
@@ -67,5 +67,8 @@ interface Net_EPP_IT_StorageInterface
   public function storeDomain($elements, $userID = 1);
   public function retrieveDomain($domain, $userID = 1);
   public function updateDomain($elements, $domain, $userID = 1);
+
+  // generic
+  public function escape($data);
 }
 

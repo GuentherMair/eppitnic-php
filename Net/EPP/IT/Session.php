@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 231 2010-10-29 13:44:03Z gunny $
+ * $Id: Session.php 277 2010-11-20 15:05:14Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -238,6 +238,20 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
   }
 
   /**
+   * method to remove trailing slashes from domain names (dnsErrorMsgData cases)
+   *
+   * @access   protected
+   * @param    string     domain name
+   * @return   string     domain name
+   */
+  protected function stripTrailingDots($domain) {
+    if ( substr($domain, strlen($domain)-1) == "." )
+      return substr($domain, 0, strlen($domain)-1);
+    else
+      return $domain;
+  }
+
+  /**
    * try to parse message received by poll "req"
    *
    * @access   protected
@@ -257,13 +271,23 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       );
     }
 
+    // creditMsgData
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit) ) {
+      $credit = (string)$this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit;
+      return array(
+        'type'   => 'creditMsgData',
+        'domain' => '',
+        'data'   => (string)$this->xmlResult->response->msgQ->msg . " (" . $credit . ")",
+      );
+    }
+
     // simpleMsgData
     if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name) ) {
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       return array(
         'type'   => 'simpleMsgData',
-        'domain' => $domain,
+        'domain' => $this->stripTrailingDots($domain),
         'data'   => $title,
       );
     }
@@ -277,7 +301,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
         $msg[] = $child->attributes()->name . ": " . $child->attributes()->status;
       return array(
         'type'   => 'dnsErrorMsgData',
-        'domain' => $domain,
+        'domain' => $this->stripTrailingDots($domain),
         'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
@@ -295,7 +319,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       }
       return array(
         'type'   => 'chgStatusMsgData',
-        'domain' => $domain,
+        'domain' => $this->stripTrailingDots($domain),
         'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
@@ -309,7 +333,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
         $msg[] = (string)$child;
       return array(
         'type'   => 'dlgMsgData',
-        'domain' => $domain,
+        'domain' => $this->stripTrailingDots($domain),
         'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
@@ -326,7 +350,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers
       return array(
         'type'   => $type,
-        'domain' => $domain,
+        'domain' => $this->stripTrailingDots($domain),
         'data'   => $title,
         'acID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
         'reID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID,

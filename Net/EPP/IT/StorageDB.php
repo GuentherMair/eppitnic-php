@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 240 2010-11-09 11:07:50Z gunny $
+ * $Id: StorageDB.php 251 2010-11-12 09:42:12Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -51,6 +51,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   public    $dbMaxEntries      = 50;
   public    $dbSerializePrefix = "__SERIALIZED:";
   public    $dbMagicQuotes     = TRUE;
+  public    $dbForceQuotes     = FALSE;
 
   protected $dberrCode         = 0;
   protected $dberrMsg          = "";
@@ -66,6 +67,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   function __construct($cfg) {
     if ( ! $cfg->dbmagicquotes )
       $this->dbMagicQuotes = FALSE;
+    if ( $cfg->dbforcequotes )
+      $this->dbForceQuotes = TRUE;
     $this->dbConnect = ADONewConnection($cfg->dbtype);
     if ( ! $this->dbConnect )
       return $this->setError(1, "unable to load adodb database driver '".$cfg->dbConnecttype."': ".$this->dbConnect->ErrorMsg());
@@ -112,12 +115,15 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * escape SQL string
    * (reduce size)
    *
-   * @access   protected
+   * @access   public
    * @param    string    data to escape
    * @return   string    escaped sql string
    */
-  protected function escape($data) {
-    return $this->dbConnect->qstr($data, ($this->dbMagicQuotes ? get_magic_quotes_gpc() : FALSE));
+  public function escape($data) {
+    if ( $this->dbForceQuotes )
+      return $this->dbConnect->qstr($data);
+    else
+      return $this->dbConnect->qstr($data, ($this->dbMagicQuotes ? get_magic_quotes_gpc() : FALSE));
   }
 
   /**

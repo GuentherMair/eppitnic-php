@@ -30,6 +30,7 @@ function check_or_create($handle, $registrant = FALSE) {
   echo "Creating contact '".$handle."'...\n";
   $contact->set('handle', $handle);
   $contact->set('name', 'Guenther Mair');
+  $contact->set('org', 'Guenther Mair');
   $contact->set('street', 'via Andriano 7/G');
   $contact->set('city', 'Bolzano');
   $contact->set('province', 'BZ');
@@ -106,10 +107,7 @@ if ( ! $session->hello() ) {
         $domain->set('tech', $tech);
         $domain->set('ns', $dns1);
         $domain->set('ns', $dns2);
-        /*
-        $domain->addNS('dns3.inet-services.it', array('::1', '172.16.1.1'));
-        print_r( $domain->get('ns') );
-        */
+        $domain->set('authinfo', substr(rand(), 0, 32));
         if ( $domain->create() ) {
           echo "Domain '".$name."' created.\n";
         } else {

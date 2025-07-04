@@ -2,6 +2,12 @@
 
 require_once 'Net/EPP/IT/AbstractObject.php';
 
+/*
+ * idna_convert class (for punycode generation)
+*/
+if ( ! class_exists('idna_convert') )
+  require_once 'libs/idna_convert/idna_convert.class.php';
+
 /**
  * This class handles domains and supports the following operations on them:
  *
@@ -60,12 +66,12 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 248 2010-11-11 00:16:04Z gunny $
+ * $Id: Domain.php 278 2010-11-20 15:22:17Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
   //         name              // change flag
-  protected $status;           // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold + server-side states)
+  protected $status;           // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;           // -
   protected $changes;          // sum
 
@@ -89,7 +95,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $reID;
   protected $acID;
 
+  // max checks allowed
   protected $max_check;
+
+  // IDN <=> punycode converter class
+  protected $idn;
 
   /*
    * Class constructor
@@ -103,6 +113,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   function __construct(&$client, &$storage) {
     $this->authinfo = $this->authinfo();
     $this->initValues();
+    $this->idn = new idna_convert(array('encode_german_sz' => true));
     parent::__construct($client, $storage);
   }
 
@@ -230,6 +241,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix      value set or FALSE if variable name does not exist
    */
   public function remNS($name) {
+    // DNS names must be in punycode format (if below an IDN domain)
+    $name = $this->idn->encode($name);
     if ( isset($this->ns[$name]) ) {
       unset($this->ns[$name]);
       $this->changes |= 1;
@@ -254,6 +267,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     // don't allow empty values
     if ( empty($name) )
       return FALSE;
+
+    // DNS names must be in punycode format (if below an IDN domain)
+    $name = $this->idn->encode($name);
 
     // if a nameserver by this name was already set stop here
     if ( ! isset($this->ns[$name]) ) {
@@ -748,6 +764,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('domain', $this->domain);
     $this->client->assign('registrant', $this->registrant);
     $this->client->assign('authinfo', $this->authinfo);
+    if (($this->changes & 4) > 0) {
+      $this->client->assign('admin_add', $this->admin);
+      $this->client->assign('admin_rem', $this->admin_initial);
+    }
     $this->xmlQuery = $this->client->fetch("update-domain");
     $this->client->clear_all_assign();
 
@@ -759,7 +779,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * update domain status
    *
    * @access   public
-   * @param    string  clientDeleteProhibited, clientUpdateProhibited, clientHold
+   * @param    string  clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock
    * @param    string  add, rem (optional, defaults to add)
    * @return   boolean status
    */
@@ -774,9 +794,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       case "clientUpdateProhibited":
       case "clientTransferProhibited":
       case "clientHold":
+      case "clientLock":
         break;
       default;
-        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited', 'clientHold'.");
+        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited', 'clientHold', 'clientLock'.");
         return FALSE;
     }
 
@@ -848,16 +869,16 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['crDate'] = $this->crDate;
     $domain['exDate'] = $this->exDate;
 
-    // resolve a not very common case:
-    // - remove existing domain objects when storing (in case of a re-transfer-in or re-register or re-import)
-    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice FROM tbl_domains WHERE domain='".$this->domain."'");
-    if ( $result !== FALSE ) {
-      // - either don't delete if it is still marked as 'active' (that would confuse the value for 'lastInvoice')
-      // $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."' AND active=0");
-      // - or save the lastInvoice value!
-      $domain['lastInvoice'] = $result->Fields('lastInvoice');
-      $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
-    }
+    // remove existing domain objects when storing (re-transfer-in / re-register / re-import)
+    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice, userID FROM tbl_domains WHERE domain='".$this->domain."'");
+    if ( $result !== FALSE )
+      if ($result->RecordCount() > 0) {
+        // save the lastInvoice value!
+        $domain['lastInvoice'] = $result->Fields('lastInvoice');
+        // keep the current userID
+        $userID = $result->Fields('userID');
+        $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
+      }
 
     if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;

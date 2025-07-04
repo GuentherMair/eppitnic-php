@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 247 2010-11-10 23:56:23Z gunny $
+-- $Id: mysql-5.0-schema.sql 254 2010-11-12 17:35:27Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -8,12 +8,13 @@ create table tbl_users (
   username              varchar(32),
   password              varchar(32),
   email                 varchar(64),
+  maxOperations         int DEFAULT 0,
   dns                   text,
   techc                 text,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
 
-insert into tbl_users (billingID, description, username, password) values ('defaultBillingID', 'Default User', 'system', 'X');
+insert into tbl_users (billingID, description, username, password, maxOperations) values ('defaultBillingID', 'Default User', 'system', 'X', 0);
 
 create table tbl_transactions (
   id                    serial,

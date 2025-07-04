@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 211 2010-10-25 12:00:00Z gunny $
+ * $Id: Client.php 271 2010-11-17 15:43:31Z gunny $
  */
 
 /*
@@ -85,6 +85,7 @@ class Net_EPP_IT_Client extends Smarty
 
   private $clTRID;
   private $DEFAULT_HEADERS = array('content-type' => 'text/xml; charset=UTF-8');
+  private $forceUTF8 = FALSE;
 
   /**
    * Class constructor
@@ -108,6 +109,14 @@ class Net_EPP_IT_Client extends Smarty
         exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
       }
     }
+
+    // setup default time zone
+    if ( @isset($this->EPPCfg->timezone) )
+      date_default_timezone_set($this->EPPCfg->timezone);
+
+    // verify if user wants to force utf8-encoding (ie. from ISO-8859-1)
+    if ( @isset($this->EPPCfg->forceUTF8) && ((int)$this->EPPCfg->forceUTF8 == 1) )
+      $this->forceUTF8 = TRUE;
 
     // call Smarty class constructor
     parent::__construct();
@@ -166,7 +175,7 @@ class Net_EPP_IT_Client extends Smarty
    */
   function sendRequest($data) {
     if ( $this->EPPClient->valid() ) $this->EPPClient->next();
-    $this->EPPClient->post($this->EPPCfg->server, utf8_encode($data), true);
+    $this->EPPClient->post($this->EPPCfg->server, ($this->forceUTF8 ? utf8_encode($data) : $data), true);
     return $this->fetchResponse();
   }
 

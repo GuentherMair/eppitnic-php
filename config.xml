@@ -3,7 +3,9 @@
   <server>https://epp.nic.it</server>
   <username>USERNAME</username>
   <password>PASSWORD</password>
+  <timezone>Europe/Rome</timezone>
   <lang>en</lang>
+  <forceUTF8>0</forceUTF8>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
     <use_sub_dirs></use_sub_dirs>
@@ -18,6 +20,7 @@
     <dbname>DBNAME</dbname>
     <dbuser>DBUSER</dbuser>
     <dbpwd>DBPWD</dbpwd>
+    <dbforcequotes>0</dbforcequotes>
     <dbmagicquotes>1</dbmagicquotes>
   </adodb>
   <webinterface>
@@ -30,7 +33,9 @@
     <email>info@yourdomain.it</email>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>
     <creditForecastDays>60</creditForecastDays>
-    <creditForecastItemPrice>4.50</creditForecastItemPrice>
+    <creditForecastItemPrice>5.40</creditForecastItemPrice>
+    <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>
+    <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
   </webinterface>
   <billing>
     <CDR>/var/log/itnic_billing.cdr</CDR>
