@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 17 2009-05-23 21:00:39Z gunny $
+ * $Id: Client.php 60 2010-03-16 08:36:40Z gunny $
  */
 
 /*
@@ -58,14 +58,16 @@ if ( (int)substr(phpversion(),0,strpos(phpversion(), '.')) < 5 ) {
  * the problem for you on most systems (pear comes packaged
  * alongside php)
  */
-require_once 'HTTP/Client.php';
+if ( ! class_exists('HTTP_Client') )
+  require_once 'HTTP/Client.php';
 
 /**
  * This is an unmodified Smarty set. You may get the newest
  * release from http://www.smarty.net, just bear in mind to
  * link "framework" to the "libs" subfolder!
  */
-require_once 'libs/smarty/libs/Smarty.class.php';
+if ( ! class_exists('Smarty') )
+  require_once 'libs/smarty/libs/Smarty.class.php';
 
 /**
  * This class extends Smarty (a templating system) so we
@@ -92,13 +94,17 @@ class Net_EPP_IT_Client extends Smarty
    *  - initialize HTTP Client
    *
    * @access   public
-   * @param    string  configuration file
+   * @param    string  configuration file or XML configuration string
    */
-  function __construct($configfile = "config.xml") {
-    if ( ! is_readable($configfile) )
-      exit("FATAL ERROR: config file '".$configfile."' not readable\n");
-
-    $this->EPPCfg = @simplexml_load_file($configfile);
+  function __construct($cfg = "config.xml") {
+    if ( is_readable($cfg) ) {
+      $this->EPPCfg = @simplexml_load_file($cfg);
+    } else {
+      $this->EPPCfg = @simplexml_load_string($cfg);
+      if ( $this->EPPCfg === FALSE ) {
+        exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
+      }
+    }
 
     parent::__construct();
     $this->use_sub_dirs = $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction

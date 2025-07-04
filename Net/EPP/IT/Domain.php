@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 45 2010-02-03 14:17:48Z gunny $
+ * $Id: Domain.php 57 2010-03-07 18:13:24Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -159,7 +159,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @param    mix     ip addresses to set (an array of two, one or a string)
    * @return   mix     value set or FALSE if variable name does not exist
    */
-  public function addNS($name, $addr = null) {
+  public function addNS($name, $addr = null, $mode = "add") {
     $dns1 = "";
     $dns2 = "";
 
@@ -199,22 +199,26 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     }
 
     unset($this->ns[$name]);
-    unset($this->addNS[$name]);
     $this->ns[$name]['name'] = $name;
-    $this->addNS[$name]['name'] = $name;
+    if ( $mode == "add" ) {
+      unset($this->addNS[$name]);
+      $this->addNS[$name]['name'] = $name;
+    }
     if ( ! empty($dns1) ) {
       $type = strpos($dns1, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
-      $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
+      if ( $mode == "add" )
+        $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
     }
     if ( ! empty($dns2) ) {
       $type = strpos($dns2, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
-      $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
+      if ( $mode == "add" )
+        $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
     }
 
     $this->changes |= 1;
-    $this->changes |= 64;
+    if ( $mode == "add" ) $this->changes |= 64;
     return TRUE;
   }
 
@@ -449,7 +453,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
           foreach ($hostAttr->hostAddr as $ip) {
             $addr[] = $ip;
           }
-          $this->addNS((string)$hostAttr->hostName, $addr);
+          $this->addNS((string)$hostAttr->hostName, $addr, "fetch");
         }
 
       // reset changes at the bottom
@@ -532,8 +536,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $this->domain);
     if (($this->changes & 1) > 0) {
-      $this->client->assign('nameservers_add_num', count($this->ns));
-      $this->client->assign('nameservers_add', $this->ns);
+      $this->client->assign('nameservers_add_num', count($this->addNS));
+      $this->client->assign('nameservers_add', $this->addNS);
     }
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);

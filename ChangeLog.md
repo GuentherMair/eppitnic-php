@@ -1,3 +1,18 @@
+Version 2.5
+===========
+The only major change can be found in class Client. Its contstructor now
+accepts configuration parameters as XML parameter string. This is usefull
+if you store configuration values in some other back end solution.
+
+Minor changes to:
+- check definition of LOG-Priorities prior to setting them
+- check existence of HTTP_Client and Smarty classes prior to importing them
+- updated README file (installing HTTP_Client PEAR package)
+
+Fixes:
+- domain updates when adding NS records fixed
+
+
 Version 2.4
 ===========
 Added support for changing single values for registrant's. If a contact has
