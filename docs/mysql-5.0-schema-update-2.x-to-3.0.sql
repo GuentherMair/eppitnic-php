@@ -48,6 +48,7 @@ create table tbl_messages (
   type                  varchar(64) NOT NULL,
   domain                varchar(255),
   acID                  varchar(255),
+  reID                  varchar(255),
   data                  text NOT NULL,
   archived              tinyint DEFAULT 0,
   archivedUserID        bigint unsigned,

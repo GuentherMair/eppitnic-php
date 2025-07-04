@@ -43,13 +43,13 @@ if ( ! $session->hello() ) {
         break;
       case FALSE:
         $domain->transferStatus($name);
-        echo "Transfer-Status: ".$domain->trStatus."\n";
+        echo "Transfer-Status: ".$domain->get('trStatus')."\n";
         if ( $domain->transferReject($name, $authinfo) )
           echo "Transfer OK\n";
         else
           echo "Transfer FAILED (".$domain->getError().")!\n";
         $domain->transferStatus($name);
-        echo "Transfer-Status: ".$domain->trStatus."\n";
+        echo "Transfer-Status: ".$domain->get('trStatus')."\n";
         break;
     }
 

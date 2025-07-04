@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 224 2010-10-27 18:51:53Z gunny $
+-- $Id: mysql-5.0-schema.sql 231 2010-10-29 13:44:03Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -108,6 +108,7 @@ create table tbl_messages (
   type                  varchar(64) NOT NULL,
   domain                varchar(255),
   acID                  varchar(255),
+  reID                  varchar(255),
   data                  text NOT NULL,
   archived              tinyint DEFAULT 0,
   archivedUserID        bigint unsigned,

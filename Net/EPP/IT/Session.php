@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 225 2010-10-27 18:53:25Z gunny $
+ * $Id: Session.php 231 2010-10-29 13:44:03Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -329,6 +329,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
         'domain' => $domain,
         'data'   => $title,
         'acID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
+        'reID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID,
       );
     }
 

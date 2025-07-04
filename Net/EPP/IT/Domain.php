@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 223 2010-10-27 18:17:47Z gunny $
+ * $Id: Domain.php 231 2010-10-29 13:44:03Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -831,8 +831,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['tech'] = $this->tech;
     $domain['authinfo'] = $this->authinfo;
 
-    // very un-common: remove existing domain object when storing (cases: re-transfer-in & re-register)
-    $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
+    // resolve a not very common case:
+    // - remove existing domain objects when storing (in case of a re-transfer-in or re-register)
+    // - don't delete if it is still marked as 'active' (that would confuse the value for 'lastInvoice')
+    $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."' AND active=0");
 
     if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;

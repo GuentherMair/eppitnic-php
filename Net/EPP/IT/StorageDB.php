@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 220 2010-10-27 16:03:17Z gunny $
+ * $Id: StorageDB.php 230 2010-10-28 15:49:46Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -126,10 +126,11 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    *
    * @access   protected
    * @param    int       userID
+   * @param    string    optional table name
    * @return   string    ACL string to be added to sql queries
    */
-  protected function ACL($userID) {
-    return ( $userID == "1" ) ? "" : " and userID=".$this->escape($userID);
+  protected function ACL($userID, $table = null) {
+    return ( $userID == "1" ) ? "" : " and ".( ($table === null) ? "" : $table."." )."userID=".$this->escape($userID);
   }
 
   /**

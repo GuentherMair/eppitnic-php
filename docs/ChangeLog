@@ -1,3 +1,13 @@
+Version 3.0
+===========
+Access to trStatus property in examples 019/020/021 fixed.
+
+Update to Domain storeDB method in order to permit a few not very common
+cases like 're-transfer-in' or a 're-register-after-delete'.
+
+Any transferStatus query now also fills the reID fields in tbl_messages.
+
+
 Version 3.0 rc 2
 ================
 Include path in all examples is now based on the __FILE__ constant so that you
