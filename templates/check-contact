@@ -3,7 +3,9 @@
   <command>
     <check>
       <contact:check xmlns:contact="urn:ietf:params:xml:ns:contact-1.0">
+        {foreach from=$ids item=id}
         <contact:id>{$id}</contact:id>
+        {/foreach}
       </contact:check>
     </check>
     <clTRID>{$clTRID}</clTRID>

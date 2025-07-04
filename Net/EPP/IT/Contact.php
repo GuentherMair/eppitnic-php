@@ -5,7 +5,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
 /**
  * This class handles contacts and supports the following operations on them:
  *
- *  - check contact (one only, even though NIC supports a bulk operation)
+ *  - check contact (single and bulk operations supported)
  *  - create contact (EPP create command)
  *  - fetch contact (EPP info command)
  *  - update contact
@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 21 2009-10-12 19:44:37Z gunny $
+ * $Id: Contact.php 23 2009-10-13 20:12:50Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -79,6 +79,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   protected $nationalitycode      = "";                         // 16384
   protected $entitytype           = 2;                          // 32768
   protected $regcode              = "";                         // 65536
+
+  protected $max_check            = 5;
 
   /**
    * Class constructor
@@ -339,21 +341,31 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   public function check($contact = null) {
     if ($contact === null)
       $contact = $this->handle;
-    if ($contact == "") {
+    if (!is_array($contact))
+      $contact = array($contact);
+    if (empty($contact)) {
       $this->error("Operation not allowed, set a handle!");
       return FALSE;
     }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $contact);
+    $this->client->assign('ids', array_slice($contact, 0, $this->max_check));
     $this->xmlQuery = $this->client->fetch("check-contact");
     $this->client->clear_all_assign();
 
     // query server
     if ( $this->ExecuteQuery("check-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
-      return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
+      if ( count($tmp->chkData->cd) == 1 ) {
+        return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
+      } else {
+        $responses = array();
+        for ( $i = 0; $i < count($tmp->chkData->cd); $i++ ) {
+          $responses[(string)$tmp->chkData->cd[$i]->id] = ($tmp->chkData->cd[$i]->id->attributes()->avail == "true") ? TRUE : FALSE;
+        }
+        return $responses;
+      }
     } else {
       // distinguish between errors and boolean states...
       return -1;

@@ -5,7 +5,9 @@
       <domain:check xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+        {foreach from=$domains item=domain}
         <domain:name>{$domain}</domain:name>
+        {/foreach}
       </domain:check>
     </check>
     <clTRID>{$clTRID}</clTRID>

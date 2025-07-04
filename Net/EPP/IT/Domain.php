@@ -5,7 +5,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
 /**
  * This class handles domains and supports the following operations on them:
  *
- *  - check domain (one only, even though NIC supports a bulk operation)
+ *  - check domain (single and bulk operations supported)
  *  - create domain (EPP create command)
  *  - fetch domain (EPP info command)
  *  - state of domain (may be called after executing fetch)
@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 21 2009-10-12 19:44:37Z gunny $
+ * $Id: Domain.php 23 2009-10-13 20:12:50Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -82,6 +82,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $ns_backup            = array();
   protected $admin_backup         = array();
   protected $tech_backup          = array();
+
+  protected $max_check            = 5;
 
   /*
    * Class constructor
@@ -312,6 +314,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   public function check($domain = null) {
     if ($domain === null)
       $domain = $this->domain;
+    if (!is_array($domain))
+      $domain = array($domain);
     if ($domain == "") {
       $this->error("Operation not allowed, set a domain name first!");
       return FALSE;
@@ -319,21 +323,34 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $domain);
+    $this->client->assign('domains', array_slice($domain, 0, $this->max_check));
     $this->xmlQuery = $this->client->fetch("check-domain");
     $this->client->clear_all_assign();
 
     // query server
     if ( $this->ExecuteQuery("check-domain", $contact, ($this->debug >= LOG_DEBUG)) ) {
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
-      if ( $tmp->chkData->cd->name->attributes()->avail == "true" ) {
-        return TRUE;
+      if ( count($tmp->chkData->cd) == 1 ) {
+        if ( $tmp->chkData->cd->name->attributes()->avail == "true" ) {
+          return TRUE;
+        } else {
+          // override server message with reason
+          $this->svMsg = $tmp->chkData->cd->reason;
+          return FALSE;
+        }
       } else {
-        // override server message with reason
-        $this->svMsg = $tmp->chkData->cd->reason;
-        return FALSE;
+        $responses = array();
+        for ( $i = 0; $i < count($tmp->chkData->cd); $i++ ) {
+          if ( $tmp->chkData->cd[$i]->name->attributes()->avail == "true" ) {
+            $responses[(string)$tmp->chkData->cd[$i]->name]['available'] = TRUE;
+            $responses[(string)$tmp->chkData->cd[$i]->name]['reason'] = 'OK';
+          } else {
+            $responses[(string)$tmp->chkData->cd[$i]->name]['available'] = FALSE;
+            $responses[(string)$tmp->chkData->cd[$i]->name]['reason'] = (string)$tmp->chkData->cd[$i]->reason;
+          }
+        }
+        return $responses;
       }
-      return ($tmp->chkData->cd->name->attributes()->avail == "true") ? TRUE : FALSE;
     } else {
       // distinguish between errors and boolean states...
       return -1;

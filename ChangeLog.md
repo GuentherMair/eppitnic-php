@@ -1,3 +1,9 @@
+Version 1.3
+===========
+Added support for bulk domain/contact checks. Added example scripts including
+change password script which actualy updates the config.xml file as well.
+
+
 Version 1.2
 ===========
 
