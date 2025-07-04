@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 23 2009-10-13 20:12:50Z gunny $
+ * $Id: Contact.php 27 2009-10-17 17:41:11Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -310,6 +310,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
         if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11 )
           $error |= 256;
         break;
+      case 0: // don't set any output related to entity types (role contacts)
       case 7: // soggetti stranieri equiparati ai precedenti escluso le persone fisiche
         break;
     }
@@ -345,7 +346,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $contact = array($contact);
     if (empty($contact)) {
       $this->error("Operation not allowed, set a handle!");
-      return FALSE;
+      return -2;
     }
 
     // fill xml template
@@ -376,13 +377,16 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * create contact
    *
    * @access   public
+   * @param    boolean execute internal sanity checks
    * @return   boolean status
    */
-  public function create() {
-    $sanity = $this->sanity_checks();
-    if ($sanity <> 0) {
-      $this->error("Sanity checks failed with code '".$sanity."'!");
-      return FALSE;
+  public function create($exec_checks = FALSE) {
+    if ( $exec_checks ) {
+      $sanity = $this->sanity_checks();
+      if ($sanity <> 0) {
+        $this->error("Sanity checks failed with code '".$sanity."'!");
+        return FALSE;
+      }
     }
 
     // fill xml template
@@ -495,9 +499,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * update contact
    *
    * @access   public
+   * @param    boolean execute internal sanity checks
    * @return   boolean status
    */
-  public function update() {
+  public function update($exec_checks = FALSE) {
     if ($this->handle == "") {
       $this->error("Operation not allowed, fetch a handle first!");
       return FALSE;
@@ -506,10 +511,12 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $this->error("Handle did not change!");
       return FALSE;
     }
-    $sanity = $this->sanity_checks();
-    if ($sanity <> 0) {
-      $this->error("Sanity checks failed with code '".$sanity."'!");
-      return FALSE;
+    if ( $exec_checks ) {
+      $sanity = $this->sanity_checks();
+      if ($sanity <> 0) {
+        $this->error("Sanity checks failed with code '".$sanity."'!");
+        return FALSE;
+      }
     }
 
     // postalinfo

@@ -34,7 +34,7 @@ if ( ! $session->hello() ) {
     echo "Login OK (code ".$session->svCode.", '".$session->svMsg."').\n";
 
     // switch password inside configuration file
-    $result = file_put_contents("config.xml", ereg_replace("<password>".$nic->EPPCfg->password."</password>", "<password>".$new_password."</password>", strtolower(file_get_contents("config.xml"))));
+    $result = file_put_contents("config.xml", str_replace("<password>".strtolower($nic->EPPCfg->password)."</password>", "<password>".$new_password."</password>", strtolower(file_get_contents("config.xml"))));
 
     // make sure password switch did complete successfully
     if ( $result ) {

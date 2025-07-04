@@ -1,3 +1,10 @@
+Version 1.4
+===========
+Different changes and updates to all modules. Mainly cleanups and some small
+bug fixes. This version when released will have passed the accreditation
+tests.
+
+
 Version 1.3
 ===========
 Added support for bulk domain/contact checks. Added example scripts including

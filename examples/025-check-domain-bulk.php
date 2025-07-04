@@ -49,23 +49,23 @@ if ( ! $session->hello() ) {
       foreach ($result as $name => $values) {
         switch ( $values['available'] ) {
           case TRUE:
-            echo "Contact '".$name."' is free.\n";
+            echo "Domain '".$name."' is free.\n";
             break;
           case FALSE:
-            echo "Contact '".$name."' already in use ('".$values['reason']."').\n";
+            echo "Domain '".$name."' already in use ('".$values['reason']."').\n";
             break;
         }
       }
     } else {
       switch ( $result ) {
         case TRUE:
-          echo "Contact is free.\n";
+          echo "Domain is free.\n";
           break;
         case FALSE:
-          echo "Contact already in use.\n";
+          echo "Domain already in use.\n";
           break;
         default:
-          echo "Error looking up contact.\n";
+          echo "Error looking up domain.\n";
           break;
       }
       echo "Reason code ".$domain->svCode.", '".$domain->svMsg."'.\n";

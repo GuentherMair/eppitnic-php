@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 23 2009-10-13 20:12:50Z gunny $
+ * $Id: Domain.php 29 2009-10-24 12:38:30Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -77,9 +77,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $admin                = "";                         // 4
   protected $tech                 = "";                         // 8
   protected $authinfo             = "";                         // 16
+  protected $remNS                = array();                    // 32
+  protected $addNS                = array();                    // 64
 
   // these are for internal use only (update)
-  protected $ns_backup            = array();
   protected $admin_backup         = array();
   protected $tech_backup          = array();
 
@@ -145,7 +146,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   public function remNS($name) {
     unset($this->ns[$name]);
-    $this->changes |= 1;
+    $this->remNS[$name] = $name;
+    $this->changes |= 32;
     return TRUE;
   }
 
@@ -197,17 +199,22 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     }
 
     unset($this->ns[$name]);
+    unset($this->addNS[$name]);
     $this->ns[$name]['name'] = $name;
+    $this->addNS[$name]['name'] = $name;
     if ( ! empty($dns1) ) {
       $type = strpos($dns1, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
+      $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
     }
     if ( ! empty($dns2) ) {
       $type = strpos($dns2, '.') ? 'v4' : 'v6';
       $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
+      $this->addNS[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
     }
 
     $this->changes |= 1;
+    $this->changes |= 64;
     return TRUE;
   }
 
@@ -318,7 +325,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $domain = array($domain);
     if ($domain == "") {
       $this->error("Operation not allowed, set a domain name first!");
-      return FALSE;
+      return -2;
     }
 
     // fill xml template
@@ -361,13 +368,16 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * create domain
    *
    * @access   public
+   * @param    boolean execute internal sanity checks
    * @return   boolean status
    */
-  public function create() {
-    $sanity = $this->sanity_checks();
-    if ($sanity <> 0) {
-      $this->error("Sanity checks failed with code '".$sanity."'!");
-      return FALSE;
+  public function create($exec_checks = FALSE) {
+    if ( $exec_checks ) {
+      $sanity = $this->sanity_checks();
+      if ($sanity <> 0) {
+        $this->error("Sanity checks failed with code '".$sanity."'!");
+        return FALSE;
+      }
     }
 
     // fill xml template
@@ -382,7 +392,14 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server and return answer (no handling of special return values)
-    return $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG));
+    if ( $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
+      $this->addNS = array();
+      $this->remNS = array();
+      $this->changes = 0;
+      return TRUE;
+    } else {
+      return FALSE;
+    }
   }
 
   /**
@@ -438,7 +455,6 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       // reset changes at the bottom
       $this->changes = 0;
       $this->status = 0;
-      $this->ns_backup = $this->ns;
       $this->admin_backup = $this->admin;
       $this->tech_backup = $this->tech;
       return TRUE;
@@ -488,9 +504,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * update domain
    *
    * @access   public
+   * @param    boolean execute internal sanity checks
    * @return   boolean status
    */
-  public function update() {
+  public function update($exec_checks = FALSE) {
     if ($this->domain == "") {
       $this->error("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -503,19 +520,20 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->error("Update the registrant through updateRegistrant()!");
       return FALSE;
     }
-    $sanity = $this->sanity_checks();
-    if ($sanity <> 0) {
-      $this->error("Sanity checks failed with code '".$sanity."'!");
-      return FALSE;
+    if ( $exec_checks ) {
+      $sanity = $this->sanity_checks();
+      if ($sanity <> 0) {
+        $this->error("Sanity checks failed with code '".$sanity."'!");
+        return FALSE;
+      }
     }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $this->domain);
     if (($this->changes & 1) > 0) {
-      $this->client->assign('nameservers_changed', '1');
+      $this->client->assign('nameservers_add_num', count($this->ns));
       $this->client->assign('nameservers_add', $this->ns);
-      $this->client->assign('nameservers_rem', $this->ns_backup);
     }
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);
@@ -527,20 +545,32 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     }
     if (($this->changes & 16) > 0)
       $this->client->assign('authinfo', $this->authinfo);
+    if (($this->changes & 32) > 0) {
+      $this->client->assign('nameservers_rem_num', count($this->remNS));
+      $this->client->assign('nameservers_rem', $this->remNS);
+    }
     $this->xmlQuery = $this->client->fetch("update-domain");
     $this->client->clear_all_assign();
 
     // query server
-    return $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG));
+    if ( $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
+      $this->addNS = array();
+      $this->remNS = array();
+      $this->changes = 0;
+      return TRUE;
+    } else {
+      return FALSE;
+    }
   }
 
   /**
    * update domain registrant
    *
    * @access   public
+   * @param    boolean execute internal sanity checks
    * @return   boolean status
    */
-  public function updateRegistrant() {
+  public function updateRegistrant($exec_checks = FALSE) {
     if ($this->domain == "") {
       $this->error("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -550,10 +580,12 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->error("You MUST update the registrant and authinfo variables!");
       return FALSE;
     }
-    $sanity = $this->sanity_checks();
-    if ($sanity <> 0) {
-      $this->error("Sanity checks failed with code '".$sanity."'!");
-      return FALSE;
+    if ( $exec_checks ) {
+      $sanity = $this->sanity_checks();
+      if ($sanity <> 0) {
+        $this->error("Sanity checks failed with code '".$sanity."'!");
+        return FALSE;
+      }
     }
 
     // fill xml template
