@@ -1,3 +1,13 @@
+Version 3.3
+===========
+Updated the update-contact template in order to support authinfo-updates on
+contacts. They are not used but defined by the protocol, so what... :-)
+
+Added a config.xml parameter in order to switch on/off sending email
+notifications for all polling queue messages (this only affects the
+webinterface implementation though).
+
+
 Version 3.2
 ===========
 Support for clientLock added to the domain object (can only be viewed though).

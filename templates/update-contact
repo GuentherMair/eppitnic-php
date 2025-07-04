@@ -27,6 +27,11 @@
         {/foreach}
         </contact:chg>
         {/if}
+        {if $authinfo ne ""}
+        <contact:authInfo>
+          <contact:pw>{$authinfo}</contact:pw>
+        </contact:authInfo>
+        {/if}
       </contact:update>
     </update>
     {if $consentForPublishing === 0 or $consentForPublishing === 1 or $registrant ne ""}

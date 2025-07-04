@@ -31,6 +31,7 @@
     <DNS>ns1.yourdomain.it[8.8.4.4][8.8.8.8];ns2.yourdomain.it</DNS>
     <TECHC>TECHC0001;TECHC0002</TECHC>
     <email>info@yourdomain.it</email>
+    <sendallpollmessages>0</sendallpollmessages>
     <baseurl>http://eppitnic.yourdomain.it</baseurl>
     <creditForecastDays>60</creditForecastDays>
     <creditForecastItemPrice>5.40</creditForecastItemPrice>
