@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 35 2009-12-22 20:58:55Z gunny $
+ * $Id: StorageDB.php 38 2010-01-06 12:46:35Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -173,7 +173,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    extended server error message (optional)
    * @return   boolean   status
    */
-  protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table, $extValueReasonCode, $extValueReason) {
+  protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table, $extValueReasonCode = "", $extValueReason = "") {
     return $this->doStore($table,
       array("clTRID"             => $clTRID,
             "svTRID"             => $svTRID,

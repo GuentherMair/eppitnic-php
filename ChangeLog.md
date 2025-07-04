@@ -1,3 +1,11 @@
+Version 2.1
+===========
+Bugfix release. An error was introduced in v2.0 which caused a warning to be
+printed during polling (and by that the storeMessage method).
+A second issue hidden in the domain-update template caused an error when
+trying to remove NS records through a domain update.
+
+
 Version 2.0
 ===========
 This version now supports handling of extended server error codes/messages and
