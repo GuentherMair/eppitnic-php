@@ -1,3 +1,14 @@
+Version 2.7
+===========
+Adding NS records and technical contacts that already exist will no longer be
+treated as a change to the domain. By accident print_r-statements were left
+behind in release 2.6; this has been corrected.
+
+Cleanup of lines 224 and 225 in Contact.php causing an E_NOTICE if using
+sanity_check() with a phone number that has no dot (.) as a separator. Thanks
+to Luca!
+
+
 Version 2.6
 ===========
 The changes applied to Domain.php between r45 and r57 have been undone and

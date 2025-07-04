@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 67 2010-03-24 20:25:34Z gunny $
+ * $Id: Domain.php 71 2010-03-29 07:15:58Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -118,10 +118,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       return FALSE;
 
     switch ( $var ) {
-      case "ns":           $this->changes |= 1;  break;
+      //case "ns":           $this->changes |= 1;  break; // to be handled by addNS
       case "registrant":   $this->changes |= 2;  break;
       case "admin":        $this->changes |= 4;  break;
-      case "tech":         $this->changes |= 8;  break;
+      //case "tech":         $this->changes |= 8;  break; // to be handled by addTECH
       case "authinfo":     $this->changes |= 16; break;
     }
     return $this->$var;
@@ -168,14 +168,20 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function addTECH($name) {
-    if ( count($this->tech) >= 6 ) {
-      $this->error("You are not allowed to assign more than 6 tech contacts to a domain.");
-      return FALSE;
-    } else {
+    // if a technical contact by this name was already set stop here
+    if ( ! isset($this->tech[$name]) ) {
+
+      // check that we are not exceeding the maximum number of allowed technical contacts
+      if ( count($this->tech) >= 6 ) {
+        $this->error("You are not allowed to assign more than 6 tech contacts to a domain.");
+        return FALSE;
+      }
+
+      // assign technical contact
       $this->tech[$name] = $name;
       $this->changes |= 8;
-      return TRUE;
     }
+    return TRUE;
   }
 
   /**
@@ -207,58 +213,65 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $dns1 = "";
     $dns2 = "";
 
-    if ( count($this->ns) >= 6 ) {
-      $this->error("You are not allowed to assign more than 6 NS to a domain.");
-      return FALSE;
-    }
+    // if a nameserver by this name was already set stop here
+    if ( ! isset($this->ns[$name]) ) {
 
-    if ( is_array($addr) ) {
-      switch ( count($addr) ) {
-        case 2:
-          $dns1 = $addr[0];
-          $dns2 = $addr[1];
-          break;
-        case 1:
-          $dns1 = $addr[0];
-          break;
-        case 0:
-          break;
-        default:
-          $this->error("The address must be an array of one or two elements.");
-          return FALSE;
-          break;
+      // check that we are not exceeding the maximum number of allowed NS records
+      if ( count($this->ns) >= 6 ) {
+        $this->error("You are not allowed to assign more than 6 NS to a domain.");
+        return FALSE;
       }
-    } else if ( ! empty($addr) ) {
-      $dns1 = $addr;
+
+      // assign NS name
+      $this->ns[$name]['name'] = $name;
+
+      // handle IP addresses (if set)
+      if ( is_array($addr) ) {
+        switch ( count($addr) ) {
+          case 2:
+            $dns1 = $addr[0];
+            $dns2 = $addr[1];
+            break;
+          case 1:
+            $dns1 = $addr[0];
+            break;
+          case 0:
+            break;
+          default:
+            $this->error("The address must be an array of one or two elements.");
+            return FALSE;
+            break;
+        }
+      } else if ( ! empty($addr) ) {
+        $dns1 = $addr;
+      }
+
+      // assign IP address 1 (if set)
+      if ( ! empty($dns1) ) {
+        if ( @gethostbyaddr($dns1) == "" ) {
+          $this->error("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
+          return FALSE;
+        } else {
+          $type = strpos($dns1, '.') ? 'v4' : 'v6';
+          $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
+        }
+      }
+
+      // assign IP address 2 (if set)
+      if ( ! empty($dns2) ) {
+        if ( @gethostbyaddr($dns2) == "" ) {
+          $this->error("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
+          return FALSE;
+        } else {
+          $type = strpos($dns2, '.') ? 'v4' : 'v6';
+          $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
+        }
+      }
+
+      // if we get to this point, something has changed
+      $this->changes |= 1;
     }
 
-    if ( ! empty($dns1) && (@gethostbyaddr($dns1) == "") ) {
-      $this->error("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
-      return FALSE;
-    }
-
-    if ( ! empty($dns2) && (@gethostbyaddr($dns2) == "") ) {
-      $this->error("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
-      return FALSE;
-    }
-
-    // if a nameserver by this name was already set, remove all info about it
-    if ( isset($this->ns[$name]) )
-      unset($this->ns[$name]);
-
-    $this->ns[$name]['name'] = $name;
-
-    if ( ! empty($dns1) ) {
-      $type = strpos($dns1, '.') ? 'v4' : 'v6';
-      $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
-    }
-
-    if ( ! empty($dns2) ) {
-      $type = strpos($dns2, '.') ? 'v4' : 'v6';
-      $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
-    }
-
-    $this->changes |= 1;
     return TRUE;
   }
 
@@ -596,7 +609,6 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
         $tmp[$name] = $this->ns[$name];
       $this->client->assign('nameservers_add_num', count($tmp));
       $this->client->assign('nameservers_add', $tmp);
-      print_r($tmp);
 
       // which to remove
       $diffBA = array_diff($tmpB, $tmpA);
@@ -605,7 +617,6 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
         $tmp[$name] = $this->ns_initial[$name];
       $this->client->assign('nameservers_rem_num', count($tmp));
       $this->client->assign('nameservers_rem', $tmp);
-      print_r($tmp);
     }
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);

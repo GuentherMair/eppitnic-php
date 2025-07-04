@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 51 2010-03-04 15:47:17Z gunny $
+ * $Id: Contact.php 75 2010-03-30 15:58:42Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -221,8 +221,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
      * 5) may not contain anything else (don't use int typecasts!)
      */
     $tmp = explode(".", substr($this->voice, 1));
-    $tmp[0] = ctype_digit($tmp[0]) ? $tmp[0] : "";
-    $tmp[1] = ctype_digit($tmp[1]) ? $tmp[1] : "";
+    $tmp[0] = ctype_digit(isset($tmp[0]) ? $tmp[0] : "") ? $tmp[0] : "";
+    $tmp[1] = ctype_digit(isset($tmp[1]) ? $tmp[1] : "") ? $tmp[1] : "";
     if ( (substr($this->voice, 0, 1) != "+") ||
          (count($tmp) <> 2) ||
          (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
