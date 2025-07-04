@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 90 2010-05-15 12:43:40Z gunny $
+ * $Id: Domain.php 132 2010-10-17 17:32:36Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -543,6 +543,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * delete domain
    *
    * @access   public
+   * @param    string  domain name to delete
    * @return   boolean status
    */
   public function delete($domain = null) {
@@ -596,27 +597,41 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->client->assign('domain', $this->domain);
     if (($this->changes & 1) > 0) {
 
-      // strip everything down to a 1-dimensional array
+      // strip everything down to a 1-dimensional array (names including ip's)
       $tmpA = array();
       $tmpB = array();
-      foreach ($this->ns as $name => $values)
-        $tmpA[] = $name;
-      foreach ($this->ns_initial as $name => $values)
-        $tmpB[] = $name;
+      foreach ($this->ns as $name => $values) {
+        $tmp = $name;
+        if ( isset($this->ns[$name]['ip']) )
+          foreach ($this->ns[$name]['ip'] as $i => $addr)
+            $tmp .= ";" . $addr['address'];
+        $tmpA[] = $tmp;
+      }
+      foreach ($this->ns_initial as $name => $values) {
+        $tmp = $name;
+        if ( isset($this->ns_initial[$name]['ip']) )
+          foreach ($this->ns_initial[$name]['ip'] as $i => $addr)
+            $tmp .= ";" . $addr['address'];
+        $tmpB[] = $tmp;
+      }
 
       // which to add
       $diffAB = array_diff($tmpA, $tmpB);
       $tmp = array();
-      foreach ($diffAB as $name)
-        $tmp[$name] = $this->ns[$name];
+      foreach ($diffAB as $name) {
+        $key = split(';', $name);
+        $tmp[$key[0]] = $this->ns[$key[0]];
+      }
       $this->client->assign('nameservers_add_num', count($tmp));
       $this->client->assign('nameservers_add', $tmp);
 
       // which to remove
       $diffBA = array_diff($tmpB, $tmpA);
       $tmp = array();
-      foreach ($diffBA as $name)
-        $tmp[$name] = $this->ns_initial[$name];
+      foreach ($diffBA as $name) {
+        $key = split(';', $name);
+        $tmp[$key[0]] = $this->ns_initial[$key[0]];
+      }
       $this->client->assign('nameservers_rem_num', count($tmp));
       $this->client->assign('nameservers_rem', $tmp);
     }
@@ -738,31 +753,35 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * restore domain
    *
    * @access   public
+   * @param    string  domain name to restore
    * @return   boolean status
    */
-  public function restore() {
-    if ($this->domain == "") {
+  public function restore($domain = null) {
+    if ($domain === null)
+      $domain = $this->domain;
+    if ($domain == "") {
       $this->error("Operation not allowed, set a domain name first!");
       return FALSE;
     }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $this->domain);
+    $this->client->assign('domain', $domain);
     $this->xmlQuery = $this->client->fetch("update-domain-restore");
     $this->client->clear_all_assign();
 
     // query server
-    return $this->ExecuteQuery("update-domain-restore", $this->domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("update-domain-restore", $domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
    * store domain to DB
    *
    * @access   public
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB() {
+  public function storeDB($userID = 1) {
     $domain['status'] = $this->status;
     $domain['domain'] = $this->domain;
     $domain['ns'] = $this->ns;
@@ -771,7 +790,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['tech'] = $this->tech;
     $domain['authinfo'] = $this->authinfo;
 
-    if ( $this->storage->storeDomain($domain) ) {
+    if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;
     } else {
       $this->error($this->storage->dberrMsg);
@@ -784,9 +803,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  domain to load
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($domain = null) {
+  public function loadDB($domain = null, $userID = 1) {
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
@@ -794,7 +814,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       return FALSE;
     }
 
-    $tmp = $this->storage->retrieveDomain($domain);
+    $tmp = $this->storage->retrieveDomain($domain, $userID);
     if ( $tmp === FALSE ) {
       $this->error($this->storage->dberrMsg);
       return FALSE;
@@ -815,9 +835,10 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  domain to update
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($domain = null) {
+  public function updateDB($domain = null, $userID = 1) {
     if ($domain === null)
       $domain = $this->domain;
     if ($domain == "") {
@@ -836,7 +857,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
     if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
 
-    if ( $this->storage->updateDomain($data, $domain) ) {
+    if ( $this->storage->updateDomain($data, $domain, $userID) ) {
       return TRUE;
     } else {
       $this->error($this->storage->dberrMsg);
@@ -962,6 +983,63 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   public function transferCancel($domain, $authinfo) {
     return $this->transfer($domain, $authinfo, "", "", "cancel");
   }
+
+  /**
+   * listDomains wrapper
+   *
+   * @access   public
+   * @param    int      user ACL (optional), defaults to 1 (all domains)
+   * @param    string   contact ACL (optional), defaults to null (all domains)
+   * @param    boolean  list only active domains (TRUE = yes / FALSE = no)
+   * @return   array    list of domains
+   */
+  public function listDomains($userID = 1, $handle = null, $activeOnly = TRUE) {
+    return $this->storage->listDomains($userID, $handle, $activeOnly);
+  }
+
+  /**
+   * deleteDomain wrapper
+   *
+   * @access   public
+   * @param    string   domain name to delete
+   * @param    int      user ACL (optional), defaults to 1 (all domains)
+   * @return   boolean  status
+   */
+  public function deleteDomain($domain, $userID = 1) {
+    return $this->storage->deleteDomain($domain, $userID);
+  }
+
+  /**
+   * restoreDomain wrapper
+   *
+   * @access   public
+   * @param    string   domain name to restore
+   * @param    int      user ACL (optional), defaults to 1 (all domains)
+   * @return   boolean  status
+   */
+  public function restoreDomain($domain, $userID = 1) {
+    return $this->storage->restoreDomain($domain, $userID);
+  }
+
+  /**
+   * invoiceableDomains wrapper
+   *
+   * @access   public
+   * @return   array    list of domains
+   */
+  public function invoiceableDomains() {
+    return $this->storage->invoiceableDomains();
+  }
+
+  /**
+   * renewDomains wrapper
+   *
+   * @access   public
+   * @return   boolean  status
+   */
+  public function renewDomains() {
+    return $this->storage->renewDomains();
+  }
+
 }
 
-?>

@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 90 2010-05-15 12:43:40Z gunny $
+ * $Id: StorageDB.php 127 2010-10-09 16:09:06Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -51,6 +51,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   var $dberrMsg;
   var $dbMaxEntries = 50;
   var $dbSerializePrefix = "__SERIALIZED:";
+  var $dbMagicQuotes = TRUE;
 
   /**
    * Class constructor
@@ -61,11 +62,13 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array  db connection paramenters (dbtype, dbhost, dbuser, dbpwd, dbname)
    */
   function __construct($cfg) {
+    if ( ! $cfg->dbmagicquotes )
+      $this->dbMagicQuotes = FALSE;
     $this->dbConnect = ADONewConnection($cfg->dbtype);
     if ( ! $this->dbConnect )
-      return $this->error(1, "unable to load adodb database driver '".$cfg->dbConnecttype."'");
+      return $this->error(1, "unable to load adodb database driver '".$cfg->dbConnecttype."': ".$this->dbConnect->ErrorMsg());
     if ( ! $this->dbConnect->Connect($cfg->dbhost, $cfg->dbuser, $cfg->dbpwd, $cfg->dbname) )
-      return $this->error(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."'");
+      return $this->error(2, "unable to connect to database '".$cfg->dbname."' on '".$cfg->dbhost."' with user '".$cfg->dbuser."': ".$this->dbConnect->ErrorMsg());
     $this->dbConnect->setFetchMode(ADODB_FETCH_ASSOC);
   }
 
@@ -85,14 +88,39 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   }
 
   /**
+   * escape SQL string
+   * (reduce size)
+   *
+   * @access   protected
+   * @param    string    data to escape
+   * @return   string    escaped sql string
+   */
+  protected function escape($data) {
+    return $this->dbConnect->qstr($data, ($this->dbMagicQuotes ? get_magic_quotes_gpc() : FALSE));
+  }
+
+  /**
+   * internal ACL default settings
+   * (reduce size)
+   *
+   * @access   protected
+   * @param    int       userID
+   * @return   string    ACL string to be added to sql queries
+   */
+  protected function ACL($userID) {
+    return ( $userID == "1" ) ? "" : " and userID=".$this->escape($userID);
+  }
+
+  /**
    * store data to DB
    *
    * @access   protected
    * @param    string    information store (tbl_transactions, tbl_responses, tbl_msgqueue, ...)
    * @param    array     information to be stored
+   * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   boolean   status
    */
-  protected function doStore($table, $elements) {
+  protected function doStore($table, $elements, $userID = 1) {
     if ( ! is_array($elements) )
       return $this->error(4, "second paramenter must be an array!");
 
@@ -100,17 +128,23 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     $values = array();
     foreach ($elements as $key => $value) {
       $keys[] = $key;
-      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) ) {
-        $values[] = $this->dbSerializePrefix.base64_encode(serialize($value));
-      } else {
-        $values[] = $value;
-      }
+      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) )
+        $values[] = "'".$this->dbSerializePrefix.base64_encode(serialize($value))."'";
+      else
+        $values[] = $this->escape($value);
     }
 
-    if ( $this->dbConnect->Execute("INSERT INTO ".$table." (".implode(",", $keys).") VALUES ('".implode("','", $values)."')") )
+    // ACL settings
+    if ( in_array($table, array('tbl_contacts', 'tbl_domains')) ) {
+      $keys[] = 'userID';
+      $values[] = $this->escape($userID);
+    }
+
+    // execute query
+    if ( $this->dbConnect->Execute("INSERT INTO ".$table." (".implode(",", $keys).") VALUES (".implode(",", $values).")") )
       return $this->error(0, "information stored to '".$table."'");
     else
-      return $this->error(8, "unable to store given data to '".$table."'");
+      return $this->error(8, "unable to store given data to '".$table."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**
@@ -121,25 +155,26 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     information to be stored
    * @param    string    the column to look at
    * @param    string    the value to look up
+   * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   boolean   status
    */
-  protected function doUpdate($table, $elements, $index, $handle) {
+  protected function doUpdate($table, $elements, $index, $handle, $userID = 1) {
     if ( ! is_array($elements) )
       return $this->error(4, "second paramenter must be an array!");
 
     $update = array();
     foreach ($elements as $key => $value) {
-      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) ) {
+      if ( ($key == "clTRData") || ($key == "svHTTPData") || is_array($value) )
         $update[] = $key . "='".$this->dbSerializePrefix.base64_encode(serialize($value))."'";
-      } else {
-        $update[] = $key . "='".$value."'";
-      }
+      else
+        $update[] = $key . "=".$this->escape($value);
     }
 
-    if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'") )
+    // execute query
+    if ( $this->dbConnect->Execute("UPDATE ".$table." set ".implode(",", $update)." WHERE ".$index."='".$handle."'".$this->ACL($userID)) )
       return $this->error(0, "updated '".$table."' with INDEX ".$index."='".$handle."'");
     else
-      return $this->error(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."'");
+      return $this->error(16, "unable to update '".$table."' with INDEX ".$index."='".$handle."' and ACL '".$userID."': ".$this->dbConnect->ErrorMsg());
   }
 
   /**
@@ -216,7 +251,6 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     return $this->doStore("tbl_msgqueue",
       array("clTRID"             => $clTRID,
             "svTRID"             => $svTRID,
-            "svEPPCode"          => $svEPPCode,
             "status"             => $status,
             "svHTTPCode"         => $response['code'],
             "svHTTPHeaders"      => $response['headers'],
@@ -230,8 +264,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     contact information to be stored
    * @return   boolean   status
    */
-  public function storeContact($elements) {
-    return $this->doStore("tbl_contacts", $elements);
+  public function storeContact($elements, $userID = 1) {
+    return $this->doStore("tbl_contacts", $elements, $userID);
   }
 
   /**
@@ -241,8 +275,8 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    array     domain information to be stored
    * @return   boolean   status
    */
-  public function storeDomain($elements) {
-    return $this->doStore("tbl_domains", $elements);
+  public function storeDomain($elements, $userID = 1) {
+    return $this->doStore("tbl_domains", $elements, $userID);
   }
 
   /**
@@ -251,10 +285,11 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @access   public
    * @param    array     contact information to be updated
    * @param    string    contact to be updated
+   * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateContact($elements, $contact) {
-    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact);
+  public function updateContact($elements, $contact, $userID = 1) {
+    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact, $userID);
   }
 
   /**
@@ -263,10 +298,11 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @access   public
    * @param    array     domain information to be updated
    * @param    string    domain to be updated
+   * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateDomain($elements, $domain) {
-    return $this->doUpdate("tbl_domains", $elements, "domain", $domain);
+  public function updateDomain($elements, $domain, $userID = 1) {
+    return $this->doUpdate("tbl_domains", $elements, "domain", $domain, $userID);
   }
 
   /**
@@ -291,41 +327,30 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    * @param    string    the value to look up
    * @param    boolean   whether or not to use a strict comparison between for value on column
    * @param    string    parameter to SQLs "ORDER BY"-clause (ie. "id DESC") - modify at own risk!
+   * @param    string    user ACL (only allowed for tbl_contacts and tbl_domains)
    * @return   array     results OR FALSE in case of failure
    */
-  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null) {
+  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userID = 1) {
     $elements = array();
 
     // if no value was specified, multiple results are requested
-    if ( $value === null ) {
-      // set this as a placeholder (it will always evaluate to TRUE in SQL)
+    if ( $value === null )
       $condition = "1 = 1";
-    } else {
-      // choose whether to use a strict comparison for the values in column $index
-      if ( $strict === TRUE ) {
-        $condition = $index." = '".$value."'";
-      } else {
-        $condition = $index." like '".$value."'";
-      }
-    }
+    else
+      $condition = ( $strict === TRUE ) ? $index." = '".$value."'" : $index." like ".$this->escape($value);
 
     // if requested choose a different sort order
-    if ( $order === null ) {
-      $sort_order = "id DESC";
-    } else {
-      $sort_order = $order;
-    }
+    $sort_order = ( $order === null ) ? "id DESC" : $order;
 
     // execute query
-    if ( $this->dbMaxEntries == 0 ) {
-      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$condition." ORDER BY ".$sort_order);
-    } else {
-      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." WHERE ".$condition. " ORDER BY ".$sort_order, $this->dbMaxEntries);
-    }
+    if ( $this->dbMaxEntries == 0 )
+      $result = $this->dbConnect->Execute("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userID)." ORDER BY ".$sort_order);
+    else
+      $result = $this->dbConnect->SelectLimit("SELECT * FROM ".$table." WHERE ".$condition.$this->ACL($userID). " ORDER BY ".$sort_order, $this->dbMaxEntries);
 
     // first evaluation of the result
     if ( $result === FALSE )
-      return $this->error(8, "unable to get data from '".$table."'");
+      return $this->error(8, "unable to get data from '".$table."': ".$this->dbConnect->ErrorMsg());
 
     // construct return array
     $x = 0;
@@ -333,11 +358,10 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     while ( !$result->EOF ) {
       for ( $i = 0, $num = $result->FieldCount(); $i < $num; $i++ ) {
         $field = $result->FetchField($i);
-        if ( substr($result->Fields($field->name), 0, $prefix_length) == $this->dbSerializePrefix ) {
+        if ( substr($result->Fields($field->name), 0, $prefix_length) == $this->dbSerializePrefix )
           $elements[$x][$field->name] = unserialize(base64_decode(substr($result->Fields($field->name), $prefix_length)));
-        } else {
+        else
           $elements[$x][$field->name] = $result->Fields($field->name);
-        }
       }
       $result->MoveNext();
       $x++;
@@ -349,7 +373,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   /**
    * retrieve transactions from DB
    *
-   * @access   protected
+   * @access   public
    * @param    string    optional transaction ID to look up
    * @return   array     results OR FALSE in case of failure
    */
@@ -360,7 +384,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   /**
    * retrieve responses from DB
    *
-   * @access   protected
+   * @access   public
    * @param    string    optional transaction ID to look up
    * @return   array     results OR FALSE in case of failure
    */
@@ -371,7 +395,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   /**
    * retrieve messages from DB
    *
-   * @access   protected
+   * @access   public
    * @param    string    optional transaction ID to look up
    * @return   array     results OR FALSE in case of failure
    */
@@ -382,33 +406,31 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   /**
    * retrieve a contact from DB
    *
-   * @access   protected
+   * @access   public
    * @param    string    contact to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveContact($contact) {
-    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact);
-    if ( ($tmp === FALSE) || (count($tmp) <> 1) ) {
+  public function retrieveContact($contact, $userID = 1) {
+    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact, TRUE, null, $userID);
+    if ( ($tmp === FALSE) || (count($tmp) <> 1) )
       return FALSE;
-    } else {
+    else
       return $tmp[0];
-    }
   }
 
   /**
    * retrieve a domain from DB
    *
-   * @access   protected
+   * @access   public
    * @param    string    domain to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveDomain($domain) {
-    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain);
-    if ( ($tmp === FALSE) || (count($tmp) <> 1) ) {
+  public function retrieveDomain($domain, $userID = 1) {
+    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain, TRUE, null, $userID);
+    if ( ($tmp === FALSE) || (count($tmp) <> 1) )
       return FALSE;
-    } else {
+    else
       return $tmp[0];
-    }
   }
 
   /**
@@ -419,4 +441,3 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   }
 }
 
-?>

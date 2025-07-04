@@ -39,7 +39,12 @@ if ( ! $session->hello() ) {
         if ( $domain->fetch($name) ) {
           echo " - Registrant: " . $domain->get('registrant') . "\n";
           echo " - Admin-C: " . $domain->get('admin') . "\n";
-          echo " - Tech-C: " . $domain->get('tech') . "\n";
+          $tech = $domain->get('tech');
+          if ( ! is_array($tech) ) {
+            echo " - Tech-C: " . $tech . "\n";
+          } else foreach ($tech as $single_tech) {
+            echo " - Tech-C: " . $single_tech . "\n";
+          }
           echo " - Status: " . $domain->state() . "\n";
           $ns = $domain->get('ns');
           foreach ($ns as $name) {

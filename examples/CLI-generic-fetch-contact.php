@@ -43,6 +43,9 @@ if ( ! $session->hello() ) {
       case FALSE:
         echo "Contact '".$name."' exists:\n";
         if ( $contact->fetch($name) ) {
+          $status = $contact->get('status');
+          foreach ( $status as $state )
+            echo " - status '" . $state . "'\n";
           echo " - name '" . $contact->get('name') . "'\n";
           echo " - street '" . $contact->get('street') . "'\n";
           echo " - city '" . $contact->get('city') . "'\n";

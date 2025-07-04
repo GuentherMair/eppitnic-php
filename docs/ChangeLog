@@ -1,3 +1,26 @@
+Version 3.0
+===========
+The DB layout changed in order to support user ownership on objects (mandants).
+This obviously constitutes a breach in the continuity of some DB access
+methods and is underlined by an upgrade of the major version number.
+
+Minor changes include, but are not restricted to the following:
+---------------------------------------------------------------
+
+String quoting for values to be stored in DB added. This functionality can be
+controlled in config.xml by the new dbmagicquotes parameter.
+
+It is now possible to update DNS server's IP addresses.
+
+Some method documentation cleaned up (public functions being wrongly
+documented as protected).
+
+Contact status is now handled by the Contact object. Thanks Marco for pointing
+this out!
+
+Better error handling on DB operations (now using ADOdb's ErrorMsg method).
+
+
 Version 2.11
 ============
 Initialization of change-relevant information in domain objects after calls

@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 60 2010-03-16 08:36:40Z gunny $
+ * $Id: Client.php 124 2010-10-09 12:59:25Z gunny $
  */
 
 /*
@@ -190,4 +190,3 @@ class Net_EPP_IT_Client extends Smarty
 
 }
 
-?>

@@ -17,5 +17,6 @@
     <dbname>DBNAME</dbname>
     <dbuser>DBUSER</dbuser>
     <dbpwd>DBPWD</dbpwd>
+    <dbmagicquotes>1</dbmagicquotes>
   </adodb>
 </config>

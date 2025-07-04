@@ -53,12 +53,13 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 85 2010-04-10 15:37:03Z gunny $
+ * $Id: Contact.php 132 2010-10-17 17:32:36Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
   //         name                 = value                       // change flag
-  protected $status               = 0;                          // -
+  protected $userID               = 1;                          // -
+  protected $status               = array();                    // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle               = "";                         // -
   protected $changes              = 0;                          // sum
 
@@ -129,7 +130,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     else
       return FALSE;
 
-    switch ( $var ) {
+    switch ( strtolower($var) ) {
       case "name":                 $this->changes |= 1;     break;
       case "org":                  $this->changes |= 2;     break;
       case "street":               $this->changes |= 4;     break;
@@ -159,6 +160,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   mix     value of variable
    */
   public function get($var) {
+    $var = strtolower($var);
     return $this->$var;
   }
 
@@ -426,7 +428,13 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server and return answer (no handling of special return values)
-    return $this->ExecuteQuery("create-contact", $this->handle, ($this->debug >= LOG_DEBUG));
+    $response = $this->ExecuteQuery("create-contact", $this->handle, ($this->debug >= LOG_DEBUG));
+    if ( $response ) {
+      $this->status = array('ok');
+      return $response;
+    } else {
+      return FALSE;
+    }
   }
 
   /**
@@ -453,7 +461,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     // query server
     if ( $this->ExecuteQuery("info-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
       $this->changes = 0;
-      $this->status = 0;
+      $this->status = array();
       $this->handle = $contact;
 
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:contact-1.0');
@@ -470,6 +478,8 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $this->voice =       (string)$tmp->infData->voice;
       $this->fax =         (string)$tmp->infData->fax;
       $this->email =       (string)$tmp->infData->email;
+      foreach ( $tmp->infData->status as $singleState )
+        $this->status[] =  (string)$singleState->attributes()->s;
 
       $tmp = $this->xmlResult->response->extension->children('http://www.nic.it/ITNIC-EPP/extcon-1.0');
 
@@ -638,7 +648,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 
     switch ($adddel) {
       case "add":
+        $this->status = array_merge($this->status, array($state));
+        break;
       case "rem":
+        $this->status = array_diff($this->status, array($state));
         break;
       default:
         $this->error("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
@@ -662,9 +675,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * store contact to DB
    *
    * @access   public
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB() {
+  public function storeDB($userID = 1) {
     $contact['status'] = $this->status;
     $contact['handle'] = $this->handle;
     $contact['name'] = $this->name;
@@ -685,7 +699,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $contact['entitytype'] = $this->entitytype;
     $contact['regcode'] = $this->regcode;
 
-    if ( $this->storage->storeContact($contact) ) {
+    if ( $this->storage->storeContact($contact, $userID) ) {
       return TRUE;
     } else {
       $this->error($this->storage->dberrMsg);
@@ -698,9 +712,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  contact to load
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($contact = null) {
+  public function loadDB($contact = null, $userID = 1) {
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
@@ -708,7 +723,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       return FALSE;
     }
 
-    $tmp = $this->storage->retrieveContact($contact);
+    $tmp = $this->storage->retrieveContact($contact, $userID);
     if ( $tmp === FALSE ) {
       $this->error($this->storage->dberrMsg);
       return FALSE;
@@ -726,9 +741,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  contact to update
+   * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($contact = null) {
+  public function updateDB($contact = null, $userID = 1) {
     if ($contact === null)
       $contact = $this->handle;
     if ($contact == "") {
@@ -759,7 +775,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     if (($this->changes & 32768) > 0) $data['entitytype'] = $this->entitytype;
     if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
 
-    if ( $this->storage->updateContact($data, $contact) ) {
+    if ( $this->storage->updateContact($data, $contact, $userID) ) {
       return TRUE;
     } else {
       $this->error($this->storage->dberrMsg);
@@ -767,6 +783,40 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     }
   }
 
+  /**
+   * listContacts wrapper
+   *
+   * @access   public
+   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @param    boolean  list only active contacts (TRUE = yes / FALSE = no)
+   * @return   array    list of contacts
+   */
+  public function listContacts($userID = 1, $activeOnly = TRUE) {
+    return $this->storage->listContacts($userID, $activeOnly);
+  }
+
+  /**
+   * deleteContact wrapper
+   *
+   * @access   public
+   * @param    string   contact name / handle
+   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @return   boolean  status
+   */
+  public function deleteContact($contact, $userID = 1) {
+    return $this->storage->deleteContact($contact, $userID);
+  }
+
+  /**
+   * restoreContact wrapper
+   *
+   * @access   public
+   * @param    string   contact name / handle
+   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @return   boolean  status
+   */
+  public function restoreContact($contact, $userID = 1) {
+    return $this->storage->restoreContact($contact, $userID);
+  }
 }
 
-?>

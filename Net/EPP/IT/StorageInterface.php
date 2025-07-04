@@ -39,24 +39,38 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 35 2009-12-22 20:58:55Z gunny $
+ * $Id: StorageInterface.php 127 2010-10-09 16:09:06Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
+  // local transactions
   public function storeTransaction($clTRID, $clTRType, $clTRObject, $clTRData);
-  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response, $extValueReasonCode, $extValueReason);
-  public function storeMessage($clTRID, $svTRID, $svCode, $status, $response);
-
   public function retrieveTransaction($clTRID = null);
+
+  // server responses
+  public function storeResponse($clTRID, $svTRID, $svCode, $status, $response, $extValueReasonCode, $extValueReason);
   public function retrieveResponse($clTRID = null);
+
+  // messages from polling queue
+  public function storeMessage($clTRID, $svTRID, $svCode, $status, $response);
   public function retrieveMessage($clTRID = null);
 
-  public function storeContact($elements);
-  public function storeDomain($elements);
-  public function updateContact($elements, $contact);
-  public function updateDomain($elements, $domain);
-  public function retrieveContact($contact);
-  public function retrieveDomain($domain);
+  // contact operations
+  public function storeContact($elements, $userID = 1);
+  public function retrieveContact($contact, $userID = 1);
+  public function updateContact($elements, $contact, $userID = 1);
+  //public function listContacts($userID = 1, $activeOnly = TRUE);
+  //public function deleteContact($contact, $userID = 1);
+  //public function restoreContact($contact, $userID = 1);
+
+  // domain operations
+  public function storeDomain($elements, $userID = 1);
+  public function retrieveDomain($domain, $userID = 1);
+  public function updateDomain($elements, $domain, $userID = 1);
+  //public function listDomains($userID = 1, $handle = null, $activeOnly = TRUE);
+  //public function deleteDomain($domain, $userID = 1);
+  //public function restoreDomain($domain, $userID = 1);
+  //public function invoiceableDomains();
+  //public function renewDomains();
 }
 
-?>

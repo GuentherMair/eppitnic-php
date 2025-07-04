@@ -1,0 +1,27 @@
+THINGS STILL TO DO OR NICE TO HAVE
+==================================
+
+TODO 1
+------
+Implement internal handling functions for all possible answers to polling
+requests of type "Req" as described in the official technical guidelines.
+
+TODO 2
+------
+Implement a client-daemon with session keep-alive functionality. Btw. this
+is not necessary to pass the accreditation test (simply don't log out), but
+would be rather important if the library was to be used by registrars with
+a very high registration rate.
+After a little testing the PEAR System_Daemon class seems to be the right
+starting point...
+
+TODO 3
+------
+Implement a WSDL client interface. This has to be completed before the client-
+daemon system is started. That way the library should in the end support EPP
+calls over WSDL on top of a queue-based client-daemon.
+
+
+==
+
+$Id: TODO 132 2010-10-17 17:32:36Z gunny $

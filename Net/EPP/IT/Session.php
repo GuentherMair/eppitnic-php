@@ -51,13 +51,14 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 90 2010-05-15 12:43:40Z gunny $
+ * $Id: Session.php 129 2010-10-16 13:06:06Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
   protected $credit = null;
   protected $messages = null;
   protected $msgID = null;
+  protected $msgTitle = null;
 
   /**
    * session start
@@ -212,6 +213,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
     if ( is_object($this->xmlResult->response->msgQ[0]) ) {
       $this->messages = (int)$this->xmlResult->response->msgQ->attributes()->count;
       $this->msgID = (int)$this->xmlResult->response->msgQ->attributes()->id;
+      $this->msgTitle = (string)$this->xmlResult->response->msgQ->msg;
     } else if ( $qrs === TRUE ) {
       $this->messages = 0;
     }
@@ -239,4 +241,3 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
   }
 }
 
-?>

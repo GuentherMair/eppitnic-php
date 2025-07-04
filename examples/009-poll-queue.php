@@ -35,6 +35,7 @@ if ( ! $session->hello() ) {
         break;
     }
     while ( $session->pollMessageCount() > 0 ) {
+      print_r($session->result[body]);
       switch ( $session->poll(TRUE, "ack", $session->pollID()) ) {
         case TRUE:
           echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
@@ -44,7 +45,6 @@ if ( ! $session->hello() ) {
           echo "Result code ".$session->svCode.", '".$session->svMsg."'.\n";
           break;
       }
-      print_r($session->result[body]);
     }
 
     // logout

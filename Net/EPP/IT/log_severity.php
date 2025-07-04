@@ -9,4 +9,3 @@ if ( ! defined('LOG_NOTICE') )  define('LOG_NOTICE',  5); /* normal but signific
 if ( ! defined('LOG_INFO') )    define('LOG_INFO',    6); /* informational */
 if ( ! defined('LOG_DEBUG') )   define('LOG_DEBUG',   7); /* debug-level messages */
 
-?>
