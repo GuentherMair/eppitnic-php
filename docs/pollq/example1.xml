@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="1" id="26">
+   <qDate>2008-07-22T09:07:43+02:00</qDate>
+   <msg lang="en">Password will expire soon</msg>
+  </msgQ>
+  <extension>
+   <extepp:passwdReminder xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extepp-1.0 extepp-1.0.xsd">
+    <extepp:exDate>2008-07-30T12:28:42+02:00</extepp:exDate>
+   </extepp:passwdReminder>
+  </extension>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>DE7234153350</svTRID>
+  </trID>
+ </response>
+</epp>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="7" id="1971">
+   <qDate>2008-12-03T08:02:34+01:00</qDate>
+   <msg lang="en">DNS check ended unsuccessfully</msg>
+  </msgQ>
+  <extension>
+   <extdom:dnsErrorMsgData xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-1.0 extdom-1.0.xsd">
+    <extdom:responseId>80632e80-de1e-474c-9b5f68b40d737c3f</extdom:responseId>
+    <extdom:validationDate>2008-12-03T07:59:57+01:00</extdom:validationDate>
+    <extdom:report>
+     <extdom:domain name="pippo2.it." status="FAILED">
+      <extdom:test name="NameserversResolvableTest" status="SUCCEEDED">
+       <extdom:dns name="ns1.pippo2.it." status="SUCCEEDED" />
+       <extdom:dns name="ns2.pippo2.it." status="SUCCEEDED" />
+      </extdom:test>
+      <extdom:test name="NameserversAnswerTest" status="FAILED">
+       <extdom:dns name="ns1.pippo2.it." status="FAILED" />
+       <extdom:dns name="ns2.pippo2.it." status="FAILED" />
+      </extdom:test>
+      <extdom:test name="NameserverReturnCodeTest" status="SUCCEEDED" />
+      <extdom:test name="AATest" status="SUCCEEDED" />
+      <extdom:test name="NSCompareTest" status="SUCCEEDED" />
+      <extdom:test name="CNAMEHostTest" status="SUCCEEDED" />
+      <extdom:test name="IPCompareTest" status="FAILED">
+       <extdom:dns name="ns1.pippo2.it." status="FAILED">
+        <extdom:dnsreport level="debug">
+<![CDATA[ ;; ->>HEADER<<- opcode: QUERY,
+status: NXDOMAIN, id: 16052 ;; flags: qr rd ra ; qd: 1 an: 0
+au: 1 ad: 0 ;; QUESTIONS:
+;; ns1.pippo2.it., type = ANY, class = IN
+;; ANSWERS: ;; AUTHORITY RECORDS:
+it. 5402 IN	SOA dns.nic.it. hostmaster.nic.it. 2008120301 10800 3600 604800 10800
+;; ADDITIONAL RECORDS: ;; Message size: 87 bytes
+]]>
+        </extdom:dnsreport>
+        <extdom:dnsreport>Unresolveable ns1.pippo2.it.</extdom:dnsreport>
+       </extdom:dns>
+       <extdom:dns name="ns2.pippo2.it." status="FAILED">
+        <extdom:dnsreport level="debug">
+<![CDATA[ ;; ->>HEADER<<- opcode: QUERY,
+status: NXDOMAIN, id: 15168 ;; flags: qr rd ra ; qd: 1 an: 0 au:
+1 ad: 0 ;; QUESTIONS:
+;; ns2.pippo2.it., type = ANY, class = IN
+;; ANSWERS: ;; AUTHORITY RECORDS:
+it.	5402 IN SOA dns.nic.it. hostmaster.nic.it. 2008120301 10800 3600 604800 10800
+;; ADDITIONAL RECORDS: ;; Message size: 87 bytes
+]]>
+        </extdom:dnsreport>
+        <extdom:dnsreport>Unresolveable ns2.pippo2.it.</extdom:dnsreport>
+       </extdom:dns>
+      </extdom:test>
+      <extdom:test name="MXCompareTest" status="SUCCEEDED" />
+      <extdom:test name="SOAMasterCompareTest" status="SUCCEEDED" />
+     </extdom:domain>
+    </extdom:report>
+   </extdom:dnsErrorMsgData>
+  </extension>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>DE6323330406</svTRID>
+  </trID>
+ </response>
+</epp>

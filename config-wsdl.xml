@@ -1,0 +1,22 @@
+<config>
+  <DEBUG>0</DEBUG>
+  <server>https://epp-gtl.nic.it</server>
+  <username>USERNAME</username>
+  <password>PASSWORD</password>
+  <lang>en</lang>
+  <smarty>
+    <use_sub_dirs>false</use_sub_dirs>
+    <template_dir>templates/</template_dir>
+    <config_dir>../smarty/config/</config_dir>
+    <compile_dir>../smarty/compile/</compile_dir>
+    <cache_dir>../smarty/cache/</cache_dir>
+  </smarty>
+  <adodb>
+    <dbtype>mysql</dbtype>
+    <dbhost>localhost</dbhost>
+    <dbname>DBNAME</dbname>
+    <dbuser>DBUSER</dbuser>
+    <dbpwd>DBPWD</dbpwd>
+    <dbmagicquotes>1</dbmagicquotes>
+  </adodb>
+</config>

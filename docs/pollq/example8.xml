@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="1" id="36">
+   <qDate>2008-07-29T10:31:23+02:00</qDate>
+   <msg lang="en">Domain transfer has been rejected</msg>
+  </msgQ>
+  <resData>
+   <domain:trnData xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+    <domain:name>esempio.it</domain:name>
+    <domain:trStatus>clientRejected</domain:trStatus>
+    <domain:reID>NEW-REGISTRAR</domain:reID>
+    <domain:reDate>2008-07-29T10:30:39+02:00</domain:reDate>
+    <domain:acID>DEMO-REGISTRAR</domain:acID>
+    <domain:acDate>2008-07-29T10:31:22+02:00</domain:acDate>
+   </domain:trnData>
+  </resData>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>MA3616063160</svTRID>
+  </trID>
+ </response>
+</epp>

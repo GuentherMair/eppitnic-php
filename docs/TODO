@@ -3,20 +3,27 @@ THINGS STILL TO DO OR NICE TO HAVE
 
 TODO 1
 ------
-Implement internal handling functions for all possible answers to polling
-requests of type "Req" as described in the official technical guidelines.
-
-TODO 2
-------
 Implement a client-daemon with session keep-alive functionality. Btw. this
 is not necessary to pass the accreditation test (simply don't log out), but
 would be rather important if the library was to be used by registrars with
 a very high registration rate.
 After a little testing the PEAR System_Daemon class seems to be the right
-starting point... just see the "daemonize/" folder. Any help would be welcome
+starting point... just see the "private/" folder. Any help would be welcome
 and that includes testing and finding bugs too...
 
 
 ==
 
-$Id: TODO 172 2010-10-19 17:11:35Z gunny $
+DONE 1
+------
+Implement internal handling functions for all possible answers to polling
+requests of type "Req" as described in the official technical guidelines.
+
+DONE 2
+------
+WSDL backend interface implementation.
+
+
+==
+
+$Id: TODO 195 2010-10-24 14:52:15Z gunny $

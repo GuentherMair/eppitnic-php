@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 167 2010-10-18 09:36:54Z gunny $
+ * $Id: Session.php 200 2010-10-24 15:37:55Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -182,7 +182,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
    * @return   boolean  status
    */
   public function poll($store = TRUE, $type = "req", $msgID = null) {
-    switch ($type) {
+    switch (strtolower($type)) {
       case "req":
         break;
       case "ack":
@@ -214,6 +214,10 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       $this->messages = (int)$this->xmlResult->response->msgQ->attributes()->count;
       $this->msgID = (int)$this->xmlResult->response->msgQ->attributes()->id;
       $this->msgTitle = (string)$this->xmlResult->response->msgQ->msg;
+
+      // parse message (only in case of a poll "req") and store it
+      if ( (strtolower($type) == "req") && ($store === TRUE) )
+        $this->storage->storeParsedMessage($this->parsePollReq());
     } else if ( $qrs === TRUE ) {
       $this->messages = 0;
     }
@@ -228,6 +232,108 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
         $this->result);
 
     return $qrs;
+  }
+
+  /**
+   * try to parse message received by poll "req"
+   *
+   * @access   protected
+   * @param    boolean   store message to DB (defaults to TRUE)
+   * @return   array     [message type], [domain], [human readable data]
+   */
+  protected function parsePollReq() {
+    $ns = $this->xmlResult->getNamespaces(TRUE);
+
+    // passwdReminder
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate) ) {
+      $exDate = (string)$this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate;
+      return array(
+        'type'   => 'passwdReminder',
+        'domain' => '',
+        'data'   => $exDate,
+      );
+    }
+
+    // simpleMsgData
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name) ) {
+      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name;
+      $title = (string)$this->xmlResult->response->msgQ->msg;
+      return array(
+        'type'   => 'simpleMsgData',
+        'domain' => $domain,
+        'data'   => $title,
+      );
+    }
+
+    // dnsErrorMsgData
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain) ) {
+      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->attributes()->name;
+      $title = (string)$this->xmlResult->response->msgQ->msg;
+      $msg = array();
+      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->test as $child)
+        $msg[] = $child->attributes()->name . ": " . $child->attributes()->status;
+      return array(
+        'type'   => 'dnsErrorMsgData',
+        'domain' => $domain,
+        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+      );
+    }
+
+    // chgStatusMsgData
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name) ) {
+      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name;
+      $title = (string)$this->xmlResult->response->msgQ->msg;
+      $msg = array();
+      if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus) ) {
+        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['domain'])->status as $child)
+          $msg[] = $child->attributes()->s;
+        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['rgp'])->rgpStatus as $child)
+          $msg[] = $child->attributes()->s;
+      }
+      return array(
+        'type'   => 'chgStatusMsgData',
+        'domain' => $domain,
+        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+      );
+    }
+
+    // dlgMsgData
+    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name) ) {
+      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name;
+      $title = (string)$this->xmlResult->response->msgQ->msg;
+      $msg = array();
+      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->ns as $child)
+        $msg[] = (string)$child;
+      return array(
+        'type'   => 'dlgMsgData',
+        'domain' => $domain,
+        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+      );
+    }
+
+    // domain transfers
+    if ( @is_object($this->xmlResult->response->resData->children($ns['domain'])->trnData->name) ) {
+      $domain = (string)$this->xmlResult->response->resData->children($ns['domain'])->trnData->name;
+      $type = $this->xmlResult->response->resData->children($ns['domain'])->trnData->trStatus . "Transfer";
+      $title = (string)$this->xmlResult->response->msgQ->msg . ": " .
+        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID .
+        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reDate . ") => " .
+        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID .
+        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acDate . ")";
+      return array(
+        'type'   => $type,
+        'domain' => $domain,
+        'data'   => $title,
+      );
+    }
+
+    // unknown type
+    return array(
+      'type'   => 'unknown',
+      'domain' => '',
+      'data'   => (string)$this->xmlResult->response->msgQ->msg,
+    );
+
   }
 
   /**

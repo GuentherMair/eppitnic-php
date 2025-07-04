@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="1" id="36">
+   <qDate>2008-07-29T10:31:23+02:00</qDate>
+   <msg lang="en">some unknown, future stuff</msg>
+  </msgQ>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>MA5790443211</svTRID>
+  </trID>
+ </response>
+</epp>

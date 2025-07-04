@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="1" id="24">
+   <qDate>2008-07-21T12:50:57+02:00</qDate>
+   <msg lang="en">Lost delegation</msg>
+  </msgQ>
+  <extension>
+   <extdom:dlgMsgData xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-1.0 extdom-1.0.xsd">
+    <extdom:name>esempio.it</extdom:name>
+    <extdom:ns>nameserver.cnr.it</extdom:ns>
+   </extdom:dlgMsgData>
+  </extension>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>DE6463463742</svTRID>
+  </trID>
+ </response>
+</epp>

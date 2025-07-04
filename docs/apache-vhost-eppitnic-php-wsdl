@@ -2,17 +2,12 @@ NameVirtualHost *:8090
 Listen 8090
 
 <VirtualHost *:8090>
-   DocumentRoot /var/www/eppitnic/
-   LogLevel notice
-   ErrorLog /var/log/apache2/wsdl.error.log
-   CustomLog /var/log/apache2/wsdl.access.log combined
+  DocumentRoot /var/www/eppitnic/public/
+  LogLevel notice
+  ErrorLog /var/log/apache2/wsdl.error.log
+  CustomLog /var/log/apache2/wsdl.access.log combined
 
-   DirectoryIndex wsdl.php
+  DirectoryIndex wsdl.php
 
-   <Directory /var/www/eppitnic/>
-      Options Indexes FollowSymLinks MultiViews
-      AllowOverride None
-      Order allow,deny
-      allow from all
-   </Directory>
+  AddDefaultCharset UTF-8
 </VirtualHost>

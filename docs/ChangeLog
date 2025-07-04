@@ -1,3 +1,22 @@
+Version 3.0 rc 1
+================
+Domain and Contact object values are now re-initialized before every fetch from
+either DB or EPP servers.
+
+First implementation of a message queue parser. Messages are stored after any
+poll 'req' in tbl_messages in more or less human readable format and can be
+retrieved with the retrieveParsedMessages() method call. There are 3 new
+example scripts on how to use this functionality, while the example 009 has
+been 'deactivated', since it's implementation was completely wrong and is now
+superseeded by 029 and 030. This should now be the correct approach to the
+issue hinted at by Marco about two weeks ago.
+
+The WSDL start file has now moved into the 'public/' folder in order to deny
+file access to any other files through the webbrowser. Let's try to keep to
+good security practices even though this will probably always be an internal
+solution... ;-)
+
+
 Version 3.0 beta 4
 ==================
 Updates to both Contact and Domain objects in order to prevent the registration

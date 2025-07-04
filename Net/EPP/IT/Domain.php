@@ -61,29 +61,29 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 182 2010-10-20 21:09:37Z gunny $
+ * $Id: Domain.php 188 2010-10-22 12:37:23Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
-  //         name                 = value                       // change flag
-  protected $status               = 0;                          // -
-  protected $domain               = "";                         // -
-  protected $changes              = 0;                          // sum
+  //         name              // change flag
+  protected $status;           // -
+  protected $domain;           // -
+  protected $changes;          // sum
 
-  protected $state                = null;                       // server-side
+  protected $state;            // server-side
 
-  protected $ns                   = array();                    // 1
-  protected $registrant           = "";                         // 2
-  protected $admin                = "";                         // 4
-  protected $tech                 = array();                    // 8
-  protected $authinfo             = "";                         // 16
+  protected $ns;               // 1
+  protected $registrant;       // 2
+  protected $admin;            // 4
+  protected $tech;             // 8
+  protected $authinfo;         // 16
 
   // these are for internal use only (ie. update)
-  protected $ns_initial           = array();
-  protected $admin_initial        = array();
-  protected $tech_initial         = array();
+  protected $ns_initial;
+  protected $admin_initial;
+  protected $tech_initial;
 
-  protected $max_check            = 5;
+  protected $max_check;
 
   /*
    * Class constructor
@@ -96,7 +96,29 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   function __construct(&$client, &$storage) {
     $this->authinfo = $this->authinfo();
+    $this->initValues();
     parent::__construct($client, $storage);
+  }
+
+  /**
+   * initialize values
+   *
+   * @access   protected
+   */
+  protected function initValues() {
+    $this->status        = 0;
+    $this->domain        = "";
+    $this->registrant    = "";
+    $this->admin         = "";
+    $this->admin_initial = "";
+    $this->tech          = array();
+    $this->tech_initial  = array();
+    $this->ns            = array();
+    $this->ns_initial    = array();
+    $this->authinfo      = "";
+    $this->changes       = 0;
+    $this->state         = null;
+    $this->max_check     = 5;
   }
 
   /**
@@ -477,10 +499,12 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   public function fetch($domain = null, $authinfo = null) {
     if ($domain === null)
       $domain = $this->domain;
+
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
+
     // if authinfo was not given as an argument, but has been set
     if ( ($authinfo === null) && ($this->changes & 16) )
       $authinfo = $this->authinfo;
@@ -492,6 +516,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->client->assign('authinfo', $authinfo);
     $this->xmlQuery = $this->client->fetch("info-domain");
     $this->client->clear_all_assign();
+
+    // re-initialize object data
+    $this->initValues();
 
     // query server
     if ( $this->ExecuteQuery("info-domain", $domain, ($this->debug >= LOG_DEBUG)) ) {
@@ -820,6 +847,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       return FALSE;
     }
 
+    // re-initialize object data
+    $this->initValues();
+
     $tmp = $this->storage->retrieveDomain($domain, $userID);
     if ( $tmp === FALSE ) {
       $this->setError($this->storage->getError());
@@ -866,10 +896,12 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   public function updateDB($domain = null, $userID = 1) {
     if ($domain === null)
       $domain = $this->domain;
+
     if ($domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
+
     if ($this->changes == 0) {
       $this->setError("Domain did not change!");
       return FALSE;

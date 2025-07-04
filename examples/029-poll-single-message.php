@@ -1,13 +1,5 @@
 <?php
 
-echo "This example is obsolete (thanks again Marco for the hint)!\n";
-echo "Please use either of:\n";
-echo "\n";
-echo " 1) examples/029-poll-single-message.php\n";
-echo " 2) examples/030-poll-queue.php\n";
-echo "\n";
-exit;
-
 set_include_path('.:'.ini_get('include_path'));
 
 require_once 'Net/EPP/IT/Client.php';
@@ -39,19 +31,13 @@ if ( ! $session->hello() ) {
         break;
       default:
         echo "There are ".$session->pollMessageCount()." messages in the polling queue.\n";
-        echo "Polling...\n";
-        break;
-    }
-    while ( $session->pollMessageCount() > 0 ) {
-      print_r($session->result[body]);
-      switch ( $session->poll(TRUE, "ack", $session->pollID()) ) {
-        case TRUE:
-          echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
-          break;
-        case FALSE;
+        if ( $session->poll(TRUE, "req") ) {
+          echo "Successfully got and stored message n. " . $session->pollMessageCount() . "!\n";
+          $session->poll(TRUE, "ack", $session->pollID());
+        } else {
           echo "FAILED to get message n. " . $session->pollMessageCount() . ": ".$session->getError()."\n";
-          break;
-      }
+        }
+        break;
     }
 
     // logout

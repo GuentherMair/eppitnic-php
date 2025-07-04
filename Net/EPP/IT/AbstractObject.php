@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 178 2010-10-19 19:54:54Z gunny $
+ * $Id: AbstractObject.php 186 2010-10-21 16:45:38Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -549,14 +549,14 @@ abstract class Net_EPP_IT_AbstractObject
              "Generic error (if set):\n".
              "-----------------------\n".
              $msg."\n".
-             "\n";
+             "\n".
              "Query sent to server:\n".
              "---------------------\n".
              $this->xmlQuery."\n".
              "\n".
              "Response received from server:\n".
              "------------------------------\n".
-             $this->result."\n";
+             $this->result['body']."\n".
              "</pre>";
 
     return $msg;

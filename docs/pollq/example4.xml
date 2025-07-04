@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+ <response>
+  <result code="1301">
+   <msg lang="en">Command completed successfully; ack to dequeue</msg>
+  </result>
+  <msgQ count="1" id="84">
+   <qDate>2008-08-04T18:57:45+02:00</qDate>
+   <msg lang="en">redemptionPeriod is started</msg>
+  </msgQ>
+  <extension>
+   <extdom:chgStatusMsgData xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-1.0 extdom-1.0.xsd">
+    <extdom:name>esempio.it</extdom:name>
+    <extdom:targetStatus>
+     <domain:status xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" s="pendingDelete" lang="en" />
+     <rgp:rgpStatus xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" s="redemptionPeriod" lang="en" />
+    </extdom:targetStatus>
+   </extdom:chgStatusMsgData>
+  </extension>
+  <trID>
+   <clTRID>ABC-12345</clTRID>
+   <svTRID>DE5746633232</svTRID>
+  </trID>
+ </response>
+</epp>

@@ -53,35 +53,35 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 180 2010-10-20 20:07:04Z gunny $
+ * $Id: Contact.php 188 2010-10-22 12:37:23Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
-  //         name                 = value                       // change flag
-  protected $userID               = 1;                          // -
-  protected $status               = array();                    // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
-  protected $handle               = "";                         // -
-  protected $changes              = 0;                          // sum
+  //         name                  // change flag
+  protected $userID;               // -
+  protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
+  protected $handle;               // -
+  protected $changes;              // sum
 
-  protected $name                 = "";                         // 1
-  protected $org                  = "";                         // 2
-  protected $street               = "";                         // 4
-  protected $street2              = "";                         // 8
-  protected $street3              = "";                         // 16
-  protected $city                 = "";                         // 32
-  protected $province             = "";                         // 64
-  protected $postalcode           = "";                         // 128
-  protected $countrycode          = "";                         // 256
-  protected $voice                = "";                         // 512
-  protected $fax                  = "";                         // 1024
-  protected $email                = "";                         // 2048
-  protected $authinfo             = "";                         // 4096
-  protected $consentforpublishing = 0;                          // 8192
-  protected $nationalitycode      = "";                         // 16384
-  protected $entitytype           = 2;                          // 32768
-  protected $regcode              = "";                         // 65536
+  protected $name;                 // 1
+  protected $org;                  // 2
+  protected $street;               // 4
+  protected $street2;              // 8
+  protected $street3;              // 16
+  protected $city;                 // 32
+  protected $province;             // 64
+  protected $postalcode;           // 128
+  protected $countrycode;          // 256
+  protected $voice;                // 512
+  protected $fax;                  // 1024
+  protected $email;                // 2048
+  protected $authinfo;             // 4096
+  protected $consentforpublishing; // 8192
+  protected $nationalitycode;      // 16384
+  protected $entitytype;           // 32768
+  protected $regcode;              // 65536
 
-  protected $max_check            = 5;
+  protected $max_check;
 
   /**
    * Class constructor
@@ -94,7 +94,38 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    */
   function __construct(&$client, &$storage) {
     $this->authinfo = $this->authinfo();
+    $this->initValues();
     parent::__construct($client, $storage);
+  }
+
+  /**
+   * initialize values
+   *
+   * @access   protected
+   */
+  protected function initValues() {
+    $this->userID               = 1;
+    $this->status               = array();
+    $this->handle               = "";
+    $this->changes              = 0;
+    $this->name                 = "";
+    $this->org                  = "";
+    $this->street               = "";
+    $this->street2              = "";
+    $this->street3              = "";
+    $this->city                 = "";
+    $this->province             = "";
+    $this->postalcode           = "";
+    $this->countrycode          = "";
+    $this->voice                = "";
+    $this->fax                  = "";
+    $this->email                = "";
+    $this->authinfo             = "";
+    $this->consentforpublishing = 0;
+    $this->nationalitycode      = "";
+    $this->entitytype           = 2;
+    $this->regcode              = "";
+    $this->max_check            = 5;
   }
 
   /**
@@ -473,6 +504,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->xmlQuery = $this->client->fetch("info-contact");
     $this->client->clear_all_assign();
 
+    // re-initialize object data
+    $this->initValues();
+
     // query server
     if ( $this->ExecuteQuery("info-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
       $this->changes = 0;
@@ -676,7 +710,10 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
     $this->client->clear_all_assign();
 
     // query server
-    return $this->ExecuteQuery("update-contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
+    $result = $this->ExecuteQuery("update-contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
+    if ( $result )
+      $this->changes = 0;
+    return $result;
   }
 
   /**
@@ -730,6 +767,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       $this->setError("Operation not allowed, set a handle!");
       return FALSE;
     }
+
+    // re-initialize object data
+    $this->initValues();
 
     $tmp = $this->storage->retrieveContact($contact, $userID);
     if ( $tmp === FALSE ) {

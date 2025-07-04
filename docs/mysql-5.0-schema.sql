@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 144 2010-10-17 22:35:00Z gunny $
+-- $Id: mysql-5.0-schema.sql 191 2010-10-24 14:27:33Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -99,4 +99,16 @@ create table tbl_transfers (
   time                  timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES tbl_contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;
+
+create table tbl_messages (
+  id                    serial,
+  type                  varchar(64) NOT NULL,
+  domain                varchar(255),
+  data                  text NOT NULL,
+  archived              tinyint DEFAULT 0,
+  archivedUserID        bigint unsigned,
+  archivedTime          datetime,
+  createdTime           timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8;

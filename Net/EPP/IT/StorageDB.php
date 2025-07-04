@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 179 2010-10-20 14:55:03Z gunny $
+ * $Id: StorageDB.php 200 2010-10-24 15:37:55Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -279,6 +279,17 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   }
 
   /**
+   * store parsed messages (poll) to DB
+   *
+   * @access   public
+   * @param    array     data to be stored
+   * @return   boolean   status
+   */
+  public function storeParsedMessage($elements) {
+    return $this->doStore("tbl_messages", $elements);
+  }
+
+  /**
    * store contact to DB
    *
    * @access   public
@@ -422,6 +433,62 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
    */
   public function retrieveMessage($clTRID = null) {
     return $this->doRetrieve("tbl_msgqueue", "clTRID", $clTRID);
+  }
+
+  /**
+   * retrieve parsed messages from DB
+   *
+   * @access   public
+   * @param    boolean   whether to retrieve all or only active messages
+   * @param    string    user ACL
+   * @return   boolean   status
+   */
+  public function retrieveParsedMessages($active = true, $userID = 1) {
+    $elements = array();
+
+    // set primary condition (archived or not)
+    if ( $active )
+      $condition = 'archived = 0';
+    else
+      $condition = '1 = 1';
+
+    if ( $userID > 1 )
+      $acl = ' and d.userID = '.$userID;
+    else
+      $acl = '';
+
+    // execute query
+    $result = $this->dbConnect->Execute("
+      SELECT
+        t.*,
+        d.userID,
+        d.registrant
+      FROM
+        tbl_messages t
+      LEFT JOIN
+        tbl_domains d
+      ON
+        t.domain = d.domain
+      WHERE
+        ".$condition.$acl."
+      ORDER BY id DESC");
+
+    // first evaluation of the result
+    if ( $result === FALSE )
+      return $this->setError(8, "unable to get data from tbl_messages: ".$this->dbConnect->ErrorMsg());
+
+    // construct return array
+    $x = 1;
+    while ( !$result->EOF ) {
+      for ( $i = 0, $num = $result->FieldCount(); $i < $num; $i++ ) {
+        $field = $result->FetchField($i);
+        $elements[$x][$field->name] = $result->Fields($field->name);
+      }
+      $result->MoveNext();
+      $x++;
+    }
+  
+    return $elements;
   }
 
   /**
