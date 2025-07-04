@@ -9,5 +9,8 @@ Listen 8090
 
   DirectoryIndex wsdl.php
 
+  # E_ERROR | E_USER_WARNING = 1 | 512 = 513
+  php_admin_value error_reporting 513
+
   AddDefaultCharset UTF-8
 </VirtualHost>

@@ -5,11 +5,12 @@
   <password>PASSWORD</password>
   <lang>en</lang>
   <smarty>
-    <use_sub_dirs>false</use_sub_dirs>
-    <template_dir>templates/</template_dir>
-    <config_dir>smarty/config/</config_dir>
-    <compile_dir>smarty/compile/</compile_dir>
-    <cache_dir>smarty/cache/</cache_dir>
+    <documentation>leave these empty in order to use default settings (recommended)</documentation>
+    <use_sub_dirs></use_sub_dirs>
+    <template_dir></template_dir>
+    <config_dir></config_dir>
+    <compile_dir></compile_dir>
+    <cache_dir></cache_dir>
   </smarty>
   <adodb>
     <dbtype>mysql</dbtype>
@@ -19,4 +20,19 @@
     <dbpwd>DBPWD</dbpwd>
     <dbmagicquotes>1</dbmagicquotes>
   </adodb>
+  <webinterface>
+    <handleprefix>USERNAME-</handleprefix>
+    <locale>it_IT</locale>
+    <fetchDBonly>0</fetchDBonly>
+    <DNSnotifyScript>/usr/local/sbin/domain_notify.sh</DNSnotifyScript>
+    <DNS>ns1.yourdomain.it[8.8.4.4][8.8.8.8];ns2.yourdomain.it</DNS>
+    <TECHC>TECHC0001;TECHC0002</TECHC>
+    <email>info@yourdomain.it</email>
+  </webinterface>
+  <billing>
+    <CDR>/var/log/itnic_billing.cdr</CDR>
+    <delimiter>;</delimiter>
+    <enclosure>"</enclosure>
+    <EOL>UNIX</EOL>
+  </billing>
 </config>

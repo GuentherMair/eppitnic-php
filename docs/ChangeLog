@@ -1,3 +1,22 @@
+Version 3.0 rc 2
+================
+Include path in all examples is now based on the __FILE__ constant so that you
+may now launch a file from whatever path you are in. In order for that the
+internal behaviour of the Client class (which locates and reads the config.xml
+file) has been altered as well. This now extends nicely to the new WSDL class
+as well and we don't need an ugly, separate config file for this.
+
+Smarty default values (empty) should be kept from now on. The smarty compile
+folder still needs write permissions (ie. www-data on Debian/Ubuntu if you are
+trying to use the WSDL interface). If this is not granted the Client class
+will try to failback to '/tmp', emit warnings in case of success and die with
+an error message in case of a failure.
+
+Any transferStatus query now fills the reID/acID fields (if set).
+
+Added new Smarty and adoDB libraries.
+
+
 Version 3.0 rc 1
 ================
 Domain and Contact object values are now re-initialized before every fetch from

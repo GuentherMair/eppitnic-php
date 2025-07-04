@@ -1,6 +1,6 @@
 <?php
 
-set_include_path('.:'.ini_get('include_path'));
+set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
 require_once 'Net/EPP/IT/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
@@ -31,7 +31,7 @@ class MyStorageWrapper extends Net_EPP_IT_StorageDB
   }
 }
 
-$nic = new Net_EPP_IT_Client("config.xml");
+$nic = new Net_EPP_IT_Client();
 $db = new MyStorageWrapper($nic->EPPCfg->adodb);
 
 $db->setDBMaxEntries(10);

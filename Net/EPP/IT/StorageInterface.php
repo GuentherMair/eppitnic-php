@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 191 2010-10-24 14:27:33Z gunny $
+ * $Id: StorageInterface.php 219 2010-10-26 14:45:04Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
@@ -56,6 +56,7 @@ interface Net_EPP_IT_StorageInterface
   public function retrieveMessage($clTRID = null);
   public function storeParsedMessage($elements);
   public function retrieveParsedMessages($active = true, $userID = 1);
+  public function archiveParsedMessage($id);
 
   // contact operations
   public function storeContact($elements, $userID = 1);

@@ -45,7 +45,7 @@ require_once 'Net/EPP/IT/Domain.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: WSDL.php 196 2010-10-24 14:52:57Z gunny $
+ * $Id: WSDL.php 208 2010-10-25 11:16:56Z gunny $
  */
 
 class Net_EPP_IT_WSDL
@@ -66,7 +66,10 @@ class Net_EPP_IT_WSDL
    * @param    string   configuration file name or XML configuration string
    * @return   boolean  status
    */
-  public function __construct($cfg = "../config-wsdl.xml") {
+  public function __construct($cfg = null) {
+    if ( $cfg === null )
+      $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
+
     // create EPP objects
     $this->nic = new Net_EPP_IT_Client($cfg);
     $this->db = new Net_EPP_IT_StorageDB($this->nic->EPPCfg->adodb);

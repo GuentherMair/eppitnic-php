@@ -11,7 +11,7 @@
   <resData>
    <domain:trnData xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
     <domain:name>esempio.it</domain:name>
-    <domain:trStatus>clientApproved</domain:trStatus>
+    <domain:trStatus>serverApproved</domain:trStatus>
     <domain:reID>NEW-REGISTRAR</domain:reID>
     <domain:reDate>2008-07-29T10:30:39+02:00</domain:reDate>
     <domain:acID>DEMO-REGISTRAR</domain:acID>

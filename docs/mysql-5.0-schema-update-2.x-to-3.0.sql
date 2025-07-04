@@ -43,8 +43,11 @@ create table tbl_transfers (
 
 create table tbl_messages (
   id                    serial,
+  clTRID                varchar(32),
+  svTRID                varchar(32),
   type                  varchar(64) NOT NULL,
   domain                varchar(255),
+  acID                  varchar(255),
   data                  text NOT NULL,
   archived              tinyint DEFAULT 0,
   archivedUserID        bigint unsigned,

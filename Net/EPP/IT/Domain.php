@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 188 2010-10-22 12:37:23Z gunny $
+ * $Id: Domain.php 223 2010-10-27 18:17:47Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -82,6 +82,11 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $ns_initial;
   protected $admin_initial;
   protected $tech_initial;
+
+  // domain transfer information
+  protected $trStatus;
+  protected $reID;
+  protected $acID;
 
   protected $max_check;
 
@@ -119,6 +124,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $this->changes       = 0;
     $this->state         = null;
     $this->max_check     = 5;
+    $this->trStatus      = "";
+    $this->reID          = "";
+    $this->acID          = "";
   }
 
   /**
@@ -538,7 +546,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       }
 
       // if the NS were not properly configured EPP will not report them yet!
-      if ( is_object($tmp->infData->ns->hostAttr[0]) )
+      if ( @is_object($tmp->infData->ns->hostAttr[0]) )
         foreach ($tmp->infData->ns->hostAttr as $hostAttr) {
           $addr = array();
           foreach ($hostAttr->hostAddr as $ip) {
@@ -823,6 +831,9 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     $domain['tech'] = $this->tech;
     $domain['authinfo'] = $this->authinfo;
 
+    // very un-common: remove existing domain object when storing (cases: re-transfer-in & re-register)
+    $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
+
     if ( $this->storage->storeDomain($domain, $userID) ) {
       return TRUE;
     } else {
@@ -952,11 +963,14 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
     // query server
     if ( $this->ExecuteQuery("transfer-query", $domain, ($this->debug >= LOG_DEBUG)) ) {
       $tmp = $this->xmlResult->response->resData->children('urn:ietf:params:xml:ns:domain-1.0');
-      if ( is_object($tmp->trnData->trStatus[0]) )
-        $this->svMsg = $tmp->trnData->trStatus[0];
+      if ( @is_object($tmp->trnData->trStatus[0]) ) {
+        $this->trStatus = $tmp->trnData->trStatus[0];
+        $this->reID = @$tmp->trnData->reID;
+        $this->acID = @$tmp->trnData->acID;
+      }
       return TRUE;
     } else {
-      if ( is_object($this->xmlResult->response->result->extValue->reason[0]) )
+      if ( @is_object($this->xmlResult->response->result->extValue->reason[0]) )
         $this->svMsg = $this->xmlResult->response->result->extValue->reason[0];
       return FALSE;
     }

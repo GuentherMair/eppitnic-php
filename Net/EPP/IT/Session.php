@@ -51,7 +51,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 200 2010-10-24 15:37:55Z gunny $
+ * $Id: Session.php 225 2010-10-27 18:53:25Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 {
@@ -217,7 +217,10 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
 
       // parse message (only in case of a poll "req") and store it
       if ( (strtolower($type) == "req") && ($store === TRUE) )
-        $this->storage->storeParsedMessage($this->parsePollReq());
+        $this->storage->storeParsedMessage(
+          array_merge(
+            $this->parsePollReq(),
+            array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID) ) );
     } else if ( $qrs === TRUE ) {
       $this->messages = 0;
     }
@@ -275,7 +278,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       return array(
         'type'   => 'dnsErrorMsgData',
         'domain' => $domain,
-        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+        'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
 
@@ -293,7 +296,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       return array(
         'type'   => 'chgStatusMsgData',
         'domain' => $domain,
-        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+        'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
 
@@ -307,7 +310,7 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
       return array(
         'type'   => 'dlgMsgData',
         'domain' => $domain,
-        'data'   => $title . " (" . implode(" / ", $msg) . ")",
+        'data'   => $title . " (" . implode(", ", $msg) . ")",
       );
     }
 
@@ -315,15 +318,17 @@ class Net_EPP_IT_Session extends Net_EPP_IT_AbstractObject
     if ( @is_object($this->xmlResult->response->resData->children($ns['domain'])->trnData->name) ) {
       $domain = (string)$this->xmlResult->response->resData->children($ns['domain'])->trnData->name;
       $type = $this->xmlResult->response->resData->children($ns['domain'])->trnData->trStatus . "Transfer";
-      $title = (string)$this->xmlResult->response->msgQ->msg . ": " .
-        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID .
-        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reDate . ") => " .
+      $title = (string)$this->xmlResult->response->msgQ->msg . ": from " .
         @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID .
-        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acDate . ")";
+        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acDate . ") to " .
+        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID .
+        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reDate . ")";
+      // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers
       return array(
         'type'   => $type,
         'domain' => $domain,
         'data'   => $title,
+        'acID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
       );
     }
 

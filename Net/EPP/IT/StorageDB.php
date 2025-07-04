@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 200 2010-10-24 15:37:55Z gunny $
+ * $Id: StorageDB.php 220 2010-10-27 16:03:17Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -436,6 +436,21 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   }
 
   /**
+   * archive a parsed message (ie. for automated transfer handling like
+   * clientRejected, clientApproved, serverApproved)
+   *
+   * @access   public
+   * @param    integer   ID of the parsed message
+   * @return   boolean   status
+   */
+  public function archiveParsedMessage($id) {
+    if ( $this->dbConnect->Execute("UPDATE tbl_messages SET archived = 1 WHERE id = '".(int)$id."'") )
+      return $this->setError(32, "unable to update message table: ".$this->dbConnect->ErrorMsg());
+    else
+      return TRUE;
+  }
+
+  /**
    * retrieve parsed messages from DB
    *
    * @access   public
@@ -452,6 +467,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
     else
       $condition = '1 = 1';
 
+    // set user ACL
     if ( $userID > 1 )
       $acl = ' and d.userID = '.$userID;
     else
@@ -471,7 +487,7 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
         t.domain = d.domain
       WHERE
         ".$condition.$acl."
-      ORDER BY id DESC");
+      ORDER BY id ASC"); // DON'T CHANGE!! A new transfer state message should overwrite an existing entry when transforming into an associative array
 
     // first evaluation of the result
     if ( $result === FALSE )

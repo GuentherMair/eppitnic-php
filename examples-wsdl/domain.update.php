@@ -1,5 +1,7 @@
 <?php
 
+set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
+
 require_once 'libs/nusoap/nusoap.php'; 
 
 /**
@@ -39,7 +41,7 @@ require_once 'libs/nusoap/nusoap.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.update.php 161 2010-10-18 00:23:55Z gunny $
+ * $Id: domain.update.php 210 2010-10-25 11:50:40Z gunny $
  */
 
 $client = new nusoap_client('http://127.0.0.1:8090/wsdl.php?wsdl', true);

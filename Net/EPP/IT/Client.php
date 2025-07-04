@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 124 2010-10-09 12:59:25Z gunny $
+ * $Id: Client.php 211 2010-10-25 12:00:00Z gunny $
  */
 
 /*
@@ -96,7 +96,10 @@ class Net_EPP_IT_Client extends Smarty
    * @access   public
    * @param    string  configuration file or XML configuration string
    */
-  function __construct($cfg = "config.xml") {
+  function __construct($cfg = null) {
+    if ( $cfg === null )
+      $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
+
     if ( is_readable($cfg) ) {
       $this->EPPCfg = @simplexml_load_file($cfg);
     } else {
@@ -106,13 +109,28 @@ class Net_EPP_IT_Client extends Smarty
       }
     }
 
+    // call Smarty class constructor
     parent::__construct();
-    $this->use_sub_dirs = $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
-    $this->template_dir = $this->EPPCfg->smarty->template_dir;
-    $this->config_dir   = $this->EPPCfg->smarty->config_dir;
-    $this->compile_dir  = $this->EPPCfg->smarty->compile_dir;
-    $this->cache_dir    = $this->EPPCfg->smarty->cache_dir;
 
+    // configure smarty
+    $this->use_sub_dirs = ( @empty($this->EPPCfg->smarty->use_sub_dirs) ) ? FALSE                                                   : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
+    $this->template_dir = ( @empty($this->EPPCfg->smarty->template_dir) ) ? realpath(dirname(__FILE__).'/../../../templates/')      : $this->EPPCfg->smarty->template_dir;
+    $this->config_dir   = ( @empty($this->EPPCfg->smarty->config_dir) )   ? realpath(dirname(__FILE__).'/../../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
+    $this->compile_dir  = ( @empty($this->EPPCfg->smarty->compile_dir) )  ? realpath(dirname(__FILE__).'/../../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
+    $this->cache_dir    = ( @empty($this->EPPCfg->smarty->cache_dir) )    ? realpath(dirname(__FILE__).'/../../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
+
+    // smarty minimum precaution (otherwise we could easily run into a hard to debug dead end)
+    if ( ! is_writeable($this->compile_dir) )
+      if ( is_writeable('/tmp') ) {
+        // I'm not using "umask" because of the notice here: http://www.php.net/umask
+        // Smarty 3 will support file/directory permissions!
+        trigger_error("The folder '".$this->compile_dir."' was not writable and a failback to '/tmp' is currently active. Grant write permissions to the correct folder!", E_USER_WARNING);
+        $this->compile_dir = '/tmp';
+      } else {
+        die("[".__FILE__." @ ".__LINE__."] Smarty compile folder '".$this->compile_dir."' is not writeable. Solve problem before trying to continue.\n");
+      }
+
+    // initialize HTTP_Client class
     $this->EPPClient = new HTTP_Client(null, $this->DEFAULT_HEADERS);
     $this->set_clTRID();
   }
