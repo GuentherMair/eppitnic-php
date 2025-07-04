@@ -13,15 +13,10 @@ is not necessary to pass the accreditation test (simply don't log out), but
 would be rather important if the library was to be used by registrars with
 a very high registration rate.
 After a little testing the PEAR System_Daemon class seems to be the right
-starting point...
-
-TODO 3
-------
-Implement a WSDL client interface. This has to be completed before the client-
-daemon system is started. That way the library should in the end support EPP
-calls over WSDL on top of a queue-based client-daemon.
+starting point... just see the "daemonize/" folder. Any help would be welcome
+and that includes testing and finding bugs too...
 
 
 ==
 
-$Id: TODO 132 2010-10-17 17:32:36Z gunny $
+$Id: TODO 172 2010-10-19 17:11:35Z gunny $

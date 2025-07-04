@@ -39,7 +39,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageInterface.php 127 2010-10-09 16:09:06Z gunny $
+ * $Id: StorageInterface.php 177 2010-10-19 19:47:42Z gunny $
  */
 interface Net_EPP_IT_StorageInterface
 {
@@ -59,18 +59,10 @@ interface Net_EPP_IT_StorageInterface
   public function storeContact($elements, $userID = 1);
   public function retrieveContact($contact, $userID = 1);
   public function updateContact($elements, $contact, $userID = 1);
-  //public function listContacts($userID = 1, $activeOnly = TRUE);
-  //public function deleteContact($contact, $userID = 1);
-  //public function restoreContact($contact, $userID = 1);
 
   // domain operations
   public function storeDomain($elements, $userID = 1);
   public function retrieveDomain($domain, $userID = 1);
   public function updateDomain($elements, $domain, $userID = 1);
-  //public function listDomains($userID = 1, $handle = null, $activeOnly = TRUE);
-  //public function deleteDomain($domain, $userID = 1);
-  //public function restoreDomain($domain, $userID = 1);
-  //public function invoiceableDomains();
-  //public function renewDomains();
 }
 

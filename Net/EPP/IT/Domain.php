@@ -61,7 +61,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 167 2010-10-18 09:36:54Z gunny $
+ * $Id: Domain.php 182 2010-10-20 21:09:37Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 {
@@ -75,7 +75,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   protected $ns                   = array();                    // 1
   protected $registrant           = "";                         // 2
   protected $admin                = "";                         // 4
-  protected $tech                 = "";                         // 8
+  protected $tech                 = array();                    // 8
   protected $authinfo             = "";                         // 16
 
   // these are for internal use only (ie. update)
@@ -109,13 +109,16 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    */
   public function set($var, $val) {
     if ( $var == "ns" )
-      $this->addNS($val);
+      return $this->addNS($val);
     else if ( $var == "tech" )
-      $this->addTECH($val);
+      return $this->addTECH($val);
     else if ( isset($this->$var) )
-      $this->$var = $val;
+      if ( $this->$var == $val )
+        return FALSE; // value didn't change!
+      else
+        $this->$var = $val;
     else
-      return FALSE;
+      return FALSE; // value doesn't exist!
 
     switch ( $var ) {
       //case "ns":           $this->changes |= 1;  break; // to be handled by addNS
@@ -148,13 +151,13 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  tech contact name
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @return   mix     value removed or FALSE if variable name does not exist
    */
   public function remTECH($name) {
     if ( isset($this->tech[$name]) ) {
       unset($this->tech[$name]);
       $this->changes |= 8;
-      return TRUE;
+      return $name;
     } else {
       return FALSE;
     }
@@ -165,9 +168,12 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    *
    * @access   public
    * @param    string  tech contact name
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @return   mix     value set or FALSE if there was an error
    */
   public function addTECH($name) {
+    if ( empty($name) )
+      return FALSE;
+
     // if a technical contact by this name was already set stop here
     if ( ! isset($this->tech[$name]) ) {
 
@@ -181,21 +187,21 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->tech[$name] = $name;
       $this->changes |= 8;
     }
-    return TRUE;
+    return $name;
   }
 
   /**
    * remove a nameserver
    *
    * @access   public
-   * @param    string  NS name
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @param    string   NS name
+   * @return   mix      value set or FALSE if variable name does not exist
    */
   public function remNS($name) {
     if ( isset($this->ns[$name]) ) {
       unset($this->ns[$name]);
       $this->changes |= 1;
-      return TRUE;
+      return $name;
     } else {
       return FALSE;
     }
@@ -207,7 +213,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
    * @access   public
    * @param    string  NS name
    * @param    mix     ip addresses to set (an array of two, one or a string)
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @return   mix     value set or FALSE on error
    */
   public function addNS($name, $addr = null) {
     $dns1 = "";
@@ -272,7 +278,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->changes |= 1;
     }
 
-    return TRUE;
+    return $name;
   }
 
   /**
@@ -819,13 +825,32 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
       $this->setError($this->storage->getError());
       return FALSE;
     } else {
+      // initialize data
+      foreach ($tmp as $key => $value) {
+        $this->$key = $value;
+      }
+
+      // convert these into arrays (even empty ones)
+      if ( ! is_array($this->ns) ) {
+        $tmp = (string)$this->ns;
+        $this->ns = array();
+        $this->addNS($tmp);
+      } else if ( empty($this->ns) ) {
+        $this->ns = array();
+      }
+      if ( ! is_array($this->tech) ) {
+        $tmp = (string)$this->tech;
+        $this->tech = array();
+        $this->addTECH($tmp);
+      } else if ( empty($this->tech) ) {
+        $this->tech = array();
+      }
+      
+      // initialize data
       $this->changes = 0;
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
-      foreach ($tmp as $key => $value) {
-        $this->$key = $value;
-      }
       return TRUE;
     }
   }
@@ -985,7 +1010,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * listDomains wrapper
+   * listDomains wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    int      user ACL (optional), defaults to 1 (all domains)
@@ -998,31 +1023,31 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * deleteDomain wrapper
+   * deleteDomain wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    string   domain name to delete
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function deleteDomain($domain, $userID = 1) {
+  public function deleteDomainDB($domain, $userID = 1) {
     return $this->storage->deleteDomain($domain, $userID);
   }
 
   /**
-   * restoreDomain wrapper
+   * restoreDomain wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    string   domain name to restore
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function restoreDomain($domain, $userID = 1) {
+  public function restoreDomainDB($domain, $userID = 1) {
     return $this->storage->restoreDomain($domain, $userID);
   }
 
   /**
-   * invoiceableDomains wrapper
+   * invoiceableDomains wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @return   array    list of domains
@@ -1032,7 +1057,7 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * renewDomains wrapper
+   * renewDomains wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @return   boolean  status

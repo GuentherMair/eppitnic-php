@@ -42,7 +42,7 @@ require_once 'libs/adodb/adodb.inc.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: StorageDB.php 167 2010-10-18 09:36:54Z gunny $
+ * $Id: StorageDB.php 179 2010-10-20 14:55:03Z gunny $
  */
 class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
 {
@@ -91,10 +91,10 @@ class Net_EPP_IT_StorageDB implements Net_EPP_IT_StorageInterface
   /**
    * get internal error message
    *
-   * @access   protected
+   * @access   public
    * @return   string    error message
    */
-  protected function getError() {
+  public function getError() {
     return $this->dberrMsg;
   }
 

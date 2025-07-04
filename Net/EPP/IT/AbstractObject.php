@@ -47,7 +47,7 @@ require_once 'Net/EPP/IT/log_severity.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 167 2010-10-18 09:36:54Z gunny $
+ * $Id: AbstractObject.php 178 2010-10-19 19:54:54Z gunny $
  */
 abstract class Net_EPP_IT_AbstractObject
 {
@@ -320,7 +320,7 @@ abstract class Net_EPP_IT_AbstractObject
               "ZM" => "Zambia",
               "ZW" => "Zimbabwe");
 
-  protected $iso3166_1EU = array(
+  protected $iso3166_1eu = array(
               "BE" => "Belgium",
               "BG" => "Bulgaria",
               "DK" => "Denmark",
@@ -349,7 +349,7 @@ abstract class Net_EPP_IT_AbstractObject
               "GB" => "United Kingdom",
               "CY" => "Cyprus");
 
-  protected $iso3166_2IT = array(
+  protected $iso3166_2it = array(
               "AG" => "Agrigento",
               "AL" => "Alessandria",
               "AN" => "Ancona",
@@ -501,8 +501,8 @@ abstract class Net_EPP_IT_AbstractObject
    * @param    string    iso-3166-2:IT code
    * @return   boolean   status
    */
-  protected function is_iso3166_2IT($code) {
-    return in_array($code, array_keys($this->iso3166_2IT));
+  protected function is_iso3166_2it($code) {
+    return in_array($code, array_keys($this->iso3166_2it));
   }
 
   /**
@@ -512,8 +512,8 @@ abstract class Net_EPP_IT_AbstractObject
    * @param    string    iso-3166-1 code
    * @return   boolean   status
    */
-  protected function is_iso3166_1EU($code) {
-    return in_array($code, array_keys($this->iso3166_1EU));
+  protected function is_iso3166_1eu($code) {
+    return in_array($code, array_keys($this->iso3166_1eu));
   }
 
   /**
@@ -531,10 +531,10 @@ abstract class Net_EPP_IT_AbstractObject
   /**
    * get error message
    *
-   * @access   protected
+   * @access   public
    * @return   string    error message
    */
-  protected function getError() {
+  public function getError() {
     $msg = "";
 
     // only try to set a message text if we got a EPP error message
@@ -543,6 +543,21 @@ abstract class Net_EPP_IT_AbstractObject
       if ( !empty($this->extValueReason) )
         $msg .= " / extended reason '".$this->extValueReasonCode."': ".$this->extValueReason;
     }
+
+    if ( $this->debug == LOG_DEBUG )
+      $msg = "<pre class='error'>\n".
+             "Generic error (if set):\n".
+             "-----------------------\n".
+             $msg."\n".
+             "\n";
+             "Query sent to server:\n".
+             "---------------------\n".
+             $this->xmlQuery."\n".
+             "\n".
+             "Response received from server:\n".
+             "------------------------------\n".
+             $this->result."\n";
+             "</pre>";
 
     return $msg;
   }

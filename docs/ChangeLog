@@ -1,3 +1,9 @@
+Version 3.0 beta 4
+==================
+Updates to both Contact and Domain objects in order to prevent the registration
+of "changes" when a value of an existing object hadn't really changed.
+
+
 Version 3.0 beta 3
 ==================
 Added centralized error handling functions to Net_EPP_IT_AbstractObject and to

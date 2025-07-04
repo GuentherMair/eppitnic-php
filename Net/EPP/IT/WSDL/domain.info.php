@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.info.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: domain.info.php 176 2010-10-19 19:28:28Z gunny $
  */
 
 /*
@@ -104,19 +104,19 @@ function DomainInfo($domain) {
 
   // build tech strings
   $tech = $c->domain->get('tech');
+  $i = 1;
   if ( is_array($tech) ) {
-    $i = 1;
     foreach ( $tech as $key => $value ) {
       $name = 'tech'.$i++;
       $$name = $key;
     }
   } else {
     $tech1 = $tech;
-    $tech2 = "";
-    $tech3 = "";
-    $tech4 = "";
-    $tech5 = "";
-    $tech6 = "";
+    $i = 2;
+  }
+  for ( ; $i <= 6; $i++ ) {
+    $name = 'tech'.$i;
+    $$name = '';
   }
 
   // build ns strings
@@ -126,7 +126,16 @@ function DomainInfo($domain) {
     $name = 'ns'.$i;
     $nameIP = 'ns'.$i++.'ip';
     $$name = $single_ns['name'];
-    $$nameIP = $single_ns['ip']['address'];
+    if ( isset($single_ns['ip'][0]['address']) )
+      $$nameIP = $single_ns['ip'][0]['address'];
+    else
+      $$nameIP = '';
+  }
+  for ( ; $i <= 6; $i++ ) {
+    $name = 'ns'.$i;
+    $nameIP = 'ns'.$i.'ip';
+    $$name = '';
+    $$nameIP = '';
   }
 
   // return values as defined by the SOAP interface description above

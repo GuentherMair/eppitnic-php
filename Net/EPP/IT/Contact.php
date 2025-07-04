@@ -53,7 +53,7 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 170 2010-10-19 12:17:51Z gunny $
+ * $Id: Contact.php 180 2010-10-20 20:07:04Z gunny $
  */
 class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
 {
@@ -119,16 +119,19 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   mix     value set or FALSE if variable name does not exist
    */
   public function set($var, $val) {
-    if ($var == "entitytype")
-      $this->setEntityType($val);
-    else if ($var == "consentforpublishing" && $this->isTrue($val) )
-      $this->setConsent();
-    else if ($var == "consentforpublishing" && ! $this->isTrue($val) )
-      $this->unsetConsent();
-    else if (isset($this->$var))
-      $this->$var = $val;
+    if ( $var == "entitytype" )
+      return $this->setEntityType($val);
+    else if ( $var == "consentforpublishing" && $this->isTrue($val) )
+      return $this->setConsent();
+    else if ( $var == "consentforpublishing" && ! $this->isTrue($val) )
+      return $this->unsetConsent();
+    else if ( isset($this->$var) )
+      if ( $this->$var == $val )
+        return FALSE; // value didn't change!
+      else
+        $this->$var = $val;
     else
-      return FALSE;
+      return FALSE; // value doesn't exist!
 
     switch ( strtolower($var) ) {
       case "name":                 $this->changes |= 1;     break;
@@ -144,9 +147,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
       case "fax":                  $this->changes |= 1024;  break;
       case "email":                $this->changes |= 2048;  break;
       case "authinfo":             $this->changes |= 4096;  break;
-      case "consentforpublishing": $this->changes |= 8192;  break;
+      // case "consentforpublishing": $this->changes |= 8192;  break; // handled by setConsent() / unsetConsent()
       case "nationalitycode":      $this->changes |= 16384; break;
-      case "entitytype":           $this->changes |= 32768; break;
+      // case "entitytype":           $this->changes |= 32768; break; // handled by setEntityType()
       case "regcode":              $this->changes |= 65536; break;
     }
     return $this->$var;
@@ -182,10 +185,14 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    */
   protected function setEntityType($type) {
     $tmp = (int)$type;
-    if ( ($tmp >= 0) && ($tmp <= 7) )
-      return $this->entitytype = $tmp;
-    else
-      return $this->entitytype = 2; // default value
+    if ( ($tmp < 1) && ($tmp > 7) )
+      $tmp = 2; // failback to the default value
+
+    if ( $this->entitytype == $tmp )
+      return FALSE;
+
+    $this->changes |= 32768;
+    return $this->entitytype = $tmp;
   }
 
   /**
@@ -195,6 +202,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "true"
    */
   public function setConsent() {
+    if ( $this->consentforpublishing == 1 )
+      return FALSE;
+
     $this->changes |= 8192;
     return $this->consentforpublishing = 1;
   }
@@ -206,6 +216,9 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
    * @return   string "false"
    */
   public function unsetConsent() {
+    if ( $this->consentforpublishing == 0 )
+      return FALSE;
+
     $this->changes |= 8192;
     return $this->consentforpublishing = 0;
   }
@@ -269,22 +282,22 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
      * the province code
      */
     if ( ($this->countrycode == "IT") &&
-         ( ! $this->is_iso3166_2IT($this->province)) )
+         ( ! $this->is_iso3166_2it($this->province)) )
       $error |= 16;
 
     /*
      * relation entitytype <=> countrycode
      */
     if ( ($this->entitytype > 1) &&
-         ( ! $this->is_iso3166_1EU($this->countrycode)) )
+         ( ! $this->is_iso3166_1eu($this->countrycode)) )
       $error |= 32;
 
     /*
      * relation entitytype 1 <=> countrycode or nationalitycode
      */
     if ( ($this->entitytype == 1) &&
-         ( ! $this->is_iso3166_1EU($this->countrycode)) &&
-         ( ! $this->is_iso3166_1EU($this->nationalitycode)) )
+         ( ! $this->is_iso3166_1eu($this->countrycode)) &&
+         ( ! $this->is_iso3166_1eu($this->nationalitycode)) )
       $error |= 64;
 
     /*
@@ -779,7 +792,7 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * listContacts wrapper
+   * listContacts wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
@@ -791,26 +804,26 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   }
 
   /**
-   * deleteContact wrapper
+   * deleteContact wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    string   contact name / handle
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function deleteContact($contact, $userID = 1) {
+  public function deleteContactDB($contact, $userID = 1) {
     return $this->storage->deleteContact($contact, $userID);
   }
 
   /**
-   * restoreContact wrapper
+   * restoreContact wrapper (storage function provided by WI storage class!)
    *
    * @access   public
    * @param    string   contact name / handle
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function restoreContact($contact, $userID = 1) {
+  public function restoreContactDB($contact, $userID = 1) {
     return $this->storage->restoreContact($contact, $userID);
   }
 }
