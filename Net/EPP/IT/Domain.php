@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/IT/AbstractObject.php';
+require_once 'Net/EPP/AbstractObject.php';
 require_once 'Net/EPP/IT/Contact.php';
 
 /*
@@ -67,9 +67,9 @@ if ( ! class_exists('idna_convert') )
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 347 2011-05-15 22:29:18Z gunny $
+ * $Id: Domain.php 369 2011-06-08 08:36:22Z gunny $
  */
-class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
+class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
   //         name              // change flag
   protected $userid;           // use just in case of an updateRegistrant + change of agent
@@ -117,7 +117,8 @@ class Net_EPP_IT_Domain extends Net_EPP_IT_AbstractObject
 
     $this->authinfo = $this->authinfo();
     $this->initValues();
-    $this->idn = new idna_convert(array('encode_german_sz' => true));
+    //$this->idn = new idna_convert(array('encode_german_sz' => true));
+    $this->idn = new idna_convert();
   }
 
   /**

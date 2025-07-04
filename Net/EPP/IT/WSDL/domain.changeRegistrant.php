@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll-all.php 370 2011-06-10 12:38:29Z gunny $
+ * $Id: domain.changeRegistrant.php 352 2011-05-23 21:19:50Z gunny $
  */
 
 /*
@@ -45,19 +45,22 @@
  */
 $server->register(
   // METHOD
-  'PollAll',
+  'DomainChangeRegistrant',
   // INPUT
-  array('store'             => 'xsd:string',
+  array('domain'            => 'xsd:string',
+        'registrant'        => 'xsd:string',
+        'authInfo'          => 'xsd:string',
         ),
   // OUTPUT
   array('status'            => 'xsd:int',
         'statusDescription' => 'xsd:string',
-        'MessageQueueArray' => 'tns:MessageQueueArray',
+        'domain'            => 'xsd:string',
+        'authInfo'          => 'xsd:string',
         ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
-  'urn:'.$wsdl_ns.'#PollAll',
+  'urn:'.$wsdl_ns.'#DomainChangeRegistrant',
   // STYLE (rpc)
   $wsdl_style,
   // USE (encoded)
@@ -69,42 +72,38 @@ $server->register(
 /*
  * now implement the SOAP method in PHP
  */
-function PollAll($store = "true") {
+function DomainChangeRegistrant($domain,
+                                $registrant = "",
+                                $authInfo = "") {
 
-  // prepare parameters
-  $store = (strtolower($store) == "false") ? FALSE : TRUE;
-
-  // create objects
+  // create object
   $c = new Net_EPP_IT_WSDL();
-  $MessageQueueArray = array();
+
+  // check if domain was set
+  if ( empty($domain) )
+    $c->statusCode = 2003;
 
   // connect
-  if ( $c->connect() ) {
-    // retrieve queue length
-    if ( $c->session->pollMessageCount() == 0 ) {
-      $c->statusCode = 3001;
-    } else {
-      $msgID = array();
-      $msgTitle = array();
-      $xmlResponse = array();
+  if ( $c->statusCode == 1000 )
+    $c->connect();
 
-      // poll queue
-      while ( $c->session->pollMessageCount() > 0 ) {
-        if ( $c->session->poll(FALSE, "req") ) {
-          $msgID[] = $c->session->pollID();
-          $msgTitle[] = $c->session->get('msgTitle');
-          $xmlResponse[] = base64_encode($c->session->result['body']);
-          $c->session->poll($store, "ack", $c->session->pollID());
-        } else {
-          $msgID[] = -1;
-          $msgTitle[] = 'undefined';
-          $xmlResponse[] = $c->createErrMsg($c->session, 4001);
-        }
-      }
+  // check domain
+  if ( ($c->statusCode == 1000) && $c->domain->check($domain) )
+    $c->statusCode = 4002;
 
-      // build response array
-      $MessageQueueArray = array('msgID' => $msgID, 'msgTitle' => $msgTitle, 'xmlResponse' => $xmlResponse);
-    }
+  // get domain
+  if ( ($c->statusCode == 1000) && ! $c->domain->fetch($domain) )
+    $c->statusCode = 4003;
+
+  // update domain
+  if ( $c->statusCode == 1000 ) {
+
+    if ( !empty($domain) )     $c->domain->set('domain',     $domain);
+    if ( !empty($registrant) ) $c->domain->set('registrant', $registrant);
+    if ( !empty($authInfo) )   $c->domain->set('authinfo',   $authInfo);
+
+    if ( ! $c->domain->updateRegistrant() )
+      $c->createErrMsg($c->domain, 4001);
   }
 
   // disconnect
@@ -113,7 +112,8 @@ function PollAll($store = "true") {
   // return values as defined by the SOAP interface description above
   return array('status'            => $c->statusCode,
                'statusDescription' => $c->statusDescription(),
-               'MessageQueueArray' => $MessageQueueArray,
+               'domain'            => $domain,
+               'authInfo'          => $authInfo,
                );
 }
 

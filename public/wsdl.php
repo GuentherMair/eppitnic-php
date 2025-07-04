@@ -105,6 +105,7 @@ require_once 'Net/EPP/IT/WSDL/contact.update.php';
 require_once 'Net/EPP/IT/WSDL/contact.delete.php';
 
 // DOMAIN RELATED METHODS
+require_once 'Net/EPP/IT/WSDL/domain.changeRegistrant.php';
 require_once 'Net/EPP/IT/WSDL/domain.create.php';
 require_once 'Net/EPP/IT/WSDL/domain.check.php';
 require_once 'Net/EPP/IT/WSDL/domain.info.php';

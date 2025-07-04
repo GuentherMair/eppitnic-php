@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.update.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: domain.update.php 349 2011-05-23 08:53:16Z gunny $
  */
 
 /*
@@ -48,7 +48,6 @@ $server->register(
   'DomainUpdate',
   // INPUT
   array('domain'            => 'xsd:string',
-        'registrant'        => 'xsd:string',
         'admin'             => 'xsd:string',
         'authInfo'          => 'xsd:string',
         'addtech1'          => 'xsd:string',
@@ -84,7 +83,6 @@ $server->register(
  * now implement the SOAP method in PHP
  */
 function DomainUpdate($domain,
-                      $registrant = "",
                       $admin = "",
                       $authInfo = "",
                       $addtech1 = "",
@@ -121,7 +119,6 @@ function DomainUpdate($domain,
   if ( $c->statusCode == 1000 ) {
 
     if ( !empty($domain) )     $c->domain->set('domain',     $domain);
-    if ( !empty($registrant) ) $c->domain->set('registrant', $registrant);
     if ( !empty($admin) )      $c->domain->set('admin',      $admin);
     if ( !empty($authInfo) )   $c->domain->set('authinfo',   $authInfo);
 

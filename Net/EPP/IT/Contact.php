@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/IT/AbstractObject.php';
+require_once 'Net/EPP/AbstractObject.php';
 
 /**
  * This class handles contacts and supports the following operations on them:
@@ -53,9 +53,18 @@ require_once 'Net/EPP/IT/AbstractObject.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 340 2011-05-02 22:19:50Z gunny $
+ * $Id: Contact.php 372 2011-06-16 17:45:33Z gunny $
  */
-class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
+
+/**
+ * define the PHP_VERSION_ID (predefined as of 5.2.7)
+ */
+if (!defined('PHP_VERSION_ID')) {
+  $version = explode('.', PHP_VERSION);
+  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
+}
+
+class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 {
   //         name                  // change flag
   protected $userid;               // use just in case of an updateRegistrant + change of agent
@@ -153,7 +162,12 @@ class Net_EPP_IT_Contact extends Net_EPP_IT_AbstractObject
   public function set($var, $val) {
     // convert to lower-case
     $var = strtolower($var);
-    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+
+    // in version 5.2.3 the 4th parameter "double_encode" was added
+    if ( PHP_VERSION_ID < 50203 )
+      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8');
+    else
+      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
     if ( $var == "entitytype" )
       return $this->setEntityType($val);

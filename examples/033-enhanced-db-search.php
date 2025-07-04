@@ -2,7 +2,7 @@
 
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
-require_once 'Net/EPP/IT/Client.php';
+require_once 'Net/EPP/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 
 // verify command line arguments
@@ -30,7 +30,7 @@ class MyStorageWrapper extends Net_EPP_IT_StorageDB
 }
 
 // initialize objects
-$nic = new Net_EPP_IT_Client();
+$nic = new Net_EPP_Client();
 $db = new MyStorageWrapper($nic->EPPCfg->adodb);
 
 // now make use of our new method

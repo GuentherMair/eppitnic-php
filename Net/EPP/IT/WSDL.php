@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/IT/Client.php';
+require_once 'Net/EPP/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 require_once 'Net/EPP/IT/Session.php';
 require_once 'Net/EPP/IT/Contact.php';
@@ -45,7 +45,7 @@ require_once 'Net/EPP/IT/Domain.php';
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: WSDL.php 208 2010-10-25 11:16:56Z gunny $
+ * $Id: WSDL.php 365 2011-06-06 13:27:47Z gunny $
  */
 
 class Net_EPP_IT_WSDL
@@ -71,7 +71,7 @@ class Net_EPP_IT_WSDL
       $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
 
     // create EPP objects
-    $this->nic = new Net_EPP_IT_Client($cfg);
+    $this->nic = new Net_EPP_Client($cfg);
     $this->db = new Net_EPP_IT_StorageDB($this->nic->EPPCfg->adodb);
     $this->session = new Net_EPP_IT_Session($this->nic, $this->db);
     $this->session->debug = LOG_DEBUG;
@@ -85,7 +85,7 @@ class Net_EPP_IT_WSDL
    * build an error string and set the statusCode
    *
    * @access   public
-   * @param    mixed    Net_EPP_IT_AbstractObject
+   * @param    mixed    Net_EPP_AbstractObject
    * @param    int      statusCode to set
    * @return   string   error message
    */

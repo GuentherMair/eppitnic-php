@@ -1,3 +1,31 @@
+Version 4.3
+===========
+Now checking PHP Version in order not to break php version older than 5.2.3
+when using htmlspecialchars (4th parameter was only added in v5.2.3).
+
+Added support for delayedDebitAndRefundMsgData polling type data. Thanks
+Angelo for the input!
+
+
+Version 4.2
+===========
+Moved the AbstractObject object up into Net_EPP space.
+
+The session file location can now be specified manually.
+
+Added an account.poll.ack.php example for WSDL and changed the Poll method
+to use ACK as default parameter. PollAll now works only with ACK.
+
+Switched to IDNAbis-like handling of german SZ in idna_convert, as IT-NIC will
+now support this.
+
+
+Version 4.1
+===========
+Updated the WSDL interface to version 1.2 (added a DomainChangeRegistrant
+method and removed the registrant parameter from the DomainUpdate method).
+
+
 Version 4.0
 ===========
 Some smaller fixes and updates (DB layout for webinterface, which now supports

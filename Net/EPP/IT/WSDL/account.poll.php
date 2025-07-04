@@ -37,7 +37,7 @@
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: account.poll.php 370 2011-06-10 12:38:29Z gunny $
  */
 
 /*
@@ -75,7 +75,7 @@ $server->register(
  */
 function Poll($msgID = null,
               $store = "true",
-              $type = "req") {
+              $type = "ack") {
 
   // prepare parameters
   $store = (strtolower($store) == "false") ? FALSE : TRUE;

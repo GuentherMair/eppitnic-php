@@ -61,12 +61,13 @@
  */
 class Net_EPP_Curl
 {
-  protected $_useragent = 'PHP Net_EPP_Curl 1.0';
+  protected $_useragent = 'PHP Net_EPP_Curl 1.1';
   protected $_url;
+  protected $_port;
   protected $_certFile;
   protected $_authName;
   protected $_authPass;
-  protected $_cookieFileLocation = '/tmp/cookie.txt';
+  protected $_cookieFileLocation;
 
   protected $_referer;
   protected $_postHeaders = array('Expect:');
@@ -82,11 +83,18 @@ class Net_EPP_Curl
   protected $_body;
   protected $_error;
 
-  public function __construct($url, $authName = '', $authPass = '') {
+  public function __construct($url, $authName = '', $authPass = '', $cookie_dir = '/tmp') {
     $this->_url = $url;
-    $this->_cookieFileLocation = '/tmp/url-'.md5($url).'-cookie.txt';
+    $this->_cookieFileLocation = $cookie_dir.'/url_'.md5($url).'-uid_'.posix_getuid().'-cookie.txt';
     $this->_authName = $authName;
     $this->_authPass = $authPass;
+
+    if ( file_exists($this->_cookieFileLocation) )
+      if ( !is_writeable($this->_cookieFileLocation) ) 
+        exit("FATAL ERROR: cookie file '".$this->_cookieFileLocation."' exists and is NOT writeable\n");
+    else
+      if ( !is_writeable(dirname($this->_cookieFileLocation)) ) 
+        exit("FATAL ERROR: cookie file FOLDER '".dirname($this->_cookieFileLocation)."' is NOT writeable\n");
   }
 
   public function setClientCert($certFile) {
@@ -129,6 +137,10 @@ class Net_EPP_Curl
     $this->_url = $url;
   }
 
+  public function setPort($port) {
+    $this->_port = $port;
+  }
+
   public function setUserAgent($userAgent) {
     $this->_useragent = $userAgent;
   }
@@ -154,6 +166,9 @@ class Net_EPP_Curl
 
     if ( $postFields != null )
       curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+
+    if ( !empty($this->_port) )
+      curl_setopt($ch, CURLOPT_PORT, $this->_port);
 
     if ( !empty($this->_interface) )
       curl_setopt($ch, CURLOPT_INTERFACE, $this->_interface);

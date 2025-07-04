@@ -1,7 +1,7 @@
 <?php
 
 /**
- * A simple class handling the EPP communication with IT-NIC.
+ * A simple class handling the EPP communication through cURL.
  *
  * PHP version 5
  *
@@ -35,11 +35,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_Client
+ * @package     Net_EPP_Client
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 346 2011-05-12 19:04:22Z gunny $
+ * $Id: Client.php 367 2011-06-06 14:26:42Z gunny $
  */
 
 /**
@@ -82,11 +82,11 @@ if ( ! class_exists('Net_EPP_Curl') )
  * can easily use variable-assignments directly with this
  * derived class, ie.
  *
- *   $nic = new Net_EPP_IT_Client("config.xml");
+ *   $nic = new Net_EPP_Client("config.xml");
  *   $nic->assign('username', $nic->EPPCfg->username);
  *
  */
-class Net_EPP_IT_Client extends Smarty
+class Net_EPP_Client extends Smarty
 {
   public $EPPCfg;
 
@@ -95,6 +95,7 @@ class Net_EPP_IT_Client extends Smarty
 
   protected $cURLresponse;
   protected $httpClient;
+  protected $curl_cookie_dir;
 
   /**
    * Class constructor
@@ -108,15 +109,14 @@ class Net_EPP_IT_Client extends Smarty
    */
   public function __construct($cfg = null) {
     if ( $cfg === null )
-      $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
+      $cfg = realpath(dirname(__FILE__).'/../../config.xml');
 
     if ( is_readable($cfg) ) {
       $this->EPPCfg = @simplexml_load_file($cfg);
     } else {
       $this->EPPCfg = @simplexml_load_string($cfg);
-      if ( $this->EPPCfg === FALSE ) {
+      if ( $this->EPPCfg === FALSE )
         exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
-      }
     }
 
     // setup default time zone
@@ -129,11 +129,14 @@ class Net_EPP_IT_Client extends Smarty
     parent::__construct();
 
     // configure smarty
-    $this->use_sub_dirs = ( @empty($this->EPPCfg->smarty->use_sub_dirs) ) ? FALSE                                                   : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
-    $this->template_dir = ( @empty($this->EPPCfg->smarty->template_dir) ) ? realpath(dirname(__FILE__).'/../../../templates/')      : $this->EPPCfg->smarty->template_dir;
-    $this->config_dir   = ( @empty($this->EPPCfg->smarty->config_dir) )   ? realpath(dirname(__FILE__).'/../../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
-    $this->compile_dir  = ( @empty($this->EPPCfg->smarty->compile_dir) )  ? realpath(dirname(__FILE__).'/../../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
-    $this->cache_dir    = ( @empty($this->EPPCfg->smarty->cache_dir) )    ? realpath(dirname(__FILE__).'/../../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
+    $this->use_sub_dirs = ( @empty($this->EPPCfg->smarty->use_sub_dirs) ) ? FALSE                                                : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
+    $this->template_dir = ( @empty($this->EPPCfg->smarty->template_dir) ) ? realpath(dirname(__FILE__).'/../../templates/')      : $this->EPPCfg->smarty->template_dir;
+    $this->config_dir   = ( @empty($this->EPPCfg->smarty->config_dir) )   ? realpath(dirname(__FILE__).'/../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
+    $this->compile_dir  = ( @empty($this->EPPCfg->smarty->compile_dir) )  ? realpath(dirname(__FILE__).'/../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
+    $this->cache_dir    = ( @empty($this->EPPCfg->smarty->cache_dir) )    ? realpath(dirname(__FILE__).'/../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
+
+    // configure temporary folder for storing curl's cookies
+    $this->curl_cookie_dir = ( @empty($this->EPPCfg->cookie_dir) ) ? '/tmp' : $this->EPPCfg->cookie_dir;
 
     // smarty minimum precaution (otherwise we could easily run into a hard to debug dead end)
     if ( ! is_writeable($this->compile_dir) )
@@ -144,19 +147,26 @@ class Net_EPP_IT_Client extends Smarty
         $this->_dir_perms = 0700;
         $this->compile_dir = '/tmp';
       } else {
-        die("[".__FILE__." @ ".__LINE__."] Smarty compile folder '".$this->compile_dir."' is not writeable. Solve problem before trying to continue.\n");
+        exit("[".__FILE__." @ ".__LINE__."] Smarty compile folder '".$this->compile_dir."' is not writeable. Solve problem before trying to continue.\n");
       }
 
     // initialize httpClient
-    $this->httpClient = new Net_EPP_Curl($this->EPPCfg->server);
+    $this->httpClient = new Net_EPP_Curl($this->EPPCfg->server, '', '', $this->curl_cookie_dir);
     $this->httpClient->setHeaders($this->headers);
+
+    // set server port
+    if ( ! @empty($this->EPPCfg->port) )
+      if ( is_numeric($this->EPPCfg->port) )
+        $this->httpClient->setPort($this->EPPCfg->port);
+      else
+        exit("The port specified in the configuration file (".$this->EPPCfg->port.") is not numeric.\n");
 
     // setup client certificate
     if ( ! @empty($this->EPPCfg->certificatefile) ) {
       if ( is_readable($this->EPPCfg->certificatefile) )
         $this->httpClient->setClientCert($this->EPPCfg->certificatefile);
-      else if ( is_readable(realpath(dirname(__FILE__).'/../../../'.$this->EPPCfg->certificatefile)) )
-        $this->httpClient->setClientCert(realpath(dirname(__FILE__).'/../../../'.$this->EPPCfg->certificatefile));
+      else if ( is_readable(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile)) )
+        $this->httpClient->setClientCert(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile));
     }
 
     // setup leaving interface
@@ -206,7 +216,7 @@ class Net_EPP_IT_Client extends Smarty
    * send a request to the EPP server
    *
    * @access   public
-   * @return   array   the HTTP_Client response: (int) code, (array) headers, (string) body
+   * @return   array   the  response: (int) code, (array) headers, (string) body
    */
   public function sendRequest($data) {
     $this->cURLresponse['body'] = $this->httpClient->query($data);
@@ -221,7 +231,7 @@ class Net_EPP_IT_Client extends Smarty
    * fetch the latest response from the EPP server
    *
    * @access   public
-   * @return   array   the latest HTTP_Client response: (int) code, (array) headers, (string) body
+   * @return   array   the latest response: (int) code, (array) headers, (string) body
    */
   public function fetchResponse() {
     return $this->cURLresponse;

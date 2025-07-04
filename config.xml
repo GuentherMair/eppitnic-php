@@ -1,12 +1,14 @@
 <config>
   <DEBUG>0</DEBUG>
   <server>https://epp.nic.it</server>
+  <port></port>
   <username>USERNAME</username>
   <password>PASSWORD</password>
   <timezone>Europe/Rome</timezone>
   <interface></interface>
   <lang>en</lang>
   <clTRIDprefix>USERNAME</clTRIDprefix>
+  <cookie_dir>/tmp</cookie_dir>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
     <use_sub_dirs></use_sub_dirs>
@@ -38,6 +40,7 @@
     <displayAccounting>0</displayAccounting>
     <creditForecastDays>60</creditForecastDays>
     <creditForecastItemPrice>5.40</creditForecastItemPrice>
+    <creditNotification>70</creditNotification>
     <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>
     <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
   </webinterface>

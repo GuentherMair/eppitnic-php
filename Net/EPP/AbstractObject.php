@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/IT/log_severity.php';
+require_once 'Net/EPP/log_severity.php';
 
 /**
  * An abstract class for other EPP objects (session, contact, domain).
@@ -43,13 +43,13 @@ require_once 'Net/EPP/IT/log_severity.php';
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_AbstractObject
+ * @package     Net_EPP_AbstractObject
  * @author      Günther Mair <guenther.mair@hoslo.ch>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 342 2011-05-10 09:45:42Z gunny $
+ * $Id: AbstractObject.php 363 2011-06-06 13:19:23Z gunny $
  */
-abstract class Net_EPP_IT_AbstractObject
+abstract class Net_EPP_AbstractObject
 {
   protected $client;
   protected $storage;

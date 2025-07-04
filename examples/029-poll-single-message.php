@@ -2,11 +2,11 @@
 
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
-require_once 'Net/EPP/IT/Client.php';
+require_once 'Net/EPP/Client.php';
 require_once 'Net/EPP/IT/StorageDB.php';
 require_once 'Net/EPP/IT/Session.php';
 
-$nic = new Net_EPP_IT_Client();
+$nic = new Net_EPP_Client();
 $db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
 $session = new Net_EPP_IT_Session($nic, $db);
 $session->debug = LOG_DEBUG;
