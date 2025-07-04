@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
+                      xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
+        <contact:id>{$id}</contact:id>
+        {if $postalinfo ne "" or $addr ne "" or $contact ne ""}
+        <contact:chg>
+        {if $postalinfo ne "" or $addr ne ""}
+          <contact:postalInfo type="loc">
+          {foreach from=$postalinfo item=i}
+            {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+          {/foreach}
+          {if $addr ne ""}
+            <contact:addr>
+            {foreach from=$addr item=i}
+              {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+            {/foreach}
+            </contact:addr>
+          {/if}
+          </contact:postalInfo>
+        {/if}
+        {if isset($contact)}
+        {foreach from=$contact item=i}
+          {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
+          {if $i.value eq "" && $i.name eq "fax"}<contact:{$i.name}/>{/if}
+        {/foreach}
+        {/if}
+        </contact:chg>
+        {/if}
+        {if $authinfo ne ""}
+        <contact:authInfo>
+          <contact:pw>{$authinfo}</contact:pw>
+        </contact:authInfo>
+        {/if}
+      </contact:update>
+    </update>
+    {if $consentForPublishing === 0 or $consentForPublishing === 1 or $registrant}
+    <extension>
+      <extcon:update xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0"
+                     xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extcon-1.0 extcon-1.0.xsd">
+        {if $consentForPublishing === 0 or $consentForPublishing === 1}
+        <extcon:consentForPublishing>{$consentForPublishing}</extcon:consentForPublishing>
+        {/if}
+        {if $registrant}
+        <extcon:registrant>
+          {if isset($registrant.nationalityCode)}<extcon:nationalityCode>{$registrant.nationalityCode}</extcon:nationalityCode>{/if}
+          {if isset($registrant.entityType)}<extcon:entityType>{$registrant.entityType}</extcon:entityType>{/if}
+          {if isset($registrant.regCode)}<extcon:regCode>{$registrant.regCode}</extcon:regCode>{/if}
+        </extcon:registrant>
+        {/if}
+      </extcon:update>
+    </extension>
+    {/if}
+    <clTRID>{$clTRID}</clTRID>
+  </command>
+</epp>

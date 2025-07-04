@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll.php 370 2011-06-10 12:38:29Z gunny $
+ * $Id: account.poll.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,17 +47,19 @@ $server->register(
   // METHOD
   'Poll',
   // INPUT
-  array('msgID'             => 'xsd:int',
-        'store'             => 'xsd:string',
-        'type'              => 'xsd:string',
-        ),
+  array(
+    'msgID'             => 'xsd:int',
+    'store'             => 'xsd:string',
+    'type'              => 'xsd:string',
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'msgID'             => 'xsd:int',
-        'msgTitle'          => 'xsd:string',
-        'xmlResponse'       => 'xsd:string',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'msgID'             => 'xsd:int',
+    'msgTitle'          => 'xsd:string',
+    'xmlResponse'       => 'xsd:string',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -85,17 +87,17 @@ function Poll($msgID = null,
   $c = new Net_EPP_IT_WSDL();
 
   // connect
-  if ( $c->connect() ) {
+  if ($c->connect()) {
     // retrieve queue length
-    if ( $c->session->pollMessageCount() == 0 ) {
+    if ($c->session->pollMessageCount() == 0) {
       $c->statusCode = 3001;
     } else {
       // check msgID
-      if ( empty($msgID) )
+      if (empty($msgID))
         $msgID = $c->session->pollID();
 
       // poll queue
-      if ( $c->session->poll($store, $type, $msgID) )
+      if ($c->session->poll($store, $type, $msgID))
         $msgTitle = $c->session->msgTitle;
       else
         $c->createErrMsg($c->session, 2000);
@@ -109,11 +111,11 @@ function Poll($msgID = null,
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'msgID'             => $msgID,
-               'msgTitle'          => $msgTitle,
-               'xmlResponse'       => $xmlResponse,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'msgID'             => $msgID,
+    'msgTitle'          => $msgTitle,
+    'xmlResponse'       => $xmlResponse,
+  );
 }
-

@@ -17,11 +17,11 @@ require_once 'Net/EPP/AbstractObject.php';
  *  - loadDB load contact from DB
  *  - updateDB update contact stored in DB
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,19 +50,11 @@ require_once 'Net/EPP/AbstractObject.php';
  *
  * @category    Net
  * @package     Net_EPP_IT_Contact
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Contact.php 443 2013-08-15 14:24:03Z gunny $
+ * $Id: Contact.php 501 2017-05-03 15:17:53Z gunny $
  */
-
-/**
- * define the PHP_VERSION_ID (predefined as of 5.2.7)
- */
-if (!defined('PHP_VERSION_ID')) {
-  $version = explode('.', PHP_VERSION);
-  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
-}
 
 class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 {
@@ -98,8 +90,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * (initializes authinfo)
    *
    * @access   public
-   * @param    Net_EPP_IT_Client            client class
-   * @param    Net_EPP_IT_StorageInterface  storage class
+   * @param    Net_EPP_IT_Client         client class
+   * @param    Net_EPP_StorageInterface  storage class
    */
   function __construct(&$client, &$storage) {
     parent::__construct($client, $storage);
@@ -142,11 +134,11 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * check for possible values of TRUE
    */
   private function isTrue($val) {
-    if ( $val === TRUE )
+    if ($val === TRUE)
       return TRUE;
-    if ( (string)$val == "1" )
+    if ((string)$val == "1")
       return TRUE;
-    if ( strtoupper($val) === "TRUE" )
+    if (strtoupper($val) === "TRUE")
       return TRUE;
     return FALSE;
   }
@@ -163,20 +155,17 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // in version 5.2.3 the 4th parameter "double_encode" was added
-    if ( PHP_VERSION_ID < 50203 )
-      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8');
-    else
-      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+    // in PHP 5.2.3 the 4th parameter "double_encode" was added
+    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
-    if ( $var == "entitytype" )
+    if ($var == "entitytype")
       return $this->setEntityType($val);
-    else if ( $var == "consentforpublishing" && $this->isTrue($val) )
+    else if ($var == "consentforpublishing" && $this->isTrue($val))
       return $this->setConsent();
-    else if ( $var == "consentforpublishing" && ! $this->isTrue($val) )
+    else if ($var == "consentforpublishing" && ! $this->isTrue($val))
       return $this->unsetConsent();
-    else if ( isset($this->$var) )
-      if ( $this->$var == $val )
+    else if (isset($this->$var))
+      if ($this->$var == $val)
         return FALSE; // value didn't change!
       else
         $this->$var = $val;
@@ -235,10 +224,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    */
   protected function setEntityType($type) {
     $tmp = (int)$type;
-    if ( ($tmp < 1) && ($tmp > 7) )
+    if (($tmp < 1) && ($tmp > 7))
       $tmp = 0; // failback to the default value
 
-    if ( $this->entitytype == $tmp )
+    if ($this->entitytype == $tmp)
       return FALSE;
 
     $this->changes |= 32768;
@@ -252,7 +241,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   string "true"
    */
   public function setConsent() {
-    if ( $this->consentforpublishing == 1 )
+    if ($this->consentforpublishing == 1)
       return FALSE;
 
     $this->changes |= 8192;
@@ -266,7 +255,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   string "false"
    */
   public function unsetConsent() {
-    if ( $this->consentforpublishing == 0 )
+    if ($this->consentforpublishing == 0)
       return FALSE;
 
     $this->changes |= 8192;
@@ -288,7 +277,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
      * 1) remove hyphens
      * 2) the rest must be alphanumeric
      */
-    if ( !ctype_alnum(implode("", explode("-", $this->handle))) )
+    if ( ! ctype_alnum(implode("", explode("-", $this->handle))))
       $error |= 1;
 
     /*
@@ -303,11 +292,11 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $tmp = explode(".", substr($this->voice, 1));
     $tmp[0] = ctype_digit(isset($tmp[0]) ? $tmp[0] : "") ? $tmp[0] : "";
     $tmp[1] = ctype_digit(isset($tmp[1]) ? $tmp[1] : "") ? $tmp[1] : "";
-    if ( (substr($this->voice, 0, 1) != "+") ||
-         (count($tmp) <> 2) ||
-         (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
-         (strlen($tmp[1]) > (15-strlen($tmp[0])) || strlen($tmp[1]) < 1) ||
-         ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice) )
+    if ((substr($this->voice, 0, 1) != "+") ||
+        (count($tmp) <> 2) ||
+        (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
+        (strlen($tmp[1]) > (15-strlen($tmp[0])) || strlen($tmp[1]) < 1) ||
+        ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice))
       $error |= 2;
 
     /*
@@ -318,76 +307,71 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
      * 2) make sure the first element has at least one character
      */
     $tmp = explode("@", $this->email);
-    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) ||
-         (strlen($tmp[0]) < 1) )
+    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) || (strlen($tmp[0]) < 1))
       $error |= 4;
 
     /*
      * the country code
      */
-    if ( ! $this->is_iso3166_1($this->countrycode) )
+    if ( ! $this->is_iso3166_1($this->countrycode))
       $error |= 8;
 
     /*
      * the province code
      */
-    if ( ($this->countrycode == "IT") &&
-         ( ! $this->is_iso3166_2it($this->province)) )
+    if (($this->countrycode == "IT") && ( ! $this->is_iso3166_2it($this->province)))
       $error |= 16;
 
     /*
      * relation entitytype <=> countrycode
      */
-    if ( ($this->entitytype > 1) &&
-         ( ! $this->is_iso3166_1eu($this->countrycode)) )
+    if (($this->entitytype > 1) && ( ! $this->is_iso3166_1eu($this->countrycode)))
       $error |= 32;
 
     /*
      * relation entitytype 1 <=> countrycode or nationalitycode
      */
-    if ( ($this->entitytype == 1) &&
-         ( ! $this->is_iso3166_1eu($this->countrycode)) &&
-         ( ! $this->is_iso3166_1eu($this->nationalitycode)) )
+    if (($this->entitytype == 1) &&
+        ( ! $this->is_iso3166_1eu($this->countrycode)) &&
+        ( ! $this->is_iso3166_1eu($this->nationalitycode)))
       $error |= 64;
 
     /*
      * entitytype 1: name => org
      */
-    if ( ($this->entitytype == 1) )
+    if (($this->entitytype == 1))
       $this->org = $this->name;
-    if ( empty($this->org) )
+    if (empty($this->org))
       $this->org = $this->name;
 
     /*
      * relation entitytype <=> regcode
      *
      * These checks are a rough guess at some points.
-     *
-     * Thanks to Mr. Fundinger for pointing out a previous mistake!
      */
     switch ($this->entitytype) {
       case 1: // persone fisiche italiane e straniere
-        if ( $this->nationalitycode == "IT" ) {
+        if ($this->nationalitycode == "IT") {
           if ( ! ((strlen($this->regcode) == 16) &&
                  ctype_alnum($this->regcode) &&
                  ctype_digit(substr($this->regcode, 6, 2)) &&
                  ctype_digit(substr($this->regcode, 9, 2)) &&
                  ctype_digit(substr($this->regcode, 12, 3))) &&
-               ($this->regcode <> "n.a.") )
+               ($this->regcode <> "n.a."))
             $error |= 128;
         } else {
           // content of regcode is not defined for this case
         }
         break;
       case 4: // enti no-profit
-        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a.") )
+        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a."))
           $error |= 512;
         break;
       case 2: // società/imprese individuali
       case 3: // liberi professionisti/ordini professionali
       case 5: // enti pubblici
       case 6: // altri soggetti
-        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11 )
+        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11)
           $error |= 256;
         break;
       case 0: // don't set any output related to entity types (role contacts)
@@ -398,15 +382,15 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     /*
      * basic data must be filled in
      */
-    if ( ($this->handle == "") ||
-         ($this->name == "") ||
-         ($this->street == "") ||
-         ($this->city == "") ||
-         ($this->province == "") ||
-         ($this->postalcode == "") ||
-         ($this->countrycode == "") ||
-         ($this->voice == "") ||
-         ($this->email == "") )
+    if (($this->handle == "") ||
+        ($this->name == "") ||
+        ($this->street == "") ||
+        ($this->city == "") ||
+        ($this->province == "") ||
+        ($this->postalcode == "") ||
+        ($this->countrycode == "") ||
+        ($this->voice == "") ||
+        ($this->email == ""))
       $error |= 1024;
 
     return $error;
@@ -422,7 +406,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   public function check($contact = null) {
     if ($contact === null)
       $contact = $this->handle;
-    if (!is_array($contact))
+    if ( ! is_array($contact))
       $contact = array($contact);
     if (empty($contact)) {
       $this->setError("Operation not allowed, set a handle!");
@@ -432,18 +416,18 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('ids', array_slice($contact, 0, $this->max_check));
-    $this->xmlQuery = $this->client->fetch("check-contact");
+    $this->xmlQuery = $this->client->fetch("contact-check");
     $this->client->clearAllAssign();
 
     // query server
-    if ( $this->ExecuteQuery("check-contact", implode(";", $contact), ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("contact-check", implode(";", $contact), ($this->debug >= LOG_DEBUG))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['contact']);
-      if ( count($tmp->chkData->cd) == 1 ) {
+      if (count($tmp->chkData->cd) == 1) {
         return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
       } else {
         $responses = array();
-        for ( $i = 0; $i < count($tmp->chkData->cd); $i++ ) {
+        for ($i = 0; $i < count($tmp->chkData->cd); $i++) {
           $responses[(string)$tmp->chkData->cd[$i]->id] = ($tmp->chkData->cd[$i]->id->attributes()->avail == "true") ? TRUE : FALSE;
         }
         return $responses;
@@ -462,7 +446,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function create($exec_checks = FALSE) {
-    if ( $exec_checks ) {
+    if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
         $this->setError("Sanity checks failed with code '".$sanity."'!");
@@ -490,12 +474,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->client->assign('nationalityCode', $this->nationalitycode);
     $this->client->assign('entityType', $this->entitytype);
     $this->client->assign('regCode', $this->regcode);
-    $this->xmlQuery = $this->client->fetch("create-contact");
+    $this->xmlQuery = $this->client->fetch("contact-create");
     $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
-    $response = $this->ExecuteQuery("create-contact", $this->handle, ($this->debug >= LOG_DEBUG));
-    if ( $response ) {
+    $response = $this->ExecuteQuery("contact-create", $this->handle, ($this->debug >= LOG_DEBUG));
+    if ($response) {
       $this->status = array('ok');
       return $response;
     } else {
@@ -521,14 +505,14 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $contact);
-    $this->xmlQuery = $this->client->fetch("info-contact");
+    $this->xmlQuery = $this->client->fetch("contact-info");
     $this->client->clearAllAssign();
 
     // re-initialize object data
     $this->initValues();
 
     // query server
-    if ( $this->ExecuteQuery("info-contact", $contact, ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("contact-info", $contact, ($this->debug >= LOG_DEBUG))) {
       $this->changes = 0;
       $this->status = array();
       $this->handle = $contact;
@@ -548,15 +532,15 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       $this->voice =       (string)$tmp->infData->voice;
       $this->fax =         (string)$tmp->infData->fax;
       $this->email =       (string)$tmp->infData->email;
-      foreach ( $tmp->infData->status as $singleState )
+      foreach ($tmp->infData->status as $singleState)
         $this->status[] =  (string)$singleState->attributes()->s;
 
       $tmp = $this->xmlResult->response->extension->children($ns['extcon']);
 
       $this->set('consentforpublishing', (string)$tmp->infData->consentForPublishing);
-      $this->nationalitycode =      (string)$tmp->infData->registrant->nationalityCode;
-      $this->entitytype =              (int)$tmp->infData->registrant->entityType;
-      $this->regcode =              (string)$tmp->infData->registrant->regCode;
+      $this->nationalitycode = (string)$tmp->infData->registrant->nationalityCode;
+      $this->entitytype =         (int)$tmp->infData->registrant->entityType;
+      $this->regcode =         (string)$tmp->infData->registrant->regCode;
 
       return TRUE;
     } else {
@@ -581,11 +565,11 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $contact);
-    $this->xmlQuery = $this->client->fetch("delete-contact");
+    $this->xmlQuery = $this->client->fetch("contact-delete");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("delete-contact", $contact, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("contact-delete", $contact, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -604,7 +588,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       $this->setError("Handle did not change!");
       return FALSE;
     }
-    if ( $exec_checks ) {
+    if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
         $this->setError("Sanity checks failed with code '".$sanity."'!");
@@ -634,14 +618,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // contact information
     $contact = array();
-    if (($this->changes & 512) > 0)
-      $contact[] = array('name' => 'voice', 'value' => $this->voice);
-    if (($this->changes & 1024) > 0)
-      $contact[] = array('name' => 'fax', 'value' => $this->fax);
-    if (($this->changes & 2048) > 0)
-      $contact[] = array('name' => 'email', 'value' => $this->email);
-    if (($this->changes & 4096) > 0)
-      $contact[] = array('name' => 'authinfo', 'value' => $this->authinfo);
+    $contact[] = array('name' => 'voice', 'value' => (($this->changes & 512) > 0) ? $this->voice : '');
+    $contact[] = array('name' => 'fax', 'value' => (($this->changes & 1024) > 0) ? $this->fax : '');
+    $contact[] = array('name' => 'email', 'value' => (($this->changes & 2048) > 0) ? $this->email : '');
 
     // registrant information
     $registrant = array();
@@ -656,34 +635,18 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $this->handle);
 
-    if ( empty($postalinfo) )
-      $this->client->assign('postalinfo', '');
-    else
-      $this->client->assign('postalinfo', $postalinfo);
+    $this->client->assign('postalinfo', empty($postalinfo) ? array() : $postalinfo);
+    $this->client->assign('addr', empty($addr) ? '' : $addr);
+    $this->client->assign('contact', empty($contact) ? '' : $contact);
+    $this->client->assign('registrant', empty($registrant) ? '' : $registrant);
+    $this->client->assign('authinfo', (($this->changes & 4096) > 0) ? $this->authinfo : '');
+    $this->client->assign('consentForPublishing', (($this->changes & 8192) > 0) ? $this->consentforpublishing : '');
 
-    if ( empty($addr) )
-      $this->client->assign('addr', '');
-    else
-      $this->client->assign('addr', $addr);
-
-    if (($this->changes & 8192) > 0)
-      $this->client->assign('consentForPublishing', $this->consentforpublishing);
-
-    if ( empty($contact) )
-      $this->client->assign('contact', '');
-    else
-      $this->client->assign('contact', $contact);
-
-    if ( empty($registrant) )
-      $this->client->assign('registrant', '');
-    else
-      $this->client->assign('registrant', $registrant);
-
-    $this->xmlQuery = $this->client->fetch("update-contact");
+    $this->xmlQuery = $this->client->fetch("contact-update");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("update-contact", $this->handle, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("contact-update", $this->handle, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -727,12 +690,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->client->assign('id', $this->handle);
     $this->client->assign('adddel', $adddel);
     $this->client->assign('state', $state);
-    $this->xmlQuery = $this->client->fetch("update-contact-status");
+    $this->xmlQuery = $this->client->fetch("contact-status");
     $this->client->clearAllAssign();
 
     // query server
-    $result = $this->ExecuteQuery("update-contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
-    if ( $result )
+    $result = $this->ExecuteQuery("contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
+    if ($result)
       $this->changes = 0;
     return $result;
   }
@@ -765,7 +728,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $contact['entitytype'] = $this->entitytype;
     $contact['regcode'] = $this->regcode;
 
-    if ( $this->storage->storeContact($contact, $userid) ) {
+    if ($this->storage->storeContact($contact, $userid)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -793,7 +756,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->initValues();
 
     $tmp = $this->storage->retrieveContact($contact, $userid);
-    if ( $tmp === FALSE ) {
+    if ($tmp === FALSE) {
       $this->setError($this->storage->getError());
       return FALSE;
     } else {
@@ -827,7 +790,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
-    $data['userid'] = $this->userid;
+    $data['userid'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->userid;
     if (($this->changes & 1) > 0) $data['name'] = $this->name;
     if (($this->changes & 2) > 0) $data['org'] = $this->org;
     if (($this->changes & 4) > 0) $data['street'] = $this->street;
@@ -846,7 +809,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     if (($this->changes & 32768) > 0) $data['entitytype'] = $this->entitytype;
     if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
 
-    if ( $this->storage->updateContact($data, $contact, $userid) ) {
+    if ($this->storage->updateContact($data, $contact, $userid)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -890,4 +853,3 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     return $this->storage->restoreContact($contact, $userid);
   }
 }
-

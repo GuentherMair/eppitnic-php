@@ -43,7 +43,7 @@ System_Daemon::setOptions(array(
   'appDir'              => dirname(__FILE__),
   'appDescription'      => 'EPPITNIC session control daemon.',
   'authorName'          => 'Guenther Mair',
-  'authorEmail'         => 'guenther.mair@hoslo.ch',
+  'authorEmail'         => 'info@inet-services.it',
   'sysMaxExecutionTime' => '0',
   'sysMaxInputTime'     => '0',
   'sysMemoryLimit'      => '128M',

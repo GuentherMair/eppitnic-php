@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.restore.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: domain.restore.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,12 +47,15 @@ $server->register(
   // METHOD
   'DomainRestore',
   // INPUT
-  array('domain'            => 'xsd:string'),
+  array(
+    'domain'            => 'xsd:string'
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'domain'            => 'xsd:string',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'domain'            => 'xsd:string',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -74,17 +77,17 @@ function DomainRestore($domain) {
   $c = new Net_EPP_IT_WSDL();
 
   // connect and restore domain
-  if ( $c->connect() )
-    if ( $c->domain->restore($domain) === FALSE )
+  if ($c->connect())
+    if ($c->domain->restore($domain) === FALSE)
       $c->createErrMsg($c->domain, 4001);
 
   // disconnect
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'domain'            => $domain,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'domain'            => $domain,
+  );
 }
-

@@ -6,16 +6,8 @@ require_once 'Net/EPP/IT/Contact.php';
 /*
  * idna_convert class (for punycode generation)
 */
-if ( ! class_exists('idna_convert') )
+if ( ! class_exists('idna_convert'))
   require_once 'libs/idna_convert/idna_convert.class.php';
-
-/**
- * define the PHP_VERSION_ID (predefined as of 5.2.7)
- */
-if ( ! defined('PHP_VERSION_ID')) {
-  $version = explode('.', PHP_VERSION);
-  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
-}
 
 /**
  * This class handles domains and supports the following operations on them:
@@ -39,11 +31,11 @@ if ( ! defined('PHP_VERSION_ID')) {
  *  - loadDB load domain from DB
  *  - updateDB update domain stored in DB
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -72,24 +64,25 @@ if ( ! defined('PHP_VERSION_ID')) {
  *
  * @category    Net
  * @package     Net_EPP_IT_Domain
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Domain.php 451 2013-08-19 19:40:48Z gunny $
+ * $Id: Domain.php 521 2017-05-19 10:24:32Z gunny $
  */
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
-  //         name              // change flag
-  protected $userid;           // use just in case of an updateRegistrant + change of agent
-  protected $status;           // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
-  protected $domain;           // -
-  protected $changes;          // sum
+  //         name               // change flag
+  protected $userid;            // use just in case of an updateRegistrant + change of agent
+  protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
+  protected $domain;            // -
+  protected $changes;           // sum
 
-  protected $ns;               // 1
-  protected $registrant;       // 2
-  protected $admin;            // 4
-  protected $tech;             // 8
-  protected $authinfo;         // 16
+  protected $ns;                // 1
+  protected $registrant;        // 2
+  protected $admin;             // 4
+  protected $tech;              // 8
+  protected $authinfo;          // 16
+  protected $dnssec;            // 32
 
   // domain lifecycle
   protected $crDate;
@@ -99,6 +92,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   protected $ns_initial;
   protected $admin_initial;
   protected $tech_initial;
+  protected $dnssec_initial;
 
   // domain transfer information
   protected $trStatus;
@@ -114,14 +108,17 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   // IDN <=> punycode converter class
   protected $idn;
 
+  // DNSSEC status (enabled or not)
+  protected $dnssec_status;
+
   /*
    * Class constructor
    *
    * (initializes authinfo)
    *
    * @access   public
-   * @param    Net_EPP_IT_Client            client class
-   * @param    Net_EPP_IT_StorageInterface  storage class
+   * @param    Net_EPP_IT_Client         client class
+   * @param    Net_EPP_StorageInterface  storage class
    */
   function __construct(&$client, &$storage) {
     parent::__construct($client, $storage);
@@ -129,6 +126,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->initValues();
     //$this->idn = new idna_convert(array('encode_german_sz' => true));
     $this->idn = new idna_convert();
+    $this->dnssec_status = @isset($this->client->EPPCfg->dnssec->active) ? (int)$this->client->EPPCfg->dnssec->active : 0;
   }
 
   /**
@@ -137,25 +135,27 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   protected
    */
   protected function initValues() {
-    $this->userid        = 1;
-    $this->status        = array();
-    $this->domain        = "";
-    $this->registrant    = "";
-    $this->admin         = "";
-    $this->admin_initial = "";
-    $this->tech          = array();
-    $this->tech_initial  = array();
-    $this->ns            = array();
-    $this->ns_initial    = array();
-    $this->authinfo      = $this->authinfo();
-    $this->changes       = 0;
-    $this->max_check     = 5;
-    $this->crDate        = "";
-    $this->exDate        = "";
-    $this->trStatus      = "";
-    $this->reID          = "";
-    $this->acID          = "";
-    $this->infcontacts   = array();
+    $this->userid            = 1;
+    $this->status            = array();
+    $this->domain            = "";
+    $this->registrant        = "";
+    $this->admin             = "";
+    $this->admin_initial     = "";
+    $this->tech              = array();
+    $this->tech_initial      = array();
+    $this->ns                = array();
+    $this->ns_initial        = array();
+    $this->authinfo          = $this->authinfo();
+    $this->dnssec            = array();
+    $this->dnssec_initial    = array();
+    $this->changes           = 0;
+    $this->max_check         = 5;
+    $this->crDate            = "";
+    $this->exDate            = "";
+    $this->trStatus          = "";
+    $this->reID              = "";
+    $this->acID              = "";
+    $this->infcontacts       = array();
   }
 
   /**
@@ -170,11 +170,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // in version 5.2.3 the 4th parameter "double_encode" was added
-    if (PHP_VERSION_ID < 50203)
-      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8');
-    else
-      $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+    // in PHP 5.2.3 the 4th parameter "double_encode" was added
+    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
     if ($var == "ns")
       return $this->addNS($val);
@@ -186,16 +183,76 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       else
         $this->$var = $val;
     else
-      return FALSE; // value doesn't exist!
+      return FALSE; // value doesn't exist or cannot be set using set($var, $val)!
 
     switch ($var) {
-      //case "ns":           $this->changes |= 1;  break; // to be handled by addNS
-      case "registrant":   $this->changes |= 2;  break;
-      case "admin":        $this->changes |= 4;  break;
-      //case "tech":         $this->changes |= 8;  break; // to be handled by addTECH
-      case "authinfo":     $this->changes |= 16; break;
+      //case "ns":                $this->changes |= 1;   break; // to be handled by addNS
+      case "registrant":        $this->changes |= 2;   break;
+      case "admin":             $this->changes |= 4;   break;
+      //case "tech":              $this->changes |= 8;   break; // to be handled by addTECH
+      case "authinfo":          $this->changes |= 16;  break;
+      //case "dnssec":            $this->changes |= 32;  break; // to be handled by addDNSSEC
     }
     return $this->$var;
+  }
+
+  /**
+   * remove a DNSSEC data set
+   *
+   * @access   public
+   * @param    string  keytag
+   * @return   mix     keytag on success, false on failure
+   */
+  public function remDNSSEC($digest) {
+    if (isset($this->dnssec_initial[$digest])) {
+      $this->changes |= 32;
+      unset($this->dnssec[$digest]);
+      return $digest;
+    } else {
+      $this->setError("The keytag you provided is not currently associated to this domain object.");
+      return FALSE;
+    }
+  }
+
+  /**
+   * add a DNSSEC data set
+   *
+   * @access   public
+   * @param    string  keytag
+   * @param    string  algorithm
+   * @param    string  digesttype
+   * @param    string  digest
+   * @return   mix     keytag on success, false on failure
+   */
+  public function addDNSSEC($keytag, $algorithm, $digesttype, $digest) {
+    // don't allow empty values
+    if (empty($keytag) || empty($algorithm) || empty($digesttype) || empty($digest)) {
+      $this->setError("All values (keytag, algorithm, digesttype, digest) must be given and must NOT be empty.");
+      return FALSE;
+    }
+
+    // what to do if the keytag exists...
+    if (isset($this->dnssec[$digest])) {
+      // ... and all values are the same? Then stop here!
+      if ($this->dnssec[$digest]['algorithm']  == $algorithm &&
+          $this->dnssec[$digest]['digesttype'] == $digesttype &&
+          $this->dnssec[$digest]['keytag']     == $keytag) {
+        $this->setError("The provided DNSSEC information already exists.");
+        return FALSE;
+      }
+    } else if (count($this->dnssec) >= 2) {
+      $this->setError("Only two DNSSEC sets may be provided. Please remove one of those first.");
+      return FALSE;
+    }
+
+    $this->changes |= 32;
+    $this->dnssec[$digest] = array(
+      'algorithm'  => $algorithm,
+      'digesttype' => $digesttype,
+      'keytag'     => $keytag,
+    );
+
+    return $digest;
   }
 
   /**
@@ -207,7 +264,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    */
   public function get($var) {
     // if tech only holds 1 value (as in most cases) return a string and not an array
-    if ( ($var == "tech") && (count($this->tech) == 1) ) {
+    if (($var == "tech") && (count($this->tech) == 1)) {
       return current($this->tech);
     } else {
       return $this->$var;
@@ -222,7 +279,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   mix     value removed or FALSE if variable name does not exist
    */
   public function remTECH($name) {
-    if ( isset($this->tech[$name]) ) {
+    if (isset($this->tech[$name])) {
       unset($this->tech[$name]);
       $this->changes |= 8;
       return $name;
@@ -239,11 +296,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   mix     value set or FALSE if there was an error
    */
   public function addTECH($name) {
-    if ( empty($name) )
+    if (empty($name))
       return FALSE;
 
     // if a technical contact by this name was already set stop here
-    if ( ! isset($this->tech[$name]) ) {
+    if ( ! isset($this->tech[$name])) {
 
       // assign technical contact
       $this->tech[$name] = $name;
@@ -262,7 +319,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   public function remNS($name) {
     // DNS names must be in punycode format (if below an IDN domain)
     $name = $this->idn->encode($name);
-    if ( isset($this->ns[$name]) ) {
+    if (isset($this->ns[$name])) {
       unset($this->ns[$name]);
       $this->changes |= 1;
       return $name;
@@ -285,15 +342,15 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $ip_changed = FALSE;
 
     // don't allow empty values
-    if ( empty($name) )
+    if (empty($name))
       return FALSE;
 
     // DNS names must be in punycode format (if below an IDN domain)
     $name = $this->idn->encode($name);
 
     // handle IP addresses (if set)
-    if ( is_array($addr) ) {
-      switch ( count($addr) ) {
+    if (is_array($addr)) {
+      switch (count($addr)) {
         case 2:
           $dns1 = strtolower($addr[0]);
           $dns2 = strtolower($addr[1]);
@@ -308,25 +365,25 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
           return FALSE;
           break;
       }
-    } else if ( ! empty($addr) ) {
+    } else if ( ! empty($addr)) {
       $dns1 = $addr;
     }
 
     // if a nameserver by this name was already set and IPs didn't change stop here
-    if ( isset($this->ns[$name]) ) {
+    if (isset($this->ns[$name])) {
       // create a list of all addresses associated to this NS record
       $ip_list = array();
       foreach ($this->ns[$name]['ip'] as $ip)
         $ip_list[] = $ip['address'];
 
       // verify if a new IP was added to this NS record
-      if ( ! empty($dns1) && ! in_array($dns1, $ip_list) )
+      if ( ! empty($dns1) && ! in_array($dns1, $ip_list))
         $ip_changed = TRUE;
-      if ( ! empty($dns2) && ! in_array($dns2, $ip_list) )
+      if ( ! empty($dns2) && ! in_array($dns2, $ip_list))
         $ip_changed = TRUE;
 
       // if any new IP was added, remove the NS record first, then procede else there was no change and we bail out
-      if ( $ip_changed )
+      if ($ip_changed)
         $this->remNS($name);
       else
         return $name;
@@ -336,8 +393,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->ns[$name]['name'] = $name;
 
     // assign IP address 1 (if set)
-    if ( ! empty($dns1) ) {
-      if ( @gethostbyaddr($dns1) == "" ) {
+    if ( ! empty($dns1)) {
+      if (@gethostbyaddr($dns1) == "") {
         $this->setError("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
         return FALSE;
       } else {
@@ -347,8 +404,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     // assign IP address 2 (if set)
-    if ( ! empty($dns2) ) {
-      if ( @gethostbyaddr($dns2) == "" ) {
+    if ( ! empty($dns2)) {
+      if (@gethostbyaddr($dns2) == "") {
         $this->setError("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
         return FALSE;
       } else {
@@ -377,47 +434,38 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
      * 1) remove hyphens
      * 2) the rest must be alphanumeric
      */
-    if ( !ctype_alnum(implode("", explode(".", implode("", explode("-", $this->domain))))) )
+    if ( ! ctype_alnum(implode("", explode(".", implode("", explode("-", $this->domain))))))
       $error |= 1;
 
     /*
      * empty values
      */
-    if ( empty($this->domain) ||
-         empty($this->registrant) ||
-         empty($this->admin) ||
-         empty($this->tech) ||
-         empty($this->authinfo) )
+    if (empty($this->domain) || empty($this->registrant) || empty($this->admin) || empty($this->tech) || empty($this->authinfo))
       $error |= 2;
 
     /*
      * amount of NS records
      */
-    if ( (count($this->ns) < 2) ||
-         (count($this->ns) > 6) )
+    if ((count($this->ns) < 2) || (count($this->ns) > 6))
       $error |= 4;
 
     /*
      * length
      */
-    if ( (strlen($this->domain) < 6) ||
-         (strlen($this->domain) > 255) )
+    if ((strlen($this->domain) < 6) || (strlen($this->domain) > 255))
       $error |= 8;
 
     /*
      * pre-/postfix checks
      */
     $tmp = explode(".", $this->domain);
-    if ( (substr($tmp[0], 0, 4) == "xn--") ||
-         (substr($tmp[0], 0, 1) == "-") ||
-         (substr($tmp[0], -1) == "-") )
+    if ((substr($tmp[0], 0, 4) == "xn--") || (substr($tmp[0], 0, 1) == "-") || (substr($tmp[0], -1) == "-"))
       $error |= 16;
 
     /*
      * authinfo length
      */
-    if ( (strlen($this->authinfo) < 8) ||
-         (strlen($this->authinfo) > 32) )
+    if ((strlen($this->authinfo) < 8) || (strlen($this->authinfo) > 32))
       $error |= 32;
 
     /*
@@ -433,24 +481,45 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
      *    nel Database del Registro, completo dell’estensione relativa
      *    ai dati del Registrante.'
      *
-     * To re-enable this check, we would need to execute a info-contact command
+     * To re-enable this check, we would need to execute a contact-info command
      * and then compare the return value for EntityType.
      *
      * Thanks to Mr. Fundinger for pointing this out!
      */
-    //if ( ($this->registrant == $this->admin) ||
-    //     ($this->registrant == $this->tech) ||
-    //     ($this->admin == $this->tech) )
+    //if (($this->registrant == $this->admin) || ($this->registrant == $this->tech) || ($this->admin == $this->tech))
     //  $error |= 64;
 
     /*
      * glue records (this does not care about v4/v6)
      */
-    foreach ($this->ns as $hostname => $values) {
-      if ( (substr($hostname, strlen($this->domain)*-1) == $this->domain) &&
-           ! isset($values['ip']) )
+    foreach ($this->ns as $hostname => $values)
+      if ((substr($hostname, strlen($this->domain)*-1) == $this->domain) && ! isset($values['ip']))
         $error |= 128;
-    }
+
+    /*
+     * allowed dnssec algorithms
+     *  3 (DSA/SHA-1)
+     *  5 (RSA/SHA-1)
+     *  6 (DSA-NSEC3-SHA1)
+     *  7 (RSASHA1-NSEC3-SHA1)
+     *  8 (RSA/SHA-256)
+     *  10 (RSA/SHA-512)
+     *  12 (ECC-GOST)
+     *  13 (ECDSAP256SHA256)
+     *  14 (ECDSAP384SHA384)
+     */
+    if ( ! empty($this->dnssec_algorithm) && ! in_array($this->dnssec_algorithm, array(3, 5, 6, 7, 8, 10, 12, 13, 14)))
+      $error |= 256;
+
+    /*
+     * allowed dnssec digest types
+     *  1 (SHA-1)
+     *  2 (SHA-256)
+     *  3 (GOST R 34.11-94)
+     *  4 (SHA-384)
+     */
+    if ( ! empty($this->dnssec_digesttype) && ! in_array($this->dnssec_digesttype, array(1, 2, 3, 4)))
+      $error |= 512;
 
     return $error;
   }
@@ -475,15 +544,15 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domains', array_slice($domain, 0, $this->max_check));
-    $this->xmlQuery = $this->client->fetch("check-domain");
+    $this->xmlQuery = $this->client->fetch("domain-check");
     $this->client->clearAllAssign();
 
     // query server
-    if ( $this->ExecuteQuery("check-domain", implode(";", $domain), ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("domain-check", implode(";", $domain), ($this->debug >= LOG_DEBUG))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
-      if ( count($tmp->chkData->cd) == 1 ) {
-        if ( $tmp->chkData->cd->name->attributes()->avail == "true" ) {
+      if (count($tmp->chkData->cd) == 1) {
+        if ($tmp->chkData->cd->name->attributes()->avail == "true") {
           return TRUE;
         } else {
           // override server message with reason
@@ -492,8 +561,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
         }
       } else {
         $responses = array();
-        for ( $i = 0; $i < count($tmp->chkData->cd); $i++ ) {
-          if ( $tmp->chkData->cd[$i]->name->attributes()->avail == "true" ) {
+        for ($i = 0; $i < count($tmp->chkData->cd); $i++) {
+          if ($tmp->chkData->cd[$i]->name->attributes()->avail == "true") {
             $responses[(string)$tmp->chkData->cd[$i]->name]['available'] = TRUE;
             $responses[(string)$tmp->chkData->cd[$i]->name]['reason'] = 'OK';
           } else {
@@ -517,7 +586,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function create($exec_checks = FALSE) {
-    if ( $exec_checks ) {
+    if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
         $this->setError("Sanity checks failed with code '".$sanity."'!");
@@ -533,16 +602,19 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('admin', $this->admin);
     $this->client->assign('tech', $this->tech);
     $this->client->assign('authinfo', $this->authinfo);
-    $this->xmlQuery = $this->client->fetch("create-domain");
+    if ($this->dnssec_status == 1 && count($this->dnssec) > 0)
+      $this->client->assign('dnssec', $this->dnssec);
+    $this->xmlQuery = $this->client->fetch("domain-create");
     $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
-    if ( $this->ExecuteQuery("create-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("domain-create", $this->domain, ($this->debug >= LOG_DEBUG))) {
       $this->changes = 0;
       $this->status = array('ok');
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
+      $this->dnssec_initial = $this->dnssec;
       return TRUE;
     } else {
       return FALSE;
@@ -572,23 +644,22 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $infContacts = '';
 
     // if authinfo was not given as an argument, but has been set
-    if ( ($authinfo === null) && ($this->changes & 16) )
+    if (($authinfo === null) && ($this->changes & 16))
       $authinfo = $this->authinfo;
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
     $this->client->assign('infContacts', $infContacts);
-    if ( ! empty($authinfo) )
-      $this->client->assign('authinfo', $authinfo);
-    $this->xmlQuery = $this->client->fetch("info-domain");
+    $this->client->assign('authinfo', empty($authinfo) ? '' : $authinfo);
+    $this->xmlQuery = $this->client->fetch("domain-info");
     $this->client->clearAllAssign();
 
     // re-initialize object data
     $this->initValues();
 
     // query server
-    if ( $this->ExecuteQuery("info-domain", $domain, ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("domain-info", $domain, ($this->debug >= LOG_DEBUG))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
 
@@ -599,11 +670,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->authinfo = (string)$tmp->infData->authInfo->pw;
       $this->crDate = (string)$tmp->infData->crDate;
       $this->exDate = (string)$tmp->infData->exDate;
-      foreach ( $tmp->infData->status as $singleState )
+      foreach ($tmp->infData->status as $singleState)
         $this->status[] = (string)$singleState->attributes()->s;
-      foreach ( $tmp->infData->contact as $contact ) {
+      foreach ($tmp->infData->contact as $contact) {
         $type = $contact->attributes()->type;
-        if ( $type == "tech" ) {
+        if ($type == "tech") {
           $this->addTECH((string)$contact);
         } else {
           $this->$type = (string)$contact;
@@ -611,7 +682,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       }
 
       // if the NS were not properly configured EPP will not report them yet!
-      if ( @is_object($tmp->infData->ns->hostAttr[0]) )
+      if (@is_object($tmp->infData->ns->hostAttr[0]))
         foreach ($tmp->infData->ns->hostAttr as $hostAttr) {
           $addr = array();
           foreach ($hostAttr->hostAddr as $ip) {
@@ -620,11 +691,26 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
           $this->addNS((string)$hostAttr->hostName, $addr);
         }
 
+      // if extsecDNS and secDNS are set
+      if (isset($ns['secDNS'])) {
+        $tmp = $this->xmlResult->response->extension->children($ns['secDNS']);
+
+        foreach ($tmp->infData->dsData as $dsData)
+          $this->addDNSSEC((int)$dsData->keyTag, (int)$dsData->alg, (int)$dsData->digestType, (string)$dsData->digest);
+      }
+
       // if infContactsData is set
-      if ( isset($ns['extdom']) ) {
-        $this->infcontacts = array();
+      if (isset($ns['extdom'])) {
         $tmp = $this->xmlResult->response->extension->children($ns['extdom']);
-        if ( @is_object($tmp->infContactsData->registrant) ) {
+
+        // verify extended states
+        if (@is_object($tmp->infData->ownStatus))
+          foreach ($tmp->infData->ownStatus as $singleState)
+            $this->status[] = (string)$singleState->attributes()->s;
+
+        // fetch contact information
+        $this->infcontacts = array();
+        if (@is_object($tmp->infContactsData->registrant)) {
           $infContact = $tmp->infContactsData->registrant->infContact->children($ns['contact']);
           $extInfo = $tmp->infContactsData->registrant->extInfo->children($ns['extcon']);
           $this->infcontacts[] = array(
@@ -648,7 +734,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
             'regcode'              => (string)$extInfo->registrant->regCode,
           );
         }
-        if ( @is_object($tmp->infContactsData->contact[0]) ) {
+        if (@is_object($tmp->infContactsData->contact[0])) {
           foreach ($tmp->infContactsData->contact as $contact) {
             $infContact = $contact->infContact->children($ns['contact']);
             $extInfo = $contact->extInfo->children($ns['extcon']);
@@ -681,6 +767,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
+      $this->dnssec_initial = $this->dnssec;
       return TRUE;
     } else {
       return FALSE;
@@ -718,11 +805,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
-    $this->xmlQuery = $this->client->fetch("delete-domain");
+    $this->xmlQuery = $this->client->fetch("domain-delete");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("delete-domain", $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-delete", $domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -745,7 +832,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->setError("Update the registrant through updateRegistrant()!");
       return FALSE;
     }
-    if ( $exec_checks ) {
+    if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
         $this->setError("Sanity checks failed with code '".$sanity."'!");
@@ -766,14 +853,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $tmpB = array();
       foreach ($this->ns as $name => $values) {
         $tmp = $name;
-        if ( isset($this->ns[$name]['ip']) )
+        if (isset($this->ns[$name]['ip']))
           foreach ($this->ns[$name]['ip'] as $i => $addr)
             $tmp .= ";" . $addr['address'];
         $tmpA[] = $tmp;
       }
       foreach ($this->ns_initial as $name => $values) {
         $tmp = $name;
-        if ( isset($this->ns_initial[$name]['ip']) )
+        if (isset($this->ns_initial[$name]['ip']))
           foreach ($this->ns_initial[$name]['ip'] as $i => $addr)
             $tmp .= ";" . $addr['address'];
         $tmpB[] = $tmp;
@@ -783,7 +870,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $diffAB = array_diff($tmpA, $tmpB);
       $tmp = array();
       foreach ($diffAB as $name) {
-        $key = split(';', $name);
+        $key = explode(';', $name);
         $tmp[$key[0]] = $this->ns[$key[0]];
       }
       $this->client->assign('nameservers_add_num', count($tmp));
@@ -793,15 +880,23 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $diffBA = array_diff($tmpB, $tmpA);
       $tmp = array();
       foreach ($diffBA as $name) {
-        $key = split(';', $name);
+        $key = explode(';', $name);
         $tmp[$key[0]] = $this->ns_initial[$key[0]];
       }
       $this->client->assign('nameservers_rem_num', count($tmp));
       $this->client->assign('nameservers_rem', $tmp);
+    } else {
+      $this->client->assign('nameservers_add_num', 0);
+      $this->client->assign('nameservers_add', array());
+      $this->client->assign('nameservers_rem_num', 0);
+      $this->client->assign('nameservers_rem', array());
     }
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);
       $this->client->assign('admin_rem', $this->admin_initial);
+    } else {
+      $this->client->assign('admin_add', '');
+      $this->client->assign('admin_rem', '');
     }
     if (($this->changes & 8) > 0) {
       // limit to a maximum of 6 techc's
@@ -814,14 +909,42 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $tmp = array_diff($this->tech_initial, $this->tech);
       $this->client->assign('tech_rem_num', count($tmp));
       $this->client->assign('tech_rem', $tmp);
+    } else {
+      $this->client->assign('tech_add_num', 0);
+      $this->client->assign('tech_add', array());
+      $this->client->assign('tech_rem_num', 0);
+      $this->client->assign('tech_rem', array());
     }
-    if (($this->changes & 16) > 0)
-      $this->client->assign('authinfo', $this->authinfo);
-    $this->xmlQuery = $this->client->fetch("update-domain");
+    if (($this->changes & 32) > 0) {
+      // limit to a maximum of 2 dnssec records
+      $this->dnssec = array_slice($this->dnssec, 0, 2, true);
+      // which to add
+      $tmp = array();
+      foreach ($this->dnssec as $digest => $keyinfo)
+        if ( ! isset($this->dnssec_initial[$digest]))
+          $tmp[$digest] = $keyinfo;
+      $this->client->assign('dnssec_add_num', count($tmp));
+      $this->client->assign('dnssec_add', $tmp);
+      // which to remove
+      $tmp = array();
+      foreach ($this->dnssec_initial as $digest => $keyinfo)
+        if ( ! isset($this->dnssec[$digest]))
+          $tmp[$digest] = $keyinfo;
+      $this->client->assign('dnssec_rem_num', count($tmp));
+      $this->client->assign('dnssec_rem', $tmp);
+    } else {
+      $this->client->assign('dnssec_add_num', 0);
+      $this->client->assign('dnssec_add', array());
+      $this->client->assign('dnssec_rem_num', 0);
+      $this->client->assign('dnssec_rem', array());
+    }
+    $this->client->assign('registrant', '');
+    $this->client->assign('authinfo', (($this->changes & 16) > 0) ? $this->authinfo : '');
+    $this->xmlQuery = $this->client->fetch("domain-update");
     $this->client->clearAllAssign();
 
     // query server
-    if ( $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("domain-update", $this->domain, ($this->debug >= LOG_DEBUG))) {
       $this->changes = 0;
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
@@ -844,12 +967,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
-    if ( (($this->changes & 2) == 0) ||
-         (($this->changes & 16) == 0) ) {
+    if ((($this->changes & 2) == 0) || (($this->changes & 16) == 0)) {
       $this->setError("You MUST update the registrant and authinfo variables!");
       return FALSE;
     }
-    if ( $exec_checks ) {
+    if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
         $this->setError("Sanity checks failed with code '".$sanity."'!");
@@ -865,12 +987,26 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     if (($this->changes & 4) > 0) {
       $this->client->assign('admin_add', $this->admin);
       $this->client->assign('admin_rem', $this->admin_initial);
+    } else {
+      $this->client->assign('admin_add', '');
+      $this->client->assign('admin_rem', '');
     }
-    $this->xmlQuery = $this->client->fetch("update-domain");
+
+    $this->client->assign('tech_add_num', 0);
+    $this->client->assign('tech_add', array());
+    $this->client->assign('tech_rem_num', 0);
+    $this->client->assign('tech_rem', array());
+
+    $this->client->assign('nameservers_add_num', 0);
+    $this->client->assign('nameservers_add', array());
+    $this->client->assign('nameservers_rem_num', 0);
+    $this->client->assign('nameservers_rem', array());
+
+    $this->xmlQuery = $this->client->fetch("domain-update");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("update-domain", $this->domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-update", $this->domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -917,11 +1053,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('domain', $this->domain);
     $this->client->assign('adddel', $adddel);
     $this->client->assign('state', $state);
-    $this->xmlQuery = $this->client->fetch("update-domain-status");
+    $this->xmlQuery = $this->client->fetch("domain-status");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("update-domain-status", $this->domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-status", $this->domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -942,11 +1078,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
-    $this->xmlQuery = $this->client->fetch("update-domain-restore");
+    $this->xmlQuery = $this->client->fetch("domain-restore");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("update-domain-restore", $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-restore", $domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**
@@ -966,19 +1102,31 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $domain['authinfo'] = $this->authinfo;
     $domain['crDate'] = $this->crDate;
     $domain['exDate'] = $this->exDate;
+    $domain['dnssec'] = $this->dnssec;
 
     // remove existing domain objects when storing (re-transfer-in / re-register / re-import)
-    $result = $this->storage->dbConnect->Execute("SELECT lastInvoice, userid FROM tbl_domains WHERE domain='".$this->domain."'");
-    if ( $result !== FALSE )
-      if ($result->RecordCount() > 0) {
-        // save the lastInvoice value!
-        $domain['lastInvoice'] = $result->Fields('lastInvoice');
-        // keep the current userid
-        $userid = $result->Fields('userid');
-        $this->storage->dbConnect->Execute("DELETE FROM tbl_domains WHERE domain='".$this->domain."'");
-      }
+    try {
+      $stmt = $this->storage->db->prepare("SELECT lastInvoice, userid FROM tbl_domains WHERE domain=:domain");
+      if ($stmt->execute(array(":domain" => $this->domain))) {
+        if ($stmt->rowCount() > 0) {
+          $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ( $this->storage->storeDomain($domain, $userid) ) {
+          // save the lastInvoice value!
+          $domain['lastInvoice'] = $row['lastInvoice'];
+
+          // keep the current userid
+          $userid = $row['userid'];
+          $this->storage->db->prepare("DELETE FROM tbl_domains WHERE domain=:domain");
+          $stmt->execute(array(":domain" => $this->domain));
+        }
+      }
+    } catch (PDOException $e) {
+      $errorInfo = $this->storage->db->errorInfo();
+      return $this->setError($errorInfo[0], "unable to clean existing domain entry from 'tbl_domains': " . $e->getMessage());
+    }
+
+    // store domain
+    if ($this->storage->storeDomain($domain, $userid)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -1006,7 +1154,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->initValues();
 
     $tmp = $this->storage->retrieveDomain($domain, $userid);
-    if ( $tmp === FALSE ) {
+    if ($tmp === FALSE) {
       $this->setError($this->storage->getError());
       return FALSE;
     } else {
@@ -1017,18 +1165,18 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       }
 
       // convert these into arrays (even empty ones)
-      if ( ! is_array($this->ns) ) {
+      if ( ! is_array($this->ns)) {
         $tmp = (string)$this->ns;
         $this->ns = array();
         $this->addNS($tmp);
-      } else if ( empty($this->ns) ) {
+      } else if (empty($this->ns)) {
         $this->ns = array();
       }
-      if ( ! is_array($this->tech) ) {
+      if ( ! is_array($this->tech)) {
         $tmp = (string)$this->tech;
         $this->tech = array();
         $this->addTECH($tmp);
-      } else if ( empty($this->tech) ) {
+      } else if (empty($this->tech)) {
         $this->tech = array();
       }
       
@@ -1037,6 +1185,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
+      $this->dnssec_initial = $this->dnssec;
       return TRUE;
     }
   }
@@ -1064,7 +1213,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
-    $data['userid'] = $this->userid;
+    $data['userid'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->userid;
     if (($this->changes & 1) > 0) $data['ns'] = $this->ns;
     if (($this->changes & 2) > 0) {
       $data['registrant'] = $this->registrant;
@@ -1078,10 +1227,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     if (($this->changes & 4) > 0) $data['admin'] = $this->admin;
     if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
     if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
+    if (($this->changes & 32) > 0) $data['dnssec'] = $this->dnssec;
     $data['crDate'] = $this->crDate;
     $data['exDate'] = $this->exDate;
 
-    if ( $this->storage->updateDomain($data, $domain, $userid) ) {
+    if ($this->storage->updateDomain($data, $domain, $userid)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -1105,29 +1255,29 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       return FALSE;
     }
     // if authinfo was not given as an argument, but has been set
-    if ( ($authinfo === null) && ($this->changes & 16) )
+    if (($authinfo === null) && ($this->changes & 16))
       $authinfo = $this->authinfo;
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
-    if ( ! empty($authinfo) )
+    if ( ! empty($authinfo))
       $this->client->assign('authinfo', $authinfo);
-    $this->xmlQuery = $this->client->fetch("transfer-query");
+    $this->xmlQuery = $this->client->fetch("domain-transfer-query");
     $this->client->clearAllAssign();
 
     // query server
-    if ( $this->ExecuteQuery("transfer-query", $domain, ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery("domain-transfer-query", $domain, ($this->debug >= LOG_DEBUG))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
-      if ( @is_object($tmp->trnData->trStatus[0]) ) {
+      if (@is_object($tmp->trnData->trStatus[0])) {
         $this->trStatus = $tmp->trnData->trStatus[0];
         $this->reID = @$tmp->trnData->reID;
         $this->acID = @$tmp->trnData->acID;
       }
       return TRUE;
     } else {
-      if ( @is_object($this->xmlResult->response->result->extValue->reason[0]) )
+      if (@is_object($this->xmlResult->response->result->extValue->reason[0]))
         $this->svMsg = $this->xmlResult->response->result->extValue->reason[0];
       return FALSE;
     }
@@ -1155,11 +1305,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     if ($authinfo === null) {
       $authinfo = $this->authinfo;
     } else {
-      // in version 5.2.3 the 4th parameter "double_encode" was added
-      if (PHP_VERSION_ID < 50203)
-        $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8');
-      else
-        $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8', false);
+      // in PHP 5.2.3 the 4th parameter "double_encode" was added
+      $authinfo = htmlspecialchars($authinfo, ENT_COMPAT, 'UTF-8', false);
     }
     if ($authinfo == "") {
       $this->setError("Operation not allowed, state the domain authinfo!");
@@ -1171,17 +1318,17 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('operation', $operation);
     $this->client->assign('domain', $domain);
     $this->client->assign('authinfo', $authinfo);
-    if ( ! empty($newregistrant) )
+    if ( ! empty($newregistrant))
       $this->client->assign('newregistrant', $newregistrant);
-    if ( empty($newauthinfo) )
+    if (empty($newauthinfo))
       $this->client->assign('newauthinfo', $this->authinfo());
     else
       $this->client->assign('newauthinfo', $newauthinfo);
-    $this->xmlQuery = $this->client->fetch("transfer-domain");
+    $this->xmlQuery = $this->client->fetch("domain-transfer");
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("transfer-domain-".$operation, $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-transfer-".$operation, $domain, ($this->debug >= LOG_DEBUG));
   }
 
   /**

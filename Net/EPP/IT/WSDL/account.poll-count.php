@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll-count.php 162 2010-10-18 00:27:43Z gunny $
+ * $Id: account.poll-count.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -49,10 +49,11 @@ $server->register(
   // INPUT
   array(),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'count'             => 'xsd:int',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'count'             => 'xsd:int',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -74,7 +75,7 @@ function PollMessageCount() {
   $c = new Net_EPP_IT_WSDL();
 
   // connect and retrieve queue length
-  if ( $c->connect() )
+  if ($c->connect())
     $count = $c->session->pollMessageCount();
   else
     $count = "";
@@ -83,9 +84,9 @@ function PollMessageCount() {
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'count'             => $count,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'count'             => $count,
+  );
 }
-

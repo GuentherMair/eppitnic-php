@@ -11,7 +11,7 @@ require_once 'libs/nusoap/nusoap.php';
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,7 @@ require_once 'libs/nusoap/nusoap.php';
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
  * $Id: account.poll.req.php 210 2010-10-25 11:50:40Z gunny $
@@ -52,16 +52,19 @@ if ($err) {
   exit;
 }
 
-$input = array('msgID' => null,
-               'store' => TRUE,
-               'type'  => "ack");
+$input = array(
+  'msgID' => null,
+  'store' => TRUE,
+  'type'  => "ack",
+);
+
 $output = $client->call('Poll', $input);
 
-if ( $client->fault ) {
+if ($client->fault) {
   print_r($output);
 } else {
   $err = $client->getError();
-  if ( $err ) {
+  if ($err) {
     echo "Error: ".$err."\n";
     echo "\n";
     // Display the input array
@@ -92,4 +95,3 @@ if ( $client->fault ) {
     print_r($output);
   }
 }
- 

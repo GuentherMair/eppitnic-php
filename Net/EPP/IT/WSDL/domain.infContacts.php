@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,12 +34,11 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
  * $Id: domain.info.php 176 2010-10-19 19:28:28Z gunny $
  */
-
 
 //
 // see http://stackoverflow.com/questions/6986350/generating-wsdl-with-nusoap-return-struct-with-various-types-int-string-arr
@@ -237,12 +236,15 @@ $server->register(
   // METHOD
   'DomainInfContacts',
   // INPUT
-  array('domain'            => 'xsd:string',
-        'authInfo'          => 'xsd:string',
-        'type'              => 'xsd:string',
-        ),
+  array(
+    'domain'            => 'xsd:string',
+    'authInfo'          => 'xsd:string',
+    'type'              => 'xsd:string',
+  ),
   // OUTPUT
-  array('return'            => 'tns:DomainInfContactsResponseObject'),
+  array(
+    'return'            => 'tns:DomainInfContactsResponseObject'
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -264,8 +266,8 @@ function DomainInfContacts($domain, $authInfo, $type) {
   $c = new Net_EPP_IT_WSDL();
 
   // connect and get data
-  if ( $c->connect() )
-    if ( ! $c->domain->fetch($domain, $authInfo, $type) )
+  if ($c->connect())
+    if ( ! $c->domain->fetch($domain, $authInfo, $type))
       $c->createErrMsg($c->domain, 4001);
 
   // disconnect
@@ -274,8 +276,8 @@ function DomainInfContacts($domain, $authInfo, $type) {
   // build tech strings
   $tech = $c->domain->get('tech');
   $i = 1;
-  if ( is_array($tech) ) {
-    foreach ( $tech as $key => $value ) {
+  if (is_array($tech)) {
+    foreach ($tech as $key => $value) {
       $name = 'tech'.$i++;
       $$name = $key;
     }
@@ -283,7 +285,7 @@ function DomainInfContacts($domain, $authInfo, $type) {
     $tech1 = $tech;
     $i = 2;
   }
-  for ( ; $i <= 6; $i++ ) {
+  for (; $i <= 6; $i++) {
     $name = 'tech'.$i;
     $$name = '';
   }
@@ -295,12 +297,12 @@ function DomainInfContacts($domain, $authInfo, $type) {
     $name = 'ns'.$i;
     $nameIP = 'ns'.$i++.'ip';
     $$name = $single_ns['name'];
-    if ( isset($single_ns['ip'][0]['address']) )
+    if (isset($single_ns['ip'][0]['address']))
       $$nameIP = $single_ns['ip'][0]['address'];
     else
       $$nameIP = '';
   }
-  for ( ; $i <= 6; $i++ ) {
+  for (; $i <= 6; $i++) {
     $name = 'ns'.$i;
     $nameIP = 'ns'.$i.'ip';
     $$name = '';
@@ -343,4 +345,3 @@ function DomainInfContacts($domain, $authInfo, $type) {
   // return values as defined by the SOAP interface description above
   return $infContactsObj;
 }
-

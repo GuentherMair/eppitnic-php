@@ -1,5 +1,5 @@
 --
--- $Id: mysql-5.0-schema.sql 432 2012-08-16 14:18:57Z gunny $
+-- $Id: mysql-5.0-schema.sql 504 2017-05-17 19:41:26Z gunny $
 --
 create table tbl_users (
   id                    serial,
@@ -25,7 +25,7 @@ create table tbl_transactions (
 create table tbl_responses (
   id                    serial,
   clTRID                varchar(32),
-  svTRID                varchar(32),
+  svTRID                varchar(64),
   svEPPCode             varchar(4),
   status                tinyint unsigned,
   svHTTPCode            smallint unsigned,
@@ -38,7 +38,7 @@ create table tbl_responses (
 create table tbl_msgqueue (
   id                    serial,
   clTRID                varchar(32),
-  svTRID                varchar(32),
+  svTRID                varchar(64),
   svCode                varchar(4),
   status                tinyint unsigned,
   svHTTPCode            smallint unsigned,
@@ -83,6 +83,7 @@ create table tbl_domains (
   registrant            varchar(32) NOT NULL,
   admin                 varchar(32),
   tech                  text,
+  dnssec		text,
   authinfo              varchar(64),
   lastInvoice           timestamp DEFAULT CURRENT_TIMESTAMP,
   active                tinyint DEFAULT 1,
@@ -108,7 +109,7 @@ create table tbl_transfers (
 create table tbl_messages (
   id                    serial,
   clTRID                varchar(32),
-  svTRID                varchar(32),
+  svTRID                varchar(64),
   type                  varchar(64) NOT NULL,
   domain                varchar(255),
   acID                  varchar(255),

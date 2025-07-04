@@ -1,3 +1,27 @@
+Version 6.0
+===========
+All code and examples updated to be usable with PHP 7. Some code cleanup was
+done and examples divided into more generic CLI tools and "examples".
+
+Support added for use with IT-NIC's upcoming DNSSEC implementation.
+
+IMPORTANT: as part of the code cleanup Smarty 2 and ADOdb have been removed.
+This now implies usage of a PHP release greater or equal 5.3!
+
+
+Version 6.0-beta1
+=================
+All code and examples updated to be usable with PHP 7. Some code cleanup was
+done and examples divided into more generic CLI tools and "examples".
+
+Configuration prepared for use with IT-NIC's upcoming DNSSEC implementation.
+Code and DB support for DNSSEC is still missing but should be there for the
+final 6.0 release.
+
+IMPORTANT: as part of the code cleanup Smarty 2 and ADOdb have been removed.
+This now implies usage of a PHP release greater or equal 5.3!
+
+
 Version 5.3
 ===========
 Contact objects now allow for "entitytype = 0" (for example a TECHC without

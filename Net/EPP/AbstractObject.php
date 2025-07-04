@@ -11,11 +11,11 @@ require_once 'Net/EPP/log_severity.php';
  *  - a generic ExecuteQuery method
  *  - generic error code handlers (getter and setter)
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,10 +44,10 @@ require_once 'Net/EPP/log_severity.php';
  *
  * @category    Net
  * @package     Net_EPP_AbstractObject
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: AbstractObject.php 449 2013-08-16 14:34:22Z gunny $
+ * $Id: AbstractObject.php 520 2017-05-19 09:31:37Z gunny $
  */
 abstract class Net_EPP_AbstractObject
 {
@@ -465,12 +465,81 @@ abstract class Net_EPP_AbstractObject
    * Class constructor
    *
    * @access   public
-   * @param    Net_EPP_IT_Client            client class
-   * @param    Net_EPP_IT_StorageInterface  storage class
+   * @param    Net_EPP_IT_Client         client class
+   * @param    Net_EPP_StorageInterface  storage class
    */
   public function __construct(&$client, &$storage) {
     $this->client  = $client;
     $this->storage = $storage;
+  }
+
+  /**
+   * Class as a string
+   *
+   * @access   public
+   * @return   text    class settings
+   */
+  public function __toString() {
+    $class = get_class($this);
+    $text = "[{$class}] variables:\n";
+
+    try {
+      $rc = new ReflectionClass($this);
+
+      $props = $rc->getProperties(
+        ReflectionProperty::IS_PUBLIC |
+        ReflectionProperty::IS_PROTECTED);
+
+      foreach ($props as $prop) {
+        $prop->setAccessible(true);
+        $name = $prop->getName();
+        $value = $prop->getValue($this);
+
+        // don't dump parent class elements
+        if ($prop->getDeclaringClass()->getName() != $class)
+          continue;
+
+        // don't dump objects
+        if (is_object($value))
+          continue;
+
+        // don't dump "initial" variables
+        if (substr($name, -8) == '_initial')
+          continue;
+
+        // don't dump other special variables
+        if (in_array($name, array('changes', 'max_check', 'userid')))
+          continue;
+
+        // these are the one's to show
+        if ($value === 0) {
+          $realvalue = 0;
+        } else if (empty($value)) {
+          $realvalue = "[empty]";
+        } else if (is_array($value)) {
+          $names = array();
+          foreach ($value as $key => $element) {
+            if (is_array($element)) {
+              $subnames = array();
+              foreach ($element as $subkey => $subelement)
+                $subnames[] = (string)$subkey . ": " . (string)$subelement;
+              $names[] = (string)$key . ": [" . implode(", ", $subnames) . "]";
+            } else {
+              $names[] = (string)$key . ": " . (string)$element;
+            }
+          }
+          $realvalue = implode(", ", $names);
+        } else {
+          $realvalue = $value;
+        }
+
+        // add information
+        $text .= " - {$name}: {$realvalue}\n";
+      }
+    } catch (Exception $e) {
+      $text .= $e->getMessage();
+    }
+    return $text;
   }
 
   /**
@@ -538,13 +607,13 @@ abstract class Net_EPP_AbstractObject
     $msg = "";
 
     // only try to set a message text if we got a EPP error message
-    if ( !empty($this->svCode) ) {
+    if ( ! empty($this->svCode)) {
       $msg = " EPP code '".$this->svCode."': ".$this->svMsg;
-      if ( !empty($this->extValueReason) )
+      if ( ! empty($this->extValueReason))
         $msg .= " / extended reason '".$this->extValueReasonCode."': ".$this->extValueReason;
     }
 
-    if ( $this->debug == LOG_DEBUG )
+    if ($this->debug == LOG_DEBUG)
       $msg = "Generic error (if set):\n".
              "-----------------------\n".
              $msg."\n".
@@ -571,7 +640,7 @@ abstract class Net_EPP_AbstractObject
    */
   protected function ExecuteQuery($clTRType, $clTRObject, $store = TRUE) {
     // store request
-    if ( $store )
+    if ($store)
       $this->storage->storeTransaction(
         $this->client->get_clTRID(),
         $clTRType,
@@ -583,17 +652,16 @@ abstract class Net_EPP_AbstractObject
     $this->xmlResult = $this->client->parseResponse($this->result['body']);
 
     // look for a server response code
-    if ( is_object($this->xmlResult->response->result) ) {
-
+    if (is_object($this->xmlResult->response->result)) {
       // look for a server message
-      if ( is_object($this->xmlResult->response->result->msg) )
+      if (is_object($this->xmlResult->response->result->msg))
         $this->svMsg = (string)$this->xmlResult->response->result->msg;
       else
         $this->svMsg = "";
 
       // look for a server message code
       $this->svCode = (string)$this->xmlResult->response->result['code'];
-      switch ( substr($this->svCode, 0, 1) ) {
+      switch (substr($this->svCode, 0, 1)) {
         case "1":
           $return_code = TRUE;
           break;
@@ -604,7 +672,7 @@ abstract class Net_EPP_AbstractObject
       }
 
       // look for an extended server error message and code
-      if ( is_object($this->xmlResult->response->result->extValue->reason) ) {
+      if (is_object($this->xmlResult->response->result->extValue->reason)) {
         $ns = $this->xmlResult->getNamespaces(TRUE);
         $tmp = $this->xmlResult->response->result->extValue->value->children($ns['extepp']);
         $this->extValueReasonCode = (string)$tmp->reasonCode;
@@ -613,20 +681,19 @@ abstract class Net_EPP_AbstractObject
         $this->extValueReasonCode = '';
         $this->extValueReason = '';
       }
-
     } else {
       $this->setError("Unexpected result (no xml response code).");
       $return_code = FALSE;
     }
 
     // look for a server transaction ID
-    if ( isset($this->xmlResult->response->trID->svTRID) && is_object($this->xmlResult->response->trID->svTRID) )
-      $this->svTRID = $this->xmlResult->response->trID->svTRID;
+    if (isset($this->xmlResult->response->trID->svTRID) && is_object($this->xmlResult->response->trID->svTRID))
+      $this->svTRID = (string)$this->xmlResult->response->trID->svTRID;
     else
       $this->svTRID = "";
 
     // store response
-    if ( $store )
+    if ($store)
       $this->storage->storeResponse(
         $this->client->get_clTRID(),
         $this->svTRID,
@@ -638,6 +705,4 @@ abstract class Net_EPP_AbstractObject
 
     return $return_code;
   }
-
 }
-

@@ -1,7 +1,7 @@
 <?php
 
 require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/IT/StorageDB.php';
+require_once 'Net/EPP/StorageDB.php';
 require_once 'Net/EPP/IT/Session.php';
 require_once 'Net/EPP/IT/Contact.php';
 require_once 'Net/EPP/IT/Domain.php';
@@ -9,11 +9,11 @@ require_once 'Net/EPP/IT/Domain.php';
 /**
  * This file provides a generic infrastructure to the WSDL interface.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,10 @@ require_once 'Net/EPP/IT/Domain.php';
  *
  * @category    Net
  * @package     Net_EPP_IT_WSDL
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: WSDL.php 365 2011-06-06 13:27:47Z gunny $
+ * $Id: WSDL.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 class Net_EPP_IT_WSDL
@@ -67,12 +67,12 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function __construct($cfg = null) {
-    if ( $cfg === null )
+    if ($cfg === null)
       $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
 
     // create EPP objects
     $this->nic = new Net_EPP_Client($cfg);
-    $this->db = new Net_EPP_IT_StorageDB($this->nic->EPPCfg->adodb);
+    $this->db = new Net_EPP_StorageDB($this->nic->EPPCfg->db);
     $this->session = new Net_EPP_IT_Session($this->nic, $this->db);
     $this->session->debug = LOG_DEBUG;
     $this->contact = new Net_EPP_IT_Contact($this->nic, $this->db);
@@ -111,7 +111,7 @@ class Net_EPP_IT_WSDL
     global $soapState;
     $debug = debug_backtrace();
 
-    if ( $this->statusCode < 3000 )
+    if ($this->statusCode < 3000)
       return $soapState['generic'][$this->statusCode] . $this->statusMsg;
     else
       return $soapState[$debug[1]['function']][$this->statusCode] . $this->statusMsg;
@@ -124,11 +124,11 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function connect() {
-    if ( ! is_writeable($this->nic->compile_dir) )
+    if ( ! is_writeable($this->nic->compile_dir))
       $this->createErrMsg($this->session, 2004); // smarty compile folder not writeable!
-    else if ( ! $this->session->hello() )
+    else if ( ! $this->session->hello())
       $this->createErrMsg($this->session, 2002); // connection failed
-    else if ( $this->session->login() === FALSE )
+    else if ($this->session->login() === FALSE)
       $this->createErrMsg($this->session, 2001); // login failed
     else
       $this->connected = TRUE;
@@ -142,7 +142,7 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function disconnect() {
-    if ( $this->connected && ! $this->session->logout() )
+    if ($this->connected && ! $this->session->logout())
       return FALSE;
     else
       return TRUE;

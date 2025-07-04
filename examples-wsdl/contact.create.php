@@ -11,7 +11,7 @@ require_once 'libs/nusoap/nusoap.php';
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,10 +38,10 @@ require_once 'libs/nusoap/nusoap.php';
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: contact.create.php 210 2010-10-25 11:50:40Z gunny $
+ * $Id: contact.create.php 492 2017-02-13 07:09:30Z gunny $
  */
 
 $client = new nusoap_client('http://127.0.0.1:8090/wsdl.php?wsdl', true);
@@ -52,25 +52,27 @@ if ($err) {
   exit;
 }
 
-$input = array('handle' => 'GMHNDL0001',
-               'name' => 'Günther Mair',
-               'street' => 'Andrianer Str. 7/G',
-               'city' => 'Nals',
-               'cc' => 'IT',
-               'sp' => 'BZ',
-               'pc' => '39010',
-               'regCode' => '02509280216',
-               'voice' => '+39.3486914569',
-               'email' => 'guenther.mair@hoslo.ch',
-               'nationalityCode' => 'IT',
-               );
+$input = array(
+  'handle' => 'GMHNDL0001',
+  'name' => 'Günther Mair',
+  'street' => 'Andrianer Str. 7/G',
+  'city' => 'Nals',
+  'cc' => 'IT',
+  'sp' => 'BZ',
+  'pc' => '39010',
+  'regCode' => '02509280216',
+  'voice' => '+39.3486914569',
+  'email' => 'info@inet-services.it',
+  'nationalityCode' => 'IT',
+);
+
 $output = $client->call('ContactCreate', $input);
 
-if ( $client->fault ) {
+if ($client->fault) {
   print_r($output);
 } else {
   $err = $client->getError();
-  if ( $err ) {
+  if ($err) {
     echo "Error: ".$err."\n";
     echo "\n";
     // Display the input array
@@ -101,4 +103,3 @@ if ( $client->fault ) {
     print_r($output);
   }
 }
- 

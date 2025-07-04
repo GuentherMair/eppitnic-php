@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.changeRegistrant.php 352 2011-05-23 21:19:50Z gunny $
+ * $Id: domain.changeRegistrant.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,16 +47,18 @@ $server->register(
   // METHOD
   'DomainChangeRegistrant',
   // INPUT
-  array('domain'            => 'xsd:string',
-        'registrant'        => 'xsd:string',
-        'authInfo'          => 'xsd:string',
-        ),
+  array(
+    'domain'            => 'xsd:string',
+    'registrant'        => 'xsd:string',
+    'authInfo'          => 'xsd:string',
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'domain'            => 'xsd:string',
-        'authInfo'          => 'xsd:string',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'domain'            => 'xsd:string',
+    'authInfo'          => 'xsd:string',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -80,29 +82,29 @@ function DomainChangeRegistrant($domain,
   $c = new Net_EPP_IT_WSDL();
 
   // check if domain was set
-  if ( empty($domain) )
+  if (empty($domain))
     $c->statusCode = 2003;
 
   // connect
-  if ( $c->statusCode == 1000 )
+  if ($c->statusCode == 1000)
     $c->connect();
 
   // check domain
-  if ( ($c->statusCode == 1000) && $c->domain->check($domain) )
+  if (($c->statusCode == 1000) && $c->domain->check($domain))
     $c->statusCode = 4002;
 
   // get domain
-  if ( ($c->statusCode == 1000) && ! $c->domain->fetch($domain) )
+  if (($c->statusCode == 1000) && ! $c->domain->fetch($domain))
     $c->statusCode = 4003;
 
   // update domain
-  if ( $c->statusCode == 1000 ) {
+  if ($c->statusCode == 1000) {
 
-    if ( !empty($domain) )     $c->domain->set('domain',     $domain);
-    if ( !empty($registrant) ) $c->domain->set('registrant', $registrant);
-    if ( !empty($authInfo) )   $c->domain->set('authinfo',   $authInfo);
+    if ( ! empty($domain))     $c->domain->set('domain',     $domain);
+    if ( ! empty($registrant)) $c->domain->set('registrant', $registrant);
+    if ( ! empty($authInfo))   $c->domain->set('authinfo',   $authInfo);
 
-    if ( ! $c->domain->updateRegistrant() )
+    if ( ! $c->domain->updateRegistrant())
       $c->createErrMsg($c->domain, 4001);
   }
 
@@ -110,10 +112,10 @@ function DomainChangeRegistrant($domain,
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'domain'            => $domain,
-               'authInfo'          => $authInfo,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'domain'            => $domain,
+    'authInfo'          => $authInfo,
+  );
 }
-

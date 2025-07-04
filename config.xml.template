@@ -5,9 +5,16 @@
   <debugfile></debugfile>
   <username>USERNAME</username>
   <password>PASSWORD</password>
+  <passwordexpirydays>120</passwordexpirydays>
+  <passwordexpirynext>1234567890</passwordexpirynext>
   <timezone>Europe/Rome</timezone>
   <interface></interface>
   <lang>en</lang>
+  <dnssec>
+    <active>0</active>
+    <algorithm>10</algorithm>
+    <digesttype>2</digesttype>
+  </dnssec>
   <clTRIDprefix>CLTRIDPREFIX</clTRIDprefix>
   <cookie_dir>/tmp</cookie_dir>
   <smarty>
@@ -18,7 +25,7 @@
     <compile_dir></compile_dir>
     <cache_dir></cache_dir>
   </smarty>
-  <adodb>
+  <db>
     <dbtype>mysql</dbtype>
     <dbhost>localhost</dbhost>
     <dbname>DBNAME</dbname>
@@ -26,7 +33,7 @@
     <dbpwd>DBPWD</dbpwd>
     <dbforcequotes>0</dbforcequotes>
     <dbmagicquotes>1</dbmagicquotes>
-  </adodb>
+  </db>
   <webinterface>
     <handleprefix>HANDLEPREFIX-</handleprefix>
     <locale>it_IT</locale>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <update>
+      <domain:update xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
+                     xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+        <domain:name>{$domain}</domain:name>
+        {if $nameservers_add_num > 0 or $admin_add ne "" or $tech_add_num > 0}
+        <domain:add>
+          {if $nameservers_add_num > 0}
+          <domain:ns>
+            {foreach from=$nameservers_add item=ns}
+            <domain:hostAttr>
+              <domain:hostName>{$ns.name}</domain:hostName>
+              {foreach from=$ns.ip item=ip}
+              <domain:hostAddr ip="{$ip.type}">{$ip.address}</domain:hostAddr>
+              {/foreach}
+            </domain:hostAttr>
+            {/foreach}
+          </domain:ns>
+          {/if}
+          {if $admin_add ne ""}
+          <domain:contact type="admin">{$admin_add}</domain:contact>
+          {/if}
+          {if $tech_add_num > 0}
+          {foreach from=$tech_add item=single_tech_add}
+          <domain:contact type="tech">{$single_tech_add}</domain:contact>
+          {/foreach}
+          {/if}
+        </domain:add>
+        {/if}
+        {if $nameservers_rem_num > 0 or $admin_rem ne "" or $tech_rem_num > 0}
+        <domain:rem>
+          {if $nameservers_rem_num > 0}
+          <domain:ns>
+            {foreach from=$nameservers_rem item=ns}
+            <domain:hostAttr>
+              <domain:hostName>{$ns.name}</domain:hostName>
+            </domain:hostAttr>
+            {/foreach}
+          </domain:ns>
+          {/if}
+          {if $admin_rem ne ""}
+          <domain:contact type="admin">{$admin_rem}</domain:contact>
+          {/if}
+          {if $tech_rem_num > 0}
+          {foreach from=$tech_rem item=single_tech_rem}
+          <domain:contact type="tech">{$single_tech_rem}</domain:contact>
+          {/foreach}
+          {/if}
+        </domain:rem>
+        {/if}
+        {if $registrant ne "" or $authinfo ne ""}
+        <domain:chg>
+          {if $registrant ne ""}
+          <domain:registrant>{$registrant}</domain:registrant>
+          {/if}
+          {if $authinfo ne ""}
+          <domain:authInfo>
+            <domain:pw>{$authinfo}</domain:pw>
+          </domain:authInfo>
+          {/if}
+        </domain:chg>
+        {/if}
+      </domain:update>
+    </update>
+    {if $dnssec_add_num > 0 or $dnssec_rem_num > 0}
+    <extension>
+      <secDNS:update xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        {if $dnssec_rem_num > 0}
+        <secDNS:rem>
+          {foreach $dnssec_rem as $digest => $keyinfo}
+          <secDNS:dsData>
+            <secDNS:keyTag>{$keyinfo.keytag}</secDNS:keyTag>
+            <secDNS:alg>{$keyinfo.algorithm}</secDNS:alg>
+            <secDNS:digestType>{$keyinfo.digesttype}</secDNS:digestType>
+            <secDNS:digest>{$digest}</secDNS:digest>
+          </secDNS:dsData>
+          {/foreach}
+        </secDNS:rem>
+        {/if}
+        {if $dnssec_add_num > 0}
+        <secDNS:add>
+          {foreach $dnssec_add as $digest => $keyinfo}
+          <secDNS:dsData>
+            <secDNS:keyTag>{$keyinfo.keytag}</secDNS:keyTag>
+            <secDNS:alg>{$keyinfo.algorithm}</secDNS:alg>
+            <secDNS:digestType>{$keyinfo.digesttype}</secDNS:digestType>
+            <secDNS:digest>{$digest}</secDNS:digest>
+          </secDNS:dsData>
+          {/foreach}
+        </secDNS:add>
+        {/if}
+      </secDNS:update>
+    </extension>
+    {/if}
+    <clTRID>{$clTRID}</clTRID>
+  </command>
+</epp>

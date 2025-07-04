@@ -11,7 +11,7 @@ require_once 'libs/nusoap/nusoap.php';
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,10 +38,10 @@ require_once 'libs/nusoap/nusoap.php';
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: contact.update.php 210 2010-10-25 11:50:40Z gunny $
+ * $Id: contact.update.php 492 2017-02-13 07:09:30Z gunny $
  */
 
 $client = new nusoap_client('http://127.0.0.1:8090/wsdl.php?wsdl', true);
@@ -52,21 +52,23 @@ if ($err) {
   exit;
 }
 
-$input = array('handle' => 'GMHNDL0001',
-               'street' => 'Andrianer Straße 7/G',
-               'street2' => 'via Andriano 7/G',
-               'fax' => '+39.0123456789',
-               'entityType' => '2',
-               'nationalityCode' => 'IT',
-               'regCode' => '02509280216',
-               );
+$input = array(
+  'handle' => 'GMHNDL0001',
+  'street' => 'Andrianer Straße 7/G',
+  'street2' => 'via Andriano 7/G',
+  'fax' => '+39.0123456789',
+  'entityType' => '2',
+  'nationalityCode' => 'IT',
+  'regCode' => '02509280216',
+);
+
 $output = $client->call('ContactUpdate', $input);
 
-if ( $client->fault ) {
+if ($client->fault) {
   print_r($output);
 } else {
   $err = $client->getError();
-  if ( $err ) {
+  if ($err) {
     echo "Error: ".$err."\n";
     echo "\n";
     // Display the input array
@@ -97,4 +99,3 @@ if ( $client->fault ) {
     print_r($output);
   }
 }
- 

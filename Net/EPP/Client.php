@@ -3,11 +3,11 @@
 /**
  * A simple class handling the EPP communication through cURL.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,16 +36,16 @@
  *
  * @category    Net
  * @package     Net_EPP_Client
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Client.php 422 2012-06-18 08:14:29Z gunny $
+ * $Id: Client.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /**
  * define the PHP_VERSION_ID (predefined as of 5.2.7)
  */
-if (!defined('PHP_VERSION_ID')) {
+if ( ! defined('PHP_VERSION_ID')) {
   $version = explode('.', PHP_VERSION);
   define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
 }
@@ -55,8 +55,11 @@ if (!defined('PHP_VERSION_ID')) {
  * simplexml_load_string, simplexml_load_file, this won't work
  * with PHP < 5
  */
-if ( PHP_VERSION_ID < 50000 ) {
-  echo "This class (" . __FILE__ . ") requires PHP5 at least!\n";
+if (PHP_VERSION_ID < 50300) {
+  $major = (int)floor(PHP_VERSION_ID / 10000);
+  $minor = (int)floor((PHP_VERSION_ID % 10000) / 100);
+  $rev = (int)(PHP_VERSION_ID % 100);
+  echo "This class (" . __FILE__ . ") requires at least PHP 5.3 (Smarty 3 and other limitations). You are running PHP ${major}.${minor}.${rev}!\n";
   exit;
 }
 
@@ -65,16 +68,13 @@ if ( PHP_VERSION_ID < 50000 ) {
  * release from http://www.smarty.net, just bear in mind to
  * link "framework" to the "libs" subfolder!
  */
-if ( ! class_exists('Smarty') )
-  if ( PHP_VERSION_ID < 50300 )
-    require_once 'libs/smarty2/libs/Smarty.class.php';
-  else
-    require_once 'libs/smarty3/libs/Smarty.class.php';
+if ( ! class_exists('Smarty'))
+  require_once 'libs/smarty3/libs/Smarty.class.php';
 
 /**
  * Include curl class handler
  */
-if ( ! class_exists('Net_EPP_Curl') )
+if ( ! class_exists('Net_EPP_Curl'))
   require_once 'Net/EPP/Curl.php';
 
 /**
@@ -108,19 +108,19 @@ class Net_EPP_Client extends Smarty
    * @param    string  configuration file or XML configuration string
    */
   public function __construct($cfg = null) {
-    if ( $cfg === null )
+    if ($cfg === null)
       $cfg = realpath(dirname(__FILE__).'/../../config.xml');
 
-    if ( is_readable($cfg) ) {
+    if (is_readable($cfg)) {
       $this->EPPCfg = @simplexml_load_file($cfg);
     } else {
       $this->EPPCfg = @simplexml_load_string($cfg);
-      if ( $this->EPPCfg === FALSE )
+      if ($this->EPPCfg === FALSE)
         exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
     }
 
     // setup default time zone
-    if ( @isset($this->EPPCfg->timezone) )
+    if (@isset($this->EPPCfg->timezone))
       date_default_timezone_set($this->EPPCfg->timezone);
     else
       date_default_timezone_set("Europe/Rome");
@@ -129,18 +129,18 @@ class Net_EPP_Client extends Smarty
     parent::__construct();
 
     // configure smarty
-    $this->use_sub_dirs = ( @empty($this->EPPCfg->smarty->use_sub_dirs) ) ? FALSE                                                : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
-    $this->template_dir = ( @empty($this->EPPCfg->smarty->template_dir) ) ? realpath(dirname(__FILE__).'/../../templates/')      : $this->EPPCfg->smarty->template_dir;
-    $this->config_dir   = ( @empty($this->EPPCfg->smarty->config_dir) )   ? realpath(dirname(__FILE__).'/../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
-    $this->compile_dir  = ( @empty($this->EPPCfg->smarty->compile_dir) )  ? realpath(dirname(__FILE__).'/../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
-    $this->cache_dir    = ( @empty($this->EPPCfg->smarty->cache_dir) )    ? realpath(dirname(__FILE__).'/../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
+    $this->use_sub_dirs = (@empty($this->EPPCfg->smarty->use_sub_dirs)) ? FALSE                                                : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
+    $this->template_dir = (@empty($this->EPPCfg->smarty->template_dir)) ? realpath(dirname(__FILE__).'/../../templates/')      : $this->EPPCfg->smarty->template_dir;
+    $this->config_dir   = (@empty($this->EPPCfg->smarty->config_dir))   ? realpath(dirname(__FILE__).'/../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
+    $this->compile_dir  = (@empty($this->EPPCfg->smarty->compile_dir))  ? realpath(dirname(__FILE__).'/../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
+    $this->cache_dir    = (@empty($this->EPPCfg->smarty->cache_dir))    ? realpath(dirname(__FILE__).'/../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
 
     // configure temporary folder for storing curl's cookies
-    $this->curl_cookie_dir = ( @empty($this->EPPCfg->cookie_dir) ) ? '/tmp' : $this->EPPCfg->cookie_dir;
+    $this->curl_cookie_dir = (@empty($this->EPPCfg->cookie_dir)) ? '/tmp' : $this->EPPCfg->cookie_dir;
 
     // smarty minimum precaution (otherwise we could easily run into a hard to debug dead end)
-    if ( ! is_writeable($this->compile_dir) )
-      if ( is_writeable('/tmp') ) {
+    if ( ! is_writeable($this->compile_dir))
+      if (is_writeable('/tmp')) {
         // I'm not using "umask" because of the notice here: http://www.php.net/umask
         trigger_error("The folder '".$this->compile_dir."' was not writable and a failback to '/tmp' is currently active. Grant write permissions to the correct folder!", E_USER_NOTICE);
         $this->_file_perms = 0600;
@@ -155,23 +155,23 @@ class Net_EPP_Client extends Smarty
     $this->httpClient->setHeaders($this->headers);
 
     // set server port
-    if ( ! @empty($this->EPPCfg->port) )
+    if ( ! @empty($this->EPPCfg->port))
       $this->httpClient->setPort((int)$this->EPPCfg->port);
 
     // set debug filename
-    if ( ! @empty($this->EPPCfg->debugfile) )
+    if ( ! @empty($this->EPPCfg->debugfile))
       $this->httpClient->setDebugFile($this->EPPCfg->debugfile);
 
     // setup client certificate
-    if ( ! @empty($this->EPPCfg->certificatefile) ) {
-      if ( is_readable($this->EPPCfg->certificatefile) )
+    if ( ! @empty($this->EPPCfg->certificatefile)) {
+      if (is_readable($this->EPPCfg->certificatefile))
         $this->httpClient->setClientCert($this->EPPCfg->certificatefile);
-      else if ( is_readable(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile)) )
+      else if (is_readable(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile)))
         $this->httpClient->setClientCert(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile));
     }
 
     // setup leaving interface
-    if ( ! @empty($this->EPPCfg->interface) )
+    if ( ! @empty($this->EPPCfg->interface))
       $this->httpClient->setInterface($this->EPPCfg->interface);
 
     // set client transaction ID
@@ -184,7 +184,7 @@ class Net_EPP_Client extends Smarty
    * @access   public
    */
   public function clearAllAssign() {
-    if ( PHP_VERSION_ID < 50300 )
+    if (PHP_VERSION_ID < 50300)
       return parent::clear_all_assign(); // Smarty 2
     else
       return parent::clearAllAssign();   // Smarty 3
@@ -208,7 +208,7 @@ class Net_EPP_Client extends Smarty
    */
   public function set_clTRID() {
     $this->clTRID = $this->EPPCfg->clTRIDprefix."-".time()."-".substr(md5(rand()), 0, 5);
-    if ( strlen($this->clTRID) > 32 )
+    if (strlen($this->clTRID) > 32)
       $this->clTRID = substr($this->clTRID, -32);
     return $this->clTRID;
   }
@@ -256,7 +256,7 @@ class Net_EPP_Client extends Smarty
    * @return   object  xml class structure
    */
   public function parseResponse($xml = null) {
-    if ( $xml == null ) {
+    if ($xml == null) {
       $response = $this->fetchResponse();
       return @simplexml_load_string($response[body]);
     } else {
@@ -271,5 +271,4 @@ class Net_EPP_Client extends Smarty
    */
   public function __destruct() {
   }
-
 }

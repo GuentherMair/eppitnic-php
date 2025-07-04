@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: domain.check.php 164 2010-10-18 00:47:58Z gunny $
+ * $Id: domain.check.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,17 +47,19 @@ $server->register(
   // METHOD
   'DomainCheck',
   // INPUT
-  array('domain1'  => 'xsd:string',
-        'domain2'  => 'xsd:string',
-        'domain3'  => 'xsd:string',
-        'domain4'  => 'xsd:string',
-        'domain5'  => 'xsd:string',
-        ),
+  array(
+    'domain1'  => 'xsd:string',
+    'domain2'  => 'xsd:string',
+    'domain3'  => 'xsd:string',
+    'domain4'  => 'xsd:string',
+    'domain5'  => 'xsd:string',
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'DomainCheckArray'  => 'tns:DomainCheckArray',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'DomainCheckArray'  => 'tns:DomainCheckArray',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -86,41 +88,40 @@ function DomainCheck($domain1,
   $states = array();
 
   // verify that we have at least one domain
-  if ( empty($domain1) )
+  if (empty($domain1))
     $c->statusCode = 2003;
 
   // connect and check domains
-  if ( ($c->statusCode == 1000) && $c->connect() ) {
+  if (($c->statusCode == 1000) && $c->connect()) {
     $domains[] = $domain1;
     $states[] = $c->domain->check($domain1) ? "available" : "unavailable";
-    if ( !empty($domain2) ) {
+    if ( ! empty($domain2)) {
       $domains[] = $domain2;
       $states[] = $c->domain->check($domain2) ? "available" : "unavailable";
     }
-    if ( !empty($domain3) ) {
+    if ( ! empty($domain3)) {
       $domains[] = $domain3;
       $states[] = $c->contact->check($domain3) ? "available" : "unavailable";
     }
-    if ( !empty($domain4) ) {
+    if ( ! empty($domain4)) {
       $domains[] = $domain4;
       $states[] = $c->contact->check($domain4) ? "available" : "unavailable";
     }
-    if ( !empty($domain5) ) {
+    if ( ! empty($domain5)) {
       $domains[] = $domain5;
       $states[] = $c->contact->check($domain5) ? "available" : "unavailable";
     }
   }
 
-  $DomainCheckArray = array('domain' => $domains,
-                            'status' => $states);
+  $DomainCheckArray = array('domain' => $domains, 'status' => $states);
 
   // disconnect
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'DomainCheckArray'  => $DomainCheckArray,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'DomainCheckArray'  => $DomainCheckArray,
+  );
 }
-

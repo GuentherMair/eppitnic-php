@@ -23,11 +23,11 @@
  *  - getHttpBody
  *  - getHttpError
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,7 @@
  *
  * @category    Net
  * @package     Net_EPP_Curl
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
  * $Id$
@@ -92,16 +92,16 @@ class Net_EPP_Curl
     $this->_authName = $authName;
     $this->_authPass = $authPass;
 
-    if ( file_exists($this->_cookieFileLocation) )
-      if ( !is_writeable($this->_cookieFileLocation) ) 
+    if (file_exists($this->_cookieFileLocation))
+      if ( ! is_writeable($this->_cookieFileLocation))
         exit("FATAL ERROR: cookie file '".$this->_cookieFileLocation."' exists and is NOT writeable\n");
     else
-      if ( !is_writeable(dirname($this->_cookieFileLocation)) ) 
+      if ( ! is_writeable(dirname($this->_cookieFileLocation)))
         exit("FATAL ERROR: cookie file FOLDER '".dirname($this->_cookieFileLocation)."' is NOT writeable\n");
   }
 
   public function __destruct() {
-    if ( $this->_debugFile !== false )
+    if ($this->_debugFile !== false)
       fclose($this->_debugFile);
   }
 
@@ -114,7 +114,7 @@ class Net_EPP_Curl
   }
 
   public function setDebugFile($file) {
-    if ( is_writeable((file_exists($file) ? $file : dirname($file))) )
+    if (is_writeable((file_exists($file) ? $file : dirname($file))))
       $this->_debugFile = fopen($file, 'a+');
     else
       exit("FATAL ERROR: debug file '".$file."' is NOT writeable\n");
@@ -184,30 +184,30 @@ class Net_EPP_Curl
     curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent); 
     curl_setopt($ch, CURLOPT_POST, $this->_post);
 
-    if ( $postFields != null )
+    if ($postFields != null)
       curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
 
-    if ( !empty($this->_port) )
+    if ( ! empty($this->_port))
       curl_setopt($ch, CURLOPT_PORT, $this->_port);
 
-    if ( !empty($this->_interface) )
+    if ( ! empty($this->_interface))
       curl_setopt($ch, CURLOPT_INTERFACE, $this->_interface);
 
-    if ( !empty($this->_referer) )
+    if ( ! empty($this->_referer))
       curl_setopt($ch, CURLOPT_REFERER, $this->_referer);
 
-    if ( $this->_binaryTransfer )
+    if ($this->_binaryTransfer)
       curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
 
-    if ( !empty($this->_authName) )
+    if ( ! empty($this->_authName))
       curl_setopt($ch, CURLOPT_USERPWD, $this->_authName.':'.$this->_authPass);
 
-    if ( !empty($this->_certFile) ) {
+    if ( ! empty($this->_certFile)) {
       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
       curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
     }
 
-    if ( $this->_debugFile !== false ) {
+    if ($this->_debugFile !== false) {
       curl_setopt($ch, CURLINFO_HEADER_OUT, 1);
       curl_setopt($ch, CURLOPT_VERBOSE, true);
       curl_setopt($ch, CURLOPT_STDERR, $this->_debugFile);
@@ -218,7 +218,7 @@ class Net_EPP_Curl
     $this->_status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $this->_headers = substr($response, 0, $header_size);
     $this->_body = substr($response, $header_size);
-    $this->_error = ( $response === false ) ? curl_error($ch) : "";
+    $this->_error = ($response === false) ? curl_error($ch) : "";
     $header_out = curl_getinfo($ch, CURLINFO_HEADER_OUT);
     curl_close($ch);
 

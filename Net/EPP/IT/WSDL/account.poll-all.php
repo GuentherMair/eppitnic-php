@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: account.poll-all.php 370 2011-06-10 12:38:29Z gunny $
+ * $Id: account.poll-all.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,13 +47,15 @@ $server->register(
   // METHOD
   'PollAll',
   // INPUT
-  array('store'             => 'xsd:string',
-        ),
+  array(
+    'store'             => 'xsd:string',
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'MessageQueueArray' => 'tns:MessageQueueArray',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'MessageQueueArray' => 'tns:MessageQueueArray',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -79,9 +81,9 @@ function PollAll($store = "true") {
   $MessageQueueArray = array();
 
   // connect
-  if ( $c->connect() ) {
+  if ($c->connect()) {
     // retrieve queue length
-    if ( $c->session->pollMessageCount() == 0 ) {
+    if ($c->session->pollMessageCount() == 0) {
       $c->statusCode = 3001;
     } else {
       $msgID = array();
@@ -89,8 +91,8 @@ function PollAll($store = "true") {
       $xmlResponse = array();
 
       // poll queue
-      while ( $c->session->pollMessageCount() > 0 ) {
-        if ( $c->session->poll(FALSE, "req") ) {
+      while ($c->session->pollMessageCount() > 0) {
+        if ($c->session->poll(FALSE, "req")) {
           $msgID[] = $c->session->pollID();
           $msgTitle[] = $c->session->get('msgTitle');
           $xmlResponse[] = base64_encode($c->session->result['body']);
@@ -111,9 +113,9 @@ function PollAll($store = "true") {
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'MessageQueueArray' => $MessageQueueArray,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'MessageQueueArray' => $MessageQueueArray,
+  );
 }
-

@@ -4,7 +4,7 @@ REQUIREMENTS
 1) PHP5 (PHP4 won't work!!)
 2) CURL support for PHP (handling HTTP session and cookies)
 3) either a MySQL database or another database including a new class deriving
-   from Net_EPP_IT_StorageInterface to handle this database
+   from Net_EPP_StorageInterface to handle this database
 4) if using the WSDL service, make sure you give the webserver appropriate
    rights to the smarty/compile folder!
 
@@ -50,4 +50,4 @@ F) WSDL interface (see examples-wsdl/ and docs/ folder)
 
 ==
 
-$Id: README 389 2011-09-14 15:26:04Z gunny $
+$Id: README 463 2017-02-07 18:55:25Z gunny $

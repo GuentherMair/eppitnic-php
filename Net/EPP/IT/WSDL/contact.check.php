@@ -3,11 +3,11 @@
 /**
  * This file is part of the WSDL interface to the EPP library.
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,10 +34,10 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  *
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: contact.check.php 163 2010-10-18 00:44:24Z gunny $
+ * $Id: contact.check.php 463 2017-02-07 18:55:25Z gunny $
  */
 
 /*
@@ -47,17 +47,19 @@ $server->register(
   // METHOD
   'ContactCheck',
   // INPUT
-  array('handle1'           => 'xsd:string',
-        'handle2'           => 'xsd:string',
-        'handle3'           => 'xsd:string',
-        'handle4'           => 'xsd:string',
-        'handle5'           => 'xsd:string',
-        ),
+  array(
+    'handle1'           => 'xsd:string',
+    'handle2'           => 'xsd:string',
+    'handle3'           => 'xsd:string',
+    'handle4'           => 'xsd:string',
+    'handle5'           => 'xsd:string',
+  ),
   // OUTPUT
-  array('status'            => 'xsd:int',
-        'statusDescription' => 'xsd:string',
-        'ContactCheckArray' => 'tns:ContactCheckArray',
-        ),
+  array(
+    'status'            => 'xsd:int',
+    'statusDescription' => 'xsd:string',
+    'ContactCheckArray' => 'tns:ContactCheckArray',
+  ),
   // NAMESPACE
   'urn:'.$wsdl_ns,
   // SOAPACTION (Endpoint/Methodname)
@@ -86,41 +88,40 @@ function ContactCheck($handle1,
   $states = array();
 
   // verify that we have at least one handle
-  if ( empty($handle1) )
+  if (empty($handle1))
     $c->statusCode = 2003;
 
   // connect and check contacts
-  if ( ($c->statusCode == 1000) && $c->connect() ) {
+  if (($c->statusCode == 1000) && $c->connect()) {
     $contacts[] = $handle1;
     $states[] = $c->contact->check($handle1) ? "available" : "unavailable";
-    if ( !empty($handle2) ) {
+    if ( ! empty($handle2)) {
       $contacts[] = $handle2;
       $states[] = $c->contact->check($handle2) ? "available" : "unavailable";
     }
-    if ( !empty($handle3) ) {
+    if ( ! empty($handle3)) {
       $contacts[] = $handle3;
       $states[] = $c->contact->check($handle3) ? "available" : "unavailable";
     }
-    if ( !empty($handle4) ) {
+    if ( ! empty($handle4)) {
       $contacts[] = $handle4;
       $states[] = $c->contact->check($handle4) ? "available" : "unavailable";
     }
-    if ( !empty($handle5) ) {
+    if ( ! empty($handle5)) {
       $contacts[] = $handle5;
       $states[] = $c->contact->check($handle5) ? "available" : "unavailable";
     }
   }
 
-  $ContactCheckArray = array('contact' => $contacts,
-                             'status'  => $states);
+  $ContactCheckArray = array('contact' => $contacts, 'status'  => $states);
 
   // disconnect
   $c->disconnect();
 
   // return values as defined by the SOAP interface description above
-  return array('status'            => $c->statusCode,
-               'statusDescription' => $c->statusDescription(),
-               'ContactCheckArray' => $ContactCheckArray,
-               );
+  return array(
+    'status'            => $c->statusCode,
+    'statusDescription' => $c->statusDescription(),
+    'ContactCheckArray' => $ContactCheckArray,
+  );
 }
-

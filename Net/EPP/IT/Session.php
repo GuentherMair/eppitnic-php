@@ -15,11 +15,11 @@ require_once 'Net/EPP/AbstractObject.php';
  *  - poll
  *  - showCredit
  *
- * PHP version 5
+ * PHP version 5.3
  *
  * LICENSE:
  *
- * Copyright (c) 2009, Günther Mair <guenther.mair@hoslo.ch>
+ * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,10 +48,10 @@ require_once 'Net/EPP/AbstractObject.php';
  *
  * @category    Net
  * @package     Net_EPP_IT_Session
- * @author      Günther Mair <guenther.mair@hoslo.ch>
+ * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  *
- * $Id: Session.php 411 2012-05-18 13:15:17Z gunny $
+ * $Id: Session.php 522 2017-05-19 10:29:34Z gunny $
  */
 class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 {
@@ -59,6 +59,16 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   protected $messages = null;
   protected $msgID = null;
   protected $msgTitle = null;
+
+  /**
+   * Class as a string
+   *
+   * @access   public
+   * @return   text    credit
+   */
+  public function __toString() {
+    return sprintf("%.2f", $this->credit);
+  }
 
   /**
    * get a single variable/setting from class
@@ -79,15 +89,14 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
    */
   public function hello() {
     // fill xml template
-    $this->xmlQuery = $this->client->fetch("hello");
+    $this->xmlQuery = $this->client->fetch("session-hello");
     $this->client->clearAllAssign();
 
     // query server (will return false)
-    $this->ExecuteQuery("hello", "", ($this->debug >= LOG_DEBUG));
+    $this->ExecuteQuery("session-hello", "", ($this->debug >= LOG_DEBUG));
 
     // this is the only query with no result code
-    if ( (substr($this->result['code'], 0, 1) == "2") &&
-         (is_object($this->xmlResult->greeting)) ) {
+    if ((substr($this->result['code'], 0, 1) == "2") && (is_object($this->xmlResult->greeting))) {
       return TRUE;
     } else {
       return FALSE;
@@ -107,9 +116,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ( $this->ExecuteQuery($which, "", ($this->debug >= LOG_DEBUG)) ) {
+    if ($this->ExecuteQuery($which, "", ($this->debug >= LOG_DEBUG))) {
       // see if we got the expected information
-      if ( is_object($this->xmlResult->response->extension) ) {
+      if (is_object($this->xmlResult->response->extension)) {
         $ns = $this->xmlResult->getNamespaces(TRUE);
         $tmp = $this->xmlResult->response->extension->children($ns['extepp']);
         $this->credit = (float)$tmp->creditMsgData->credit;
@@ -132,9 +141,10 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     $this->client->assign('username', $this->client->EPPCfg->username);
     $this->client->assign('password', $this->client->EPPCfg->password);
     $this->client->assign('lang', $this->client->EPPCfg->lang);
-    if ( $newPW != "" ) $this->client->assign('newPW', $newPW);
+    $this->client->assign('newPW', $newPW);
+    $this->client->assign('dnssec', @isset($this->client->EPPCfg->dnssec->active) ? (int)$this->client->EPPCfg->dnssec->active : 0);
 
-    return $this->loginout("login");
+    return $this->loginout("session-login");
   }
 
   /**
@@ -157,7 +167,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
 
-    return $this->loginout("logout");
+    return $this->loginout("session-logout");
   }
 
   /**
@@ -198,7 +208,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       case "req":
         break;
       case "ack":
-        if ( empty($msgID) ) {
+        if (empty($msgID)) {
           $this->setError("Polling of type 'ack' requires a message ID to be set!");
           return FALSE;
         }
@@ -212,33 +222,33 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('type', $type);
-    if ( !empty($msgID) ) $this->client->assign('msgID', $msgID);
+    if ( ! empty($msgID)) $this->client->assign('msgID', $msgID);
 
     // fetch template
-    $this->xmlQuery = $this->client->fetch("poll");
+    $this->xmlQuery = $this->client->fetch("session-poll");
     $this->client->clearAllAssign();
 
     // query server
-    $qrs = $this->ExecuteQuery("poll", "poll", ($this->debug >= LOG_DEBUG));
+    $qrs = $this->ExecuteQuery("session-poll", "poll", ($this->debug >= LOG_DEBUG));
 
     // look at message counter
-    if ( is_object($this->xmlResult->response->msgQ[0]) ) {
+    if (is_object($this->xmlResult->response->msgQ[0])) {
       $this->messages = (int)$this->xmlResult->response->msgQ->attributes()->count;
       $this->msgID = (int)$this->xmlResult->response->msgQ->attributes()->id;
       $this->msgTitle = (string)$this->xmlResult->response->msgQ->msg;
 
       // parse message (only in case of a poll "req") and store it
-      if ( (strtolower($type) == "req") && ($store === TRUE) )
+      if ((strtolower($type) == "req") && ($store === TRUE))
         $this->storage->storeParsedMessage(
           array_merge(
             $this->parsePollReq(),
-            array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID) ) );
-    } else if ( $qrs === TRUE ) {
+            array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID)));
+    } else if ($qrs === TRUE) {
       $this->messages = 0;
     }
 
     // see if we want to store an answer
-    if ( ($store === TRUE) && $qrs )
+    if (($store === TRUE) && $qrs)
       $this->storage->storeMessage(
         $this->client->get_clTRID(),
         $this->svTRID,
@@ -257,7 +267,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
    * @return   string     domain name
    */
   protected function stripTrailingDots($domain) {
-    if ( substr($domain, strlen($domain)-1) == "." )
+    if (substr($domain, strlen($domain)-1) == ".")
       return substr($domain, 0, strlen($domain)-1);
     else
       return $domain;
@@ -274,7 +284,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     $ns = $this->xmlResult->getNamespaces(TRUE);
 
     // passwdReminder
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate)) {
       $exDate = (string)$this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate;
       return array(
         'type'   => 'passwdReminder',
@@ -284,7 +294,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // creditMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit)) {
       $credit = (string)$this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit;
       return array(
         'type'   => 'creditMsgData',
@@ -294,7 +304,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // delayedDebitAndRefundMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->amount) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->amount)) {
       $name = (string)$this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->name;
       $amount = (string)$this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->amount;
       return array(
@@ -305,7 +315,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // simpleMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name)) {
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       return array(
@@ -316,7 +326,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // dnsErrorMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain)) {
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->attributes()->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
@@ -330,11 +340,11 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // chgStatusMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name)) {
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
-      if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus) ) {
+      if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus)) {
         foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['domain'])->status as $child)
           $msg[] = $child->attributes()->s;
         foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['rgp'])->rgpStatus as $child)
@@ -348,7 +358,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // dlgMsgData
-    if ( @is_object($this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name) ) {
+    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name)) {
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
@@ -362,7 +372,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     }
 
     // domain transfers
-    if ( @is_object($this->xmlResult->response->resData->children($ns['domain'])->trnData->name) ) {
+    if (@is_object($this->xmlResult->response->resData->children($ns['domain'])->trnData->name)) {
       $domain = (string)$this->xmlResult->response->resData->children($ns['domain'])->trnData->name;
       $type = $this->xmlResult->response->resData->children($ns['domain'])->trnData->trStatus . "Transfer";
       $title = (string)$this->xmlResult->response->msgQ->msg . ": from " .

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0"
+                     xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+        <domain:name>{$domain}</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:ns>
+          {foreach from=$nameservers item=ns}
+          <domain:hostAttr>
+            <domain:hostName>{$ns.name}</domain:hostName>
+            {if isset($ns.ip)}
+            {foreach from=$ns.ip item=ip}
+            <domain:hostAddr ip="{$ip.type}">{$ip.address}</domain:hostAddr>
+            {/foreach}
+            {/if}
+          </domain:hostAttr>
+          {/foreach}
+        </domain:ns>
+        <domain:registrant>{$registrant}</domain:registrant>
+        <domain:contact type="admin">{$admin}</domain:contact>
+        {foreach from=$tech key=unused item=single_tech}
+        <domain:contact type="tech">{$single_tech}</domain:contact>
+        {/foreach}
+        <domain:authInfo>
+          <domain:pw>{$authinfo}</domain:pw>
+        </domain:authInfo>
+      </domain:create>
+    </create>
+    {if isset($dnssec)}
+    <extension>
+      <secDNS:create xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1">
+        {foreach $dnssec as $digest => $keyinfo}
+        <secDNS:dsData>
+          <secDNS:keyTag>{$keyinfo.keytag}</secDNS:keyTag>
+          <secDNS:alg>{$keyinfo.algorithm}</secDNS:alg>
+          <secDNS:digestType>{$keyinfo.digesttype}</secDNS:digestType>
+          <secDNS:digest>{$digest}</secDNS:digest>
+        </secDNS:dsData>
+        {/foreach}
+      </secDNS:create>
+    </extension>
+    {/if}
+    <clTRID>{$clTRID}</clTRID>
+  </command>
+</epp>
