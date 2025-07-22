@@ -1116,7 +1116,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
           // keep the current userid
           $userid = $row['userid'];
-          $this->storage->db->prepare("DELETE FROM tbl_domains WHERE domain=:domain");
+          $stmt = $this->storage->db->prepare("DELETE FROM tbl_domains WHERE domain=:domain");
           $stmt->execute(array(":domain" => $this->domain));
         }
       }
