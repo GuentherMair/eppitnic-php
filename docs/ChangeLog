@@ -3,6 +3,9 @@ Version 6.7
 Fixed a minor bug which kept the Domain->storeDB(...) method from removing an
 existing domain name prior to saving the updated record.
 
+Initialize the current date for crDate in initValues() and current date + 1 year
+for exDate.
+
 
 Version 6.6
 ===========

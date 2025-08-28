@@ -150,8 +150,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->dnssec_initial    = array();
     $this->changes           = 0;
     $this->max_check         = 5;
-    $this->crDate            = "";
-    $this->exDate            = "";
+    $this->crDate            = date("Y-m-d");
+    $this->exDate            = date("Y-m-d", strtotime("+1 year"));
     $this->trStatus          = "";
     $this->reID              = "";
     $this->acID              = "";
