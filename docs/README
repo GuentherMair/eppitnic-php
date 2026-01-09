@@ -1,7 +1,6 @@
-REQUIREMENTS
-============
+# REQUIREMENTS
 
-1) PHP5 (PHP4 won't work!!)
+1) PHP7, PHP8 (might still work with PHP5)
 2) CURL support for PHP (handling HTTP session and cookies)
 3) either a MySQL database or another database including a new class deriving
    from Net_EPP_StorageInterface to handle this database
@@ -9,8 +8,7 @@ REQUIREMENTS
    rights to the smarty/compile folder!
 
 
-HOWTO USE
-=========
+# HOWTO USE
 
 Create a copy of the "config.xml.template", naming it "config.xml". Choose one
 of the following as server name:
@@ -26,8 +24,7 @@ testing are included in the 'examples-wsdl' folder and documentation can be
 found in the 'docs' folder.
 
 
-RESTRICTIONS
-============
+# RESTRICTIONS
 
 1) eppitnic includes components through 'Net/...' and 'libs/...' paths. If you
    have 'Net' and 'libs' defined in your php configuration by include_path,
@@ -37,8 +34,7 @@ RESTRICTIONS
    through "set_include_path('.:'.ini_get('include_path'));" (see examples).
 
 
-INCLUDED
-========
+# INCLUDED
 
 A) Smarty template engine
 B) ADOdb database abstraction layer
@@ -46,8 +42,3 @@ C) MySQL DB schema (see examples/ folder) + apropriate StorageDB class
 D) sample configuration (see config.xml)
 E) example script (see examples/ folder)
 F) WSDL interface (see examples-wsdl/ and docs/ folder)
-
-
-==
-
-$Id$
