@@ -1,14 +1,14 @@
-# REQUIREMENTS
+# Requirements
 
-1) PHP7, PHP8 (might still work with PHP5)
-2) CURL support for PHP (handling HTTP session and cookies)
-3) either a MySQL database or another database including a new class deriving
+1. PHP7, PHP8 (might still work with PHP5)
+2. CURL support for PHP (handling HTTP session and cookies)
+3. either a MySQL database or another database including a new class deriving
    from `Net_EPP_StorageInterface` to handle this database
-4) if using the WSDL service, make sure you give the webserver appropriate
+4. if using the WSDL service, make sure you give the webserver appropriate
    rights to the `/smarty/compile/` folder!
 
 
-# HOWTO USE
+# How-To
 
 Create a copy of the `config.xml.template`, naming it `config.xml`. Choose one
 of the following as server name:
@@ -24,20 +24,25 @@ testing are included in the `/examples-wsdl/` folder and documentation can be
 found in the `/docs/` folder.
 
 
-# RESTRICTIONS
+# Restrictions
 
-1) eppitnic includes components through `Net/...` and `libs/...` paths. If you
+1. eppitnic includes components through `Net/...` and `libs/...` paths. If you
    have `Net` and `libs` defined in your php configuration by `include_path`,
    please move eppitnic contents to the directories you defined.
    NOTE: as of version 2.3 this should be resolved by setting `include_path`
    through `set_include_path('.:'.ini_get('include_path'));` (see `/examples/`).
 
 
-# INCLUDED
+# Included
 
-1) Smarty template engine
-2) ADOdb database abstraction layer
-3) MySQL DB schema (see `/examples/` folder) + apropriate StorageDB class
-4) sample configuration (see config.xml)
-5) example script (see `/examples/` folder)
-6) WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
+1. MySQL DB schema (see `/examples/` folder) + apropriate StorageDB class
+2. sample configuration (see config.xml)
+3. example script (see `/examples/` folder)
+4. WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
+5. Smarty template engine
+
+
+# ToDo
+
+1. replace Smarty templates with XML builder
+2. verify XML through XSDs
