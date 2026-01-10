@@ -35,9 +35,9 @@ found in the `/docs/` folder.
 
 # INCLUDED
 
-A) Smarty template engine
-B) ADOdb database abstraction layer
-C) MySQL DB schema (see `/examples/` folder) + apropriate StorageDB class
-D) sample configuration (see config.xml)
-E) example script (see `/examples/` folder)
-F) WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
+1) Smarty template engine
+2) ADOdb database abstraction layer
+3) MySQL DB schema (see `/examples/` folder) + apropriate StorageDB class
+4) sample configuration (see config.xml)
+5) example script (see `/examples/` folder)
+6) WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
