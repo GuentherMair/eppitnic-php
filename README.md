@@ -46,3 +46,7 @@ found in the `/docs/` folder.
 
 1. replace Smarty templates with XML builder
 2. verify XML through XSDs
+3. Implement a client-daemon with session keep-alive functionality. Btw. this
+   is not necessary to pass the accreditation test (simply don't log out), but
+   would be rather important if the library was to be used by registrars with
+   a very high registration rate.
