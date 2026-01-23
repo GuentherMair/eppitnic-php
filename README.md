@@ -12,7 +12,7 @@
    rights to the `/smarty/compile/` folder!
 
 
-# How-To
+# Installation
 
 Create a copy of the `config.xml.template`, naming it `config.xml`. Choose one
 of the following as server name:
@@ -31,7 +31,7 @@ testing are included in the `/examples-wsdl/` folder and documentation can be
 found in the `/docs/` folder.
 
 
-# Included
+# What's included
 
 1. MySQL DB schema (see `/examples/` folder) + apropriate StorageDB class
 2. sample configuration (see config.xml)
@@ -40,7 +40,7 @@ found in the `/docs/` folder.
 5. Smarty template engine
 
 
-# ToDo
+# ToDo's
 
 1. replace Smarty templates with XML builder
 2. verify XML through XSDs
