@@ -3,8 +3,11 @@
 1. PHP7, PHP8 (might still work with PHP5)
 2. CURL support for PHP (handling HTTP session and cookies)
 3. either a MySQL database or another database including a new class deriving
-   from `Net_EPP_StorageInterface` to handle this database; an example schema
-   for MySQL/MariaDB is included in `/docs/mysql-5.0-schema.sql`
+   from `Net_EPP_StorageInterface` to handle this database
+4. eppitnic includes components through `Net/...` and `libs/...` paths. If you
+   have `Net` and `libs` defined in your php configuration by `include_path`,
+   either move eppitnic contents to the directories you defined or use something
+   like `set_include_path('.:'.ini_get('include_path'));` (see `/examples/`)
 5. if using the WSDL service, make sure you give the webserver appropriate
    rights to the `/smarty/compile/` folder!
 
@@ -17,21 +20,15 @@ of the following as server name:
  - epp.nic.it (for production use)
  - pub-test.nic.it (for testing purposes)
 
-After you have set up the remaining configuration file, simply try to have a
+A database is used for storing some of the communication with the server. Set it
+up using the schema provided in `/docs/mysql-5.0-schema.sql`.
+
+After you have set everything up in the configuration file, simply try to have a
 look at the `/examples/` folder!
 
 If you want to use the WSDL interface, there is little to be said. Scripts for
 testing are included in the `/examples-wsdl/` folder and documentation can be
 found in the `/docs/` folder.
-
-
-# Restrictions
-
-1. eppitnic includes components through `Net/...` and `libs/...` paths. If you
-   have `Net` and `libs` defined in your php configuration by `include_path`,
-   please move eppitnic contents to the directories you defined.
-   NOTE: as of version 2.3 this should be resolved by setting `include_path`
-   through `set_include_path('.:'.ini_get('include_path'));` (see `/examples/`).
 
 
 # Included
