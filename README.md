@@ -3,8 +3,9 @@
 1. PHP7, PHP8 (might still work with PHP5)
 2. CURL support for PHP (handling HTTP session and cookies)
 3. either a MySQL database or another database including a new class deriving
-   from `Net_EPP_StorageInterface` to handle this database
-4. if using the WSDL service, make sure you give the webserver appropriate
+   from `Net_EPP_StorageInterface` to handle this database; an example schema
+   for MySQL/MariaDB is included in `/docs/mysql-5.0-schema.sql`
+5. if using the WSDL service, make sure you give the webserver appropriate
    rights to the `/smarty/compile/` folder!
 
 
