@@ -7,9 +7,9 @@
       <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
                       xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
         <contact:id>{$id}</contact:id>
-        {if $postalinfo ne "" or $addr ne "" or $contact ne ""}
+        {if count($postalinfo) gt 0 or count($addr) gt 0 or isset($contact)}
         <contact:chg>
-        {if $postalinfo ne "" or $addr ne ""}
+        {if count($postalinfo) gt 0 or count($addr) gt 0}
           <contact:postalInfo type="loc">
           {foreach from=$postalinfo item=i}
             {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
