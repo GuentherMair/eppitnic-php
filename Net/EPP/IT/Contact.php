@@ -649,7 +649,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $this->client->assign('id', $this->handle);
 
     $this->client->assign('postalinfo', empty($postalinfo) ? array() : $postalinfo);
-    $this->client->assign('addr', empty($addr) ? '' : $addr);
+    $this->client->assign('addr', empty($addr) ? array() : $addr);
     $this->client->assign('contact', empty($contact) ? '' : $contact);
     $this->client->assign('registrant', empty($registrant) ? '' : $registrant);
     $this->client->assign('authinfo', (($this->changes & 4096) > 0) ? $this->authinfo : '');

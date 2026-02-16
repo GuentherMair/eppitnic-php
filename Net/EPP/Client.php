@@ -59,7 +59,7 @@ if (PHP_VERSION_ID < 50300) {
   $major = (int)floor(PHP_VERSION_ID / 10000);
   $minor = (int)floor((PHP_VERSION_ID % 10000) / 100);
   $rev = (int)(PHP_VERSION_ID % 100);
-  echo "This class (" . __FILE__ . ") requires at least PHP 5.3 (Smarty 3 and other limitations). You are running PHP ${major}.${minor}.${rev}!\n";
+  echo "This class (" . __FILE__ . ") requires at least PHP 5.3 (Smarty 3 and other limitations). You are running PHP {$major}.{$minor}.{$rev}!\n";
   exit;
 }
 
@@ -258,7 +258,7 @@ class Net_EPP_Client extends Smarty
   public function parseResponse($xml = null) {
     if ($xml == null) {
       $response = $this->fetchResponse();
-      return @simplexml_load_string($response[body]);
+      return @simplexml_load_string($response['body']);
     } else {
       return @simplexml_load_string($xml);
     }

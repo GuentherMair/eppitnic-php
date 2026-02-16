@@ -14,7 +14,7 @@
           {foreach from=$postalinfo item=i}
             {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
           {/foreach}
-          {if $addr ne ""}
+          {if count($addr)}
             <contact:addr>
             {foreach from=$addr item=i}
               {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
