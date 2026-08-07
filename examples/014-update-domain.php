@@ -61,90 +61,90 @@ function check_or_create($handle, $registrant = FALSE) {
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // some details
-    $name = "domain-update-test-01.it";
-    $registrant = "GM0001";
-    $admin = "GM0002";
-    $tech = "GM0003";
-    $tech_new = "GM0004";
-    $dns = array(
-      "dns1.inet-services.it",
-      "dns2.inet-services.it",
-      "dns3.inet-services.it",
-    );
-
-    check_or_create($registrant, TRUE);
-    check_or_create($admin);
-    check_or_create($tech);
-    check_or_create($tech_new);
-
-    switch ($domain->check($name)) {
-      case TRUE:
-        echo "Domain '{$name}' is available.\n";
-        $domain->set('domain', $name);
-        $domain->set('registrant', $registrant);
-        $domain->set('admin', $admin);
-        $domain->set('tech', $tech);
-        foreach ($dns as $single_dns)
-          $domain->set('ns', $single_dns);
-        if ($domain->create()) {
-          echo "Domain '{$name}' created.\n";
-          echo "Let us wait some time for the domain to become available.\n";
-          echo "Sleeping 15 seconds";
-          for ($i = 0; $i < 15; $i++) {
-            echo ".";
-            sleep(1);
-          }
-          echo "\n";
-        } else {
-          echo "Domain '{$name}' NOT created (".$domain->getError().").\n";
-        }
-        break;
-      case FALSE:
-        echo "Domain '{$name}' is NOT available.\n";
-        break;
-      default:
-        echo "Error checking '{$name}' (".$domain->getError().").\n";
-        exit;
-        break;
-    }
-
-    // destroy domain object
-    unset($domain);
-
-    // recreate domain object
-    $domain = new Net_EPP_IT_Domain($nic, $db);
-    $domain->debug = LOG_DEBUG;
-
-    // load domain object
-    $domain->fetch($name);
-
-    // update domain
-    $domain->set('tech', $tech_new);
-    $domain->addDNSSEC(64662, 10, 1, 'ADA3248AA2420B46EE032CC47C56A8ED3561D99E');
-    $domain->addDNSSEC(64662, 10, 2, 'B61FB60D2BEAB6043D5E1D937A783237D2C3B1A3F69A1630CD12159AFE4A1719');
-    if ($domain->update())
-      echo "Domain '{$name}' is now up to date.\n";
-    else
-      echo "Update to domain '{$name}' FAILED (".$domain->getError().")!.\n";
-
-    // logout
-    if ($session->logout()) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// some details
+$name = "domain-update-test-01.it";
+$registrant = "GM0001";
+$admin = "GM0002";
+$tech = "GM0003";
+$tech_new = "GM0004";
+$dns = array(
+  "dns1.inet-services.it",
+  "dns2.inet-services.it",
+  "dns3.inet-services.it",
+);
+
+check_or_create($registrant, TRUE);
+check_or_create($admin);
+check_or_create($tech);
+check_or_create($tech_new);
+
+switch ($domain->check($name)) {
+  case TRUE:
+    echo "Domain '{$name}' is available.\n";
+    $domain->set('domain', $name);
+    $domain->set('registrant', $registrant);
+    $domain->set('admin', $admin);
+    $domain->set('tech', $tech);
+    foreach ($dns as $single_dns)
+      $domain->set('ns', $single_dns);
+    if ($domain->create()) {
+      echo "Domain '{$name}' created.\n";
+      echo "Let us wait some time for the domain to become available.\n";
+      echo "Sleeping 15 seconds";
+      for ($i = 0; $i < 15; $i++) {
+        echo ".";
+        sleep(1);
+      }
+      echo "\n";
+    } else {
+      echo "Domain '{$name}' NOT created (".$domain->getError().").\n";
+    }
+    break;
+  case FALSE:
+    echo "Domain '{$name}' is NOT available.\n";
+    break;
+  default:
+    echo "Error checking '{$name}' (".$domain->getError().").\n";
+    exit(DOMAIN_CHECK_FAILED);
+    break;
+}
+
+// destroy domain object
+unset($domain);
+
+// recreate domain object
+$domain = new Net_EPP_IT_Domain($nic, $db);
+$domain->debug = LOG_DEBUG;
+
+// load domain object
+$domain->fetch($name);
+
+// update domain
+$domain->set('tech', $tech_new);
+$domain->addDNSSEC(64662, 10, 1, 'ADA3248AA2420B46EE032CC47C56A8ED3561D99E');
+$domain->addDNSSEC(64662, 10, 2, 'B61FB60D2BEAB6043D5E1D937A783237D2C3B1A3F69A1630CD12159AFE4A1719');
+if ($domain->update())
+  echo "Domain '{$name}' is now up to date.\n";
+else
+  echo "Update to domain '{$name}' FAILED (".$domain->getError().")!.\n";
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

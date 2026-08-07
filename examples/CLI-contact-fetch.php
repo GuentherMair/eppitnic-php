@@ -16,7 +16,7 @@ $contact->debug = LOG_DEBUG;
 
 if ( $argc < 2 ) {
   echo "SYNTAX: " . $argv[0] . " CONTACT\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 $name = $argv[1];
@@ -25,64 +25,64 @@ $name = $argv[1];
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // test check contact
-    switch ( $contact->check($name) ) {
-      case TRUE:
-        echo "Contact '".$name."' is available.\n";
-        break;
-      case FALSE:
-        echo "Contact '".$name."' exists:\n";
-        if ( $contact->fetch($name) ) {
-          // get values
-          $values = array();
-          $values['name'] = $contact->get('name');
-          $values['street'] = $contact->get('street');
-          $values['city'] = $contact->get('city');
-          $values['province'] = $contact->get('province');
-          $values['postalcode'] = $contact->get('postalcode');
-          $values['voice'] = $contact->get('voice');
-          $values['fax'] = $contact->get('fax');
-          $values['email'] = $contact->get('email');
-          $values['authinfo'] = $contact->get('authinfo');
-          $values['nationalitycode'] = $contact->get('nationalitycode');
-          $values['entitytype'] = $contact->get('entitytype');
-          $values['regcode'] = $contact->get('regcode');
-          $values['consentforpublishing'] = $contact->get('consentforpublishing');
-
-          // print states
-          $status = $contact->get('status');
-          echo " - states '".implode("' / '", $status)."'\n";
-
-          // print remaining values
-          foreach ( $values as $key => $value )
-            if ( !empty($value) ) echo " - ".$key." '" . $value . "'\n";
-        } else {
-          echo "Fetch contact FAILED (".$contact->getError().").\n";
-        }
-        break;
-      default:
-        echo "Error: '".$name."' (".$contact->getError().").\n";
-        break;
-    }
-
-    // logout
-    if ( $session->logout() ) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// test check contact
+switch ( $contact->check($name) ) {
+  case TRUE:
+    echo "Contact '".$name."' is available.\n";
+    break;
+  case FALSE:
+    echo "Contact '".$name."' exists:\n";
+    if ( $contact->fetch($name) ) {
+      // get values
+      $values = array();
+      $values['name'] = $contact->get('name');
+      $values['street'] = $contact->get('street');
+      $values['city'] = $contact->get('city');
+      $values['province'] = $contact->get('province');
+      $values['postalcode'] = $contact->get('postalcode');
+      $values['voice'] = $contact->get('voice');
+      $values['fax'] = $contact->get('fax');
+      $values['email'] = $contact->get('email');
+      $values['authinfo'] = $contact->get('authinfo');
+      $values['nationalitycode'] = $contact->get('nationalitycode');
+      $values['entitytype'] = $contact->get('entitytype');
+      $values['regcode'] = $contact->get('regcode');
+      $values['consentforpublishing'] = $contact->get('consentforpublishing');
+
+      // print states
+      $status = $contact->get('status');
+      echo " - states '".implode("' / '", $status)."'\n";
+
+      // print remaining values
+      foreach ( $values as $key => $value )
+        if ( !empty($value) ) echo " - ".$key." '" . $value . "'\n";
+    } else {
+      echo "Fetch contact FAILED (".$contact->getError().").\n";
+    }
+    break;
+  default:
+    echo "Error: '".$name."' (".$contact->getError().").\n";
+    break;
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
 

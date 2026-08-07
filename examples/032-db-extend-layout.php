@@ -155,7 +155,7 @@ if ($argc < 2) {
   echo " alter table tbl_domains add column tech5 varchar(32);\n";
   echo " alter table tbl_domains add column tech6 varchar(32);\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 $name = $argv[1];
@@ -164,65 +164,65 @@ $name = $argv[1];
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // lookup domain
-    switch ($domain->check($name)) {
-      case TRUE:
-        echo "Domain '{$name}' is still available, sorry!\n";
-        break;
-      case FALSE:
-        echo "Domain '{$name}' not available, fetching information...\n";
-        if ($domain->fetch($name)) {
-          // dump some information about the domain we just fetched
-          echo " - Registrant: " . $domain->get('registrant') . "\n";
-          echo " - Admin-C: " . $domain->get('admin') . "\n";
-          $tech = $domain->get('tech');
-          if ( ! is_array($tech)) {
-            echo " - Tech-C: {$tech}\n";
-          } else foreach ($tech as $single_tech) {
-            echo " - Tech-C: {$single_tech}\n";
-          }
-          echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
-          $state = $domain->get('status');
-          foreach ($state as $s)
-            echo " - state '{$s}'\n";
-          $ns = $domain->get('ns');
-          foreach ($ns as $name)
-            echo " - NS: {$name['name']}\n";
-
-          // now make use of our new methods
-          echo "\n";
-          echo "Performing DB operations:\n";
-          echo $domain->storeDB();
-          echo $domain->loadDB();
-          $domain->addTECH('XYZ');
-          echo $domain->updateDB();
-          echo $domain->loadDB();
-        } else {
-          echo "FAILED (".$domain->getError().").\n";
-        }
-        break;
-      default:
-        echo "Error: '{$name}' (".$domain->getError().").\n";
-        break;
-    }
-
-    // logout
-    if ($session->logout()) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// lookup domain
+switch ($domain->check($name)) {
+  case TRUE:
+    echo "Domain '{$name}' is still available, sorry!\n";
+    break;
+  case FALSE:
+    echo "Domain '{$name}' not available, fetching information...\n";
+    if ($domain->fetch($name)) {
+      // dump some information about the domain we just fetched
+      echo " - Registrant: " . $domain->get('registrant') . "\n";
+      echo " - Admin-C: " . $domain->get('admin') . "\n";
+      $tech = $domain->get('tech');
+      if ( ! is_array($tech)) {
+        echo " - Tech-C: {$tech}\n";
+      } else foreach ($tech as $single_tech) {
+        echo " - Tech-C: {$single_tech}\n";
+      }
+      echo " - AuthInfo: " . $domain->get('authinfo') . "\n";
+      $state = $domain->get('status');
+      foreach ($state as $s)
+        echo " - state '{$s}'\n";
+      $ns = $domain->get('ns');
+      foreach ($ns as $name)
+        echo " - NS: {$name['name']}\n";
+
+      // now make use of our new methods
+      echo "\n";
+      echo "Performing DB operations:\n";
+      echo $domain->storeDB();
+      echo $domain->loadDB();
+      $domain->addTECH('XYZ');
+      echo $domain->updateDB();
+      echo $domain->loadDB();
+    } else {
+      echo "FAILED (".$domain->getError().").\n";
+    }
+    break;
+  default:
+    echo "Error: '{$name}' (".$domain->getError().").\n";
+    break;
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

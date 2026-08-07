@@ -19,7 +19,7 @@ if ( ! isset($options['d']) ) {
   echo " -a administrative contact\n";
   echo " -t technical contact\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // set domain name to restore
@@ -85,82 +85,85 @@ $domain->debug = LOG_DEBUG;
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    // lookup domain
+  exit(HELLO_FAILED);
+}
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+// lookup domain
+$domain->set('domain', $name);
+switch ($domain->check($name)) {
+  case TRUE:
     $domain->set('domain', $name);
-    switch ($domain->check($name)) {
-      case TRUE:
-        $domain->set('domain', $name);
-        $domain->set('registrant', $registrant);
-        $domain->set('admin', $admin);
-        foreach ($tech as $tmp)
-          $domain->addTECH($tmp);
-        foreach ($ns as $tmp)
-          $domain->addNS($tmp);
-        $domain->set('authinfo', substr(rand(), 0, 32));
-        if ( ! $domain->create()) {
-          echo "Domain '".$name."' NOT created trough epp.nic.it (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
-          if ((int)$domain->extValueReasonCode == 9078 || (int)$domain->svCode == 2308) {
-            echo "Domain '".$name."' is available but needs to be restored through epp-deleted.nic.it.\n";
+    $domain->set('registrant', $registrant);
+    $domain->set('admin', $admin);
+    foreach ($tech as $tmp)
+      $domain->addTECH($tmp);
+    foreach ($ns as $tmp)
+      $domain->addNS($tmp);
+    $domain->set('authinfo', substr(rand(), 0, 32));
+    if ( ! $domain->create()) {
+      echo "Domain '".$name."' NOT created trough epp.nic.it (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
+      if ((int)$domain->extValueReasonCode == 9078 || (int)$domain->svCode == 2308) {
+        echo "Domain '".$name."' is available but needs to be restored through epp-deleted.nic.it.\n";
 
-            // logout old session
-            if ( ! $session->logout())
-              echo "Verification session logout failed (code ".$session->svCode.", '".$session->svMsg."').\n";
+        // logout old session
+        if ( ! $session->logout())
+          echo "Verification session logout failed (code ".$session->svCode.", '".$session->svMsg."').\n";
 
-            $nic = new Net_EPP_Client(buildConfigXML('epp_server_deleted'));
-            $db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
-            $session = new Net_EPP_IT_Session($nic, $db);
-            $domain = new Net_EPP_IT_Domain($nic, $db);
+        $nic = new Net_EPP_Client(buildConfigXML('epp_server_deleted'));
+        $db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
+        $session = new Net_EPP_IT_Session($nic, $db);
+        $domain = new Net_EPP_IT_Domain($nic, $db);
 
-            // send "hello"
-            if ( ! $session->hello()) {
-              echo "Connection failed.\n";
-            } else {
-              // perform login
-              if ($session->login() === FALSE) {
-                echo "Login failed (code ".$session->svCode.", '".$session->svMsg."').\n";
-              } else {
-                // configure domain
-                $domain->set('domain', $name);
-                $domain->set('registrant', $registrant);
-                $domain->set('admin', $admin);
-                foreach ($tech as $tmp)
-                  $domain->addTECH($tmp);
-                foreach ($ns as $tmp)
-                  $domain->addNS($tmp);
-                $domain->set('authinfo', substr(rand(), 0, 32));
-
-                if ($domain->create())
-                  echo "Domain '".$name."' created.\n";
-                else
-                  echo "Domain '".$name."' NOT created (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
-              }
-            }
+        // send "hello"
+        if ( ! $session->hello()) {
+          echo "Connection failed.\n";
+        } else {
+          // perform login
+          if ($session->login() === FALSE) {
+            echo "Login failed (code ".$session->svCode.", '".$session->svMsg."').\n";
           } else {
-            echo "Domain '".$name."' NOT created (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
+            // configure domain
+            $domain->set('domain', $name);
+            $domain->set('registrant', $registrant);
+            $domain->set('admin', $admin);
+            foreach ($tech as $tmp)
+              $domain->addTECH($tmp);
+            foreach ($ns as $tmp)
+              $domain->addNS($tmp);
+            $domain->set('authinfo', substr(rand(), 0, 32));
+
+            if ($domain->create())
+              echo "Domain '".$name."' created.\n";
+            else
+              echo "Domain '".$name."' NOT created (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
           }
         }
-        break;
-      case FALSE:
-        if ($domain->restore($name))
-          echo "Restore domain '".$name."' succeeded.\n";
-        else
-          echo "Restore domain '".$name."' FAILED (".$domain->getError().")!\n";
-        break;
-      default:
-        echo "Error: '".$name."' (".$domain->getError().").\n";
-        break;
+      } else {
+        echo "Domain '".$name."' NOT created (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
+      }
     }
-
-    // logout
-    if ( ! $session->logout())
-      echo "Logout FAILED (".$session->getError().").\n";
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+    break;
+  case FALSE:
+    if ($domain->restore($name))
+      echo "Restore domain '".$name."' succeeded.\n";
+    else
+      echo "Restore domain '".$name."' FAILED (".$domain->getError().")!\n";
+    break;
+  default:
+    echo "Error: '".$name."' (".$domain->getError().").\n";
+    break;
 }
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

@@ -19,13 +19,13 @@ if (( ! isset($options['d']) && ! isset($options['f'])) ||
   echo "\n";
   echo " If no parameter except '-d' or '-f' is given (they are mutualy exclusive!), this command will diplay information about the domain.\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {
   echo "[{$options['f']}] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 // verify domain names
@@ -36,14 +36,14 @@ foreach ($tmp as $domain)
     $domain_names[] = $domain;
 if (count($domain_names) < 1) {
   echo "No valid .IT domain given!\n";
-  exit(4);
+  exit(INVALID_INPUT);
 }
 
 // set the registrant
 $registrant = $options['r'];
 if (empty($registrant)) {
   echo "No registrant given!\n";
-  exit(8);
+  exit(INVALID_INPUT);
 }
 
 
@@ -54,15 +54,23 @@ $contact = new Net_EPP_IT_Contact($nic, $db);
 $domain = new Net_EPP_IT_Domain($nic, $db);
 
 // send "hello"
+// send "hello"
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    if ($contact->fetch($registrant)) {
-      foreach ($domain_names as $domain_name) {
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+if ($contact->fetch($registrant)) {
+  foreach ($domain_names as $domain_name) {
 	// re-create domain object
 	$domain = new Net_EPP_IT_Domain($nic, $db);
 	$domain->fetch($domain_name);
@@ -74,17 +82,17 @@ if ( ! $session->hello()) {
 	  echo "[SUCCESS] Domain '{$domain_name}' is now up to date.\n";
 	} else {
 	  echo "[FAILURE] Update to domain '{$domain_name}' FAILED (".$domain->getError().")!\n";
-        }
-      }
-    } else {
-      echo "[FAILURE] Unable to get new registrant handle '{$registrant}'!\n";
-    }
-
-    // close session
-    if ($session->logout()) {
-      echo "Your remaining credit: {$session} EUR.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
     }
   }
+} else {
+  echo "[FAILURE] Unable to get new registrant handle '{$registrant}'!\n";
 }
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";

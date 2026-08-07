@@ -15,46 +15,46 @@ $session->debug = LOG_DEBUG;
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // poll message queue
-    switch ( $session->pollMessageCount() ) {
-      case 0:
-        echo "There are no messages in the polling queue.\n";
-        break;
-      default:
-        echo "There are ".$session->pollMessageCount()." messages in the polling queue.\n";
-        echo "Polling...\n";
-        break;
-    }
-    while ( $session->pollMessageCount() > 0 ) {
-
-      // as for now - dump debug information
-      $session->poll(TRUE, "req", $session->pollID());
-      print_r($session->result[body]);
-
-      if ( $session->poll(FALSE, "ack", $session->pollID()) )
-        echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
-      else
-        echo "FAILED to get message n. " . $session->pollMessageCount() . " (".$session->getError().").\n";
-    }
-
-    // logout
-    if ( $session->logout() ) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// poll message queue
+switch ( $session->pollMessageCount() ) {
+  case 0:
+    echo "There are no messages in the polling queue.\n";
+    break;
+  default:
+    echo "There are ".$session->pollMessageCount()." messages in the polling queue.\n";
+    echo "Polling...\n";
+    break;
+}
+while ( $session->pollMessageCount() > 0 ) {
+
+  // as for now - dump debug information
+  $session->poll(TRUE, "req", $session->pollID());
+  print_r($session->result[body]);
+
+  if ( $session->poll(FALSE, "ack", $session->pollID()) )
+    echo "Successfully got message n. " . $session->pollMessageCount() . ":\n";
+  else
+    echo "FAILED to get message n. " . $session->pollMessageCount() . " (".$session->getError().").\n";
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
 

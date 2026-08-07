@@ -75,6 +75,15 @@ if ( ! class_exists('Net_EPP_Curl'))
   require_once 'Net/EPP/Curl.php';
 
 /**
+ * generic script exit codes (1-9), for use by CLI scripts / examples
+ */
+if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
+if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input file/CSV unreadable
+if ( ! defined('INVALID_INPUT'))     define('INVALID_INPUT', 3);      // eg. no valid .it domain given
+if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config.xml missing/not writable
+if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable to write an output file
+
+/**
  * This class extends Smarty (a templating system) so we
  * can easily use variable-assignments directly with this
  * derived class, ie.

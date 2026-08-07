@@ -45,6 +45,21 @@ require_once 'Net/EPP/IT/Contact.php';
  *
  * $Id$
  */
+
+/**
+ * domain script exit codes (20-29), for use by CLI scripts / examples
+ */
+if ( ! defined('DOMAIN_CREATE_FAILED'))   define('DOMAIN_CREATE_FAILED', 20);
+if ( ! defined('DOMAIN_FETCH_FAILED'))    define('DOMAIN_FETCH_FAILED', 21);
+if ( ! defined('DOMAIN_UPDATE_FAILED'))   define('DOMAIN_UPDATE_FAILED', 22);
+if ( ! defined('DOMAIN_DELETE_FAILED'))   define('DOMAIN_DELETE_FAILED', 23);
+if ( ! defined('DOMAIN_STORE_FAILED'))    define('DOMAIN_STORE_FAILED', 24);
+if ( ! defined('DOMAIN_CHECK_FAILED'))    define('DOMAIN_CHECK_FAILED', 25);
+if ( ! defined('DOMAIN_RESTORE_FAILED'))  define('DOMAIN_RESTORE_FAILED', 26);
+if ( ! defined('DOMAIN_TRANSFER_FAILED')) define('DOMAIN_TRANSFER_FAILED', 27);
+if ( ! defined('DOMAIN_EXPORT_FAILED'))   define('DOMAIN_EXPORT_FAILED', 28);
+if ( ! defined('DOMAIN_IMPORT_FAILED'))   define('DOMAIN_IMPORT_FAILED', 29);
+
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
   //         name               // change flag

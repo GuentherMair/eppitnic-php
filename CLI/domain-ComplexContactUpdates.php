@@ -1,7 +1,5 @@
 <?php
 
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
-
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
 require_once 'Net/EPP/Client.php';
@@ -40,7 +38,7 @@ if ( ( ! isset($options['d']) && ! isset($options['f'])) || // no domain
      ( ! isset($options['T']))                              // no new tech-c
    ) {
   show_usage($argv);
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 $nic = new Net_EPP_Client();
@@ -51,7 +49,7 @@ $session = new Net_EPP_IT_Session($nic, $db);
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {
   echo "[{$options['f']}] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 // verify domain names
@@ -62,7 +60,7 @@ foreach ($tmp as $domain)
     $domains[] = $domain;
 if (count($domains) < 1) {
   echo "No valid .IT domain given!\n";
-  exit(4);
+  exit(INVALID_INPUT);
 }
 
 function update_contact($handle, &$options) {
@@ -162,29 +160,38 @@ function update_domain(&$domain, &$options) {
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+foreach ($domains as $name) {
+  $domain = new Net_EPP_IT_Domain($nic, $db);
+  echo "Verifying domain '{$name}':\n";
+  if ($domain->fetch($name)) {
+    update_domain($domain, $options);
   } else {
-    foreach ($domains as $name) {
-      $domain = new Net_EPP_IT_Domain($nic, $db);
-      echo "Verifying domain '{$name}':\n";
-      if ($domain->fetch($name)) {
-	update_domain($domain, $options);
-      } else {
-	echo "Fetch domain FAILED (".$domain->getError().")\n";
-      }
-    }
-
-    // remind the user to remove (delete) the old tech-c
-    echo "\n";
-    echo "Operations concluded - if the tech-c was successfully replaced, you may now remove(delete) it.\n";
-    echo "If unsure, simply try to delete it anyways, as a delete request for a contact still locked to any domain will fail.\n";
-    echo "\n";
-
-    // close session
-    if (!$session->logout()) {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
+    echo "Fetch domain FAILED (".$domain->getError().")\n";
   }
 }
+
+// remind the user to remove (delete) the old tech-c
+echo "\n";
+echo "Operations concluded - if the tech-c was successfully replaced, you may now remove(delete) it.\n";
+echo "If unsure, simply try to delete it anyways, as a delete request for a contact still locked to any domain will fail.\n";
+echo "\n";
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";

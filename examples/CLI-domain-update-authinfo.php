@@ -17,7 +17,7 @@ $domain->debug = LOG_DEBUG;
 
 if ( $argc < 3 ) {
   echo "SYNTAX: " . $argv[0] . " DOMAIN AUTHINFO\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 $name = $argv[1];
@@ -27,55 +27,55 @@ $authinfo = $argv[2];
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
 
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
 
-    // some details
-    switch ( $domain->check($name) ) {
-      case TRUE:
-        echo "Domain '".$name."' is available.\n";
-        break;
-      case FALSE:
-        echo "Domain '".$name."' is NOT available.\n";
-        break;
-      default:
-        echo "Error: '".$name."' (".$domain->getError().").\n";
-        exit;
-        break;
-    }
+// some details
+switch ( $domain->check($name) ) {
+  case TRUE:
+    echo "Domain '".$name."' is available.\n";
+    break;
+  case FALSE:
+    echo "Domain '".$name."' is NOT available.\n";
+    break;
+  default:
+    echo "Error: '".$name."' (".$domain->getError().").\n";
+    exit(DOMAIN_CHECK_FAILED);
+    break;
+}
 
-    // destroy domain object
-    unset($domain);
+// destroy domain object
+unset($domain);
 
-    // recreate domain object
-    $domain = new Net_EPP_IT_Domain($nic, $db);
-    $domain->debug = LOG_DEBUG;
+// recreate domain object
+$domain = new Net_EPP_IT_Domain($nic, $db);
+$domain->debug = LOG_DEBUG;
 
-    // load domain object
-    $domain->fetch($name);
+// load domain object
+$domain->fetch($name);
 
-    // update domain
-    $domain->set('authinfo', $authinfo);
-    if ( $domain->update() )
-      echo "Domain '".$name."' is now up to date.\n";
-    else
-      echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
+// update domain
+$domain->set('authinfo', $authinfo);
+if ( $domain->update() )
+  echo "Domain '".$name."' is now up to date.\n";
+else
+  echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
 
-    // logout
-    if ( $session->logout() ) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
 
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
-}  
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
 

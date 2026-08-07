@@ -20,7 +20,7 @@ $domain->debug = LOG_DEBUG;
 $options = getopt("d:c:");
 if ( ! isset($options['d']) || ! isset($options['c']) ) {
   echo "SYNTAX: " . $argv[0] . " -d DOMAIN -c CONTACT\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 
@@ -33,39 +33,40 @@ $admin = $options['c'];
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
 
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
 
-    // recreate domain object
-    $domain = new Net_EPP_IT_Domain($nic, $db);
-    $domain->debug = LOG_DEBUG;
+// recreate domain object
+$domain = new Net_EPP_IT_Domain($nic, $db);
+$domain->debug = LOG_DEBUG;
 
-    // load domain object
-    $domain->fetch($name);
+// load domain object
+$domain->fetch($name);
 
-    // set admin contact
-    $domain->set('admin', $admin);
+// set admin contact
+$domain->set('admin', $admin);
 
-    // update domain
-    if ( $domain->update() )
-      echo "Domain '".$name."' is now up to date.\n";
-    else
-      echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
+// update domain
+if ( $domain->update() )
+  echo "Domain '".$name."' is now up to date.\n";
+else
+  echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
 
-    // logout
-    if ( $session->logout() )
-      echo "Logout OK (code ".$session->svCode.", '".$session->svMsg."').\n";
-    else
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
 
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
-}  
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
 

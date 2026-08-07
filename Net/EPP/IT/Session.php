@@ -41,6 +41,16 @@ require_once 'Net/EPP/AbstractObject.php';
  *
  * $Id$
  */
+
+/**
+ * session script exit codes (10-19), for use by CLI scripts / examples
+ */
+if ( ! defined('HELLO_FAILED'))           define('HELLO_FAILED', 10);
+if ( ! defined('LOGIN_FAILED'))           define('LOGIN_FAILED', 11);
+if ( ! defined('LOGOUT_FAILED'))          define('LOGOUT_FAILED', 12);
+if ( ! defined('POLL_FAILED'))            define('POLL_FAILED', 13);
+if ( ! defined('CHANGE_PASSWORD_FAILED')) define('CHANGE_PASSWORD_FAILED', 14);
+
 class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 {
   protected $credit = null;

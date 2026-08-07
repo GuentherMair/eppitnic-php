@@ -21,7 +21,7 @@ $csv = $domain->export($userid);
 if (isset($options['o'])) {
   if (file_put_contents($options['o'], $csv) === FALSE) {
     echo "[FAILURE] unable to write to '{$options['o']}'\n";
-    exit(1);
+    exit(OUTPUT_ERROR);
   }
   echo "[SUCCESS] exported domains for user ID {$userid} to '{$options['o']}'\n";
 } else {

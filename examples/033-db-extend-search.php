@@ -9,7 +9,7 @@ require_once 'Net/EPP/StorageDB.php';
 if ($argc < 2) {
   echo "SYNTAX: {$argv[0]} DNS-NAME\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // sample extension of the storage driver

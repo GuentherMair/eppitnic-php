@@ -20,12 +20,12 @@ $domain->debug = LOG_DEBUG;
 $options = getopt("f:");
 if ( !isset($options['f']) ) {
   echo "SYNTAX: " . $argv[0] . " -f FILENAME\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 if ( !is_readable($options['f']) ) {
   echo "[" . $options['f'] . "] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 $domains = split("\n", trim(file_get_contents($options['f'])));
@@ -34,26 +34,27 @@ $domains = split("\n", trim(file_get_contents($options['f'])));
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
+  exit(HELLO_FAILED);
+}
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
 
-    // loop through all domain names
-    foreach ( $domains as $name ) {
-      // recreate domain object
-      $domain = new Net_EPP_IT_Domain($nic, $db);
-      $domain->debug = LOG_DEBUG;
+// loop through all domain names
+foreach ( $domains as $name ) {
+  // recreate domain object
+  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain->debug = LOG_DEBUG;
 
-      // load domain object
-      $domain->fetch($name);
+  // load domain object
+  $domain->fetch($name);
 
-      echo '"' . $name . '","' . $domain->get('authinfo') . '"' . "\n";
-    }
+  echo '"' . $name . '","' . $domain->get('authinfo') . '"' . "\n";
+}
 
-    // logout
-    if ( ! $session->logout() )
-      echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
-  }
-}  
+// logout
+if ( ! $session->logout() )
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+

@@ -17,13 +17,13 @@ if (( ! isset($options['d']) && ! isset($options['f'])) ||
   echo "  -d DOMAIN    domain name(s) to import, given as colon-separated list\n";
   echo "  -u USERID    user ACL to store imported domains/contacts under (defaults to 1)\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {
   echo "[{$options['f']}] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 $userid = isset($options['u']) ? (int)$options['u'] : 1;
@@ -38,7 +38,7 @@ foreach ($tmp as $name) {
 }
 if (count($domains) < 1) {
   echo "No valid .IT domain given!\n";
-  exit(3);
+  exit(INVALID_INPUT);
 }
 
 $nic = new Net_EPP_Client();
@@ -50,13 +50,13 @@ $domain = new Net_EPP_IT_Domain($nic, $db);
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-  exit(4);
+  exit(HELLO_FAILED);
 }
 
 // login
 if ($session->login() === FALSE) {
   echo "Login FAILED (".$session->getError().").\n";
-  exit(5);
+  exit(LOGIN_FAILED);
 }
 
 // import domains and print result

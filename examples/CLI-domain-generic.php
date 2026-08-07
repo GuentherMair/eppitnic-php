@@ -27,7 +27,7 @@ if ( ! isset($options['d']) ) {
   echo " -o technical contact to remove (max. 6)\n";
   echo " -i set a new authinfo code\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // set domain name to fetch/update
@@ -117,53 +117,53 @@ function update_domain($domain, $options) {
 if ( ! $session->hello() ) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
 
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
 
-    // recreate domain object
-    $domain = new Net_EPP_IT_Domain($nic, $db);
-    $domain->debug = LOG_DEBUG;
+// recreate domain object
+$domain = new Net_EPP_IT_Domain($nic, $db);
+$domain->debug = LOG_DEBUG;
 
-    // lookup domain
-    switch ( $domain->check($name) ) {
-      case TRUE:
-        echo "Domain '".$name."' is still available, sorry!\n";
-        break;
-      case FALSE:
-        echo "Domain '".$name."' taken, fetching information...\n";
-        if ( $domain->fetch($name) ) {
+// lookup domain
+switch ( $domain->check($name) ) {
+  case TRUE:
+    echo "Domain '".$name."' is still available, sorry!\n";
+    break;
+  case FALSE:
+    echo "Domain '".$name."' taken, fetching information...\n";
+    if ( $domain->fetch($name) ) {
 
-          // if no update operation was requested, display domain information
-          if ( $fetch_only ) {
-            display_domain($domain);
-          } else {
-            update_domain($domain, $options);
-          }
+      // if no update operation was requested, display domain information
+      if ( $fetch_only ) {
+        display_domain($domain);
+      } else {
+        update_domain($domain, $options);
+      }
 
-        } else {
-          echo "Fetch domain FAILED (".$domain->getError().")\n";
-        }
-        break;
-      default:
-        echo "Error: '".$name."'.\n";
-        break;
-    }
-
-    // logout
-    if ( $session->logout() ) {
-      echo "Logout OK.\n";
     } else {
-      echo "Logout FAILED (".$session->getError().").\n";
+      echo "Fetch domain FAILED (".$domain->getError().")\n";
     }
+    break;
+  default:
+    echo "Error: '".$name."'.\n";
+    break;
+}
 
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
-}  
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
 

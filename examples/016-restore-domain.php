@@ -39,36 +39,36 @@ function dump_domain($domain) {
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // lookup domain
-    $name = "testABC12345.it";
-    $domain->set('domain', $name);
-
-    dump_domain($domain);
-
-    if ($domain->restore($name))
-      echo "Restore domain '{$name}' succeeded.\n";
-    else
-      echo "Restore domain '{$name}' FAILED (".$domain->getError().")!\n";
-
-    dump_domain($domain);
-
-    // logout
-    if ($session->logout()) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// lookup domain
+$name = "testABC12345.it";
+$domain->set('domain', $name);
+
+dump_domain($domain);
+
+if ($domain->restore($name))
+  echo "Restore domain '{$name}' succeeded.\n";
+else
+  echo "Restore domain '{$name}' FAILED (".$domain->getError().")!\n";
+
+dump_domain($domain);
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

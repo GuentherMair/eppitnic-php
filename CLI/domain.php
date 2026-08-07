@@ -1,7 +1,5 @@
 <?php
 
-error_reporting(E_ALL ^ E_NOTICE);
-
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
 require_once 'Net/EPP/Client.php';
@@ -36,13 +34,13 @@ if (( ! isset($options['d']) && ! isset($options['f'])) ||
   echo "\n";
   echo " If no parameter except '-d' or '-f' is given (they are mutualy exclusive!), this command will diplay information about the domain.\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {
   echo "[{$options['f']}] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 // verify domain names
@@ -53,7 +51,7 @@ foreach ($tmp as $domain)
     $domains[] = $domain;
 if (count($domains) < 1) {
   echo "No valid .IT domain given!\n";
-  exit(4);
+  exit(INVALID_INPUT);
 }
 
 // decide whether just to dump domain infos or not
@@ -121,47 +119,55 @@ function update_domain($domain, $options) {
 
 
 // send "hello"
+// send "hello"
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    foreach ($domains as $name) {
-      // re-create domain object
-      $domain = new Net_EPP_IT_Domain($nic, $db);
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
 
-      // lookup domain
-      switch ($domain->check($name)) {
-        case TRUE:
-          echo "Domain '{$name}' is still available, sorry!\n";
-          break;
-        case FALSE:
-          echo "Domain '{$name}' taken, fetching information...\n";
-          if ($domain->fetch($name)) {
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
 
-            // if no update operation was requested, display domain information
-            if ($fetch_only) {
-              echo $domain;
-            } else {
-              update_domain($domain, $options);
-            }
-          } else {
-            echo "Fetch domain FAILED (".$domain->getError().")\n";
-          }
-          break;
-        default:
-          echo "Error checking '{$name}'.\n";
-          break;
+foreach ($domains as $name) {
+  // re-create domain object
+  $domain = new Net_EPP_IT_Domain($nic, $db);
+
+  // lookup domain
+  switch ($domain->check($name)) {
+    case TRUE:
+      echo "Domain '{$name}' is still available, sorry!\n";
+      break;
+    case FALSE:
+      echo "Domain '{$name}' taken, fetching information...\n";
+      if ($domain->fetch($name)) {
+
+        // if no update operation was requested, display domain information
+        if ($fetch_only) {
+          echo $domain;
+        } else {
+          update_domain($domain, $options);
+        }
+      } else {
+        echo "Fetch domain FAILED (".$domain->getError().")\n";
       }
-    }
-
-    // close session
-    if ($session->logout()) {
-      echo "Your remaining credit: {$session} EUR.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
+      break;
+    default:
+      echo "Error checking '{$name}'.\n";
+      break;
   }
 }
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";

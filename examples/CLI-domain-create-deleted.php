@@ -19,7 +19,7 @@ if ( ! isset($options['d']) ) {
   echo " -a administrative contact\n";
   echo " -t technical contact\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // set domain name to restore
@@ -85,33 +85,36 @@ $domain->debug = LOG_DEBUG;
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-
-    // set parameters
-    $domain->set('domain', $name);
-    $domain->set('registrant', $registrant);
-    $domain->set('admin', $admin);
-    foreach ($tech as $tmp)
-      $domain->addTECH($tmp);
-    foreach ($ns as $tmp)
-      $domain->addNS($tmp);
-    $domain->set('authinfo', substr(rand(), 0, 32));
-
-    // create
-    if ($domain->create())
-      echo "Domain '".$name."' created.\n";
-    else
-      echo "Domain '".$name."' NOT created trough epp-deleted.nic.it (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
-
-    // logout
-    if ( ! $session->logout())
-      echo "Logout FAILED (".$session->getError().").\n";
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+
+// set parameters
+$domain->set('domain', $name);
+$domain->set('registrant', $registrant);
+$domain->set('admin', $admin);
+foreach ($tech as $tmp)
+  $domain->addTECH($tmp);
+foreach ($ns as $tmp)
+  $domain->addNS($tmp);
+$domain->set('authinfo', substr(rand(), 0, 32));
+
+// create
+if ($domain->create())
+  echo "Domain '".$name."' created.\n";
+else
+  echo "Domain '".$name."' NOT created trough epp-deleted.nic.it (code ".$domain->svCode.", '".$domain->svMsg."' / '".$domain->extValueReasonCode."', '".$domain->extValueReason."').\n";
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

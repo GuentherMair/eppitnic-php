@@ -4,12 +4,12 @@ set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
 if ( $argc < 3 ) {
   echo "SYNTAX: " . $argv[0] . " CSV-FILE REGISTRANT\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 if (($handle = fopen($argv[1], "r")) === FALSE) {
   echo "CSV-FILE ".$arg[1]." not readable\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 // set the new registrant name
@@ -34,32 +34,34 @@ $domain->debug = LOG_DEBUG;
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  // perform login
-  if ( $session->login() === FALSE ) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    
-    if ($contact->fetch($newregistrant)) {
-      // get values
-      $values = array();
-      $values['name'] = $contact->get('name');
-      $values['street'] = $contact->get('street');
-      $values['city'] = $contact->get('city');
-      $values['province'] = $contact->get('province');
-      $values['postalcode'] = $contact->get('postalcode');
-      $values['voice'] = $contact->get('voice');
-      $values['fax'] = $contact->get('fax');
-      $values['email'] = $contact->get('email');
-      $values['authinfo'] = $contact->get('authinfo');
-      $values['nationalitycode'] = $contact->get('nationalitycode');
-      $values['entitytype'] = $contact->get('entitytype');
-      $values['regcode'] = $contact->get('regcode');
-      $values['consentforpublishing'] = $contact->get('consentforpublishing');
+  exit(HELLO_FAILED);
+}
+// perform login
+if ( $session->login() === FALSE ) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
 
-      print_r($values);
+if ($contact->fetch($newregistrant)) {
+  // get values
+  $values = array();
+  $values['name'] = $contact->get('name');
+  $values['street'] = $contact->get('street');
+  $values['city'] = $contact->get('city');
+  $values['province'] = $contact->get('province');
+  $values['postalcode'] = $contact->get('postalcode');
+  $values['voice'] = $contact->get('voice');
+  $values['fax'] = $contact->get('fax');
+  $values['email'] = $contact->get('email');
+  $values['authinfo'] = $contact->get('authinfo');
+  $values['nationalitycode'] = $contact->get('nationalitycode');
+  $values['entitytype'] = $contact->get('entitytype');
+  $values['regcode'] = $contact->get('regcode');
+  $values['consentforpublishing'] = $contact->get('consentforpublishing');
 
-      while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
+  print_r($values);
+
+  while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
 	$name = $data[0];
 
 	// recreate domain object
@@ -80,13 +82,15 @@ if ( ! $session->hello()) {
 	  echo "Domain '".$name."' is now up to date.\n";
 	else
 	  echo "Update to domain '".$name."' FAILED (".$domain->getError().")!\n";
-      }
-    }
-
-    // logout
-    if ($session->logout())
-      echo "Logout OK.\n";
-    else
-      echo "Logout FAILED (".$session->getError().").\n";
   }
 }
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

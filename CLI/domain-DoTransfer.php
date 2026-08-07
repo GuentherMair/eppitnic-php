@@ -17,13 +17,13 @@ if (( ! isset($options['f']) && ! (isset($options['d']) && isset($options['i']))
   echo "  -d DOMAIN(s) to transfer\n";
   echo "  -i AUTHINFO code(s) necessary for each domain\n";
   echo "\n";
-  exit(1);
+  exit(SYNTAX_ERROR);
 }
 
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {
   echo "[{$options['f']}] is not a readable file.\n";
-  exit(2);
+  exit(FILE_NOT_READABLE);
 }
 
 // verify domain names
@@ -48,11 +48,11 @@ foreach ($tmp as $domain)
     $domains[] = $domain;
 if (count($domains) < 1) {
   echo "No valid .IT domain given!\n";
-  exit(4);
+  exit(INVALID_INPUT);
 }
 if (count($domains) <> count($authinfos)) {
   echo "Number of .IT domain names does not correlate to amount of authinfo codes given!\n";
-  exit(8);
+  exit(INVALID_INPUT);
 }
 
 
@@ -62,50 +62,58 @@ $session = new Net_EPP_IT_Session($nic, $db);
 $domain = new Net_EPP_IT_Domain($nic, $db);
 
 // send "hello"
+// send "hello"
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    for ($i = 0; $i < count($domains); $i++) {
-      // re-create domain object
-      $domain = new Net_EPP_IT_Domain($nic, $db);
-      //$domain->debug = LOG_DEBUG;
+  exit(HELLO_FAILED);
+}
+echo "Greeting OK.\n";
 
-      $name = $domains[$i];
-      $authinfo = $authinfos[$i];
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
 
-      // lookup domain
-      switch ($domain->check($name)) {
-        case TRUE:
-          echo "Domain '{$name}' does not exist, sorry!\n";
-          echo "Please make sure:\n";
-          echo " - this domain exists\n";
-          echo " - is owned by another registrar/mantainer\n";
-          echo " - to change this file (".__FILE__."), changing the authinfo\n";
-          break;
-        case FALSE:
-          $domain->transferStatus($name);
-          $statusPrev = $domain->get('trStatus');
-          if ($domain->transfer($name, $authinfo)) {
-            echo "[SUCCESS] Transfer '{$name}' OK";
-          } else {
-            echo "[FAILURE] Transfer '{$name}' failed (".$domain->getError().")";
-          }
-          $domain->transferStatus($name);
-          $statusNow = $domain->get('trStatus');
-          echo ", transfer status changed from '{$statusPrev}' to '{$statusNow}'\n";
-          break;
+for ($i = 0; $i < count($domains); $i++) {
+  // re-create domain object
+  $domain = new Net_EPP_IT_Domain($nic, $db);
+  //$domain->debug = LOG_DEBUG;
+
+  $name = $domains[$i];
+  $authinfo = $authinfos[$i];
+
+  // lookup domain
+  switch ($domain->check($name)) {
+    case TRUE:
+      echo "Domain '{$name}' does not exist, sorry!\n";
+      echo "Please make sure:\n";
+      echo " - this domain exists\n";
+      echo " - is owned by another registrar/mantainer\n";
+      echo " - to change this file (".__FILE__."), changing the authinfo\n";
+      break;
+    case FALSE:
+      $domain->transferStatus($name);
+      $statusPrev = $domain->get('trStatus');
+      if ($domain->transfer($name, $authinfo)) {
+        echo "[SUCCESS] Transfer '{$name}' OK";
+      } else {
+        echo "[FAILURE] Transfer '{$name}' failed (".$domain->getError().")";
       }
-    }
-
-    // close session
-    if ($session->logout()) {
-      echo "Your remaining credit: {$session} EUR.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
+      $domain->transferStatus($name);
+      $statusNow = $domain->get('trStatus');
+      echo ", transfer status changed from '{$statusPrev}' to '{$statusNow}'\n";
+      break;
   }
 }
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";

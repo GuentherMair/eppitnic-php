@@ -18,32 +18,36 @@ $contact = new Net_EPP_IT_Contact($nic, $db);
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    $result = $db->dbConnect->Execute("SELECT handle FROM tbl_contacts WHERE active = 1 AND handle like ".$db->escape($init."%").";");
-    while ( ! $result->EOF) {
-      $name = $result->Fields('handle');
-      if ($contact->delete($name)) {
-        echo "[SUCCESS] Contact '".$name."' removed.\n";
-        // try to delete or at least archive the handle
-        $db->dbConnect->Execute("UPDATE tbl_contacts SET active = 0 WHERE active = 1 AND handle = '".$name."'; DELETE FROM tbl_contacts WHERE active = 1 AND handle = '".$name."';");
-      } else {
-        echo "[FAILURE] Contact '".$name."' NOT removed (".$contact->getError().").\n";
-      }
-      $result->MoveNext();
-    }
-
-    // logout
-    if ($session->logout())
-      echo "Logout OK.\n";
-    else
-      echo "Logout FAILED (".$session->getError().").\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+$result = $db->dbConnect->Execute("SELECT handle FROM tbl_contacts WHERE active = 1 AND handle like ".$db->escape($init."%").";");
+while ( ! $result->EOF) {
+  $name = $result->Fields('handle');
+  if ($contact->delete($name)) {
+    echo "[SUCCESS] Contact '".$name."' removed.\n";
+    // try to delete or at least archive the handle
+    $db->dbConnect->Execute("UPDATE tbl_contacts SET active = 0 WHERE active = 1 AND handle = '".$name."'; DELETE FROM tbl_contacts WHERE active = 1 AND handle = '".$name."';");
+  } else {
+    echo "[FAILURE] Contact '".$name."' NOT removed (".$contact->getError().").\n";
+  }
+  $result->MoveNext();
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

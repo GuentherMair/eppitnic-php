@@ -19,62 +19,62 @@ $domain->debug = LOG_DEBUG;
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r($session->result);
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // lookup domain
-    $name = "transfer-domain-02.it";
-    $authinfo = "1378932989";
-
-    switch ($domain->check($name)) {
-      case TRUE:
-        echo "Domain '{$name}' is still available, sorry!\n";
-        break;
-      case FALSE:
-        echo "Domain '{$name}' not available, fetching information...\n";
-        if ($domain->fetch($name, $authinfo, 'all')) {
-          echo " - Registrant: " . $domain->get('registrant') . "\n";
-          echo " - Admin-C: " . $domain->get('admin') . "\n";
-          $tech = $domain->get('tech');
-          if ( ! is_array($tech)) {
-            echo " - Tech-C: {$tech}\n";
-          } else foreach ($tech as $single_tech) {
-            echo " - Tech-C: {$single_tech}\n";
-          }
-          $state = $domain->get('status');
-          foreach ($state as $s)
-            echo " - state '{$s}'\n";
-          $ns = $domain->get('ns');
-          foreach ($ns as $name)
-            echo " - NS: {$name['name']}\n";
-          $infcontacts = $domain->get('infcontacts');
-          foreach ($infcontacts as $contact) {
-            echo " - infContact : ";
-            print_r($contact);
-          }
-        } else {
-          echo "FAILED (".$domain->getError().")\n";
-        }
-        break;
-      default:
-        echo "Error: '{$name}'.\n";
-        break;
-    }
-
-    // logout
-    if ($session->logout()) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// lookup domain
+$name = "transfer-domain-02.it";
+$authinfo = "1378932989";
+
+switch ($domain->check($name)) {
+  case TRUE:
+    echo "Domain '{$name}' is still available, sorry!\n";
+    break;
+  case FALSE:
+    echo "Domain '{$name}' not available, fetching information...\n";
+    if ($domain->fetch($name, $authinfo, 'all')) {
+      echo " - Registrant: " . $domain->get('registrant') . "\n";
+      echo " - Admin-C: " . $domain->get('admin') . "\n";
+      $tech = $domain->get('tech');
+      if ( ! is_array($tech)) {
+        echo " - Tech-C: {$tech}\n";
+      } else foreach ($tech as $single_tech) {
+        echo " - Tech-C: {$single_tech}\n";
+      }
+      $state = $domain->get('status');
+      foreach ($state as $s)
+        echo " - state '{$s}'\n";
+      $ns = $domain->get('ns');
+      foreach ($ns as $name)
+        echo " - NS: {$name['name']}\n";
+      $infcontacts = $domain->get('infcontacts');
+      foreach ($infcontacts as $contact) {
+        echo " - infContact : ";
+        print_r($contact);
+      }
+    } else {
+      echo "FAILED (".$domain->getError().")\n";
+    }
+    break;
+  default:
+    echo "Error: '{$name}'.\n";
+    break;
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+

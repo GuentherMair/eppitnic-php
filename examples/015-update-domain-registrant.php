@@ -81,49 +81,49 @@ function check_or_create($handle, $registrant = FALSE) {
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
   print_r( $session->result );
-} else {
-  echo "Greeting OK.\n";
-
-  // perform login
-  if ($session->login() === FALSE) {
-    echo "Login FAILED (".$session->getError().").\n";
-  } else {
-    echo "Login OK.\n";
-
-    // some details
-    $name = "domain-update-test-01.it";
-    $registrant_new = "GM1000";
-
-    check_or_create($registrant_new, TRUE);
-
-    switch ($domain->fetch($name)) {
-      case TRUE:
-        echo "OLD STATUS:\n";
-        dump_domain($domain);
-        // update domain
-        $domain->set('registrant', $registrant_new);
-        $domain->set('authinfo', $domain->authinfo());
-        if ($domain->updateRegistrant())
-          echo "Domain '{$name}' is now up to date.\n";
-        else
-          echo "Update to domain '{$name}' FAILED (".$domain->getError().")!\n";
-        echo "NEW STATUS:\n";
-        dump_domain($domain);
-        break;
-      case FALSE:
-        echo "Domain '{$name}' should already be available!\n";
-        echo "Please run the update example '014' first!\n";
-        break;
-    }
-
-    // logout
-    if ($session->logout()) {
-      echo "Logout OK.\n";
-    } else {
-      echo "Logout FAILED (".$session->getError().").\n";
-    }
-
-    // print credit
-    echo "Your credit: ".sprintf("%.2f", $session->showCredit())." EUR\n";
-  }
+  exit(HELLO_FAILED);
 }
+echo "Greeting OK.\n";
+
+// perform login
+if ($session->login() === FALSE) {
+  echo "Login FAILED (".$session->getError().").\n";
+  exit(LOGIN_FAILED);
+}
+echo "Login OK.\n";
+
+// some details
+$name = "domain-update-test-01.it";
+$registrant_new = "GM1000";
+
+check_or_create($registrant_new, TRUE);
+
+switch ($domain->fetch($name)) {
+  case TRUE:
+    echo "OLD STATUS:\n";
+    dump_domain($domain);
+    // update domain
+    $domain->set('registrant', $registrant_new);
+    $domain->set('authinfo', $domain->authinfo());
+    if ($domain->updateRegistrant())
+      echo "Domain '{$name}' is now up to date.\n";
+    else
+      echo "Update to domain '{$name}' FAILED (".$domain->getError().")!\n";
+    echo "NEW STATUS:\n";
+    dump_domain($domain);
+    break;
+  case FALSE:
+    echo "Domain '{$name}' should already be available!\n";
+    echo "Please run the update example '014' first!\n";
+    break;
+}
+
+// logout
+if ( ! $session->logout() ) {
+  echo "Logout FAILED (code ".$session->svCode.", '".$session->svMsg."').\n";
+  exit(LOGOUT_FAILED);
+}
+
+// all done
+echo "Logout OK, your remaining credit: {$session} EUR.\n";
+
