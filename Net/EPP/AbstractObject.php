@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/log_severity.php';
+require_once 'Net/EPP/LogSeverity.php';
 
 /**
  * An abstract class for other EPP objects (session, contact, domain).
@@ -11,11 +11,9 @@ require_once 'Net/EPP/log_severity.php';
  *  - a generic ExecuteQuery method
  *  - generic error code handlers (getter and setter)
  *
- * PHP version 5.3
- *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

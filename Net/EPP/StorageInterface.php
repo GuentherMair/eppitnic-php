@@ -3,11 +3,9 @@
 /**
  * A simple interface description for use in storage classes.
  *
- * PHP version 5.3
- *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,4 +65,48 @@ interface Net_EPP_StorageInterface
   public function storeDomain($elements, $userid = 1);
   public function retrieveDomain($domain, $userid = 1);
   public function updateDomain($elements, $domain, $userid = 1);
+
+  // contact operations
+  public function listContacts($userid = 1, $activeOnly = TRUE);
+  public function deleteContact($contact, $userid = 1);
+  public function restoreContact($contact, $userid = 1);
+
+  // domain operations
+  public function listDomains($userid = 1, $handle = null, $activeOnly = TRUE, $age = 0);
+  public function deleteDomain($domain, $userid = 1);
+  public function restoreDomain($domain, $userid = 1);
+  public function invoiceableDomains();
+  public function renewDomains();
+
+  // accounting operations
+  public function doAccount($operation, $billingID, $object, $date = NULL);
+  public function accountableServices();
+  public function closeAccountableServices($records);
+  public function creditForecast($days);
+
+  // transfer operations
+  public function storeTransfer($domain, $registrant, $techc, $dns, $userid = 1);
+  public function lookupTransfer($domain, $userid = 1);
+  public function listTransfers($registrant = "", $userid = 1);
+  public function deleteTransfer($domain, $userid = 1);
+
+  // reminder operations
+  public function setReminder($domain, $date, $notice, $email, $userid = 1);
+  public function getReminder($domain = null, $userid = 1, $doRemind = false);
+  public function archiveReminder($id, $userid = 1);
+
+  // local account operations
+  public function changePassword($newPassword, $userid);
+
+  // user operations
+  public function listUsers();
+  public function retrieveUser($userid);
+  public function storeUser($elements);
+  public function updateUser($elements, $userid);
+  public function deleteUser($userid);
+
+  // generic operations
+  public function expiringDomains($days, $userid = 1);
+  public function exportDomains($userid = 1);
+  public function autocompleteDomain($search, $limit, $userid = 1);
 }

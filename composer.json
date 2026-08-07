@@ -1,6 +1,7 @@
 {
     "name": "inet-services/eppitnic",
     "description": "PHP library for the EPP interface of the Italian domain registry (nic.it)",
+    "license": "BSD-3-Clause",
     "require": {
         "php": ">=8.1",
         "ext-curl": "*",

@@ -53,14 +53,12 @@
     <creditForecastDays>60</creditForecastDays>
     <creditForecastItemPrice>5.40</creditForecastItemPrice>
     <creditNotification>70</creditNotification>
-    <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>
-    <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
-  </webinterface>
-  <billing>
     <renewByPollQueueMsg>1</renewByPollQueueMsg>
     <CDR>/var/log/itnic_billing.cdr</CDR>
+    <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>
+    <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
     <delimiter>;</delimiter>
     <enclosure>"</enclosure>
     <EOL>UNIX</EOL>
-  </billing>
+  </webinterface>
 </config>

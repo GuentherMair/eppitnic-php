@@ -3,31 +3,9 @@
 /**
  * A simple class handling HTTP sessions through cURL.
  *
- * Available methods:
- *  - setClientCert
- *  - setInterface
- *  - setMaxRedirects
- *  - setTimeout
- *  - setReferer
- *  - setBinaryTransfer
- *  - setCookieFileLocation
- *  - getCookieFileLocation
- *  - setPost
- *  - setUrl
- *  - setUserAgent
- *  - setHeaders
- *  - setDebugFile
- *  - query
- *  - getHttpStatus
- *  - getHttpHeaders
- *  - getHttpBody
- *  - getHttpError
- *
- * PHP version 5.3
- *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

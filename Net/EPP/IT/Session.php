@@ -5,21 +5,9 @@ require_once 'Net/EPP/AbstractObject.php';
 /**
  * A simple class handling EPP sessions.
  *
- * Available methods:
- *  - hello
- *  - login
- *  - keepalive
- *  - logout
- *  - pollID
- *  - pollMessageCount
- *  - poll
- *  - showCredit
- *
- * PHP version 5.3
- *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

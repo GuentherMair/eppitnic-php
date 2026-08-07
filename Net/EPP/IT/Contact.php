@@ -3,25 +3,11 @@
 require_once 'Net/EPP/AbstractObject.php';
 
 /**
- * This class handles contacts and supports the following operations on them:
- *
- *  - check contact (single and bulk operations supported)
- *  - create contact (EPP create command)
- *  - fetch contact (EPP info command)
- *  - update contact
- *  - update contact status
- *  - update contact registrant fields
- *  - delete contact
- *
- *  - storeDB store contact to DB
- *  - loadDB load contact from DB
- *  - updateDB update contact stored in DB
- *
- * PHP version 5.3
+ * This class handles contact objects.
  *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

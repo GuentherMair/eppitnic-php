@@ -6,32 +6,11 @@ require_once 'Net/EPP/AbstractObject.php';
 require_once 'Net/EPP/IT/Contact.php';
 
 /**
- * This class handles domains and supports the following operations on them:
- *
- *  - check domain (single and bulk operations supported)
- *  - create domain (EPP create command)
- *  - fetch domain (EPP info command)
- *  - update domain
- *  - update domain registrant
- *  - update domain status
- *  - restore domain
- *  - delete domain
- *
- *  - transferStatus (query) domain
- *  - transfer/transfer-trade domain
- *  - transferApprove domain
- *  - transferReject domain
- *  - transferCancel domain
- *
- *  - storeDB store domain to DB
- *  - loadDB load domain from DB
- *  - updateDB update domain stored in DB
- *
- * PHP version 5.3
+ * This class handles domain objects.
  *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1438,5 +1417,36 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       return $this->storage->listUsers();
   }
 
-}
+  /**
+   * export domain handler
+   *
+   * @access   public
+   * @return   mixed     exported data (csv)
+   */
+  public function export($userID) {
+    $output = "";
+    $records = $this->storage->exportDomains($userID);
 
+    $titles = explode(";", (string)(@$this->client->EPPCfg->webinterface->exportTitles ?: 'ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID'));
+    $fields = explode(";", (string)(@$this->client->EPPCfg->webinterface->exportFields ?: 'domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;billingID'));
+    $delimiter = (string)(@$this->client->EPPCfg->webinterface->delimiter ?: ';');
+    $enclosure = (string)(@$this->client->EPPCfg->webinterface->enclosure ?: '"');
+    $EOL = (strtoupper((string)(@$this->client->EPPCfg->webinterface->EOL ?: 'UNIX')) == 'UNIX') ? "\n" : "\r\n";
+
+    // title row
+    $tmp = array();
+    foreach ($titles as $title)
+      $tmp[] = _($title);
+    $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $EOL;
+
+    // data rows
+    foreach ($records as $record) {
+      $tmp = array();
+      foreach ($fields as $field)
+        $tmp[] = $record[$field];
+      $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $EOL;
+    }
+
+    return $output;
+  }
+}
