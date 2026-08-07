@@ -1,6 +1,7 @@
 <?php
 
 use Algo26\IdnaConvert\ToIdn;
+use Algo26\IdnaConvert\ToUnicode;
 
 require_once 'Net/EPP/AbstractObject.php';
 require_once 'Net/EPP/IT/Contact.php';
@@ -1448,5 +1449,67 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     return $output;
+  }
+
+  /**
+   * import domain handler
+   *
+   * @access   public
+   * @return   mixed     imported data (states)
+   */
+  public function import($values, $userID) {
+    $results = array();
+
+    // verify we got any input at all
+    if (empty(trim($values)))
+      return $results;
+
+    // create a new contact object
+    $contact = new Net_EPP_IT_Contact($this->client, $this->storage);
+    $idn_decoder = new ToUnicode();
+
+    // iterate over all domains provided (and separated by common delimiters)
+    $domains = array_unique(preg_split("/[\s,;:]+/", strtolower(trim($values))));
+    foreach ($domains as $domain) {
+      // initialize status
+      $result = [
+        'step1_domain'     => 'unknown',
+        'step2_registrant' => 'unknown',
+        'step3_reg_store'  => 'unknown',
+        'step4_dom_store'  => 'unknown',
+      ];
+
+      // IT-NIC does not respond to queries for "xn--..." domain names!
+      $domain = $idn_decoder->convert($domain);
+      if ( ! $this->fetch($domain)) {
+        $result['step1_domain'] = 'not found';
+        $this->deleteDomainDB($domain);
+        continue;
+      }
+      $result['step1_domain'] = 'found';
+
+      if ( ! $contact->fetch($this->get('registrant'))) {
+        $result['step2_registrant'] = 'not found';
+        continue;
+      }
+      $result['step2_registrant'] = 'found';
+
+      // store/update contact
+      $registrant = $this->storage->retrieveContact($this->get('registrant'));
+      $effectiveUserID = ($registrant === FALSE) ? $userID : $registrant['userID'];
+      $result['step3_reg_store'] = $contact->storeDB($effectiveUserID) ? 'stored' : 'not stored';
+
+      // store/update domain
+      if ($this->storeDB($effectiveUserID)) {
+        $result['step4_dom_store'] = 'stored';
+        $this->storage->deleteTransfer($domain);
+      } else {
+        $result['step4_dom_store'] = 'not stored';
+      }
+
+      // done
+      $results[$domain] = $result;
+    }
+    return $results;
   }
 }
