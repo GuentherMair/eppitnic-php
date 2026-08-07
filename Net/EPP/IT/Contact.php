@@ -680,7 +680,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       case "clientDeleteProhibited":
       case "clientUpdateProhibited":
         break;
-      default;
+      default:
         $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited' or 'clientUpdateProhibited'.");
         return FALSE;
     }
@@ -777,7 +777,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       $this->changes = 0;
       foreach ($tmp as $key => $value) {
         $key = strtolower($key);
-        $this->$key = $value;
+        // only accept columns that map to a declared property (skips DB-only
+        // bookkeeping columns like 'id' or 'active')
+        if (property_exists($this, $key))
+          $this->$key = $value;
       }
       return TRUE;
     }

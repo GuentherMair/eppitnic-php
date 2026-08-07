@@ -29,12 +29,12 @@ if (isset($options['f']) && ! is_readable($options['f'])) {
 }
 
 // verify domain names
-$domains = array();
+$domain_names = array();
 $tmp = isset($options['f']) ? explode("\n", trim(file_get_contents($options['f']))) : explode(":", $options['d']);
 foreach ($tmp as $domain)
   if (substr($domain, -3) == '.it')
-    $domains[] = $domain;
-if (count($domains) < 1) {
+    $domain_names[] = $domain;
+if (count($domain_names) < 1) {
   echo "No valid .IT domain given!\n";
   exit(4);
 }
@@ -62,18 +62,18 @@ if ( ! $session->hello()) {
     echo "Login FAILED (".$session->getError().").\n";
   } else {
     if ($contact->fetch($registrant)) {
-      foreach ($domais as $name) {
+      foreach ($domain_names as $domain_name) {
 	// re-create domain object
 	$domain = new Net_EPP_IT_Domain($nic, $db);
-	$domain->fetch($name);
+	$domain->fetch($domain_name);
 	$domain->set('registrant', $registrant);
 	$domain->set('authinfo', substr(md5(rand()), 0, 16));
 
 	// update domain
 	if ($domain->updateRegistrant()) {
-	  echo "[SUCCESS] Domain '{$name}' is now up to date.\n";
+	  echo "[SUCCESS] Domain '{$domain_name}' is now up to date.\n";
 	} else {
-	  echo "[FAILURE] Update to domain '{$name}' FAILED (".$domain->getError().")!\n";
+	  echo "[FAILURE] Update to domain '{$domain_name}' FAILED (".$domain->getError().")!\n";
         }
       }
     } else {

@@ -92,12 +92,15 @@ class Net_EPP_Curl
     $this->_authName = $authName;
     $this->_authPass = $authPass;
 
-    if (file_exists($this->_cookieFileLocation))
-      if ( ! is_writeable($this->_cookieFileLocation))
+    if (file_exists($this->_cookieFileLocation)) {
+      if ( ! is_writeable($this->_cookieFileLocation)) {
         exit("FATAL ERROR: cookie file '".$this->_cookieFileLocation."' exists and is NOT writeable\n");
-    else
-      if ( ! is_writeable(dirname($this->_cookieFileLocation)))
+      }
+    } else {
+      if ( ! is_writeable(dirname($this->_cookieFileLocation))) {
         exit("FATAL ERROR: cookie file FOLDER '".dirname($this->_cookieFileLocation)."' is NOT writeable\n");
+      }
+    }
   }
 
   public function __destruct() {

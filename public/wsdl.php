@@ -2,7 +2,7 @@
 
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
-require_once 'libs/nusoap/nusoap.php';
+require_once 'libs/nusoap/src/nusoap.php';
 require_once 'Net/EPP/IT/WSDL.php';
 
 /**
@@ -121,5 +121,5 @@ require_once 'Net/EPP/IT/WSDL/domain.transfer-approve.php';
 /*
  * print output
  */
-$server->service($HTTP_RAW_POST_DATA);  
+$server->service(file_get_contents('php://input'));
 

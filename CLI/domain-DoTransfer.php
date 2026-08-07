@@ -90,9 +90,9 @@ if ( ! $session->hello()) {
           $domain->transferStatus($name);
           $statusPrev = $domain->get('trStatus');
           if ($domain->transfer($name, $authinfo)) {
-            echo "[SUCCESS] Transfer '${name}' OK";
+            echo "[SUCCESS] Transfer '{$name}' OK";
           } else {
-            echo "[FAILURE] Transfer '${name}' failed (".$domain->getError().")";
+            echo "[FAILURE] Transfer '{$name}' failed (".$domain->getError().")";
           }
           $domain->transferStatus($name);
           $statusNow = $domain->get('trStatus');

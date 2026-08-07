@@ -2,7 +2,7 @@
 
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
-require_once 'libs/nusoap/nusoap.php'; 
+require_once 'libs/nusoap/src/nusoap.php'; 
 
 /**
  * This file is part of the WSDL interface to the EPP library.

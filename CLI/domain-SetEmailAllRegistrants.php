@@ -32,12 +32,12 @@ if (isset($options['f']) && ! is_readable($options['f'])) {
 }
 
 // verify domain names
-$domains = array();
+$domain_names = array();
 $tmp = isset($options['f']) ? explode("\n", trim(file_get_contents($options['f']))) : explode(":", $options['d']);
 foreach ($tmp as $domain)
   if (substr($domain, -3) == '.it')
-    $domains[] = $domain;
-if (count($domains) < 1) {
+    $domain_names[] = $domain;
+if (count($domain_names) < 1) {
   echo "No valid .IT domain given!\n";
   exit(4);
 }
@@ -68,9 +68,9 @@ if ( ! $session->hello()) {
   } else {
     echo "Login OK.\n";
 
-    foreach ($domais as $name) {
+    foreach ($domain_names as $domain_name) {
         $domain = new Net_EPP_IT_Domain($nic, $db);
-        if ($domain->fetch($name)) {
+        if ($domain->fetch($domain_name)) {
             $contact = new Net_EPP_IT_Contact($nic, $db);
             $contact->fetch($domain->get('registrant'));
             $contact->set('email', $registrant_email);

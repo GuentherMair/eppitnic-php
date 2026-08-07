@@ -170,7 +170,7 @@ if ( ! $session->hello()) {
       $domain = new Net_EPP_IT_Domain($nic, $db);
       echo "Verifying domain '{$name}':\n";
       if ($domain->fetch($name)) {
-	update_domain($domain);
+	update_domain($domain, $options);
       } else {
 	echo "Fetch domain FAILED (".$domain->getError().")\n";
       }

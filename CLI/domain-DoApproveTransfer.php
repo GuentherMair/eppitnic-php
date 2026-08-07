@@ -88,7 +88,7 @@ if ( ! $session->hello()) {
           break;
         case FALSE:
           $domain->transferStatus($name);
-          echo "Transfer-Status for '${name}' is currently '".$domain->get('trStatus')."': ";
+          echo "Transfer-Status for '{$name}' is currently '".$domain->get('trStatus')."': ";
           if ($domain->transferApprove($name, $authinfo)) {
             echo "approval SUCCESS";
           } else {

@@ -676,8 +676,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
         $type = $contact->attributes()->type;
         if ($type == "tech") {
           $this->addTECH((string)$contact);
-        } else {
+        } else if ($type == "registrant" or $type == "admin") {
           $this->$type = (string)$contact;
+        } else {
+          // undefined
         }
       }
 
@@ -1030,7 +1032,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       case "clientHold":
       case "clientLock":
         break;
-      default;
+      default:
         $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited', 'clientHold', 'clientLock'.");
         return FALSE;
     }
@@ -1161,7 +1163,13 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       // initialize data
       foreach ($tmp as $key => $value) {
         $key = strtolower($key);
-        $this->$key = $value;
+        // only accept columns that map to a declared property (skips DB-only
+        // bookkeeping columns like 'id', 'active' and 'lastInvoice', as well as
+        // the legacy single-DS-record columns 'dsAlgorithm', 'dsDigest',
+        // 'dsDigestType' and 'dsKeyTag', which have been superseded by the
+        // $dnssec array column)
+        if (property_exists($this, $key))
+          $this->$key = $value;
       }
 
       // convert these into arrays (even empty ones)
