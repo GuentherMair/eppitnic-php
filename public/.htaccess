@@ -1,0 +1,9 @@
+# Block everything
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>
+
+# Allow only these (index.php + whois.php)
+<FilesMatch "^(index|whois)\.php$">
+    Require all granted
+</FilesMatch>

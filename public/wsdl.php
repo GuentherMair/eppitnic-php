@@ -8,11 +8,9 @@ require_once 'Net/EPP/IT/WSDL.php';
 /**
  * This file provides a WSDL interface to the EPP library.
  *
- * PHP version 5.3
- *
  * LICENSE:
  *
- * Copyright (c) 2009-2017, Günther Mair <info@inet-services.it>
+ * Copyright (c) Günther Mair <info@inet-services.it>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -91,20 +89,20 @@ require_once 'Net/EPP/IT/WSDL/wsdl_typedefinitions.php';
  *  - a PHP function reflecting the SOAP method
  */
 
-// ACCOUNT RELATED
+// account related
 require_once 'Net/EPP/IT/WSDL/account.credit.php';
 require_once 'Net/EPP/IT/WSDL/account.poll-count.php';
 require_once 'Net/EPP/IT/WSDL/account.poll.php';
 require_once 'Net/EPP/IT/WSDL/account.poll-all.php';
 
-// CONTACT RELATED METHODS
+// contact related
 require_once 'Net/EPP/IT/WSDL/contact.create.php';
 require_once 'Net/EPP/IT/WSDL/contact.check.php';
 require_once 'Net/EPP/IT/WSDL/contact.info.php';
 require_once 'Net/EPP/IT/WSDL/contact.update.php';
 require_once 'Net/EPP/IT/WSDL/contact.delete.php';
 
-// DOMAIN RELATED METHODS
+// domain related
 require_once 'Net/EPP/IT/WSDL/domain.changeRegistrant.php';
 require_once 'Net/EPP/IT/WSDL/domain.create.php';
 require_once 'Net/EPP/IT/WSDL/domain.check.php';
@@ -118,8 +116,5 @@ require_once 'Net/EPP/IT/WSDL/domain.transfer-cancel.php';
 require_once 'Net/EPP/IT/WSDL/domain.transfer-reject.php';
 require_once 'Net/EPP/IT/WSDL/domain.transfer-approve.php';
 
-/*
- * print output
- */
+// print output
 $server->service(file_get_contents('php://input'));
-
