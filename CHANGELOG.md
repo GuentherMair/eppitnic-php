@@ -1,61 +1,50 @@
-Version 6.7
-===========
-Fixed a minor bug which kept the Domain->storeDB(...) method from removing an
+# Changelog
+
+## Version 6.8
+- Initial PHP 8.5 migration pass: compatibility fixes, cleanups, and typo fixes across `CLI/`, `Net/EPP/`, and the `examples-wsdl/` scripts.
+- Bundled libraries updated: nusoap upgraded to 0.9.20 and Smarty upgraded to 3.1.48 (old bundled versions removed).
+
+## Version 6.7
+Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.
 
-Initialize the current date for crDate in initValues() and current date + 1 year
-for exDate.
+Initialize the current date for `crDate` in `initValues()` and current date + 1 year
+for `exDate`.
 
+## Version 6.6
+Commented out `$slast` in `idna_convert.class.php` (was never used anyway and PHP
+complained about creating it as a dynamic property).
 
-Version 6.6
-===========
-Commented out $slast in idna_convert.class.php (was never used anyway and PHP
-complained about creating it as a dynamic property)
-
-
-Version 6.5
-===========
-Replaced obsolete/unmantained phpwhois-4.2.2 with phpwhois-kevinoo-6.3 while
-adding libs/phpwhois/whois.main.php as a wrapper in order to keep the previous
+## Version 6.5
+Replaced obsolete/unmaintained phpwhois-4.2.2 with phpwhois-kevinoo-6.3 while
+adding `libs/phpwhois/whois.main.php` as a wrapper in order to keep the previous
 interface.
 
+## Version 6.4
+Some adjustments to make the library and its components compatible with newer
+PHP versions (8.x).
 
-Version 6.4
-===========
-Some adjustments to make the library and its components compatibile to newer
-PHP version (8.x).
+## Version 6.3
+If a message was not successfully stored by `poll()` in `Net/EPP/IT/Session.php`,
+return `FALSE`.
 
-
-Version 6.3
-===========
-If a message was not successfully stored by poll() in Net/EPP/IT/Session.php
-return FALSE.
-
-
-Version 6.2
-===========
+## Version 6.2
 This update includes support for the EDU SLD – please mind the schema update
-to tbl_contacts!
+to `tbl_contacts`!
 
-
-Version 6.1
-===========
+## Version 6.1
 Some updates to the database schema.
 
-
-Version 6.0
-===========
+## Version 6.0
 All code and examples updated to be usable with PHP 7. Some code cleanup was
 done and examples divided into more generic CLI tools and "examples".
 
 Support added for use with IT-NIC's upcoming DNSSEC implementation.
 
-IMPORTANT: as part of the code cleanup Smarty 2 and ADOdb have been removed.
-This now implies usage of a PHP release greater or equal 5.3!
+> **IMPORTANT:** as part of the code cleanup, Smarty 2 and ADOdb have been removed.
+> This now implies usage of a PHP release greater than or equal to 5.3!
 
-
-Version 6.0-beta1
-=================
+## Version 6.0-beta1
 All code and examples updated to be usable with PHP 7. Some code cleanup was
 done and examples divided into more generic CLI tools and "examples".
 
@@ -63,112 +52,90 @@ Configuration prepared for use with IT-NIC's upcoming DNSSEC implementation.
 Code and DB support for DNSSEC is still missing but should be there for the
 final 6.0 release.
 
-IMPORTANT: as part of the code cleanup Smarty 2 and ADOdb have been removed.
-This now implies usage of a PHP release greater or equal 5.3!
+> **IMPORTANT:** as part of the code cleanup, Smarty 2 and ADOdb have been removed.
+> This now implies usage of a PHP release greater than or equal to 5.3!
 
-
-Version 5.3
-===========
-Contact objects now allow for "entitytype = 0" (for example a TECHC without
+## Version 5.3
+Contact objects now allow for `entitytype = 0` (for example a TECHC without
 any details except address information).
 
-infContacts support added to domain object and WSDL interface. This includes
+`infContacts` support added to domain object and WSDL interface. This includes
 examples.
 
 Minor issue related to default userid assignment to domain object fixed, which
-mainly only relates to the user (agent) management provided by the grafical
+mainly only relates to the user (agent) management provided by the graphical
 interface.
 
-
-Version 5.2
-===========
+## Version 5.2
 Examples folder cleaned up. Modified the add/rem methods used by the Domain
 object in order to allow modification when there are already 6 NS or tech
 contacts assigned to a domain.
 
+## Version 5.1
+Bugfix which relates to `extValueReasonCode` in `Net/EPP/AbstractObject.php` (this
+value has been placed underneath the extepp namespace by IT-NIC's 2.0 release).
 
-Version 5.1
-===========
-Bugfix which relates to extValueReasonCode in Net/EPP/AbstractObject.php (this
-value has been placed underneath the extepp namespace by IT#NIC's 2.0 release.
-
-
-Version 5.0
-===========
+## Version 5.0
 This version now supports IT-NIC's 2.0 release.
 
-It also fixes the handling of the <debugfile></debugfile> configuration
+It also fixes the handling of the `<debugfile></debugfile>` configuration
 parameter and the entity-encoding of the authinfo parameter used in domain
 transfer requests.
 
-
-Version 4.6
-===========
+## Version 4.6
 Reset method for HTTP connections implemented in the Client class.
 
 phpwhois-4.2.2 added to lib folder (to be used with webinterface).
 
-If an DNS record is added which already exists, but has a new IP address
+If a DNS record is added which already exists, but has a new IP address
 associated with it, then automatically remove the old configuration and add
 a new one.
 
-
-Version 4.5
-===========
+## Version 4.5
 Updated the DomainUpdate WSDL function so the amount of contacts and ns records
-to add/remove is not static (to be devided by semicolons).
+to add/remove is not static (to be divided by semicolons).
 
+## Version 4.4
+Added missing userID field to `tbl_transfer`. Renamed apache configuration file
+for WSDL to `docs/apache-vhost-wsdl`.
 
-Version 4.4
-===========
-Added missing userID field to tbl_transfer. Renamed apache configuration file
-for WSDL to docs/apache-vhost-wsdl.
-
-Fixed a typo in Net/EPP/IT/WSDL/contact.info.php (space character after name
+Fixed a typo in `Net/EPP/IT/WSDL/contact.info.php` (space character after name
 column field removed).
 
-
-Version 4.3
-===========
-Now checking PHP Version in order not to break php version older than 5.2.3
-when using htmlspecialchars (4th parameter was only added in v5.2.3).
+## Version 4.3
+Now checking PHP version in order not to break PHP versions older than 5.2.3
+when using `htmlspecialchars` (4th parameter was only added in v5.2.3).
 
 Added support for delayedDebitAndRefundMsgData polling type data. Thanks
 Angelo for the input!
 
-
-Version 4.2
-===========
+## Version 4.2
 Moved the AbstractObject object up into Net_EPP space.
 
 The session file location can now be specified manually.
 
-Added an account.poll.ack.php example for WSDL and changed the Poll method
+Added an `account.poll.ack.php` example for WSDL and changed the Poll method
 to use ACK as default parameter. PollAll now works only with ACK.
 
-Switched to IDNAbis-like handling of german SZ in idna_convert, as IT-NIC will
+Switched to IDNAbis-like handling of German SZ in idna_convert, as IT-NIC will
 now support this.
 
-
-Version 4.1
-===========
+## Version 4.1
 Updated the WSDL interface to version 1.2 (added a DomainChangeRegistrant
 method and removed the registrant parameter from the DomainUpdate method).
 
-
-Version 4.0
-===========
+## Version 4.0
 Some smaller fixes and updates (DB layout for webinterface, which now supports
 automatization of TECH-C + DNS updates).
 
-Added an example that shows how to do extend the DB driver for searching
+Added an example that shows how to extend the DB driver for searching
 serialized DB fields.
 
-Support for multiple smarty versions added. The library now comes with a
-version 2 and a verion 3 release. Depending on your PHP_VERSION_ID the correct
+Support for multiple Smarty versions added. The library now comes with a
+version 2 and a version 3 release. Depending on your `PHP_VERSION_ID` the correct
 one to be used is selected.
 
-The set method for contacts now makes use of htmlspecialchars() in order to
+The set method for contacts now makes use of `htmlspecialchars()` in order to
 convert ampersands and other stuff.
 
 Big switch from the PEAR class HTTP_Client to CURL. This is the main reason
@@ -176,40 +143,34 @@ for the change in major number. The current version now allows you to choose
 the leaving IP/interface, which should be useful for multi-homed servers and
 hosting solutions.
 
-
-Version 3.6
-===========
-The isTrue method inside of the Contact object did a value and type check
-on it's argument and therefor compared only to numeric 1 instead of also
+## Version 3.6
+The `isTrue` method inside of the Contact object did a value and type check
+on its argument and therefore compared only to numeric 1 instead of also
 comparing to the string "1". Fixed.
 
-Parent contstructors (domain / contact objects) are now called as first thing
-in the objects own constructor.
+Parent constructors (domain / contact objects) are now called as first thing
+in the object's own constructor.
 
-Some troubles found when using Smarty 3 with PHP 5.2 (ie. Ubuntu 8.04 LTS).
-I'm still undecided whether to downgraade back to Smarty 2 or not.
+Some troubles found when using Smarty 3 with PHP 5.2 (i.e. Ubuntu 8.04 LTS).
+Still undecided whether to downgrade back to Smarty 2 or not.
 
 When updating the registrant and using the updateDB domain method, the
-owning userID (agent ID) is now changed. The variable name userID has now be
-changed to lowercase "userid" everywhere. This could have some impact in
+owning userID (agent ID) is now changed. The variable name userID has now been
+changed to lowercase `userid` everywhere. This could have some impact in
 different places - please pay attention to it!
 
 You can now remove the fax value from a contact by leaving it blank.
 
-
-Version 3.5
-===========
-Changed all calls to Smarty's clear_all_assign to clearAllAssign.
-Calls to set() on objects are now doing automatic lower-case conversion.
+## Version 3.5
+Changed all calls to Smarty's `clear_all_assign` to `clearAllAssign`.
+Calls to `set()` on objects are now doing automatic lower-case conversion.
 Thanks Marcello!
 
 The error handling function in AbstractObject now type-casts message
 variables to strings (there have been some issues there).
 
-
-Version 3.4
-===========
-Updated the status fields for tbl_contacts and tbl_domains, which were still
+## Version 3.4
+Updated the status fields for `tbl_contacts` and `tbl_domains`, which were still
 and wrongly set to tinyint. They need to be text in order to support
 serialized status information (text array). Thanks Marcello!
 
@@ -218,12 +179,10 @@ webinterface will display accounting information in the same way the polling
 queue is displayed.
 
 Updated Smarty to version 3.0.6. The client-constructor now uses the
-$_file_perms and $_dir_perms variables when failback to /tmp for compile_dir
-is active. The failback now emitts a E_USER_NOTICE instead of E_USER_WARNING.
+`$_file_perms` and `$_dir_perms` variables when falling back to `/tmp` for compile_dir
+is active. The fallback now emits an `E_USER_NOTICE` instead of `E_USER_WARNING`.
 
-
-Version 3.3
-===========
+## Version 3.3
 Updated the update-contact template in order to support authinfo-updates on
 contacts. They are not used but defined by the protocol, so what... :-)
 
@@ -231,9 +190,7 @@ Added a config.xml parameter in order to switch on/off sending email
 notifications for all polling queue messages (this only affects the
 webinterface implementation though).
 
-
-Version 3.2
-===========
+## Version 3.2
 Support for clientLock added to the domain object (can only be viewed though).
 
 Added the idna_convert class by phlyLabs. The eppitnic-php class by itself
@@ -242,18 +199,16 @@ webinterface will have to feed punycode strings to the DNS notification
 script (DNS's need to run domains in punycode format).
 
 Fixed the sendRequest method in the client class which (wrongly) always used
-utf8_encode() on the data to be sent. This issue led to double-encoding in
+`utf8_encode()` on the data to be sent. This issue led to double-encoding in
 cases where your data was already in UTF-8 format. For those of you feeding
-data in ISO-8859-1 format I added the forceUTF8 configuration parameter.
+data in ISO-8859-1 format the forceUTF8 configuration parameter was added.
 
 Added an example for IDN registration (032) and fixed deriving example (011).
 German SZ (ß) will be encoded as 'ss'.
 
 creditMsgData messages in polling queue are now parsed.
 
-
-Version 3.1
-===========
+## Version 3.1
 A typo inside the domain object fixed. Thanks Luca!
 
 Support for clientTransferProhibited added to the domain object. Thanks
@@ -265,80 +220,66 @@ updates to all examples.
 Added support for the exDate domain information. This is a small update to the
 DB as well, with the big advantage that you could do credit-forecasts. This
 would only be an approximation though, and you will have to take into account
-how many domains you usualy register in any period of time (the crDate may be
+how many domains you usually register in any period of time (the crDate may be
 of some help in doing so).
 
-
-Version 3.0
-===========
+## Version 3.0
 Access to trStatus property in examples 019/020/021 fixed.
 
 Update to Domain storeDB method in order to permit a few not very common
 cases like 're-transfer-in' or a 're-register-after-delete'.
 
-Any transferStatus query now also fills the reID fields in tbl_messages.
+Any transferStatus query now also fills the reID fields in `tbl_messages`.
 
-
-Version 3.0 rc 2
-================
-Include path in all examples is now based on the __FILE__ constant so that you
+## Version 3.0 rc 2
+Include path in all examples is now based on the `__FILE__` constant so that you
 may now launch a file from whatever path you are in. In order for that the
 internal behaviour of the Client class (which locates and reads the config.xml
 file) has been altered as well. This now extends nicely to the new WSDL class
 as well and we don't need an ugly, separate config file for this.
 
 Smarty default values (empty) should be kept from now on. The smarty compile
-folder still needs write permissions (ie. www-data on Debian/Ubuntu if you are
+folder still needs write permissions (i.e. www-data on Debian/Ubuntu if you are
 trying to use the WSDL interface). If this is not granted the Client class
-will try to failback to '/tmp', emit warnings in case of success and die with
+will try to fall back to '/tmp', emit warnings in case of success and die with
 an error message in case of a failure.
 
 Any transferStatus query now fills the reID/acID fields (if set).
 
 Added new Smarty and adoDB libraries.
 
-
-Version 3.0 rc 1
-================
+## Version 3.0 rc 1
 Domain and Contact object values are now re-initialized before every fetch from
 either DB or EPP servers.
 
 First implementation of a message queue parser. Messages are stored after any
-poll 'req' in tbl_messages in more or less human readable format and can be
-retrieved with the retrieveParsedMessages() method call. There are 3 new
-example scripts on how to use this functionality, while the example 009 has
-been 'deactivated', since it's implementation was completely wrong and is now
-superseeded by 029 and 030. This should now be the correct approach to the
+poll 'req' in `tbl_messages` in more or less human readable format and can be
+retrieved with the `retrieveParsedMessages()` method call. There are 3 new
+example scripts on how to use this functionality, while example 009 has
+been 'deactivated', since its implementation was completely wrong and is now
+superseded by 029 and 030. This should now be the correct approach to the
 issue hinted at by Marco about two weeks ago.
 
-The WSDL start file has now moved into the 'public/' folder in order to deny
+The WSDL start file has now moved into the `public/` folder in order to deny
 file access to any other files through the webbrowser. Let's try to keep to
 good security practices even though this will probably always be an internal
 solution... ;-)
 
-
-Version 3.0 beta 4
-==================
+## Version 3.0 beta 4
 Updates to both Contact and Domain objects in order to prevent the registration
 of "changes" when a value of an existing object hadn't really changed.
 
-
-Version 3.0 beta 3
-==================
+## Version 3.0 beta 3
 Added centralized error handling functions to Net_EPP_IT_AbstractObject and to
 Net_EPP_IT_StorageDB. Updated error handling in all example scripts.
 
 Added some modifications for consentforpublishing handling (thanks Marco!).
 
-
-Version 3.0 beta 2
-==================
+## Version 3.0 beta 2
 Public beta release for the new version. As soon as the final 3.0 version is
-out I'll again dump the "what's new" information.
+out the "what's new" information will again be dumped.
 
-
-Version 3.0 beta 1 (internal only)
-==================================
+## Version 3.0 beta 1 (internal only)
 The DB layout changed in order to support user ownership on objects (mandants).
 This obviously constitutes a breach in the continuity of some DB access
 methods and is underlined by an upgrade of the major version number.
@@ -346,102 +287,80 @@ methods and is underlined by an upgrade of the major version number.
 WSDL support is here! All functions can be accessed as webservices now.
 
 Minor changes include, but are not restricted to the following:
----------------------------------------------------------------
 
-String quoting for values to be stored in DB added. This functionality can be
-controlled in config.xml by the new dbmagicquotes parameter.
+- String quoting for values to be stored in DB added. This functionality can be
+  controlled in config.xml by the new dbmagicquotes parameter.
+- It is now possible to update DNS server's IP addresses.
+- Some method documentation cleaned up (public functions being wrongly
+  documented as protected).
+- Contact status is now handled by the Contact object. Thanks Marco for pointing
+  this out!
+- Better error handling on DB operations (now using ADOdb's ErrorMsg method).
 
-It is now possible to update DNS server's IP addresses.
-
-Some method documentation cleaned up (public functions being wrongly
-documented as protected).
-
-Contact status is now handled by the Contact object. Thanks Marco for pointing
-this out!
-
-Better error handling on DB operations (now using ADOdb's ErrorMsg method).
-
-
-Version 2.11
-============
+## Version 2.11
 Initialization of change-relevant information in domain objects after calls
 to loadDB added. Some more cleanups to various methods as suggested by Luca.
 Thanks again!
 
-
-Version 2.10
-============
+## Version 2.10
 Some code cleanup suggested by Luca!
 
-
-Version 2.9
-===========
+## Version 2.9
 Two more bugs found by Luca have been corrected.
 
-1) Using an "in_array" comparision containing a boolean TRUE will cause this to
-match ANY string passed to it, since "in_array" only does not do type-safe
-comparisons. This error relates to the values for "consentforpublishing" and
-has caused every contact where it has been manually assigned to be created
-with it set to 'TRUE' instead of whatever was your intention!
+1. Using an `in_array` comparison containing a boolean `TRUE` will cause this to
+   match ANY string passed to it, since `in_array` only does not do type-safe
+   comparisons. This error relates to the values for "consentforpublishing" and
+   has caused every contact where it has been manually assigned to be created
+   with it set to 'TRUE' instead of whatever was your intention!
+2. The storage driver will not save the "consentforpublishing" information
+   correctly. The SQL-type for it was defined to be MySQL's tinyint by the schema
+   provided in all versions. Since all doStore() calls will encapsulate every
+   variable in between two single apostrophes (i.e. 'value'), this has caused
+   every contact to be saved with "consentforpublishing" set to '0'.
 
-2) The storage driver will not save the "consentforpublishing" information
-correctly. The SQL-type for it was defined to be MySQL's tinyint by the schema
-provided in all versions. Since all doStore() calls will encapsulate every
-variable in between two single apostrophes (ie. 'value'), this has caused
-every contact to be saved with "consentforpublishing" set to '0'.
+> **ATTENTION!** Everyone using the storage driver provided with an implementation
+> up to 2.9 will therefore have lost information about the "consentforpublishing"
+> value and is strongly advised to check backups and set things straight!
 
-ATTENTION! Everyone using the storage driver provided with an implementation
-up to 2.9 will therefor have lost information about the "consentforpublishing
-value and is strongly advised to check backups and set things straight with!
-
-
-Version 2.8.1
-=============
-Cleaned up the 'CLI-generic-update-domain-authinfo.php' example and combined
+## Version 2.8.1
+Cleaned up the `CLI-generic-update-domain-authinfo.php` example and combined
 a common interface to all major update operations inside of a single example
-called 'CLI-generic-domain-script.php'.
+called `CLI-generic-domain-script.php`.
 
-
-Version 2.8
-===========
+## Version 2.8
 Removed a minor error from the update-domain template. Also updated both CLI
 examples for updating NS and tech-c records in order to support adding or
 removing of multiple values in one go. Thanks Marco for pointing both out!
 
-
-Version 2.7
-===========
+## Version 2.7
 Adding NS records and technical contacts that already exist will no longer be
-treated as a change to the domain. By accident print_r-statements were left
+treated as a change to the domain. By accident `print_r` statements were left
 behind in release 2.6; this has been corrected.
 
-Cleanup of lines 224 and 225 in Contact.php causing an E_NOTICE if using
-sanity_check() with a phone number that has no dot (.) as a separator. Thanks
+Cleanup of lines 224 and 225 in Contact.php causing an `E_NOTICE` if using
+`sanity_check()` with a phone number that has no dot (.) as a separator. Thanks
 to Luca!
 
-
-Version 2.6
-===========
+## Version 2.6
 The changes applied to Domain.php between r45 and r57 have been undone and
-simplified by using array_diff.
+simplified by using `array_diff`.
 
 The library should now correctly handle multiple technical contacts (also by
-using array_diff's). Technical contact handling has been adapted in both the
+using `array_diff`). Technical contact handling has been adapted in both the
 create and update domain templates. Thanks Marco for your input!
 
-Please pay attention that a get()-method-call for the value of 'tech' will
+Please pay attention that a `get()` method call for the value of 'tech' will
 still result in a string instead of an array when only one contact is set. This
 may cause some issues if you end up with a domain that owns more than one, so
 better DON'T rely on it being a string!
 
-Please see the included sample files "CLI-generic-fetch-domain.php",
-"CLI-generic-update-domain-techc.php" and "028-enhanced-db-layout.php".
+Please see the included sample files `CLI-generic-fetch-domain.php`,
+`CLI-generic-update-domain-techc.php` and `028-enhanced-db-layout.php`.
 
-
-Version 2.5
-===========
-The only major change can be found in class Client. Its contstructor now
-accepts configuration parameters as XML parameter string. This is usefull
+## Version 2.5
+The only major change can be found in class Client. Its constructor now
+accepts configuration parameters as an XML parameter string. This is useful
 if you store configuration values in some other back end solution.
 
 Minor changes to:
@@ -452,20 +371,16 @@ Minor changes to:
 Fixes:
 - domain updates when adding NS records fixed
 
-
-Version 2.4
-===========
-Added support for changing single values for registrant's. If a contact has
+## Version 2.4
+Added support for changing single values for registrants. If a contact has
 already information set in these fields, only single fields that are still
 empty can be set. Adjusted Contact.php class and update-contact template
 to allow for these specific operations. Thanks Robin!
 
 An example for this is now available as well.
 
-
-Version 2.3
-===========
-Added "set_include_path('.:'.ini_get('include_path'));" to all examples. This
+## Version 2.3
+Added `set_include_path('.:'.ini_get('include_path'));` to all examples. This
 should help conflicts with "Net/" include paths defined in the system wide
 include_path setting.
 
@@ -474,58 +389,39 @@ Handling of domain and contact arrays in check commands adjusted for DB usage.
 Added some more examples on how to use class extension on the StorageDB driver
 class.
 
-
-Version 2.2
-===========
+## Version 2.2
 Bugfix release. Changed an error in StorageDB.php which would log empty data
 when using the retrieveDomain method. Thanks to Luca for this hint!
 
-
-Version 2.1
-===========
+## Version 2.1
 Bugfix release. An error was introduced in v2.0 which caused a warning to be
 printed during polling (and by that the storeMessage method).
 A second issue hidden in the domain-update template caused an error when
 trying to remove NS records through a domain update.
 
-
-Version 2.0
-===========
+## Version 2.0
 This version now supports handling of extended server error codes/messages and
 transports them transparently to the DB layer. The update in the major release
 number is due to interface changes in the StorageInterface class.
 
-
-Version 1.4
-===========
+## Version 1.4
 Different changes and updates to all modules. Mainly cleanups and some small
 bug fixes. This version when released will have passed the accreditation
 tests.
 
-
-Version 1.3
-===========
+## Version 1.3
 Added support for bulk domain/contact checks. Added example scripts including
-change password script which actualy updates the config.xml file as well.
+change password script which actually updates the config.xml file as well.
 
-
-Version 1.2
-===========
-
+## Version 1.2
 Added an optional "newPW" parameter to Net_EPP_IT_Session's login method.
 Updated basic checks related to the Domain and Contact classes EntityType
 property.
 
-
-Version 1.1
-===========
-
+## Version 1.1
 The domain fetch method now retrieves the AuthInfo code which is sent by the
 epp server after a domain info query. Thanks to Mr. Bianchi for pointing this
 out!
 
-
-Version 1.0
-===========
-
+## Version 1.0
 Initial release.
