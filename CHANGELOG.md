@@ -1,8 +1,8 @@
 # Changelog
 
-## Version 6.8
-- Initial PHP 8.5 migration pass: compatibility fixes, cleanups, and typo fixes across `CLI/`, `Net/EPP/`, and the `examples-wsdl/` scripts.
-- Bundled libraries updated: nusoap upgraded to 0.9.20 and Smarty upgraded to 3.1.48 (old bundled versions removed).
+## Version 7.0
+- PHP 8.5 migration: compatibility fixes, cleanups, and typo fixes across `CLI/`, `Net/EPP/`, and the `examples-wsdl/` scripts.
+- Bundled libraries updated and moved to composer: smarty, idna-convert, nusoap, phpwhois (old bundled `libs/` folder removed).
 
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an

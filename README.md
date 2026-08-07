@@ -1,18 +1,24 @@
 # Requirements
 
-1. PHP7, PHP8 (might still work with PHP5)
-2. CURL support for PHP (handling HTTP session and cookies)
-3. either a MySQL database or another database including a new class deriving
+1. PHP 8.1 or newer
+2. [Composer](https://getcomposer.org/), to install the third-party
+   dependencies (Smarty, nusoap, phpwhois, idna-convert) declared in
+   `composer.json` — run `composer install` before first use
+3. CURL support for PHP (handling HTTP session and cookies)
+4. either a MySQL database or another database including a new class deriving
    from `Net_EPP_StorageInterface` to handle this database
-4. eppitnic includes components through `Net/...` and `libs/...` paths. If you
-   have `Net` and `libs` defined in your php configuration by `include_path`,
-   either move eppitnic contents to the directories you defined or use something
-   like `set_include_path('.:'.ini_get('include_path'));` (see `/examples/`)
-5. if using the WSDL service, make sure you give the webserver appropriate
+5. eppitnic includes its own first-party components through the `Net/...`
+   path. If you have `Net` defined in your php configuration by
+   `include_path`, either move eppitnic contents to the directory you defined
+   or use something like `set_include_path('.:'.ini_get('include_path'));`
+   (see `/examples/`)
+6. if using the WSDL service, make sure you give the webserver appropriate
    rights to the `/smarty/compile/` folder!
 
 
 # Installation
+
+Run `composer install` to fetch the third-party dependencies into `vendor/`.
 
 Create a copy of the `config.xml.template`, naming it `config.xml`. Choose one
 of the following as server name:
@@ -37,7 +43,10 @@ found in the `/docs/` folder.
 2. sample configuration (see config.xml)
 3. example script (see `/examples/` folder)
 4. WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
-5. Smarty template engine
+5. a simple GET-based WHOIS lookup endpoint (`/public/whois.php`) — **note:
+   this endpoint has no authentication yet and must not be exposed publicly
+   until an auth layer is added**
+6. Smarty template engine (Composer dependency, see `composer.json`)
 
 
 # ToDo's

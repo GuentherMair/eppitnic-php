@@ -2,7 +2,7 @@
 
 set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
 
-require_once 'libs/nusoap/src/nusoap.php';
+require_once 'vendor/autoload.php';
 require_once 'Net/EPP/IT/WSDL.php';
 
 /**

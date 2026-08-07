@@ -1,13 +1,9 @@
 <?php
 
+use Algo26\IdnaConvert\ToIdn;
+
 require_once 'Net/EPP/AbstractObject.php';
 require_once 'Net/EPP/IT/Contact.php';
-
-/*
- * idna_convert class (for punycode generation)
-*/
-if ( ! class_exists('idna_convert'))
-  require_once 'libs/idna_convert/idna_convert.class.php';
 
 /**
  * This class handles domains and supports the following operations on them:
@@ -124,8 +120,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     parent::__construct($client, $storage);
 
     $this->initValues();
-    //$this->idn = new idna_convert(array('encode_german_sz' => true));
-    $this->idn = new idna_convert();
+    $this->idn = new ToIdn();
     $this->dnssec_status = @isset($this->client->EPPCfg->dnssec->active) ? (int)$this->client->EPPCfg->dnssec->active : 0;
   }
 
@@ -318,7 +313,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    */
   public function remNS($name) {
     // DNS names must be in punycode format (if below an IDN domain)
-    $name = $this->idn->encode($name);
+    $name = $this->idn->convert($name);
     if (isset($this->ns[$name])) {
       unset($this->ns[$name]);
       $this->changes |= 1;
@@ -346,7 +341,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       return FALSE;
 
     // DNS names must be in punycode format (if below an IDN domain)
-    $name = $this->idn->encode($name);
+    $name = $this->idn->convert($name);
 
     // handle IP addresses (if set)
     if (is_array($addr)) {

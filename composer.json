@@ -1,0 +1,14 @@
+{
+    "name": "inet-services/eppitnic",
+    "description": "PHP library for the EPP interface of the Italian domain registry (nic.it)",
+    "require": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-simplexml": "*",
+        "ext-pdo": "*",
+        "smarty/smarty": "^5.0",
+        "econea/nusoap": "^0.9.20",
+        "kevinoo/phpwhois": "^6.3",
+        "algo26-matthias/idna-convert": "^3.1"
+    }
+}

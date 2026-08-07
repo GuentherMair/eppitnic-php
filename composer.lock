@@ -1,0 +1,425 @@
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "dcd781969db8bcc277ebaf44c6e2fe7c",
+    "packages": [
+        {
+            "name": "algo26-matthias/idna-convert",
+            "version": "v3.2.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/algo26-matthias/idna-convert.git",
+                "reference": "82fe7b60e1a1620c72e68803cc5dcff0b5f59bdc"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/algo26-matthias/idna-convert/zipball/82fe7b60e1a1620c72e68803cc5dcff0b5f59bdc",
+                "reference": "82fe7b60e1a1620c72e68803cc5dcff0b5f59bdc",
+                "shasum": ""
+            },
+            "require": {
+                "ext-pcre": "*",
+                "jakeasmith/http_build_url": "^1",
+                "php": ">=7.2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "8.0"
+            },
+            "suggest": {
+                "ext-iconv": "Install ext/iconv for using input / output other than UTF-8 or ISO-8859-1",
+                "ext-mbstring": "Install ext/mbstring for using input / output other than UTF-8 or ISO-8859-1"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Algo26\\IdnaConvert\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1+"
+            ],
+            "authors": [
+                {
+                    "name": "Matthias Sommerfeld",
+                    "email": "matthias.sommerfeld@algo26.de",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A library for encoding and decoding internationalized domain names",
+            "homepage": "http://idnaconv.net/",
+            "keywords": [
+                "idn",
+                "idna",
+                "php"
+            ],
+            "support": {
+                "issues": "https://github.com/algo26-matthias/idna-convert/issues",
+                "source": "https://github.com/algo26-matthias/idna-convert/tree/v3.2.1"
+            },
+            "time": "2025-10-10T11:40:12+00:00"
+        },
+        {
+            "name": "econea/nusoap",
+            "version": "v0.9.20",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/contributte/nusoap.git",
+                "reference": "802484f443cf16495eb085f04351076456077f99"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/contributte/nusoap/zipball/802484f443cf16495eb085f04351076456077f99",
+                "reference": "802484f443cf16495eb085f04351076456077f99",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-xml": "*",
+                "ext-zlib": "*",
+                "php": ">=5.4"
+            },
+            "require-dev": {
+                "php-parallel-lint/php-parallel-lint": "~1.2.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "0.10.x-dev"
+                }
+            },
+            "autoload": {
+                "classmap": [
+                    "src/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Milan Felix Šulc",
+                    "homepage": "https://f3l1x.io"
+                }
+            ],
+            "description": "Fixed NuSOAP for PHP 5.4 - 8.2",
+            "homepage": "https://github.com/pwnlabs/nusoap",
+            "keywords": [
+                "client",
+                "http",
+                "nusoap",
+                "php",
+                "soap",
+                "transport",
+                "xml"
+            ],
+            "support": {
+                "issues": "https://github.com/contributte/nusoap/issues",
+                "source": "https://github.com/contributte/nusoap/tree/v0.9.20"
+            },
+            "funding": [
+                {
+                    "url": "https://contributte.org/partners.html",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/f3l1x",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-07-15T07:09:21+00:00"
+        },
+        {
+            "name": "jakeasmith/http_build_url",
+            "version": "1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/jakeasmith/http_build_url.git",
+                "reference": "93c273e77cb1edead0cf8bcf8cd2003428e74e37"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/jakeasmith/http_build_url/zipball/93c273e77cb1edead0cf8bcf8cd2003428e74e37",
+                "reference": "93c273e77cb1edead0cf8bcf8cd2003428e74e37",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/http_build_url.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Jake A. Smith",
+                    "email": "theman@jakeasmith.com"
+                }
+            ],
+            "description": "Provides functionality for http_build_url() to environments without pecl_http.",
+            "support": {
+                "issues": "https://github.com/jakeasmith/http_build_url/issues",
+                "source": "https://github.com/jakeasmith/http_build_url"
+            },
+            "time": "2017-05-01T15:36:40+00:00"
+        },
+        {
+            "name": "kevinoo/phpwhois",
+            "version": "v6.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/kevinoo/phpWhois.git",
+                "reference": "2d00072eb6c389515f5849848a8e9309475a3a7e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/kevinoo/phpWhois/zipball/2d00072eb6c389515f5849848a8e9309475a3a7e",
+                "reference": "2d00072eb6c389515f5849848a8e9309475a3a7e",
+                "shasum": ""
+            },
+            "require": {
+                "algo26-matthias/idna-convert": "^3.1",
+                "php": ">=7.2"
+            },
+            "require-dev": {
+                "dms/phpunit-arraysubset-asserts": "^0.5",
+                "friendsofphp/php-cs-fixer": "^3.91",
+                "phpunit/phpunit": "^8.0 || ^9.0 || ^10.0 || ^11.0"
+            },
+            "suggest": {
+                "lib-openssl": "*"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "phpWhois\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Kevin Lucich",
+                    "email": "info@lucichkevin.it"
+                },
+                {
+                    "name": "Mark Jeftovic",
+                    "email": "markjr@easydns.com"
+                },
+                {
+                    "name": "David Saez Padros",
+                    "email": "david@ols.es"
+                },
+                {
+                    "name": "Ross Golder",
+                    "email": "ross@golder.org"
+                },
+                {
+                    "name": "Dmitry Lukashin",
+                    "email": "dmitry@lukashin.ru"
+                },
+                {
+                    "name": "Joshua Smith",
+                    "email": "jsmith@jssm.com"
+                }
+            ],
+            "description": "phpWhois - library for querying whois services and parsing results.",
+            "homepage": "https://github.com/kevinoo/phpWhois/",
+            "keywords": [
+                "php",
+                "phpwhois",
+                "whois"
+            ],
+            "support": {
+                "issues": "https://github.com/kevinoo/phpWhois/issues",
+                "source": "https://github.com/kevinoo/phpWhois/tree/v6.4.0"
+            },
+            "time": "2025-12-08T23:42:51+00:00"
+        },
+        {
+            "name": "smarty/smarty",
+            "version": "v5.8.4",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/smarty-php/smarty.git",
+                "reference": "94a27cbbc7820198d7adc17a2be8d457fb267753"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/smarty-php/smarty/zipball/94a27cbbc7820198d7adc17a2be8d457fb267753",
+                "reference": "94a27cbbc7820198d7adc17a2be8d457fb267753",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.2 || ^8.0",
+                "symfony/polyfill-mbstring": "^1.27"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^8.5 || ^7.5",
+                "smarty/smarty-lexer": "^4.0.2"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "5.0.x-dev"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "src/functions.php"
+                ],
+                "psr-4": {
+                    "Smarty\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-3.0"
+            ],
+            "authors": [
+                {
+                    "name": "Monte Ohrt",
+                    "email": "monte@ohrt.com"
+                },
+                {
+                    "name": "Uwe Tews",
+                    "email": "uwe.tews@googlemail.com"
+                },
+                {
+                    "name": "Rodney Rehm",
+                    "email": "rodney.rehm@medialize.de"
+                },
+                {
+                    "name": "Simon Wisselink",
+                    "homepage": "https://www.iwink.nl/"
+                }
+            ],
+            "description": "Smarty - the compiling PHP template engine",
+            "homepage": "https://smarty-php.github.io/smarty/",
+            "keywords": [
+                "templating"
+            ],
+            "support": {
+                "forum": "https://github.com/smarty-php/smarty/discussions",
+                "issues": "https://github.com/smarty-php/smarty/issues",
+                "source": "https://github.com/smarty-php/smarty/tree/v5.8.4"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/wisskid",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-06-29T10:46:32+00:00"
+        },
+        {
+            "name": "symfony/polyfill-mbstring",
+            "version": "v1.38.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/polyfill-mbstring.git",
+                "reference": "d3d318bad5e7a1bfbd026009c8bfb8d8f99ae6b6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/d3d318bad5e7a1bfbd026009c8bfb8d8f99ae6b6",
+                "reference": "d3d318bad5e7a1bfbd026009c8bfb8d8f99ae6b6",
+                "shasum": ""
+            },
+            "require": {
+                "ext-iconv": "*",
+                "php": ">=7.2"
+            },
+            "provide": {
+                "ext-mbstring": "*"
+            },
+            "suggest": {
+                "ext-mbstring": "For best performance"
+            },
+            "type": "library",
+            "extra": {
+                "thanks": {
+                    "url": "https://github.com/symfony/polyfill",
+                    "name": "symfony/polyfill"
+                }
+            },
+            "autoload": {
+                "files": [
+                    "bootstrap.php"
+                ],
+                "psr-4": {
+                    "Symfony\\Polyfill\\Mbstring\\": ""
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Nicolas Grekas",
+                    "email": "p@tchwork.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Symfony polyfill for the Mbstring extension",
+            "homepage": "https://symfony.com",
+            "keywords": [
+                "compatibility",
+                "mbstring",
+                "polyfill",
+                "portable",
+                "shim"
+            ],
+            "support": {
+                "source": "https://github.com/symfony/polyfill-mbstring/tree/v1.38.2"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-05-27T06:59:30+00:00"
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "stable",
+    "stability-flags": {},
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": ">=8.1",
+        "ext-curl": "*",
+        "ext-simplexml": "*",
+        "ext-pdo": "*"
+    },
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
+}

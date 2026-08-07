@@ -1,1 +1,0 @@
-../../../smarty-plugins/block.t.php
