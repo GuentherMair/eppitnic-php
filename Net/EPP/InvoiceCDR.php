@@ -2,6 +2,8 @@
 
 require_once dirname(__FILE__).'/InvoiceInterface.php';
 
+use RedBeanPHP\R;
+
 /**
  * A CDR file storage class for invoicing.
  *
@@ -48,49 +50,22 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
   protected $eol       = "\n";
   protected $fh        = NULL;
 
-  protected $storage   = NULL;
   protected $status    = NULL;
   protected $error     = "";
-  protected $renewByPollQueueMsg;
 
   /**
    * Class constructor
    *
-   *  - initialize database connection
+   *  - checks that the CDR file is writeable (DB access is via RedBeanPHP's
+   *    R:: facade, live once helpers/db.php has run -- no handle to inject)
    *
    * @access   public
-   * @param    object                                 XML configuration object
-   * @param    Net_EPP_StorageInterface               storage class
-   * @param    boolean                                status (CDR file writeable)
    */
-  function __construct($cfg, &$storage) {
-    if (is_object($cfg->webinterface->cdr))       $this->cdr       = $cfg->webinterface->cdr;
-    if (is_object($cfg->webinterface->delimiter)) $this->delimiter = $cfg->webinterface->delimiter;
-    if (is_object($cfg->webinterface->enclosure)) $this->enclosure = $cfg->webinterface->enclosure;
-
-    // set renew handler
-    $this->renewByPollQueueMsg = (is_object($cfg->webinterface->renewByPollQueueMsg) && ($cfg->webinterface->renewByPollQueueMsg == 1)) ? TRUE : FALSE;
-
-    if (is_object($cfg->webinterface->eol)) {
-      switch (strtolower($cfg->webinterface->eol)) {
-        case "dos":
-          $this->eol = "\r\n";
-          break;
-        case "apple":
-          $this->eol = "\r";
-          break;
-        case "unix":
-        default:
-          break;
-      }
-    }
-
-    $this->storage = $storage;
+  function __construct() {
     $this->status = is_writeable($this->cdr);
     if ( ! $this->status) {
       $this->setError('CDR file is not writeable.');
     }
-    return $this->status;
   }
 
   /**
@@ -131,47 +106,43 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
    * @param    string    operation type
    * @param    string    billing_id (client reference number)
    * @param    string    object being invoiced
-   * @param    string    date string / invoice period (optional - this defaults to a ISO 8601 date)
+   * @param    string    date string / invoice period (optional - defaults to today via CURDATE())
    * @return   boolean   status
    */
   public function doAccount($operation, $billing_id, $object, $date = NULL) {
-    $tmp = $this->storage->doAccount($operation, $billing_id, $object, $date);
-    if ( ! $tmp) {
-      $this->setError($this->storage->getError());
+    if ($date === NULL) {
+      R::exec("INSERT INTO accounting (operation, billing_id, object, date) VALUES (?, ?, ?, CURDATE())", [$operation, $billing_id, $object]);
+    } else {
+      R::exec("INSERT INTO accounting (operation, billing_id, object, date) VALUES (?, ?, ?, ?)", [$operation, $billing_id, $object, $date]);
     }
-    return $tmp;
+    return TRUE;
   }
 
   /**
-   * account renewable domains found in DB
+   * account renewable domains found in DB (active, not invoiced in the last year)
    *
    * @access   public
    * @return   int      number of invoiceable domains
    */
   public function doRenew() {
-    // if we are renewing based on poll queue messages don't use this method (double invoicing!)
-    if ($this->renewByPollQueueMsg) {
-      return -1;
-    }
-
-    $domains = $this->storage->invoiceableDomains();
-    if ($domains === FALSE) {
-      return FALSE;
-    }
+    $domains = R::getAll("
+      SELECT d.domain AS name, u.billing_id
+      FROM domains d, users u
+      WHERE d.active = 1 AND d.last_invoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND d.user_id = u.id");
 
     foreach ($domains as $domain) {
       $this->doAccount('renew', $domain['billing_id'], $domain['name']);
     }
 
-    $this->storage->renewDomains();
+    R::exec("UPDATE domains SET last_invoice = CURDATE() WHERE active = 1 AND last_invoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR)");
     return count($domains);
   }
 
   /**
-   * store data to DB
+   * append open (status = 0) accounting rows to the CDR file, then mark them closed
    *
    * @access   public
-   * @return   boolean   status
+   * @return   boolean|int   number of exported records, or FALSE if the CDR file isn't writeable
    */
   public function doExport() {
     $this->fh = fopen($this->cdr, 'a');
@@ -179,23 +150,25 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
       return FALSE;
     }
 
-    $records = $this->storage->accountableServices();
-    if ( $records === FALSE ) {
-      return FALSE;
-    }
+    $records = R::getAll("SELECT id, operation, billing_id, object, date, time FROM accounting WHERE status = 0 ORDER BY id DESC");
 
     foreach ($records as $record) {
-      $tmp = array();
-      $tmp[] = $record['operation'];
-      $tmp[] = $record['billing_id'];
-      $tmp[] = $record['object'];
-      $tmp[] = $record['date'];
-      $tmp[] = $record['time'];
-      $tmp[] = date("c");
-      fwrite($this->fh, $this->enclosure . implode($this->enclosure.$this->delimiter.$this->enclosure, $tmp) . $this->enclosure . $this->eol);
+      $row = [
+        $record['operation'],
+        $record['billing_id'],
+        $record['object'],
+        $record['date'],
+        $record['time'],
+        date("c")
+      ];
+      fwrite($this->fh, $this->enclosure . implode($this->enclosure.$this->delimiter.$this->enclosure, $row) . $this->enclosure . $this->eol);
     }
-    $this->storage->closeAccountableServices($records);
     fclose($this->fh);
+
+    if ( ! empty($records)) {
+      $maxId = max(array_column($records, 'id'));
+      R::exec("UPDATE accounting SET status = 1 WHERE id <= ?", [$maxId]);
+    }
 
     return count($records);
   }
