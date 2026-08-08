@@ -1,5 +1,3 @@
 .claude/
 /vendor/
 /config/config.json
-backend-api-plan.md
-storagedb-disentangle-plan.md
