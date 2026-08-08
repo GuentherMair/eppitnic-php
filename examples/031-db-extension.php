@@ -35,9 +35,9 @@ $nic = new Net_EPP_Client();
 $db = new MyStorageWrapper($nic->EPPCfg->db);
 
 $db->setDBMaxEntries(10);
-$data_array = $db->myRetrieve("tbl_transactions", "clTRType", "check-%", FALSE, "clTRType ASC, id DESC");
+$data_array = $db->myRetrieve("transactions", "cl_trtype", "check-%", FALSE, "cl_trtype ASC, id DESC");
 echo count($data_array) . " elements found:\n";
 foreach ( $data_array as $values ) {
-  $oldbug = is_array($values['clTRObject']) ? implode(";", $values['clTRObject']) : $values['clTRObject'];
-  printf("ID [%05d] - clTRID [%s] - %s '%s'\n", $values['id'], $values['clTRID'], $values['clTRType'], $oldbug);
+  $oldbug = is_array($values['cl_trobject']) ? implode(";", $values['cl_trobject']) : $values['cl_trobject'];
+  printf("ID [%05d] - cl_trid [%s] - %s '%s'\n", $values['id'], $values['cl_trid'], $values['cl_trtype'], $oldbug);
 }

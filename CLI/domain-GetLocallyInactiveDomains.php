@@ -28,7 +28,7 @@ echo "Login OK.\n";
 
 try {
   // list in-active domains
-  $stmt = $db->db->prepare("SELECT domain FROM tbl_domains WHERE active = 0");
+  $stmt = $db->db->prepare("SELECT domain FROM domains WHERE active = 0");
   $stmt->execute();
   while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     if ($domain->check($row['domain']) !== TRUE) {

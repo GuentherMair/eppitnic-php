@@ -38,9 +38,8 @@ require_once 'Net/EPP/StorageInterface.php';
  * @package     Net_EPP_StorageDB
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
+
 class Net_EPP_StorageDB implements Net_EPP_StorageInterface
 {
   public    $db;
@@ -52,7 +51,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
 
   protected $dberrCode         = 0;
   protected $dberrMsg          = "";
-  protected $tablesWithACL     = array('tbl_contacts', 'tbl_domains', 'tbl_transfers');
+  protected $tablesWithACL     = array('contacts', 'domains', 'transfers');
 
   /**
    * Class constructor
@@ -72,8 +71,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       //return $this->setError(1, "unable to connect to database '{$cfg->dbname}' on '{$cfg->dbhost}' with user '{$cfg->dbuser}': ".$e->getMessage());
     }
 
-    if ( ! is_object($this->db))
+    if ( ! is_object($this->db)) {
       die("Unable to connect to database '{$cfg->dbname}' on '{$cfg->dbhost}' with user '{$cfg->dbuser}' - connection request did not return a PDO Object.");
+    }
   }
 
   /**
@@ -121,22 +121,23 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * store data to DB
    *
    * @access   protected
-   * @param    string    information store (tbl_transactions, tbl_responses, tbl_msgqueue, ...)
+   * @param    string    information store (transactions, responses, msgqueue, ...)
    * @param    array     information to be stored
    * @param    string    user ACL
    * @return   boolean   status
    */
-  protected function doStore($table, $elements, $userid = 1) {
-    if ( ! is_array($elements))
+  protected function doStore($table, $elements, $user_id = 1) {
+    if ( ! is_array($elements)) {
       return $this->setError(4, "second paramenter must be an array!");
+    }
 
     $keys = array();
     $values = array();
     foreach ($elements as $k => $v) {
       $keys[] = $k;
-      if (($k == "clTRData") || ($k == "svHTTPData") || is_array($v)) {
+      if (($k == "cl_trdata") || ($k == "sv_httpdata") || is_array($v)) {
         $values[":{$k}"] = $this->dbSerializePrefix.base64_encode(serialize($v));
-      } else if (($k == 'crDate') || ($k == 'exDate')) {
+      } else if (($k == 'cr_date') || ($k == 'ex_date')) {
         $values[":{$k}"] = date("Y-m-d", strtotime($v));
       } else {
         $values[":{$k}"] = $v;
@@ -144,9 +145,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     }
 
     // ACL settings
-    if ($userid > 1 && in_array($table, $this->tablesWithACL)) {
-      $keys[] = "userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1 && in_array($table, $this->tablesWithACL)) {
+      $keys[] = "user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // execute query
@@ -168,24 +169,25 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * update data in DB
    *
    * @access   protected
-   * @param    string    information store (tbl_transactions, tbl_responses, tbl_msgqueue, ...)
+   * @param    string    information store (transactions, responses, msgqueue, ...)
    * @param    array     information to be stored
    * @param    string    the column to look at
    * @param    string    the value to look up
    * @param    string    user ACL
    * @return   boolean   status
    */
-  protected function doUpdate($table, $elements, $index, $handle, $userid = 1) {
-    if ( ! is_array($elements))
+  protected function doUpdate($table, $elements, $index, $handle, $user_id = 1) {
+    if ( ! is_array($elements)) {
       return $this->setError(4, "second paramenter must be an array!");
+    }
 
     $keys = array();
     $values = array();
     foreach ($elements as $k => $v) {
       $keys[] = "{$k}=:{$k}";
-      if (($k == "clTRData") || ($k == "svHTTPData") || is_array($v)) {
+      if (($k == "cl_trdata") || ($k == "sv_httpdata") || is_array($v)) {
         $values[":{$k}"] = $this->dbSerializePrefix.base64_encode(serialize($v));
-      } else if (($k == 'crDate') || ($k == 'exDate')) {
+      } else if (($k == 'cr_date') || ($k == 'ex_date')) {
         $values[":{$k}"] = date("Y-m-d", strtotime($v));
       } else {
         $values[":{$k}"] = $v;
@@ -196,9 +198,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     $values[":handle"] = $handle;
 
     // ACL
-    if ($userid > 1 && in_array($table, $this->tablesWithACL)) {
-      $wKeys[] = "userID=:userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1 && in_array($table, $this->tablesWithACL)) {
+      $wKeys[] = "user_id=:user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // execute query
@@ -206,13 +208,13 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       $stmt = $this->db->prepare("UPDATE {$table} set ".implode(", ", $keys)." WHERE ".implode(" AND ", $wKeys));
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
-        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$userid}: {$errorInfo[2]}");
+        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$user_id}: {$errorInfo[2]}");
       }
 
       return $this->setError(0, "updated '{$table}' with INDEX {$index}='{$handle}'");
     } catch (PDOException $e) {
       $errorInfo = $this->db->errorInfo();
-      return $this->setError($errorInfo[0], "unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$userid}: " . $e->getMessage());
+      return $this->setError($errorInfo[0], "unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$user_id}: " . $e->getMessage());
     }
   }
 
@@ -222,15 +224,16 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @access   public
    * @param    string    client transaction ID
    * @param    string    client transaction type
+   * @param    string    client transaction object
    * @param    string    client transaction data
    * @return   boolean   status
    */
   public function storeTransaction($clTRID, $clTRType, $clTRObject, $clTRData) {
-    return $this->doStore("tbl_transactions",
-      array("clTRID"        => $clTRID,
-            "clTRType"      => $clTRType,
-            "clTRObject"    => $clTRObject,
-            "clTRData"      => $clTRData));
+    return $this->doStore("transactions",
+      array("cl_trid"     => $clTRID,
+            "cl_trtype"   => $clTRType,
+            "cl_trobject" => $clTRObject,
+            "cl_trdata"   => $clTRData));
   }
 
   /**
@@ -249,15 +252,15 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    */
   protected function storeAnswer($clTRID, $svTRID, $svEPPCode, $status, $response, $table, $extValueReasonCode = "", $extValueReason = "") {
     return $this->doStore($table,
-      array("clTRID"             => $clTRID,
-            "svTRID"             => $svTRID,
-            "svEPPCode"          => $svEPPCode,
+      array("cl_trid"            => $clTRID,
+            "sv_trid"            => $svTRID,
+            "sv_code"            => $svEPPCode,
             "status"             => $status,
-            "svHTTPCode"         => $response['code'],
-            "svHTTPHeaders"      => $response['headers'],
-            "svHTTPData"         => $response['body'],
-            "extValueReasonCode" => $extValueReasonCode,
-            "extValueReason"     => $extValueReason));
+            "sv_httpcode"        => $response['code'],
+            "sv_httpheaders"     => $response['headers'],
+            "sv_httpdata"        => $response['body'],
+            "extvaluereasoncode" => $extValueReasonCode,
+            "extvaluereason"     => $extValueReason));
   }
 
   /**
@@ -272,7 +275,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   boolean   status
    */
   public function storeResponse($clTRID, $svTRID, $svCode, $status, $response, $extValueReasonCode, $extValueReason) {
-    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "tbl_responses", $extValueReasonCode, $extValueReason);
+    return $this->storeAnswer($clTRID, $svTRID, $svCode, $status, $response, "responses", $extValueReasonCode, $extValueReason);
   }
 
   /**
@@ -287,13 +290,13 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   boolean   status
    */
   public function storeMessage($clTRID, $svTRID, $svCode, $status, $response) {
-    return $this->doStore("tbl_msgqueue",
-      array("clTRID"             => $clTRID,
-            "svTRID"             => $svTRID,
-            "status"             => $status,
-            "svHTTPCode"         => $response['code'],
-            "svHTTPHeaders"      => $response['headers'],
-            "svHTTPData"         => $response['body']));
+    return $this->doStore("msgqueue",
+      array("cl_trid"        => $clTRID,
+            "sv_trid"        => $svTRID,
+            "status"         => $status,
+            "sv_httpcode"    => $response['code'],
+            "sv_httpheaders" => $response['headers'],
+            "sv_httpdata"    => $response['body']));
   }
 
   /**
@@ -304,7 +307,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   boolean   status
    */
   public function storeParsedMessage($elements) {
-    return $this->doStore("tbl_messages", $elements);
+    return $this->doStore("messages", $elements);
   }
 
   /**
@@ -314,8 +317,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    array     contact information to be stored
    * @return   boolean   status
    */
-  public function storeContact($elements, $userid = 1) {
-    return $this->doStore("tbl_contacts", $elements, $userid);
+  public function storeContact($elements, $user_id = 1) {
+    return $this->doStore("contacts", $elements, $user_id);
   }
 
   /**
@@ -325,8 +328,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    array     domain information to be stored
    * @return   boolean   status
    */
-  public function storeDomain($elements, $userid = 1) {
-    return $this->doStore("tbl_domains", $elements, $userid);
+  public function storeDomain($elements, $user_id = 1) {
+    return $this->doStore("domains", $elements, $user_id);
   }
 
   /**
@@ -338,8 +341,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateContact($elements, $contact, $userid = 1) {
-    return $this->doUpdate("tbl_contacts", $elements, "handle", $contact, $userid);
+  public function updateContact($elements, $contact, $user_id = 1) {
+    return $this->doUpdate("contacts", $elements, "handle", $contact, $user_id);
   }
 
   /**
@@ -351,8 +354,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function updateDomain($elements, $domain, $userid = 1) {
-    return $this->doUpdate("tbl_domains", $elements, "domain", $domain, $userid);
+  public function updateDomain($elements, $domain, $user_id = 1) {
+    return $this->doUpdate("domains", $elements, "domain", $domain, $user_id);
   }
 
   /**
@@ -363,8 +366,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    integer   the maximum value for dbMaxEntries
    */
   public function setDBMaxEntries($dbMaxEntries) {
-    if ((int)$dbMaxEntries < 0)
+    if ((int)$dbMaxEntries < 0) {
       $dbMaxEntries = 0;
+    }
     return $this->dbMaxEntries = (int)$dbMaxEntries;
   }
 
@@ -380,7 +384,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   array     results OR FALSE in case of failure
    */
-  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userid = 1) {
+  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $user_id = 1) {
     $keys = array();
     $values = array();
     if ($value === null) {
@@ -394,14 +398,15 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     }
 
     // ACL settings
-    if ($userid > 1 && in_array($table, $this->tablesWithACL)) {
-      $keys[] = "userID=:userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1 && in_array($table, $this->tablesWithACL)) {
+      $keys[] = "user_id=:user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // sort order
-    if ($order === null)
+    if ($order === null) {
       $order = "id DESC";
+    }
 
     // limit amount of entries retrieved
     $limit = ($this->dbMaxEntries == 0) ? "" : " LIMIT {$this->dbMaxEntries}";
@@ -441,7 +446,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   array     results OR FALSE in case of failure
    */
   public function retrieveTransaction($clTRID = null) {
-    return $this->doRetrieve("tbl_transactions", "clTRID", $clTRID);
+    return $this->doRetrieve("transactions", "cl_trid", $clTRID);
   }
  
   /**
@@ -452,7 +457,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   array     results OR FALSE in case of failure
    */
   public function retrieveResponse($clTRID = null) {
-    return $this->doRetrieve("tbl_responses", "clTRID", $clTRID);
+    return $this->doRetrieve("responses", "cl_trid", $clTRID);
   }
  
   /**
@@ -463,7 +468,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   array     results OR FALSE in case of failure
    */
   public function retrieveMessage($clTRID = null) {
-    return $this->doRetrieve("tbl_msgqueue", "clTRID", $clTRID);
+    return $this->doRetrieve("msgqueue", "cl_trid", $clTRID);
   }
 
   /**
@@ -476,7 +481,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    */
   public function archiveParsedMessage($id) {
     try {
-      $stmt = $this->db->prepare("UPDATE tbl_messages SET archived = 1 WHERE id=:id");
+      $stmt = $this->db->prepare("UPDATE messages SET archived = 1 WHERE id=:id");
       if ( ! $stmt->execute(array(":id" => $id))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to update message table: {$errorInfo[2]}");
@@ -497,30 +502,30 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   boolean   status
    */
-  public function retrieveParsedMessages($active = true, $userid = 1) {
+  public function retrieveParsedMessages($active = true, $user_id = 1) {
     // set conditions (archived or not / user ACL)
     $conditions = $active ? "t.archived = 0" : "1 = 1";
-    $conditions .= ($userid > 1) ? (" AND d.userid = ".(int)$userid) : "";
+    $conditions .= ($user_id > 1) ? (" AND d.user_id = ".(int)$user_id) : "";
 
     try {
       // execute query
       $stmt = $this->db->prepare("
         SELECT
           t.*,
-          DATE_FORMAT('createdTime', '%d-%m-%Y') AS date,
-          d.userid,
+          DATE_FORMAT('created_time', '%d-%m-%Y') AS date,
+          d.user_id,
           d.registrant,
-          u.billingID
+          u.billing_id
         FROM
-          tbl_messages t
+          messages t
         LEFT JOIN
-          tbl_domains d
+          domains d
         ON
           t.domain = d.domain
         LEFT JOIN
-          tbl_users u
+          users u
         ON
-          d.userid = u.id
+          d.user_id = u.id
         WHERE
           {$conditions}
         ORDER BY id DESC");
@@ -528,16 +533,17 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       // construct numbered return array
       if ( ! $stmt->execute()) {
         $errorInfo = $stmt->errorInfo();
-        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get data from tbl_messages: {$errorInfo[2]}");
+        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get data from messages: {$errorInfo[2]}");
       }
 
       $elements = array();
-      while ($row = $stmt->fetch(PDO::FETCH_ASSOC))
+      while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $elements[] = $row;
+      }
       return $elements;
     } catch (PDOException $e) {
       $errorInfo = $this->db->errorInfo();
-      return $this->setError($errorInfo[0], "unable to get data from tbl_messages: " . $e->getMessage());
+      return $this->setError($errorInfo[0], "unable to get data from messages: " . $e->getMessage());
     }
   }
 
@@ -548,12 +554,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    contact to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveContact($contact, $userid = 1) {
-    $tmp = $this->doRetrieve("tbl_contacts", "handle", $contact, TRUE, null, $userid);
-    if (($tmp === FALSE) || (count($tmp) <> 1))
-      return FALSE;
-    else
-      return $tmp[0];
+  public function retrieveContact($contact, $user_id = 1) {
+    $tmp = $this->doRetrieve("contacts", "handle", $contact, TRUE, null, $user_id);
+    return (($tmp === FALSE) || (count($tmp) <> 1)) ? FALSE : $tmp[0];
   }
 
   /**
@@ -563,12 +566,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    domain to look up
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveDomain($domain, $userid = 1) {
-    $tmp = $this->doRetrieve("tbl_domains", "domain", $domain, TRUE, null, $userid);
-    if (($tmp === FALSE) || (count($tmp) <> 1))
-      return FALSE;
-    else
-      return $tmp[0];
+  public function retrieveDomain($domain, $user_id = 1) {
+    $tmp = $this->doRetrieve("domains", "domain", $domain, TRUE, null, $user_id);
+    return (($tmp === FALSE) || (count($tmp) <> 1)) ? FALSE : $tmp[0];
   }
 
   /**
@@ -579,14 +579,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    boolean   restrict search to active contacts (default TRUE)
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function listContacts($userid = 1, $activeOnly = TRUE) {
+  public function listContacts($user_id = 1, $activeOnly = TRUE) {
     $keys = array("1 = 1");
     $values = array();
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // list only active contacts?
@@ -597,7 +597,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
 
     try {
       // execute query
-      $stmt = $this->db->prepare("SELECT handle, org, name, userid FROM tbl_contacts WHERE ".implode(' AND ', $keys)." ORDER BY org, name ASC");
+      $stmt = $this->db->prepare("SELECT handle, org, name, user_id FROM contacts WHERE ".implode(' AND ', $keys)." ORDER BY org, name ASC");
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to list contacts: {$errorInfo[2]}");
@@ -627,15 +627,15 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           d.num_domains,
           c.num_contacts
         FROM
-          tbl_users u
+          users u
         LEFT JOIN
-          (SELECT userID, count(userID) AS num_domains FROM tbl_domains GROUP BY userID) d
+          (SELECT user_id, count(user_id) AS num_domains FROM domains GROUP BY user_id) d
         ON
-          u.id = d.userID
+          u.id = d.user_id
         LEFT JOIN
-          (SELECT userID, count(userID) AS num_contacts FROM tbl_contacts GROUP BY userID) c
+          (SELECT user_id, count(user_id) AS num_contacts FROM contacts GROUP BY user_id) c
         ON
-          u.id = c.userID
+          u.id = c.user_id
         ORDER BY
           username ASC");
       if ( ! $stmt->execute()) {
@@ -654,10 +654,10 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * retrieve user from DB (with some more details)
    *
    * @access   public
-   * @param    integer   userid
+   * @param    integer   user_id
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function retrieveUser($userid) {
+  public function retrieveUser($user_id) {
     try {
       // execute query
       $stmt = $this->db->prepare("
@@ -666,18 +666,18 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           d.num_domains,
           c.num_contacts
         FROM
-          tbl_users u
+          users u
         LEFT JOIN
-          (SELECT userID, count(userID) AS num_domains FROM tbl_domains GROUP BY userID) d
+          (SELECT user_id, count(user_id) AS num_domains FROM domains GROUP BY user_id) d
         ON
-          u.id = d.userID
+          u.id = d.user_id
         LEFT JOIN
-          (SELECT userID, count(userID) AS num_contacts FROM tbl_contacts GROUP BY userID) c
+          (SELECT user_id, count(user_id) AS num_contacts FROM contacts GROUP BY user_id) c
         ON
-          u.id = c.userID
+          u.id = c.user_id
         WHERE
-          u.id = :userid");
-      if ( ! $stmt->execute(array(":userid" => $userid))) {
+          u.id = :user_id");
+      if ( ! $stmt->execute(array(":user_id" => $user_id))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get user: {$errorInfo[2]}");
       }
@@ -693,32 +693,32 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * add user to DB
    *
    * @access   public
-   * @param    integer   userid
+   * @param    integer   user_id
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
   public function storeUser($elements) {
-    return $this->doStore("tbl_users", $elements);
+    return $this->doStore("users", $elements);
   }
 
   /**
    * add user to DB
    *
    * @access   public
-   * @param    integer   userid
+   * @param    integer   user_id
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function updateUser($elements, $userid) {
-    return $this->doUpdate("tbl_users", $elements, "id", $userid);
+  public function updateUser($elements, $user_id) {
+    return $this->doUpdate("users", $elements, "id", $user_id);
   }
 
   /**
    * delete user from DB
    *
    * @access   public
-   * @param    integer   userid
+   * @param    integer   user_id
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function deleteUser($userid) {
+  public function deleteUser($user_id) {
     try {
       // verify integrity (query counts)
       $stmt = $this->db->prepare("
@@ -726,9 +726,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           d.num_domains,
           c.num_contacts
         FROM
-         (SELECT count(*) AS num_domains FROM tbl_domains WHERE userID = :userid) d,
-         (SELECT count(*) AS num_contacts FROM tbl_contacts WHERE userID = :userid2) c");
-      if ( ! $stmt->execute(array(":userid" => $userid, ":userid2" => $userid))) {
+         (SELECT count(*) AS num_domains FROM domains WHERE user_id = :user_id) d,
+         (SELECT count(*) AS num_contacts FROM contacts WHERE user_id = :user_id2) c");
+      if ( ! $stmt->execute(array(":user_id" => $user_id, ":user_id2" => $user_id))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get count of associated objects: {$errorInfo[2]}");
       }
@@ -736,11 +736,11 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       // verify integrity (check counts)
       $row = $stmt->fetch(PDO::FETCH_ASSOC);
       if ($row['num_domains'] > 0 || $row['num_contacts'] > 0)
-        return $this->setError(16, "unable to remove user with id '{$userid}': remove associated objects first ({$row['num_domains']} domains, {$row['num_contacts']} contacts)");
+        return $this->setError(16, "unable to remove user with id '{$user_id}': remove associated objects first ({$row['num_domains']} domains, {$row['num_contacts']} contacts)");
 
       // remove entry
-      $stmt = $this->db->prepare("DELETE FROM tbl_users WHERE id = :userid");
-      if ( ! $stmt->execute(array(":userid" => $userid))) {
+      $stmt = $this->db->prepare("DELETE FROM users WHERE id = :user_id");
+      if ( ! $stmt->execute(array(":user_id" => $user_id))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to delete user: {$errorInfo[2]}");
       }
@@ -763,16 +763,16 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    boolean   include Transfer-In domains (default TRUE)
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function listDomains($userid = 1, $registrant = null, $activeOnly = TRUE, $age = 0, $transferin = TRUE) {
+  public function listDomains($user_id = 1, $registrant = null, $activeOnly = TRUE, $age = 0, $transferin = TRUE) {
     $domains = array();
     $keys = array("1 = 1");
     $values = array();
 
     try {
       // ACL settings
-      if ($userid > 1) {
-        $keys[] = "userID = :userID";
-        $values[":userID"] = $userid;
+      if ($user_id > 1) {
+        $keys[] = "user_id = :user_id";
+        $values[":user_id"] = $user_id;
       }
 
       // restrict search to a specific registrant
@@ -787,9 +787,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           SELECT
             concat(domain, ' (transfer-in)') as domain,
             registrant,
-            userid
+            user_id
           FROM
-            tbl_transfers
+            transfers
           WHERE
             ".implode(' AND ', $keys)."
           ORDER BY
@@ -811,7 +811,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
 
       // list only domains older then X months?
       if ($age > 0) {
-        $keys[] = "exDate < DATE_SUB(CURDATE(), INTERVAL :age MONTH)";
+        $keys[] = "ex_date < DATE_SUB(CURDATE(), INTERVAL :age MONTH)";
         $values[":age"] = (int)$age;
       }
 
@@ -820,9 +820,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         SELECT
           domain,
           registrant,
-          userid
+          user_id
         FROM
-          tbl_domains
+          domains
         WHERE
           ".implode(' AND ', $keys)."
         ORDER BY
@@ -847,7 +847,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function deleteContact($contact, $userid = 1) {
+  public function deleteContact($contact, $user_id = 1) {
     $keys = array("handle = :handle");
     $values = array(":handle" => $contact);
 
@@ -855,23 +855,23 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     $valuesSubQuery = array(":registrant" => $contact);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
-      $keysSubQuery[] = "userID = :userID";
-      $valuesSubQuery[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
+      $keysSubQuery[] = "user_id = :user_id";
+      $valuesSubQuery[":user_id"] = $user_id;
     }
 
     try {
       // execute query
       $stmt = $this->db->prepare("
         UPDATE
-          tbl_contacts
+          contacts
         SET
           active = 0
         WHERE
           ".implode(' AND ', $keys)." AND
-          (SELECT COUNT(1) FROM tbl_domains WHERE ".implode(' AND ', $keysSubQuery)." AND active = 1) = 0");
+          (SELECT COUNT(1) FROM domains WHERE ".implode(' AND ', $keysSubQuery)." AND active = 1) = 0");
       if ( ! $stmt->execute(array_merge($values, $valuesSubQuery))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to deactivate contact {$contact}: {$errorInfo[2]}");
@@ -892,21 +892,21 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function restoreContact($contact, $userid = 1) {
+  public function restoreContact($contact, $user_id = 1) {
     $keys = array("handle = :handle");
     $values = array(":handle" => $contact);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query
       $stmt = $this->db->prepare("
         UPDATE
-          tbl_contacts
+          contacts
         SET
           active = 1
         WHERE
@@ -931,21 +931,21 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function deleteDomain($domain, $userid = 1) {
+  public function deleteDomain($domain, $user_id = 1) {
     $keys = array("domain = :domain");
     $values = array(":domain" => $domain);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query
       $stmt = $this->db->prepare("
         UPDATE
-          tbl_domains
+          domains
         SET
           active = 0
         WHERE
@@ -970,21 +970,21 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string    user ACL
    * @return   array     result OR FALSE in case of failure or ambiguity
    */
-  public function restoreDomain($domain, $userid = 1) {
+  public function restoreDomain($domain, $user_id = 1) {
     $keys = array("domain = :domain");
     $values = array(":domain" => $domain);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query
       $stmt = $this->db->prepare("
         UPDATE
-          tbl_domains
+          domains
         SET
           active = 1
         WHERE
@@ -1002,7 +1002,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
   }
 
   /**
-   * update lastInvoice date of a domain stored in DB
+   * update last_invoice date of a domain stored in DB
    *
    * there is no need for user ACLs since this method should obviously only
    * be called by an automated cron job
@@ -1015,12 +1015,12 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       // execute query
       $stmt = $this->db->prepare("
         UPDATE
-          tbl_domains
+          domains
         SET
-          lastInvoice = CURDATE()
+          last_invoice = CURDATE()
         WHERE
           active = 1 AND
-          lastInvoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR)");
+          last_invoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR)");
       if ( ! $stmt->execute()) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to renew domains: {$errorInfo[2]}");
@@ -1048,14 +1048,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       $stmt = $this->db->prepare("
         SELECT
           d.domain AS name,
-          u.billingID
+          u.billing_id
         FROM
-          tbl_domains d,
-          tbl_users u
+          domains d,
+          users u
         WHERE
           d.active = 1 AND
-          d.lastInvoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND
-          d.userid = u.id");
+          d.last_invoice < DATE_SUB(CURDATE(), INTERVAL 1 YEAR) AND
+          d.user_id = u.id");
       if ( ! $stmt->execute()) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to list domains: {$errorInfo[2]}");
@@ -1073,19 +1073,19 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    *
    * @access   public
    * @param    string    operation type
-   * @param    string    billingID (client reference number)
+   * @param    string    billing_id (client reference number)
    * @param    string    object being invoiced
    * @param    string    date string / invoice period (optional - this defaults to a ISO 8601 date)
    * @return   boolean   status
    */
-  public function doAccount($operation, $billingID, $object, $date = NULL) {
+  public function doAccount($operation, $billing_id, $object, $date = NULL) {
     $elements = array();
     $elements['operation'] = $operation;
-    $elements['billingID'] = $billingID;
+    $elements['billing_id'] = $billing_id;
     $elements['object'] = $object;
     $elements['date'] = is_null($date) ? date('c') : $date;
 
-    return $this->doStore('tbl_accounting', $elements);
+    return $this->doStore('accounting', $elements);
   }
 
   /**
@@ -1097,7 +1097,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
   public function accountableServices() {
     try {
       // execute query for active domains
-      $stmt = $this->db->prepare("SELECT id, operation, billingID, object, date, time FROM tbl_accounting WHERE status = 0 ORDER BY id DESC");
+      $stmt = $this->db->prepare("SELECT id, operation, billing_id, object, date, time FROM accounting WHERE status = 0 ORDER BY id DESC");
       if ( ! $stmt->execute()) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to list domains: {$errorInfo[2]}");
@@ -1118,17 +1118,19 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @return   boolean  status
    */
   public function closeAccountableServices($records) {
-    if ( ! is_array($records))
+    if ( ! is_array($records)) {
       return FALSE;
+    }
 
     // look for the highest ID
     $maxID = 0;
-    foreach ($records as $record)
+    foreach ($records as $record) {
       $maxID = ((int)$record['id'] > $maxID) ? (int)$record['id'] : $maxID;
+    }
 
     try {
       // execute query
-      $stmt = $this->db->prepare("UPDATE tbl_accounting SET status = 1 WHERE id <= :maxID");
+      $stmt = $this->db->prepare("UPDATE accounting SET status = 1 WHERE id <= :maxID");
       if ( ! $stmt->execute(array(':maxID' => $maxID))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to close accountable services with max. ID {$maxID}: {$errorInfo[2]}");
@@ -1143,7 +1145,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
   }
 
   /**
-   * retrieve amount of items with exDate in the next X days
+   * retrieve amount of items with ex_date in the next X days
    *
    * @access   public
    * @param    int      number of days
@@ -1152,7 +1154,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
   public function creditForecast($days) {
     try {
       // count items we have
-      $stmt = $this->db->prepare("SELECT count(1) AS items FROM tbl_domains WHERE exDate < DATE_ADD(current_timestamp, INTERVAL :days DAY)");
+      $stmt = $this->db->prepare("SELECT count(1) AS items FROM domains WHERE ex_date < DATE_ADD(current_timestamp, INTERVAL :days DAY)");
       if ( ! $stmt->execute(array(":days" => (int)$days))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to retrieve count of domains in last {$days} days: {$errorInfo[2]}");
@@ -1162,7 +1164,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
       $items = $row['items'];
 
       // create approximation / forecast
-      $stmt = $this->db->prepare("SELECT count(1) AS forecast FROM tbl_domains WHERE crDate > DATE_SUB(current_timestamp, INTERVAL 1 YEAR)");
+      $stmt = $this->db->prepare("SELECT count(1) AS forecast FROM domains WHERE cr_date > DATE_SUB(current_timestamp, INTERVAL 1 YEAR)");
       if ( ! $stmt->execute()) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to retrieve count of domains that expire the upcoming year: {$errorInfo[2]}");
@@ -1187,17 +1189,17 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string   registrant handle
    * @param    array    technical contacts
    * @param    array    dns servers
-   * @param    string   userid to restrict operation to
+   * @param    string   user_id to restrict operation to
    * @return   boolean  status
    */
-  public function storeTransfer($domain, $registrant, $techc, $dns, $userid = 1) {
+  public function storeTransfer($domain, $registrant, $techc, $dns, $user_id = 1) {
     $elements = array();
     $elements['domain'] = $domain;
     $elements['registrant'] = $registrant;
     $elements['techc'] = $techc;
     $elements['dns'] = $dns;
 
-    return $this->doStore('tbl_transfers', $elements, $userid);
+    return $this->doStore('transfers', $elements, $user_id);
   }
 
   /**
@@ -1205,17 +1207,17 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    *
    * @access   public
    * @param    string   domain name
-   * @param    string   userid to restrict operation to
+   * @param    string   user_id to restrict operation to
    * @return   boolean  status
    */
-  public function lookupTransfer($domain, $userid = 1) {
+  public function lookupTransfer($domain, $user_id = 1) {
     $keys = array("domain = :domain");
     $values = array(":domain" => $domain);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
     
     try {
@@ -1224,7 +1226,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         SELECT
           count(*) as num
         FROM
-          tbl_transfers
+          transfers
         WHERE
           ".implode(' AND ', $keys)."
         ORDER BY
@@ -1246,10 +1248,10 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    *
    * @access   public
    * @param    string   registrant to restrict search for
-   * @param    string   userid to restrict search to
+   * @param    string   user_id to restrict search to
    * @return   array    list of domains, handles and user/contact emails
    */
-  public function listTransfers($registrant = "", $userid = 1) {
+  public function listTransfers($registrant = "", $user_id = 1) {
     $keys = array("1 = 1");
     $values = array();
 
@@ -1260,9 +1262,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     }
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "c.userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "c.user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
@@ -1273,19 +1275,19 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           t.domain,
           t.techc,
           t.dns,
-          t.userID AS transferUserID,
+          t.user_id AS transferUserID,
           c.name,
           c.email,
-          u.id AS userID,
-          u.billingID,
+          u.id AS user_id,
+          u.billing_id,
           u.email AS email_user
         FROM
-          tbl_transfers t,
-          tbl_contacts c,
-          tbl_users u
+          transfers t,
+          contacts c,
+          users u
         WHERE
           t.registrant = c.handle AND
-          c.userid = u.id AND
+          c.user_id = u.id AND
           " . implode(' AND ', $keys));
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
@@ -1303,8 +1305,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           'name'           => $row['name'],
           'email'          => $row['email'],
           'transferUserID' => $row['transferUserID'],
-          'userID'         => $row['userID'],
-          'billingID'      => $row['billingID'],
+          'user_id'        => $row['user_id'],
+          'billing_id'     => $row['billing_id'],
           'email_user'     => $row['email_user'],
         );
       }
@@ -1321,22 +1323,22 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    *
    * @access   public
    * @param    string   domain name
-   * @param    string   userid to restrict operation to
+   * @param    string   user_id to restrict operation to
    * @return   boolean  status
    */
-  public function deleteTransfer($domain, $userid = 1) {
+  public function deleteTransfer($domain, $user_id = 1) {
     $keys = array("domain = :domain");
     $values = array(":domain" => $domain);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query
-      $stmt = $this->db->prepare("DELETE FROM tbl_transfers WHERE " . implode(' AND ', $keys));
+      $stmt = $this->db->prepare("DELETE FROM transfers WHERE " . implode(' AND ', $keys));
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to update transfer table for {$domain}: {$errorInfo[2]}");
@@ -1355,24 +1357,25 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @access   public
    * @return   mixed  data array
    */
-  public function autocompleteDomain($search, $limit = 10, $userid = 1) {
+  public function autocompleteDomain($search, $limit = 10, $user_id = 1) {
     $domains = array();
     $keys = array("domain like :search");
     $values = array(":search" => "%{$search}%");
 
     // set default to 10
-    if ($limit == 0)
+    if ($limit == 0) {
       $limit = 10;
+    }
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query for active domains
-      $stmt = $this->db->prepare("SELECT domain FROM tbl_domains WHERE active = 1 AND ".implode(' AND ', $keys));
+      $stmt = $this->db->prepare("SELECT domain FROM domains WHERE active = 1 AND ".implode(' AND ', $keys));
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get domains: {$errorInfo[2]}");
@@ -1380,7 +1383,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
 
       $domains = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-      $stmt = $this->db->prepare("SELECT concat(domain, ' (transfer-in)') FROM tbl_transfers WHERE ".implode(' AND ', $keys));
+      $stmt = $this->db->prepare("SELECT concat(domain, ' (transfer-in)') FROM transfers WHERE ".implode(' AND ', $keys));
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get domains: {$errorInfo[2]}");
@@ -1401,14 +1404,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @access   public
    * @return   mixed  data array
    */
-  public function expiringDomains($days, $userid = 1) {
+  public function expiringDomains($days, $user_id = 1) {
     $keys = array("1 = 1");
     $values = array(":days" => $days);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "c.userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "c.user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
@@ -1417,19 +1420,19 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         SELECT
           d.*,
           c.*,
-          u.billingID
+          u.billing_id
         FROM
-          tbl_users u,
-          tbl_contacts c,
-          tbl_domains d
+          users u,
+          contacts c,
+          domains d
         WHERE
-          d.exDate < NOW() + INTERVAL :days DAY AND
+          d.ex_date < NOW() + INTERVAL :days DAY AND
           d.active = 1 AND
           d.registrant = c.handle AND
-          c.userid = u.id AND
+          c.user_id = u.id AND
           ".implode(' AND ', $keys)."
         ORDER BY
-          d.exDate ASC");
+          d.ex_date ASC");
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get domain and contact data: {$errorInfo[2]}");
@@ -1448,32 +1451,37 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @access   public
    * @return   mixed  data array
    */
-  public function exportDomains($userid = 1) {
+  public function exportDomains($user_id = 1) {
     $keys = array("1 = 1");
     $values = array();
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "d.userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "d.user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
       // execute query for active domains
       $stmt = $this->db->prepare("
         SELECT
-          d.*,
-          d.active as domainActive,
-          d.authinfo as domainAuthinfo,
-          c.*,
-          u.billingID
+          d.active,
+          d.domain,
+          d.authinfo,
+          d.cr_date,
+          d.ex_date,
+          c.handle,
+          c.org,
+          c.name,
+          c.email,
+          u.billing_id
         FROM
-          tbl_users u,
-          tbl_contacts c,
-          tbl_domains d
+          users u,
+          contacts c,
+          domains d
         WHERE
           d.registrant = c.handle AND
-          c.userid = u.id AND
+          c.user_id = u.id AND
           ".implode(' AND ', $keys)."
         ORDER BY
           domain ASC");
@@ -1498,14 +1506,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string notice text to be sent
    * @return   mixed  data array
    */
-  public function setReminder($domain, $date, $notice, $email, $userid = 1) {
+  public function setReminder($domain, $date, $notice, $email, $user_id = 1) {
     $keys = array("domain = :domain");
     $values = array(":domain" => $domain);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
@@ -1514,7 +1522,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         SELECT
           count(*) AS num
         FROM
-          tbl_domains d
+          domains d
         WHERE
           ".implode(' AND ', $keys));
       if ( ! $stmt->execute($values)) {
@@ -1522,8 +1530,9 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get domain and contact data: {$errorInfo[2]}");
       }
 
-      if ($stmt->fetchColumn() <> 1)
+      if ($stmt->fetchColumn() <> 1) {
         return $this->setError(1, "domain does not belong to this user");
+      }
     } catch (PDOException $e) {
       $errorInfo = $this->db->errorInfo();
       return $this->setError($errorInfo[0], "unable to get domain and contact data: " . $e->getMessage());
@@ -1536,7 +1545,7 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
     $elements['notice'] = $notice;
     $elements['email'] = $email;
 
-    return $this->doStore('tbl_reminder', $elements);
+    return $this->doStore('reminder', $elements);
   }
 
   /**
@@ -1546,14 +1555,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    string optional domain (get one or all messages)
    * @return   mixed  data array
    */
-  public function getReminder($domain = null, $userid = 1, $doRemind = false) {
+  public function getReminder($domain = null, $user_id = 1, $doRemind = false) {
     $keys = array("1 = 1");
     $values = array();
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "d.userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "d.user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // set condition
@@ -1577,8 +1586,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
           r.email,
           r.notice
         FROM
-          tbl_domains d,
-          tbl_reminder r
+          domains d,
+          reminder r
         WHERE
           d.domain = r.domain AND
           r.active = 1 AND
@@ -1604,14 +1613,14 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    int    ID of message to be archived
    * @return   mixed  data array
    */
-  public function archiveReminder($id, $userid = 1) {
+  public function archiveReminder($id, $user_id = 1) {
     $keys = array("1 = 1");
     $values = array(":id" => $id);
 
     // ACL settings
-    if ($userid > 1) {
-      $keys[] = "d.userID = :userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1) {
+      $keys[] = "d.user_id = :user_id";
+      $values[":user_id"] = $user_id;
     }
 
     try {
@@ -1620,8 +1629,8 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         SELECT
           count(*) AS num
         FROM
-          tbl_domains d,
-          tbl_reminder r
+          domains d,
+          reminder r
         WHERE
           r.id = :id AND
           r.domain = d.domain AND
@@ -1631,10 +1640,11 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to get reminder data: {$errorInfo[2]}");
       }
 
-      if ($stmt->fetchColumn() <> 1)
+      if ($stmt->fetchColumn() <> 1) {
         return $this->setError(1, "domain does not belong to this user");
+      }
 
-      $stmt = $this->db->prepare("UPDATE tbl_reminder SET active = 0 WHERE id = :id");
+      $stmt = $this->db->prepare("UPDATE reminder SET active = 0 WHERE id = :id");
       if ( ! $stmt->execute(array(":id" => (int)$id))) {
         $errorInfo = $stmt->errorInfo();
         return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to update reminder table: {$errorInfo[2]}");
@@ -1655,24 +1665,24 @@ class Net_EPP_StorageDB implements Net_EPP_StorageInterface
    * @param    int     user ID for whom to change the password
    * @return   boolean success state
    */
-  public function changePassword($newPassword, $userid) {
+  public function changePassword($newPassword, $user_id) {
     $values = array(
       ":newPassword" => $newPassword,
-      ":userid" => $userid,
+      ":user_id" => $user_id,
     );
 
     try {
       // execute query
-      $stmt = $this->db->prepare("UPDATE tbl_users SET password = md5(:newPassword) WHERE id = :userid");
+      $stmt = $this->db->prepare("UPDATE users SET password = md5(:newPassword) WHERE id = :user_id");
       if ( ! $stmt->execute($values)) {
         $errorInfo = $stmt->errorInfo();
-        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to change password for user with ID {$userid}: {$errorInfo[2]}");
+        return $this->setError($errorInfo[0], "{$errorInfo[1]}: unable to change password for user with ID {$user_id}: {$errorInfo[2]}");
       }
 
-      return $this->setError(0, "password changed for user with ID {$userid}");
+      return $this->setError(0, "password changed for user with ID {$user_id}");
     } catch (PDOException $e) {
       $errorInfo = $this->db->errorInfo();
-      return $this->setError($errorInfo[0], "unable to change password for user with ID {$userid}: " . $e->getMessage());
+      return $this->setError($errorInfo[0], "unable to change password for user with ID {$user_id}: " . $e->getMessage());
     }
   }
 }

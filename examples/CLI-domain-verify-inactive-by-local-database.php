@@ -9,7 +9,7 @@ require_once 'Net/EPP/IT/Session.php';
 require_once 'Net/EPP/IT/Domain.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
+$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->db);
 $session = new Net_EPP_IT_Session($nic, $db);
 $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);
@@ -33,7 +33,7 @@ if ( $session->login() === FALSE ) {
 echo "Login OK.\n";
 
 // list in-active domains
-$sql = "SELECT domain FROM tbl_domains WHERE active = 0";
+$sql = "SELECT domain FROM domains WHERE active = 0";
 $result = $db->dbConnect->Execute($sql);
 while ( !$result->EOF ) {
   $d = $result->Fields('domain');

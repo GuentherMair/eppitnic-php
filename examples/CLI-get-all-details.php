@@ -20,7 +20,7 @@ require_once 'Net/EPP/IT/Domain.php';
 require_once 'class.csv.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
+$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->db);
 $session = new Net_EPP_IT_Session($nic, $db);
 $session->debug = LOG_DEBUG;
 $contact = new Net_EPP_IT_Contact($nic, $db);

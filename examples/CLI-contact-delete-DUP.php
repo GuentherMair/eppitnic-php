@@ -10,7 +10,7 @@ require_once 'Net/EPP/IT/Session.php';
 require_once 'Net/EPP/IT/Contact.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
+$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->db);
 $session = new Net_EPP_IT_Session($nic, $db);
 $contact = new Net_EPP_IT_Contact($nic, $db);
 
@@ -29,13 +29,13 @@ if ($session->login() === FALSE) {
 }
 echo "Login OK.\n";
 
-$result = $db->dbConnect->Execute("SELECT handle FROM tbl_contacts WHERE active = 1 AND handle like ".$db->escape($init."%").";");
+$result = $db->dbConnect->Execute("SELECT handle FROM contacts WHERE active = 1 AND handle like ".$db->escape($init."%").";");
 while ( ! $result->EOF) {
   $name = $result->Fields('handle');
   if ($contact->delete($name)) {
     echo "[SUCCESS] Contact '".$name."' removed.\n";
     // try to delete or at least archive the handle
-    $db->dbConnect->Execute("UPDATE tbl_contacts SET active = 0 WHERE active = 1 AND handle = '".$name."'; DELETE FROM tbl_contacts WHERE active = 1 AND handle = '".$name."';");
+    $db->dbConnect->Execute("UPDATE contacts SET active = 0 WHERE active = 1 AND handle = '".$name."'; DELETE FROM contacts WHERE active = 1 AND handle = '".$name."';");
   } else {
     echo "[FAILURE] Contact '".$name."' NOT removed (".$contact->getError().").\n";
   }

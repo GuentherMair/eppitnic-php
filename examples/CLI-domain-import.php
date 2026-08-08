@@ -26,7 +26,7 @@ if (isset($options['f']) && ! is_readable($options['f'])) {
   exit(FILE_NOT_READABLE);
 }
 
-$userid = isset($options['u']) ? (int)$options['u'] : 1;
+$user_id = isset($options['u']) ? (int)$options['u'] : 1;
 
 // verify domain names
 $domains = array();
@@ -60,7 +60,7 @@ if ($session->login() === FALSE) {
 }
 
 // import domains and print result
-$results = $domain->import(implode(" ", $domains), $userid);
+$results = $domain->import(implode(" ", $domains), $user_id);
 foreach ($results as $name => $result) {
   echo "{$name}:\n";
   foreach ($result as $step => $state)

@@ -21,7 +21,7 @@ class MyStorageWrapper extends Net_EPP_StorageDB
   /**
    * these functions override the core methods and separate the tech-array into single fields
    */
-  protected function doStore($table, $elements, $userid = 1) {
+  protected function doStore($table, $elements, $user_id = 1) {
     if ( ! is_array($elements) )
       return $this->error(4, "second paramenter must be an array!");
 
@@ -37,9 +37,9 @@ class MyStorageWrapper extends Net_EPP_StorageDB
           $values[":{$k}{$i}"] = $remaining;
           $i++;
         }
-      } else if (($k == "clTRData") || ($k == "svHTTPData") || is_array($v)) {
+      } else if (($k == "cl_trdata") || ($k == "sv_httpdata") || is_array($v)) {
         $values[":{$k}"] = $this->dbSerializePrefix.base64_encode(serialize($v));
-      } else if (($k == 'crDate') || ($k == 'exDate')) {
+      } else if (($k == 'cr_date') || ($k == 'ex_date')) {
         $values[":{$k}"] = date("Y-m-d", strtotime($v));
       } else {
         $values[":{$k}"] = $v;
@@ -47,9 +47,9 @@ class MyStorageWrapper extends Net_EPP_StorageDB
     }
 
     // ACL
-    if ($userid > 1 && in_array($table, $this->tablesWithACL)) {
-      $keys[] = "userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1 && in_array($table, $this->tablesWithACL)) {
+      $keys[] = "user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // execute query
@@ -70,7 +70,7 @@ class MyStorageWrapper extends Net_EPP_StorageDB
   /**
    * these functions override the core methods and separate the tech-array into single fields
    */
-  protected function doUpdate($table, $elements, $index, $handle, $userid = 1) {
+  protected function doUpdate($table, $elements, $index, $handle, $user_id = 1) {
     if ( ! is_array($elements))
       return $this->error(4, "second paramenter must be an array!");
 
@@ -86,9 +86,9 @@ class MyStorageWrapper extends Net_EPP_StorageDB
           $values[":{$k}{$i}"] = $remaining;
           $i++;
         }
-      } else if (($k == "clTRData") || ($k == "svHTTPData") || is_array($v)) {
+      } else if (($k == "cl_trdata") || ($k == "sv_httpdata") || is_array($v)) {
         $values[":{$k}"] = $this->dbSerializePrefix.base64_encode(serialize($v));
-      } else if (($k == 'crDate') || ($k == 'exDate')) {
+      } else if (($k == 'cr_date') || ($k == 'ex_date')) {
         $values[":{$k}"] = date("Y-m-d", strtotime($v));
       } else {
         $values[":{$k}"] = $v;
@@ -99,9 +99,9 @@ class MyStorageWrapper extends Net_EPP_StorageDB
     $values[":handle"] = $handle;
 
     // ACL
-    if ($userid > 1 && in_array($table, $this->tablesWithACL)) {
-      $wKeys[] = "userID=:userID";
-      $values[":userID"] = $userid;
+    if ($user_id > 1 && in_array($table, $this->tablesWithACL)) {
+      $wKeys[] = "user_id=:user_id";
+      $values[":user_id"] = $user_id;
     }
 
     // execute query
@@ -120,14 +120,14 @@ class MyStorageWrapper extends Net_EPP_StorageDB
 
     // an error occurred
     $e = $stmt->errorInfo();
-    return $this->setError($e[1], "{$e[0]}: unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$userid}: {$e[2]}");
+    return $this->setError($e[1], "{$e[0]}: unable to update '{$table}' using INDEX {$index}='{$handle}' and user ID {$user_id}: {$e[2]}");
   }
 
   /**
    * these functions override the core methods and separate the tech-array into single fields
    */
-  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userid = 1) {
-    $elements = parent::doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $userid = 1);
+  protected function doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $user_id = 1) {
+    $elements = parent::doRetrieve($table, $index, $value, $strict = TRUE, $order = null, $user_id = 1);
     print_r($elements);
   }
 }
@@ -149,11 +149,11 @@ if ($argc < 2) {
   echo " In order to use this example you will have to extend your current\n";
   echo " DB schema by adding fields tech2 - tech6 like this:\n";
   echo "\n";
-  echo " alter table tbl_domains add column tech2 varchar(32);\n";
-  echo " alter table tbl_domains add column tech3 varchar(32);\n";
-  echo " alter table tbl_domains add column tech4 varchar(32);\n";
-  echo " alter table tbl_domains add column tech5 varchar(32);\n";
-  echo " alter table tbl_domains add column tech6 varchar(32);\n";
+  echo " alter table domains add column tech2 varchar(32);\n";
+  echo " alter table domains add column tech3 varchar(32);\n";
+  echo " alter table domains add column tech4 varchar(32);\n";
+  echo " alter table domains add column tech5 varchar(32);\n";
+  echo " alter table domains add column tech6 varchar(32);\n";
   echo "\n";
   exit(SYNTAX_ERROR);
 }

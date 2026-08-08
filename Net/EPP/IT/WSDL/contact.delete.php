@@ -34,8 +34,6 @@
  *
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 /*

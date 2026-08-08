@@ -30,14 +30,14 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 try {
-  $stmt = $db->db->prepare("SELECT handle FROM tbl_contacts WHERE active = 1 AND handle LIKE :init");
+  $stmt = $db->db->prepare("SELECT handle FROM contacts WHERE active = 1 AND handle LIKE :init");
   $stmt->execute(array(":init" => "{$init}%"));
   while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     if ($contact->delete($row['name'])) {
       echo "[SUCCESS] Contact '{$row['name']}' removed.\n";
 
       // try to delete or at least archive the handle
-      $stmt2 = $db->db->prepare("UPDATE tbl_contacts SET active = 0 WHERE active = 1 AND handle = :name; DELETE FROM tbl_contacts WHERE active = 1 AND handle = :name2");
+      $stmt2 = $db->db->prepare("UPDATE contacts SET active = 0 WHERE active = 1 AND handle = :name; DELETE FROM contacts WHERE active = 1 AND handle = :name2");
       $stmt2->execute(array(":name" => $row['name'], ":name2" => $row['name']));
     } else {
       echo "[FAILURE] Contact '{$row['name']}' NOT removed (".$contact->getError().").\n";

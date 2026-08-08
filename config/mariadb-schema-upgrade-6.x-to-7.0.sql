@@ -1,0 +1,345 @@
+-- ============================================================================
+-- Migration: rename tbl_* -> * and convert charset/collation to
+--            utf8mb4 / utf8mb4_unicode_ci
+--
+-- IMPORTANT:
+--   * Take a full backup before running this. CONVERT TO CHARACTER SET
+--     rebuilds every text column and is not reversible by re-running.
+--   * Run this via a non-interactive client that stops on the first error,
+--     e.g.:  mysql -u USER -p DBNAME < migrate_rename_charset.sql
+--     (this is the default `mysql` CLI behaviour; do NOT pass --force)
+--   * Test on a staging copy first.
+--   * Tables are converted with FOREIGN_KEY_CHECKS=0 so that the temporary
+--     charset mismatch between a not-yet-converted child and an
+--     already-converted parent doesn't block the ALTER. No FK checks are
+--     skipped that would let bad data in -- no rows are inserted/deleted
+--     by this script, only column/table metadata + rebuild.
+-- ============================================================================
+
+
+-- ----------------------------------------------------------------------------
+-- PART 1: PRE-FLIGHT CHECK
+--
+-- utf8_bin (current, assumed) is case-sensitive. utf8mb4_unicode_ci (target)
+-- is case-insensitive. Any UNIQUE column that currently holds values differing
+-- only by case (e.g. 'Foo' and 'foo') will collide once the collation
+-- changes, and CONVERT TO CHARACTER SET will fail (or worse, silently need
+-- manual resolution) partway through the migration.
+--
+-- This checks every UNIQUE text column across the 8 tables. If any collision
+-- is found, it SIGNALs an error, which — under default `mysql` CLI settings —
+-- halts the script immediately, before Part 2 runs.
+-- ----------------------------------------------------------------------------
+
+DROP PROCEDURE IF EXISTS `_check_case_collisions`;
+
+DELIMITER $$
+
+CREATE PROCEDURE `_check_case_collisions`()
+BEGIN
+    DECLARE cnt INT DEFAULT 0;
+    DECLARE msg VARCHAR(255);
+
+    -- tbl_users.billingID (unique, NOT NULL)
+    SELECT COUNT(*) INTO cnt FROM (
+        SELECT LOWER(billingID) AS k
+        FROM tbl_users
+        GROUP BY LOWER(billingID)
+        HAVING COUNT(*) > 1
+    ) x;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_users.billingID has ', cnt,
+                          ' case-insensitive collision group(s). Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    -- tbl_contacts.handle (unique, NOT NULL)
+    SELECT COUNT(*) INTO cnt FROM (
+        SELECT LOWER(handle) AS k
+        FROM tbl_contacts
+        GROUP BY LOWER(handle)
+        HAVING COUNT(*) > 1
+    ) x;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_contacts.handle has ', cnt,
+                          ' case-insensitive collision group(s). Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    -- tbl_domains.domain (unique, NOT NULL)
+    SELECT COUNT(*) INTO cnt FROM (
+        SELECT LOWER(domain) AS k
+        FROM tbl_domains
+        GROUP BY LOWER(domain)
+        HAVING COUNT(*) > 1
+    ) x;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_domains.domain has ', cnt,
+                          ' case-insensitive collision group(s). Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    -- tbl_transfers.domain (unique, NOT NULL)
+    SELECT COUNT(*) INTO cnt FROM (
+        SELECT LOWER(domain) AS k
+        FROM tbl_transfers
+        GROUP BY LOWER(domain)
+        HAVING COUNT(*) > 1
+    ) x;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_transfers.domain has ', cnt,
+                          ' case-insensitive collision group(s). Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    SELECT 'PRE-FLIGHT OK: no case-insensitive collisions found in unique columns.' AS result;
+END$$
+
+DELIMITER ;
+
+CALL `_check_case_collisions`();
+DROP PROCEDURE `_check_case_collisions`;
+
+-- If you got here without an error above, it's safe to proceed to Part 2.
+
+
+-- ----------------------------------------------------------------------------
+-- PART 2: RENAME + CONVERT
+-- ----------------------------------------------------------------------------
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+ALTER TABLE tbl_users
+  RENAME TO users,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_contacts
+  RENAME TO contacts,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_domains
+  RENAME TO domains,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Drop the 4 DNSSEC-related columns from domains, now that it has been
+-- renamed. Combined into a single ALTER TABLE so it's one metadata
+-- operation rather than four separate table rebuilds.
+ALTER TABLE domains
+  DROP COLUMN dsAlgorithm,
+  DROP COLUMN dsDigest,
+  DROP COLUMN dsDigestType,
+  DROP COLUMN dsKeyTag;
+
+ALTER TABLE tbl_transfers
+  RENAME TO transfers,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_transactions
+  RENAME TO transactions,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_responses
+  RENAME TO responses,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_msgqueue
+  RENAME TO msgqueue,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_messages
+  RENAME TO messages,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE messages
+  DROP COLUMN archived;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+-- ----------------------------------------------------------------------------
+-- PART 3: COLUMN NAME CORRECTIONS
+--
+-- Renames columns from the original camelCase names to the corrected
+-- lower_snake_case names, per the target schema supplied.
+--
+-- CHANGE COLUMN requires the full column definition, not just the new name,
+-- so each clause restates the existing type/nullability/default. Text
+-- columns explicitly restate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+-- so the rename can't accidentally regress the charset work done in Part 2.
+-- Existing indexes (UNIQUE, PRIMARY KEY, FOREIGN KEY) automatically follow a
+-- renamed column -- they do not need to be, and must not be, redeclared here.
+-- ----------------------------------------------------------------------------
+
+ALTER TABLE users
+  CHANGE COLUMN `billingID` `billing_id` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
+
+ALTER TABLE transactions
+  CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `clTRType` `cl_trtype` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `clTRObject` `cl_trobject` VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `clTRData` `cl_trdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE responses
+  CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svTRID` `sv_trid` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svEPPCode` `sv_code` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svHTTPCode` `sv_httpcode` SMALLINT UNSIGNED,
+  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `extValueReasonCode` `extvaluereasoncode` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `extValueReason` `extvaluereason` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE msgqueue
+  CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svTRID` `sv_trid` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svCode` `sv_code` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svHTTPCode` `sv_httpcode` SMALLINT UNSIGNED,
+  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE contacts
+  CHANGE COLUMN `userID` `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 1;
+
+ALTER TABLE domains
+  CHANGE COLUMN `userID` `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 1,
+  CHANGE COLUMN `crDate` `cr_date` DATE,
+  CHANGE COLUMN `exDate` `ex_date` DATE,
+  CHANGE COLUMN `lastInvoice` `last_invoice` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+ALTER TABLE transfers
+  CHANGE COLUMN `userID` `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 1;
+
+ALTER TABLE messages
+  CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svTRID` `sv_trid` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `acID` `ac_id` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `reID` `re_id` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `archivedUserID` `archived_user_id` BIGINT UNSIGNED,
+  CHANGE COLUMN `archivedTime` `archived_time` DATETIME DEFAULT NULL,
+  CHANGE COLUMN `createdTime` `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
+
+-- ----------------------------------------------------------------------------
+-- PART 4: NEW TABLE - changelog
+--
+-- Depends on `users` existing under its final name (created in Part 2), so
+-- this must run after Part 2. Not dependent on Part 3's column renames.
+--
+-- Note: `data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the rest of the
+-- schema) as given -- a sensible choice here since it stores raw JSON, where
+-- case-insensitive comparison/collation isn't meaningful. The CHECK
+-- (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
+-- 8.0.16+, using JSON_VALID) for CHECK constraints to actually be enforced
+-- rather than silently parsed-and-ignored -- worth confirming your server
+-- version supports enforced CHECK constraints before relying on it.
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE `changelog` (
+  `id`                    serial,
+  `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
+  `user_id`               bigint unsigned NOT NULL DEFAULT 1,
+  `object`                enum('users', 'contacts', 'domains') NOT NULL,
+  `object_id`             int(11) NOT NULL,
+  `action`                enum('create','update','delete') NOT NULL,
+  `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
+  PRIMARY KEY (`id`),
+  KEY `object_lookup` (`object`,`object_id`),
+  CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ----------------------------------------------------------------------------
+-- PART 5: POST-MIGRATION VERIFICATION
+-- ----------------------------------------------------------------------------
+
+-- 5a. Confirm every renamed table now reports utf8mb4 / utf8mb4_unicode_ci
+--     at both the table default and per-column level. (changelog is
+--     excluded from the per-column check below since `data` is
+--     intentionally utf8mb4_bin, not utf8mb4_unicode_ci.)
+SELECT TABLE_NAME, CCSA.CHARACTER_SET_NAME, T.TABLE_COLLATION
+FROM information_schema.TABLES T
+JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
+  ON T.TABLE_COLLATION = CCSA.COLLATION_NAME
+WHERE T.TABLE_SCHEMA = DATABASE()
+  AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
+                        'transactions','responses','msgqueue','messages',
+                        'changelog');
+
+SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('users','contacts','domains','transfers',
+                      'transactions','responses','msgqueue','messages')
+  AND CHARACTER_SET_NAME IS NOT NULL
+  AND (CHARACTER_SET_NAME <> 'utf8mb4' OR COLLATION_NAME <> 'utf8mb4_unicode_ci');
+-- ^ this query should return ZERO rows. Any row returned means a column
+--   was missed and still has an old charset/collation.
+
+-- 5b. Confirm the 4 DNSSEC columns are actually gone from domains.
+SELECT COLUMN_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'domains'
+  AND COLUMN_NAME IN ('dsAlgorithm','dsDigest','dsDigestType','dsKeyTag');
+-- ^ this query should return ZERO rows.
+
+-- 5c. Confirm the archived column is actually gone from messages.
+SELECT COLUMN_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'messages'
+  AND COLUMN_NAME = 'archived';
+-- ^ this query should return ZERO rows.
+
+-- 5d. Confirm no old camelCase column names remain anywhere in the 8
+--     original tables.
+SELECT TABLE_NAME, COLUMN_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME IN ('users','contacts','domains','transfers',
+                      'transactions','responses','msgqueue','messages')
+  AND BINARY COLUMN_NAME REGEXP '[A-Z]';
+-- ^ this query should return ZERO rows (no upper-case characters left in
+--   any column name across these 8 tables).
+
+-- 5e. Confirm changelog exists with the expected shape: PK, secondary
+--     index, and the data column's charset/collation/CHECK constraint.
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'changelog'
+ORDER BY ORDINAL_POSITION;
+
+SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+FROM information_schema.STATISTICS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'changelog'
+ORDER BY INDEX_NAME, SEQ_IN_INDEX;
+-- ^ expect: PRIMARY (id), object_lookup (object, object_id)
+
+SELECT CONSTRAINT_NAME, CHECK_CLAUSE
+FROM information_schema.CHECK_CONSTRAINTS
+WHERE CONSTRAINT_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'changelog';
+-- ^ expect one row enforcing json_valid(`data`)
+
+-- 5f. Confirm foreign keys survived the rename/creation and point at the
+--     new names, including changelog's new FK to users.
+SELECT
+    TABLE_NAME        AS child_table,
+    COLUMN_NAME        AS child_column,
+    CONSTRAINT_NAME,
+    REFERENCED_TABLE_NAME AS parent_table,
+    REFERENCED_COLUMN_NAME AS parent_column
+FROM information_schema.KEY_COLUMN_USAGE
+WHERE TABLE_SCHEMA = DATABASE()
+  AND REFERENCED_TABLE_NAME IS NOT NULL
+  AND TABLE_NAME IN ('users','contacts','domains','transfers',
+                      'transactions','responses','msgqueue','messages',
+                      'changelog');
+-- ^ expect: contacts.user_id -> users.id
+--           domains.user_id -> users.id
+--           domains.registrant -> contacts.handle
+--           transfers.registrant -> contacts.handle
+--           changelog.user_id -> users.id

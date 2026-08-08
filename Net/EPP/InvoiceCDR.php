@@ -38,15 +38,14 @@ require_once 'Net/EPP/InvoiceInterface.php';
  * @package     Net_EPP_InvoiceCDR
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
+
 class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
 {
-  protected $CDR       = "/var/log/eppitnic/billing.cdr";
+  protected $cdr       = "/var/log/eppitnic/billing.cdr";
   protected $delimiter = ";";
   protected $enclosure = '"';
-  protected $EOL       = "\n";
+  protected $eol       = "\n";
   protected $fh        = NULL;
 
   protected $storage   = NULL;
@@ -65,30 +64,32 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
    * @param    boolean                                status (CDR file writeable)
    */
   function __construct($cfg, &$storage) {
-    if (is_object($cfg->webinterface->CDR))       $this->CDR       = $cfg->webinterface->CDR;
+    if (is_object($cfg->webinterface->cdr))       $this->cdr       = $cfg->webinterface->cdr;
     if (is_object($cfg->webinterface->delimiter)) $this->delimiter = $cfg->webinterface->delimiter;
     if (is_object($cfg->webinterface->enclosure)) $this->enclosure = $cfg->webinterface->enclosure;
 
     // set renew handler
     $this->renewByPollQueueMsg = (is_object($cfg->webinterface->renewByPollQueueMsg) && ($cfg->webinterface->renewByPollQueueMsg == 1)) ? TRUE : FALSE;
 
-    if (is_object($cfg->webinterface->EOL))
-      switch (strtolower($cfg->webinterface->EOL)) {
+    if (is_object($cfg->webinterface->eol)) {
+      switch (strtolower($cfg->webinterface->eol)) {
         case "dos":
-          $this->EOL = "\r\n";
+          $this->eol = "\r\n";
           break;
         case "apple":
-          $this->EOL = "\r";
+          $this->eol = "\r";
           break;
         case "unix":
         default:
           break;
       }
+    }
 
     $this->storage = $storage;
-    $this->status = is_writeable($this->CDR);
-    if ( ! $this->status)
+    $this->status = is_writeable($this->cdr);
+    if ( ! $this->status) {
       $this->setError('CDR file is not writeable.');
+    }
     return $this->status;
   }
 
@@ -128,15 +129,16 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
    *
    * @access   public
    * @param    string    operation type
-   * @param    string    billingID (client reference number)
+   * @param    string    billing_id (client reference number)
    * @param    string    object being invoiced
    * @param    string    date string / invoice period (optional - this defaults to a ISO 8601 date)
    * @return   boolean   status
    */
-  public function doAccount($operation, $billingID, $object, $date = NULL) {
-    $tmp = $this->storage->doAccount($operation, $billingID, $object, $date);
-    if ( ! $tmp)
+  public function doAccount($operation, $billing_id, $object, $date = NULL) {
+    $tmp = $this->storage->doAccount($operation, $billing_id, $object, $date);
+    if ( ! $tmp) {
       $this->setError($this->storage->getError());
+    }
     return $tmp;
   }
 
@@ -148,15 +150,18 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
    */
   public function doRenew() {
     // if we are renewing based on poll queue messages don't use this method (double invoicing!)
-    if ($this->renewByPollQueueMsg)
+    if ($this->renewByPollQueueMsg) {
       return -1;
+    }
 
     $domains = $this->storage->invoiceableDomains();
-    if ($domains === FALSE)
+    if ($domains === FALSE) {
       return FALSE;
+    }
 
-    foreach ($domains as $domain)
-      $this->doAccount('renew', $domain['billingID'], $domain['name']);
+    foreach ($domains as $domain) {
+      $this->doAccount('renew', $domain['billing_id'], $domain['name']);
+    }
 
     $this->storage->renewDomains();
     return count($domains);
@@ -169,23 +174,25 @@ class Net_EPP_InvoiceCDR implements Net_EPP_InvoiceInterface
    * @return   boolean   status
    */
   public function doExport() {
-    $this->fh = fopen($this->CDR, 'a');
-    if ($this->fh === FALSE)
+    $this->fh = fopen($this->cdr, 'a');
+    if ($this->fh === FALSE) {
       return FALSE;
+    }
 
     $records = $this->storage->accountableServices();
-    if ( $records === FALSE )
+    if ( $records === FALSE ) {
       return FALSE;
+    }
 
     foreach ($records as $record) {
       $tmp = array();
       $tmp[] = $record['operation'];
-      $tmp[] = $record['billingID'];
+      $tmp[] = $record['billing_id'];
       $tmp[] = $record['object'];
       $tmp[] = $record['date'];
       $tmp[] = $record['time'];
       $tmp[] = date("c");
-      fwrite($this->fh, $this->enclosure . implode($this->enclosure.$this->delimiter.$this->enclosure, $tmp) . $this->enclosure . $this->EOL);
+      fwrite($this->fh, $this->enclosure . implode($this->enclosure.$this->delimiter.$this->enclosure, $tmp) . $this->enclosure . $this->eol);
     }
     $this->storage->closeAccountableServices($records);
     fclose($this->fh);

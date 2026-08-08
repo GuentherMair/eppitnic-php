@@ -40,8 +40,6 @@ require_once 'vendor/autoload.php';
  *
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 $client = new nusoap_client('http://127.0.0.1:8090/wsdl.php?wsdl', true);

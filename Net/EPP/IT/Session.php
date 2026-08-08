@@ -38,8 +38,6 @@ require_once 'Net/EPP/AbstractObject.php';
  * @package     Net_EPP_IT_Session
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 /**
@@ -236,21 +234,24 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       $this->msgTitle = (string)$this->xmlResult->response->msgQ->msg;
 
       // parse message (only in case of a poll "req") and store it
-      if ((strtolower($type) == "req") && ($store === TRUE))
-        if ( ! $this->storage->storeParsedMessage(array_merge($this->parsePollReq(), array('clTRID' => $this->client->get_clTRID(), 'svTRID' => $this->svTRID))))
+      if ((strtolower($type) == "req") && ($store === TRUE)) {
+        if ( ! $this->storage->storeParsedMessage(array_merge($this->parsePollReq(), array('cl_trid' => $this->client->get_clTRID(), 'sv_trid' => $this->svTRID)))) {
 	  return FALSE;
+        }
+      }
     } else if ($qrs === TRUE) {
       $this->messages = 0;
     }
 
     // see if we want to store an answer
-    if (($store === TRUE) && $qrs)
+    if (($store === TRUE) && $qrs) {
       $this->storage->storeMessage(
         $this->client->get_clTRID(),
         $this->svTRID,
         $this->svCode,
         0,
         $this->result);
+    }
 
     return $qrs;
   }
@@ -263,10 +264,7 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
    * @return   string     domain name
    */
   protected function stripTrailingDots($domain) {
-    if (substr($domain, strlen($domain)-1) == ".")
-      return substr($domain, 0, strlen($domain)-1);
-    else
-      return $domain;
+    return (substr($domain, strlen($domain)-1) == ".") ? substr($domain, 0, strlen($domain)-1) : $domain;
   }
 
   /**
@@ -326,8 +324,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->attributes()->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
-      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->test as $child)
+      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->test as $child) {
         $msg[] = $child->attributes()->name . ": " . $child->attributes()->status;
+      }
       return array(
         'type'   => 'dnsErrorMsgData',
         'domain' => $this->stripTrailingDots($domain),
@@ -341,10 +340,12 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
       if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus)) {
-        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['domain'])->status as $child)
+        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['domain'])->status as $child) {
           $msg[] = $child->attributes()->s;
-        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['rgp'])->rgpStatus as $child)
+        }
+        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['rgp'])->rgpStatus as $child) {
           $msg[] = $child->attributes()->s;
+        }
       }
       return array(
         'type'   => 'chgStatusMsgData',
@@ -358,8 +359,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name;
       $title = (string)$this->xmlResult->response->msgQ->msg;
       $msg = array();
-      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->ns as $child)
+      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->ns as $child) {
         $msg[] = (string)$child;
+      }
       return array(
         'type'   => 'dlgMsgData',
         'domain' => $this->stripTrailingDots($domain),
@@ -392,7 +394,6 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
       'domain' => '',
       'data'   => (string)$this->xmlResult->response->msgQ->msg,
     );
-
   }
 
   /**
@@ -405,4 +406,3 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
     return $this->credit;
   }
 }
-

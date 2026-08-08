@@ -42,8 +42,6 @@ require_once 'Net/EPP/IT/Domain.php';
  * @package     Net_EPP_IT_WSDL
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 class Net_EPP_IT_WSDL
@@ -65,8 +63,9 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function __construct($cfg = null) {
-    if ($cfg === null)
+    if ($cfg === null) {
       $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
+    }
 
     // create EPP objects
     $this->nic = new Net_EPP_Client($cfg);
@@ -109,10 +108,11 @@ class Net_EPP_IT_WSDL
     global $soapState;
     $debug = debug_backtrace();
 
-    if ($this->statusCode < 3000)
+    if ($this->statusCode < 3000) {
       return $soapState['generic'][$this->statusCode] . $this->statusMsg;
-    else
+    } else {
       return $soapState[$debug[1]['function']][$this->statusCode] . $this->statusMsg;
+    }
   }
 
   /**
@@ -122,14 +122,15 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function connect() {
-    if ( ! is_writeable($this->nic->compile_dir))
+    if ( ! is_writeable($this->nic->compile_dir)) {
       $this->createErrMsg($this->session, 2004); // smarty compile folder not writeable!
-    else if ( ! $this->session->hello())
+    } else if ( ! $this->session->hello()) {
       $this->createErrMsg($this->session, 2002); // connection failed
-    else if ($this->session->login() === FALSE)
+    } else if ($this->session->login() === FALSE) {
       $this->createErrMsg($this->session, 2001); // login failed
-    else
+    } else {
       $this->connected = TRUE;
+    }
     return ($this->statusCode == 1000) ? TRUE : FALSE;
   }
 
@@ -140,10 +141,6 @@ class Net_EPP_IT_WSDL
    * @return   boolean  status
    */
   public function disconnect() {
-    if ($this->connected && ! $this->session->logout())
-      return FALSE;
-    else
-      return TRUE;
+    return ($this->connected && ! $this->session->logout()) ? FALSE : TRUE;
   }
 }
-

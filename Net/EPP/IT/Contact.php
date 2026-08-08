@@ -38,8 +38,6 @@ require_once 'Net/EPP/AbstractObject.php';
  * @package     Net_EPP_IT_Contact
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 /**
@@ -55,7 +53,7 @@ if ( ! defined('CONTACT_CHECK_FAILED'))  define('CONTACT_CHECK_FAILED', 35);
 class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 {
   //         name                  // change flag
-  protected $userid;               // use just in case of an updateRegistrant + change of agent
+  protected $user_id;              // use just in case of an updateRegistrant + change of agent
   protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle;               // -
   protected $changes;              // sum
@@ -103,7 +101,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @access   protected
    */
   protected function initValues() {
-    $this->userid               = 1;
+    $this->user_id              = 1;
     $this->status               = array();
     $this->handle               = "";
     $this->changes              = 0;
@@ -132,13 +130,15 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * check for possible values of TRUE
    */
   private function isTrue($val) {
-    if ($val === TRUE)
+    if ($val === TRUE) {
       return TRUE;
-    if ((string)$val == "1")
+    } else if ((string)$val == "1") {
       return TRUE;
-    if (strtoupper($val) === "TRUE")
+    } else if (strtoupper($val) === "TRUE") {
       return TRUE;
-    return FALSE;
+    } else {
+      return FALSE;
+    }
   }
 
   /**
@@ -156,19 +156,21 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // in PHP 5.2.3 the 4th parameter "double_encode" was added
     $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
-    if ($var == "entitytype")
+    if ($var == "entitytype") {
       return $this->setEntityType($val);
-    else if ($var == "consentforpublishing" && $this->isTrue($val))
+    } else if ($var == "consentforpublishing" && $this->isTrue($val)) {
       return $this->setConsent();
-    else if ($var == "consentforpublishing" && ! $this->isTrue($val))
+    } else if ($var == "consentforpublishing" && ! $this->isTrue($val)) {
       return $this->unsetConsent();
-    else if (isset($this->$var))
-      if ($this->$var == $val)
+    } else if (isset($this->$var)) {
+      if ($this->$var == $val) {
         return FALSE; // value didn't change!
-      else
+      } else {
         $this->$var = $val;
-    else
+      }
+    } else {
       return FALSE; // value doesn't exist!
+    }
 
     switch ($var) {
       case "name":                 $this->changes |= 1;      break;
@@ -223,11 +225,13 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    */
   protected function setEntityType($type) {
     $tmp = (int)$type;
-    if (($tmp < 1) && ($tmp > 7))
+    if (($tmp < 1) && ($tmp > 7)) {
       $tmp = 0; // failback to the default value
+    }
 
-    if ($this->entitytype == $tmp)
+    if ($this->entitytype == $tmp) {
       return FALSE;
+    }
 
     $this->changes |= 32768;
     return $this->entitytype = $tmp;
@@ -240,8 +244,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   string "true"
    */
   public function setConsent() {
-    if ($this->consentforpublishing == 1)
+    if ($this->consentforpublishing == 1) {
       return FALSE;
+    }
 
     $this->changes |= 8192;
     return $this->consentforpublishing = 1;
@@ -254,8 +259,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   string "false"
    */
   public function unsetConsent() {
-    if ($this->consentforpublishing == 0)
+    if ($this->consentforpublishing == 0) {
       return FALSE;
+    }
 
     $this->changes |= 8192;
     return $this->consentforpublishing = 0;
@@ -270,14 +276,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   protected function sanity_checks() {
     $error = 0;
 
-    /*
-     * the name rules:
-     *
-     * 1) remove hyphens
-     * 2) the rest must be alphanumeric
-     */
-    if ( ! ctype_alnum(implode("", explode("-", $this->handle))))
+    // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
+    if ( ! ctype_alnum(implode("", explode("-", $this->handle)))) {
       $error |= 1;
+    }
 
     /*
      * the voice rules:
@@ -295,8 +297,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
         (count($tmp) <> 2) ||
         (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
         (strlen($tmp[1]) > (15-strlen($tmp[0])) || strlen($tmp[1]) < 1) ||
-        ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice))
+        ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice)) {
       $error |= 2;
+    }
 
     /*
      * the email rules:
@@ -306,48 +309,41 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
      * 2) make sure the first element has at least one character
      */
     $tmp = explode("@", $this->email);
-    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) || (strlen($tmp[0]) < 1))
+    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) || (strlen($tmp[0]) < 1)) {
       $error |= 4;
+    }
 
-    /*
-     * the country code
-     */
-    if ( ! $this->is_iso3166_1($this->countrycode))
+    // the country code
+    if ( ! $this->is_iso3166_1($this->countrycode)) {
       $error |= 8;
+    }
 
-    /*
-     * the province code
-     */
-    if (($this->countrycode == "IT") && ( ! $this->is_iso3166_2it($this->province)))
+    // the province code
+    if (($this->countrycode == "IT") && ( ! $this->is_iso3166_2it($this->province))) {
       $error |= 16;
+    }
 
-    /*
-     * relation entitytype <=> countrycode
-     */
-    if (($this->entitytype > 1) && ( ! $this->is_iso3166_1eu($this->countrycode)))
+    // relation entitytype <=> countrycode
+    if (($this->entitytype > 1) && ( ! $this->is_iso3166_1eu($this->countrycode))) {
       $error |= 32;
+    }
 
-    /*
-     * relation entitytype 1 <=> countrycode or nationalitycode
-     */
+    // relation entitytype 1 <=> countrycode or nationalitycode
     if (($this->entitytype == 1) &&
         ( ! $this->is_iso3166_1eu($this->countrycode)) &&
-        ( ! $this->is_iso3166_1eu($this->nationalitycode)))
+        ( ! $this->is_iso3166_1eu($this->nationalitycode))) {
       $error |= 64;
+    }
 
-    /*
-     * entitytype 1: name => org
-     */
-    if (($this->entitytype == 1))
+    // entitytype 1: name => org
+    if (($this->entitytype == 1)) {
       $this->org = $this->name;
-    if (empty($this->org))
+    }
+    if (empty($this->org)) {
       $this->org = $this->name;
+    }
 
-    /*
-     * relation entitytype <=> regcode
-     *
-     * These checks are a rough guess at some points.
-     */
+    // relation entitytype <=> regcode (these checks are a rough guess at some points)
     switch ($this->entitytype) {
       case 1: // persone fisiche italiane e straniere
         if ($this->nationalitycode == "IT") {
@@ -363,26 +359,27 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
         }
         break;
       case 4: // enti no-profit
-        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a."))
+        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a.")) {
           $error |= 512;
+        }
         break;
       case 2: // società/imprese individuali
       case 3: // liberi professionisti/ordini professionali
       case 5: // enti pubblici
       case 6: // altri soggetti
-        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11)
+        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11) {
           $error |= 256;
+        }
         break;
       case 0: // don't set any output related to entity types (role contacts)
       case 7: // soggetti stranieri equiparati ai precedenti escluso le persone fisiche
         break;
     }
 
-    /*
-     * schoolcodes for registering .edu.it domains require an entity type of 2, 4 or 5
-     */
-    if ($this->schoolcode && ! in_array($this->entitytype, array(2, 4, 5)))
-        $error |= 2048;
+    // schoolcodes for registering .edu.it domains require an entity type of 2, 4 or 5
+    if ($this->schoolcode && ! in_array($this->entitytype, array(2, 4, 5))) {
+      $error |= 2048;
+    }
 
     /*
      * basic data must be filled in
@@ -395,8 +392,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
         ($this->postalcode == "") ||
         ($this->countrycode == "") ||
         ($this->voice == "") ||
-        ($this->email == ""))
+        ($this->email == "")) {
       $error |= 1024;
+    }
 
     return $error;
   }
@@ -409,10 +407,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   boolean status (TRUE = available, FALSE = unavailable, -1 on error)
    */
   public function check($contact = null) {
-    if ($contact === null)
+    if ($contact === null) {
       $contact = $this->handle;
-    if ( ! is_array($contact))
+    }
+    if ( ! is_array($contact)) {
       $contact = array($contact);
+    }
     if (empty($contact)) {
       $this->setError("Operation not allowed, set a handle!");
       return -2;
@@ -501,8 +501,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function fetch($contact = null) {
-    if ($contact === null)
+    if ($contact === null) {
       $contact = $this->handle;
+    }
     if ($contact == "") {
       $this->setError("Operation not allowed, set a handle!");
       return FALSE;
@@ -538,8 +539,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       $this->voice =       (string)$tmp->infData->voice;
       $this->fax =         (string)$tmp->infData->fax;
       $this->email =       (string)$tmp->infData->email;
-      foreach ($tmp->infData->status as $singleState)
+      foreach ($tmp->infData->status as $singleState) {
         $this->status[] =  (string)$singleState->attributes()->s;
+      }
 
       $tmp = $this->xmlResult->response->extension->children($ns['extcon']);
 
@@ -562,8 +564,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function delete($contact = null) {
-    if ($contact === null)
+    if ($contact === null) {
       $contact = $this->handle;
+    }
     if ($contact == "") {
       $this->setError("Operation not allowed, set a handle!");
       return FALSE;
@@ -605,10 +608,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // postalinfo
     $postalinfo = array();
-    if (($this->changes & 1) > 0)
+    if (($this->changes & 1) > 0) {
       $postalinfo[] = array('name' => 'name', 'value' => $this->name);
-    if (($this->changes & 2) > 0)
+    }
+    if (($this->changes & 2) > 0) {
       $postalinfo[] = array('name' => 'org', 'value' => $this->org);
+    }
 
     // address
     $addr = array();
@@ -631,14 +636,18 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // registrant information
     $registrant = array();
-    if (($this->changes & 16384) > 0)
+    if (($this->changes & 16384) > 0) {
       $registrant['nationalityCode'] = $this->nationalitycode;
-    if (($this->changes & 32768) > 0)
+    }
+    if (($this->changes & 32768) > 0) {
       $registrant['entityType'] = $this->entitytype;
-      if (($this->changes & 65536) > 0)
+    }
+    if (($this->changes & 65536) > 0) {
       $registrant['regCode'] = $this->regcode;
-      if (($this->changes & 131072) > 0)
+    }
+    if (($this->changes & 131072) > 0) {
       $registrant['schoolCode'] = $this->schoolcode;
+    }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
@@ -704,8 +713,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // query server
     $result = $this->ExecuteQuery("contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
-    if ($result)
+    if ($result) {
       $this->changes = 0;
+    }
     return $result;
   }
 
@@ -716,7 +726,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB($userid = 1) {
+  public function storeDB($user_id = 1) {
     $contact['status'] = $this->status;
     $contact['handle'] = $this->handle;
     $contact['name'] = $this->name;
@@ -738,7 +748,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     $contact['regcode'] = $this->regcode;
     $contact['schoolcode'] = $this->schoolcode;
 
-    if ($this->storage->storeContact($contact, $userid)) {
+    if ($this->storage->storeContact($contact, $user_id)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -754,9 +764,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($contact = null, $userid = 1) {
-    if ($contact === null)
+  public function loadDB($contact = null, $user_id = 1) {
+    if ($contact === null) {
       $contact = $this->handle;
+    }
     if ($contact == "") {
       $this->setError("Operation not allowed, set a handle!");
       return FALSE;
@@ -765,7 +776,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveContact($contact, $userid);
+    $tmp = $this->storage->retrieveContact($contact, $user_id);
     if ($tmp === FALSE) {
       $this->setError($this->storage->getError());
       return FALSE;
@@ -775,8 +786,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
         $key = strtolower($key);
         // only accept columns that map to a declared property (skips DB-only
         // bookkeeping columns like 'id' or 'active')
-        if (property_exists($this, $key))
+        if (property_exists($this, $key)) {
           $this->$key = $value;
+        }
       }
       return TRUE;
     }
@@ -790,9 +802,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($contact = null, $userid = 1) {
-    if ($contact === null)
+  public function updateDB($contact = null, $user_id = 1) {
+    if ($contact === null) {
       $contact = $this->handle;
+    }
     if ($contact == "") {
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
@@ -803,7 +816,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
-    $data['userid'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->userid;
+    $data['user_id'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->user_id;
     if (($this->changes & 1) > 0) $data['name'] = $this->name;
     if (($this->changes & 2) > 0) $data['org'] = $this->org;
     if (($this->changes & 4) > 0) $data['street'] = $this->street;
@@ -823,7 +836,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
     if (($this->changes & 131072) > 0) $data['schoolcode'] = $this->schoolcode;
 
-    if ($this->storage->updateContact($data, $contact, $userid)) {
+    if ($this->storage->updateContact($data, $contact, $user_id)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -839,8 +852,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    boolean  list only active contacts (TRUE = yes / FALSE = no)
    * @return   array    list of contacts
    */
-  public function listContacts($userid = 1, $activeOnly = TRUE) {
-    return $this->storage->listContacts($userid, $activeOnly);
+  public function listContacts($user_id = 1, $activeOnly = TRUE) {
+    return $this->storage->listContacts($user_id, $activeOnly);
   }
 
   /**
@@ -851,8 +864,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function deleteContactDB($contact, $userid = 1) {
-    return $this->storage->deleteContact($contact, $userid);
+  public function deleteContactDB($contact, $user_id = 1) {
+    return $this->storage->deleteContact($contact, $user_id);
   }
 
   /**
@@ -863,7 +876,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all contacts)
    * @return   boolean  status
    */
-  public function restoreContactDB($contact, $userid = 1) {
-    return $this->storage->restoreContact($contact, $userid);
+  public function restoreContactDB($contact, $user_id = 1) {
+    return $this->storage->restoreContact($contact, $user_id);
   }
 }

@@ -36,9 +36,8 @@
  * @package     Net_EPP_Curl
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
+
 class Net_EPP_Curl
 {
   protected $_useragent = 'PHP Net_EPP_Curl 1.1';
@@ -95,10 +94,11 @@ class Net_EPP_Curl
   }
 
   public function setDebugFile($file) {
-    if (is_writeable((file_exists($file) ? $file : dirname($file))))
+    if (is_writeable((file_exists($file) ? $file : dirname($file)))) {
       $this->_debugFile = fopen($file, 'a+');
-    else
+    } else {
       exit("FATAL ERROR: debug file '".$file."' is NOT writeable\n");
+    }
   }
 
   public function setMaxRedirects($maxRedirects) {
@@ -158,36 +158,35 @@ class Net_EPP_Curl
     curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_postHeaders);
     curl_setopt($ch, CURLOPT_TIMEOUT, $this->_timeout);
     curl_setopt($ch, CURLOPT_MAXREDIRS, $this->_maxRedirects);
-    if ( ! ini_get('safe_mode') && ! ini_get('open_basedir'))
+    if ( ! ini_get('safe_mode') && ! ini_get('open_basedir')) {
       curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
+    }
     curl_setopt($ch, CURLOPT_COOKIEJAR, $this->_cookieFileLocation);
     curl_setopt($ch, CURLOPT_COOKIEFILE, $this->_cookieFileLocation);
     curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent); 
     curl_setopt($ch, CURLOPT_POST, $this->_post);
-
-    if ($postFields != null)
+    if ($postFields != null) {
       curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
-
-    if ( ! empty($this->_port))
+    }
+    if ( ! empty($this->_port)) {
       curl_setopt($ch, CURLOPT_PORT, $this->_port);
-
-    if ( ! empty($this->_interface))
+    }
+    if ( ! empty($this->_interface)) {
       curl_setopt($ch, CURLOPT_INTERFACE, $this->_interface);
-
-    if ( ! empty($this->_referer))
+    }
+    if ( ! empty($this->_referer)) {
       curl_setopt($ch, CURLOPT_REFERER, $this->_referer);
-
-    if ($this->_binaryTransfer)
+    }
+    if ($this->_binaryTransfer) {
       curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
-
-    if ( ! empty($this->_authName))
+    }
+    if ( ! empty($this->_authName)) {
       curl_setopt($ch, CURLOPT_USERPWD, $this->_authName.':'.$this->_authPass);
-
+    }
     if ( ! empty($this->_certFile)) {
       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
       curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
     }
-
     if ($this->_debugFile !== false) {
       curl_setopt($ch, CURLINFO_HEADER_OUT, 1);
       curl_setopt($ch, CURLOPT_VERBOSE, true);
@@ -204,7 +203,7 @@ class Net_EPP_Curl
     curl_close($ch);
 
     // write debug information
-    if ($this->_debugFile)
+    if ($this->_debugFile) {
       fwrite($this->_debugFile,
         __FILE__ . " @ " . __LINE__ . " -- " . date("c") . "\n" .
         "==== START OUTPUT ====\n" .
@@ -213,6 +212,7 @@ class Net_EPP_Curl
         "==== START INPUT ====\n" .
         $response .
         "==== END INPUT ====\n\n");
+    }
 
     return $this->_body;
   }

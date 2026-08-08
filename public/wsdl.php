@@ -39,8 +39,6 @@ require_once 'Net/EPP/IT/WSDL.php';
  *
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 // create server instance

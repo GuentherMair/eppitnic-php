@@ -36,11 +36,10 @@
  * @package     Net_EPP_InvoiceInterface
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
+
 interface Net_EPP_InvoiceInterface
 {
-  public function doAccount($operation, $billingID, $object, $date = NULL);
+  public function doAccount($operation, $billing_id, $object, $date = NULL);
   public function doExport();
 }

@@ -20,7 +20,7 @@ class MyStorageWrapper extends Net_EPP_StorageDB
   }
 
   public function searchDNS($dns) {
-    $elements = parent::doRetrieve('tbl_domains', 'active', 1);
+    $elements = parent::doRetrieve('domains', 'active', 1);
     $result = array();
     print_r($elements);
     foreach ($elements as $element)

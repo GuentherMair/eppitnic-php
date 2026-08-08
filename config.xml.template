@@ -1,5 +1,5 @@
 <config>
-  <DEBUG>0</DEBUG>
+  <debug>0</debug>
   <urlRain>https://rain.pubtest.nic.it</urlRain>
   <serverTesting>https://epp.pubtest.nic.it</serverTesting>
   <serverProduction>https://epp.pubtest.nic.it</serverProduction>
@@ -18,7 +18,7 @@
     <algorithm>10</algorithm>
     <digesttype>2</digesttype>
   </dnssec>
-  <clTRIDprefix>CLTRIDPREFIX</clTRIDprefix>
+  <cl_trid_prefix>CLIENT_TRANSACTION_ID_PREFIX</cl_trid_prefix>
   <cookie_dir>/tmp</cookie_dir>
   <smarty>
     <documentation>leave these empty in order to use default settings (recommended)</documentation>
@@ -54,11 +54,9 @@
     <creditForecastItemPrice>5.40</creditForecastItemPrice>
     <creditNotification>70</creditNotification>
     <renewByPollQueueMsg>1</renewByPollQueueMsg>
-    <CDR>/var/log/itnic_billing.cdr</CDR>
-    <exportFields>domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;email;billingID</exportFields>
-    <exportTitles>ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID</exportTitles>
+    <cdr>/var/log/eppitnic/billing.cdr</cdr>
     <delimiter>;</delimiter>
     <enclosure>"</enclosure>
-    <EOL>UNIX</EOL>
+    <eol>UNIX</eol>
   </webinterface>
 </config>

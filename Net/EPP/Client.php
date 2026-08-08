@@ -38,8 +38,6 @@ use Smarty\Smarty;
  * @package     Net_EPP_Client
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 /**
@@ -71,8 +69,9 @@ require_once dirname(__FILE__).'/../../vendor/autoload.php';
 /**
  * Include curl class handler
  */
-if ( ! class_exists('Net_EPP_Curl'))
+if ( ! class_exists('Net_EPP_Curl')) {
   require_once 'Net/EPP/Curl.php';
+}
 
 /**
  * generic script exit codes (1-9), for use by CLI scripts / examples
@@ -114,22 +113,25 @@ class Net_EPP_Client extends Smarty
    * @param    string  configuration file or XML configuration string
    */
   public function __construct($cfg = null) {
-    if ($cfg === null)
+    if ($cfg === null) {
       $cfg = realpath(dirname(__FILE__).'/../../config.xml');
+    }
 
     if (is_readable($cfg)) {
       $this->EPPCfg = @simplexml_load_file($cfg);
     } else {
       $this->EPPCfg = @simplexml_load_string($cfg);
-      if ($this->EPPCfg === FALSE)
+      if ($this->EPPCfg === FALSE) {
         exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
+      }
     }
 
     // setup default time zone
-    if (@isset($this->EPPCfg->timezone))
+    if (@isset($this->EPPCfg->timezone)) {
       date_default_timezone_set($this->EPPCfg->timezone);
-    else
+    } else {
       date_default_timezone_set("Europe/Rome");
+    }
 
     // call Smarty class constructor
     parent::__construct();
@@ -162,24 +164,28 @@ class Net_EPP_Client extends Smarty
     $this->httpClient->setHeaders($this->headers);
 
     // set server port
-    if ( ! @empty($this->EPPCfg->port))
+    if ( ! @empty($this->EPPCfg->port)) {
       $this->httpClient->setPort((int)$this->EPPCfg->port);
+    }
 
     // set debug filename
-    if ( ! @empty($this->EPPCfg->debugfile))
+    if ( ! @empty($this->EPPCfg->debugfile)) {
       $this->httpClient->setDebugFile($this->EPPCfg->debugfile);
+    }
 
     // setup client certificate
     if ( ! @empty($this->EPPCfg->certificatefile)) {
-      if (is_readable($this->EPPCfg->certificatefile))
+      if (is_readable($this->EPPCfg->certificatefile)) {
         $this->httpClient->setClientCert($this->EPPCfg->certificatefile);
-      else if (is_readable(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile)))
+      } else if (is_readable(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile))) {
         $this->httpClient->setClientCert(realpath(dirname(__FILE__).'/../../'.$this->EPPCfg->certificatefile));
+      }
     }
 
     // setup leaving interface
-    if ( ! @empty($this->EPPCfg->interface))
+    if ( ! @empty($this->EPPCfg->interface)) {
       $this->httpClient->setInterface($this->EPPCfg->interface);
+    }
 
     // set client transaction ID
     $this->set_clTRID();
@@ -203,12 +209,14 @@ class Net_EPP_Client extends Smarty
    * @return   string  the given directory, or a writable fallback
    */
   private function _ensureWritableDir($dir) {
-    if (is_writeable($dir))
+    if (is_writeable($dir)) {
       return $dir;
+    }
 
     $fallback = sys_get_temp_dir();
-    if ( ! is_writeable($fallback))
+    if ( ! is_writeable($fallback)) {
       exit("[".__FILE__." @ ".__LINE__."] Neither '".$dir."' nor the system temp folder '".$fallback."' are writeable. Solve problem before trying to continue.\n");
+    }
 
     trigger_error("The folder '".$dir."' was not writable and a failback to '".$fallback."' is currently active. Grant write permissions to the correct folder!", E_USER_NOTICE);
     return $fallback;
@@ -231,9 +239,10 @@ class Net_EPP_Client extends Smarty
    * @return   string  a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID() {
-    $this->clTRID = $this->EPPCfg->clTRIDprefix."-".time()."-".substr(md5(rand()), 0, 5);
-    if (strlen($this->clTRID) > 32)
+    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(md5(rand()), 0, 5);
+    if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);
+    }
     return $this->clTRID;
   }
 

@@ -43,15 +43,15 @@ function buildConfigXML($server = 'epp_server') {
     $data['epp_username'] = $xml->username;
     $data['epp_password'] = $xml->password;
     $data['debugfile'] = $xml->debugfile;
-    $data['db_type'] = $xml->adodb->dbtype;
-    $data['db_host'] = $xml->adodb->dbhost;
-    $data['db_name'] = $xml->adodb->dbname;
-    $data['db_user'] = $xml->adodb->dbuser;
-    $data['db_pwd'] = $xml->adodb->dbpwd;
+    $data['db_type'] = $xml->db->dbtype;
+    $data['db_host'] = $xml->db->dbhost;
+    $data['db_name'] = $xml->db->dbname;
+    $data['db_user'] = $xml->db->dbuser;
+    $data['db_pwd'] = $xml->db->dbpwd;
   }
 
   return "<config>
-    <DEBUG>0</DEBUG>
+    <debug>0</debug>
     <server>".$data[$server]."</server>
     <username>".$data['epp_username']."</username>
     <password>".$data['epp_password']."</password>
@@ -64,18 +64,18 @@ function buildConfigXML($server = 'epp_server') {
       <compile_dir>".dirname(__FILE__)."/smarty/compile/</compile_dir>
       <cache_dir>".dirname(__FILE__)."/smarty/cache/</cache_dir>
     </smarty>
-    <adodb>
+    <db>
       <dbtype>".$data['db_type']."</dbtype>
       <dbhost>".$data['db_host']."</dbhost>
       <dbname>".$data['db_name']."</dbname>
       <dbuser>".$data['db_user']."</dbuser>
       <dbpwd>".$data['db_pwd']."</dbpwd>
-    </adodb>
+    </db>
   </config>";
 }
 
 $nic = new Net_EPP_Client(buildConfigXML('epp_server_deleted'));
-$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->adodb);
+$db = new Net_EPP_IT_StorageDB($nic->EPPCfg->db);
 $session = new Net_EPP_IT_Session($nic, $db);
 $session->debug = LOG_DEBUG;
 $domain = new Net_EPP_IT_Domain($nic, $db);

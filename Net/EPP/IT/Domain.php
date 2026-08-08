@@ -42,8 +42,6 @@ require_once 'Net/EPP/IT/Contact.php';
  * @package     Net_EPP_IT_Domain
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
- *
- * $Id$
  */
 
 /**
@@ -63,7 +61,7 @@ if ( ! defined('DOMAIN_IMPORT_FAILED'))   define('DOMAIN_IMPORT_FAILED', 29);
 class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 {
   //         name               // change flag
-  protected $userid;            // use just in case of an updateRegistrant + change of agent
+  protected $user_id;           // use just in case of an updateRegistrant + change of agent
   protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;            // -
   protected $changes;           // sum
@@ -125,7 +123,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   protected
    */
   protected function initValues() {
-    $this->userid            = 1;
+    $this->user_id           = 1;
     $this->status            = array();
     $this->domain            = "";
     $this->registrant        = "";
@@ -163,17 +161,19 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // in PHP 5.2.3 the 4th parameter "double_encode" was added
     $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
 
-    if ($var == "ns")
+    if ($var == "ns") {
       return $this->addNS($val);
-    else if ($var == "tech")
+    } else if ($var == "tech") {
       return $this->addTECH($val);
-    else if (isset($this->$var))
-      if ($this->$var == $val)
+    } else if (isset($this->$var)) {
+      if ($this->$var == $val) {
         return FALSE; // value didn't change!
-      else
+      } else {
         $this->$var = $val;
-    else
+      }
+    } else {
       return FALSE; // value doesn't exist or cannot be set using set($var, $val)!
+    }
 
     switch ($var) {
       //case "ns":                $this->changes |= 1;   break; // to be handled by addNS
@@ -286,13 +286,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   mix     value set or FALSE if there was an error
    */
   public function addTECH($name) {
-    if (empty($name))
+    if (empty($name)) {
       return FALSE;
+    }
 
-    // if a technical contact by this name was already set stop here
+    // assign technical contact
     if ( ! isset($this->tech[$name])) {
-
-      // assign technical contact
       $this->tech[$name] = $name;
       $this->changes |= 8;
     }
@@ -332,8 +331,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $ip_changed = FALSE;
 
     // don't allow empty values
-    if (empty($name))
+    if (empty($name)) {
       return FALSE;
+    }
 
     // DNS names must be in punycode format (if below an IDN domain)
     $name = $this->idn->convert($name);
@@ -363,20 +363,24 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     if (isset($this->ns[$name])) {
       // create a list of all addresses associated to this NS record
       $ip_list = array();
-      foreach ($this->ns[$name]['ip'] as $ip)
+      foreach ($this->ns[$name]['ip'] as $ip) {
         $ip_list[] = $ip['address'];
+      }
 
       // verify if a new IP was added to this NS record
-      if ( ! empty($dns1) && ! in_array($dns1, $ip_list))
+      if ( ! empty($dns1) && ! in_array($dns1, $ip_list)) {
         $ip_changed = TRUE;
-      if ( ! empty($dns2) && ! in_array($dns2, $ip_list))
+      }
+      if ( ! empty($dns2) && ! in_array($dns2, $ip_list)) {
         $ip_changed = TRUE;
+      }
 
       // if any new IP was added, remove the NS record first, then procede else there was no change and we bail out
-      if ($ip_changed)
+      if ($ip_changed) {
         $this->remNS($name);
-      else
+      } else {
         return $name;
+      }
     }
 
     // assign NS name
@@ -418,45 +422,36 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   protected function sanity_checks() {
     $error = 0;
 
-    /*
-     * the name rules:
-     *
-     * 1) remove hyphens
-     * 2) the rest must be alphanumeric
-     */
-    if ( ! ctype_alnum(implode("", explode(".", implode("", explode("-", $this->domain))))))
+    // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
+    if ( ! ctype_alnum(implode("", explode(".", implode("", explode("-", $this->domain)))))) {
       $error |= 1;
+    }
 
-    /*
-     * empty values
-     */
-    if (empty($this->domain) || empty($this->registrant) || empty($this->admin) || empty($this->tech) || empty($this->authinfo))
+    // empty values
+    if (empty($this->domain) || empty($this->registrant) || empty($this->admin) || empty($this->tech) || empty($this->authinfo)) {
       $error |= 2;
+    }
 
-    /*
-     * amount of NS records
-     */
-    if ((count($this->ns) < 2) || (count($this->ns) > 6))
+    // amount of NS records
+    if ((count($this->ns) < 2) || (count($this->ns) > 6)) {
       $error |= 4;
+    }
 
-    /*
-     * length
-     */
-    if ((strlen($this->domain) < 6) || (strlen($this->domain) > 255))
+    // length
+    if ((strlen($this->domain) < 6) || (strlen($this->domain) > 255)) {
       $error |= 8;
+    }
 
-    /*
-     * pre-/postfix checks
-     */
+    // pre-/postfix checks
     $tmp = explode(".", $this->domain);
-    if ((substr($tmp[0], 0, 4) == "xn--") || (substr($tmp[0], 0, 1) == "-") || (substr($tmp[0], -1) == "-"))
+    if ((substr($tmp[0], 0, 4) == "xn--") || (substr($tmp[0], 0, 1) == "-") || (substr($tmp[0], -1) == "-")) {
       $error |= 16;
+    }
 
-    /*
-     * authinfo length
-     */
-    if ((strlen($this->authinfo) < 8) || (strlen($this->authinfo) > 32))
+    // authinfo length
+    if ((strlen($this->authinfo) < 8) || (strlen($this->authinfo) > 32)) {
       $error |= 32;
+    }
 
     /*
      * different contacts
@@ -479,12 +474,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     //if (($this->registrant == $this->admin) || ($this->registrant == $this->tech) || ($this->admin == $this->tech))
     //  $error |= 64;
 
-    /*
-     * glue records (this does not care about v4/v6)
-     */
-    foreach ($this->ns as $hostname => $values)
-      if ((substr($hostname, strlen($this->domain)*-1) == $this->domain) && ! isset($values['ip']))
+    // glue records (this does not care about v4/v6)
+    foreach ($this->ns as $hostname => $values) {
+      if ((substr($hostname, strlen($this->domain)*-1) == $this->domain) && ! isset($values['ip'])) {
         $error |= 128;
+      }
+    }
 
     /*
      * allowed dnssec algorithms
@@ -498,8 +493,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
      *  13 (ECDSAP256SHA256)
      *  14 (ECDSAP384SHA384)
      */
-    if ( ! empty($this->dnssec_algorithm) && ! in_array($this->dnssec_algorithm, array(3, 5, 6, 7, 8, 10, 12, 13, 14)))
+    if ( ! empty($this->dnssec_algorithm) && ! in_array($this->dnssec_algorithm, array(3, 5, 6, 7, 8, 10, 12, 13, 14))) {
       $error |= 256;
+    }
 
     /*
      * allowed dnssec digest types
@@ -508,8 +504,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
      *  3 (GOST R 34.11-94)
      *  4 (SHA-384)
      */
-    if ( ! empty($this->dnssec_digesttype) && ! in_array($this->dnssec_digesttype, array(1, 2, 3, 4)))
+    if ( ! empty($this->dnssec_digesttype) && ! in_array($this->dnssec_digesttype, array(1, 2, 3, 4))) {
       $error |= 512;
+    }
 
     return $error;
   }
@@ -522,10 +519,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status (TRUE = available, FALSE = unavailable, -1 on error)
    */
   public function check($domain = null) {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
-    if (!is_array($domain))
+    }
+    if (!is_array($domain)) {
       $domain = array($domain);
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
       return -2;
@@ -592,8 +591,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('admin', $this->admin);
     $this->client->assign('tech', $this->tech);
     $this->client->assign('authinfo', $this->authinfo);
-    if ($this->dnssec_status == 1 && count($this->dnssec) > 0)
+    if ($this->dnssec_status == 1 && count($this->dnssec) > 0) {
       $this->client->assign('dnssec', $this->dnssec);
+    }
     $this->xmlQuery = $this->client->fetch("domain-create");
     $this->client->clearAllAssign();
 
@@ -621,8 +621,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function fetch($domain = null, $authinfo = null, $infContacts = '') {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
+    }
 
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
@@ -630,12 +631,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $infContacts = strtolower($infContacts);
-    if ( ! in_array($infContacts, array("all", "registrant", "admin", "tech")))
+    if ( ! in_array($infContacts, array("all", "registrant", "admin", "tech"))) {
       $infContacts = '';
+    }
 
     // if authinfo was not given as an argument, but has been set
-    if (($authinfo === null) && ($this->changes & 16))
+    if (($authinfo === null) && ($this->changes & 16)) {
       $authinfo = $this->authinfo;
+    }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
@@ -660,8 +663,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->authinfo = (string)$tmp->infData->authInfo->pw;
       $this->crDate = (string)$tmp->infData->crDate;
       $this->exDate = (string)$tmp->infData->exDate;
-      foreach ($tmp->infData->status as $singleState)
+      foreach ($tmp->infData->status as $singleState) {
         $this->status[] = (string)$singleState->attributes()->s;
+      }
       foreach ($tmp->infData->contact as $contact) {
         $type = $contact->attributes()->type;
         if ($type == "tech") {
@@ -674,7 +678,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       }
 
       // if the NS were not properly configured EPP will not report them yet!
-      if (@is_object($tmp->infData->ns->hostAttr[0]))
+      if (@is_object($tmp->infData->ns->hostAttr[0])) {
         foreach ($tmp->infData->ns->hostAttr as $hostAttr) {
           $addr = array();
           foreach ($hostAttr->hostAddr as $ip) {
@@ -682,13 +686,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
           }
           $this->addNS((string)$hostAttr->hostName, $addr);
         }
+      }
 
       // if extsecDNS and secDNS are set
       if (isset($ns['secDNS'])) {
         $tmp = $this->xmlResult->response->extension->children($ns['secDNS']);
-
-        foreach ($tmp->infData->dsData as $dsData)
+        foreach ($tmp->infData->dsData as $dsData) {
           $this->addDNSSEC((int)$dsData->keyTag, (int)$dsData->alg, (int)$dsData->digestType, (string)$dsData->digest);
+        }
       }
 
       // if infContactsData is set
@@ -696,9 +701,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
         $tmp = $this->xmlResult->response->extension->children($ns['extdom']);
 
         // verify extended states
-        if (@is_object($tmp->infData->ownStatus))
-          foreach ($tmp->infData->ownStatus as $singleState)
+        if (@is_object($tmp->infData->ownStatus)) {
+          foreach ($tmp->infData->ownStatus as $singleState) {
             $this->status[] = (string)$singleState->attributes()->s;
+          }
+        }
 
         // fetch contact information
         $this->infcontacts = array();
@@ -773,10 +780,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   mix     server side state (text-string or FALSE)
    */
   public function state() {
-    if ($this->status !== null)
-      return $this->status;
-    else
-      return FALSE;
+    return ($this->status === null) ? FALSE : $this->status;
   }
 
   /**
@@ -787,8 +791,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function delete($domain = null) {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name!");
       return FALSE;
@@ -845,16 +850,20 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $tmpB = array();
       foreach ($this->ns as $name => $values) {
         $tmp = $name;
-        if (isset($this->ns[$name]['ip']))
-          foreach ($this->ns[$name]['ip'] as $i => $addr)
+        if (isset($this->ns[$name]['ip'])) {
+          foreach ($this->ns[$name]['ip'] as $i => $addr) {
             $tmp .= ";" . $addr['address'];
+          }
+        }
         $tmpA[] = $tmp;
       }
       foreach ($this->ns_initial as $name => $values) {
         $tmp = $name;
-        if (isset($this->ns_initial[$name]['ip']))
-          foreach ($this->ns_initial[$name]['ip'] as $i => $addr)
+        if (isset($this->ns_initial[$name]['ip'])) {
+          foreach ($this->ns_initial[$name]['ip'] as $i => $addr) {
             $tmp .= ";" . $addr['address'];
+          }
+        }
         $tmpB[] = $tmp;
       }
 
@@ -912,16 +921,20 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       $this->dnssec = array_slice($this->dnssec, 0, 2, true);
       // which to add
       $tmp = array();
-      foreach ($this->dnssec as $digest => $keyinfo)
-        if ( ! isset($this->dnssec_initial[$digest]))
+      foreach ($this->dnssec as $digest => $keyinfo) {
+        if ( ! isset($this->dnssec_initial[$digest])) {
           $tmp[$digest] = $keyinfo;
+        }
+      }
       $this->client->assign('dnssec_add_num', count($tmp));
       $this->client->assign('dnssec_add', $tmp);
       // which to remove
       $tmp = array();
-      foreach ($this->dnssec_initial as $digest => $keyinfo)
-        if ( ! isset($this->dnssec[$digest]))
+      foreach ($this->dnssec_initial as $digest => $keyinfo) {
+        if ( ! isset($this->dnssec[$digest])) {
           $tmp[$digest] = $keyinfo;
+        }
+      }
       $this->client->assign('dnssec_rem_num', count($tmp));
       $this->client->assign('dnssec_rem', $tmp);
     } else {
@@ -1060,8 +1073,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function restore($domain = null) {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
@@ -1084,7 +1098,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function storeDB($userid = 1) {
+  public function storeDB($user_id = 1) {
     $domain['status'] = $this->status;
     $domain['domain'] = $this->domain;
     $domain['ns'] = $this->ns;
@@ -1092,33 +1106,33 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $domain['admin'] = $this->admin;
     $domain['tech'] = $this->tech;
     $domain['authinfo'] = $this->authinfo;
-    $domain['crDate'] = $this->crDate;
-    $domain['exDate'] = $this->exDate;
+    $domain['cr_date'] = $this->crDate;
+    $domain['ex_date'] = $this->exDate;
     $domain['dnssec'] = $this->dnssec;
 
     // remove existing domain objects when storing (re-transfer-in / re-register / re-import)
     try {
-      $stmt = $this->storage->db->prepare("SELECT lastInvoice, userid FROM tbl_domains WHERE domain=:domain");
+      $stmt = $this->storage->db->prepare("SELECT last_invoice, user_id FROM domains WHERE domain=:domain");
       if ($stmt->execute(array(":domain" => $this->domain))) {
         if ($stmt->rowCount() > 0) {
           $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-          // save the lastInvoice value!
-          $domain['lastInvoice'] = $row['lastInvoice'];
+          // save the last_invoice value!
+          $domain['last_invoice'] = $row['last_invoice'];
 
-          // keep the current userid
-          $userid = $row['userid'];
-          $stmt = $this->storage->db->prepare("DELETE FROM tbl_domains WHERE domain=:domain");
+          // keep the current user_id
+          $user_id = $row['user_id'];
+          $stmt = $this->storage->db->prepare("DELETE FROM domains WHERE domain=:domain");
           $stmt->execute(array(":domain" => $this->domain));
         }
       }
     } catch (PDOException $e) {
       $errorInfo = $this->storage->db->errorInfo();
-      return $this->setError($errorInfo[0], "unable to clean existing domain entry from 'tbl_domains': " . $e->getMessage());
+      return $this->setError($errorInfo[0], "unable to clean existing domain entry from 'domains': " . $e->getMessage());
     }
 
     // store domain
-    if ($this->storage->storeDomain($domain, $userid)) {
+    if ($this->storage->storeDomain($domain, $user_id)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -1134,9 +1148,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function loadDB($domain = null, $userid = 1) {
-    if ($domain === null)
+  public function loadDB($domain = null, $user_id = 1) {
+    if ($domain === null) {
       $domain = $this->domain;
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name!");
       return FALSE;
@@ -1145,7 +1160,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveDomain($domain, $userid);
+    $tmp = $this->storage->retrieveDomain($domain, $user_id);
     if ($tmp === FALSE) {
       $this->setError($this->storage->getError());
       return FALSE;
@@ -1154,12 +1169,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       foreach ($tmp as $key => $value) {
         $key = strtolower($key);
         // only accept columns that map to a declared property (skips DB-only
-        // bookkeeping columns like 'id', 'active' and 'lastInvoice', as well as
-        // the legacy single-DS-record columns 'dsAlgorithm', 'dsDigest',
-        // 'dsDigestType' and 'dsKeyTag', which have been superseded by the
-        // $dnssec array column)
-        if (property_exists($this, $key))
+        // bookkeeping columns like 'id', 'active' and 'last_invoice')
+        if (property_exists($this, $key)) {
           $this->$key = $value;
+        }
       }
 
       // convert these into arrays (even empty ones)
@@ -1196,9 +1209,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    string  user ACL
    * @return   boolean status
    */
-  public function updateDB($domain = null, $userid = 1) {
-    if ($domain === null)
+  public function updateDB($domain = null, $user_id = 1) {
+    if ($domain === null) {
       $domain = $this->domain;
+    }
 
     if ($domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
@@ -1211,25 +1225,25 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $data['status'] = $this->status;
-    $data['userid'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->userid;
+    $data['user_id'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->user_id;
     if (($this->changes & 1) > 0) $data['ns'] = $this->ns;
     if (($this->changes & 2) > 0) {
       $data['registrant'] = $this->registrant;
-      // get the new reginstrants' userid (agent ID)
+      // get the new reginstrants' user_id (agent ID)
       // btw. it should not be possible to assign a registrant not owned by the current user
       // (the user interface needs to take care of that!)
       $tmp = new Net_EPP_IT_Contact($this->client, $this->storage);
       $tmp->loadDB($this->registrant);
-      $data['userid'] = $tmp->get('userid');
+      $data['user_id'] = $tmp->get('user_id');
     }
     if (($this->changes & 4) > 0) $data['admin'] = $this->admin;
     if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
     if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
     if (($this->changes & 32) > 0) $data['dnssec'] = $this->dnssec;
-    $data['crDate'] = $this->crDate;
-    $data['exDate'] = $this->exDate;
+    $data['cr_date'] = $this->crDate;
+    $data['ex_date'] = $this->exDate;
 
-    if ($this->storage->updateDomain($data, $domain, $userid)) {
+    if ($this->storage->updateDomain($data, $domain, $user_id)) {
       return TRUE;
     } else {
       $this->setError($this->storage->getError());
@@ -1246,21 +1260,24 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function transferStatus($domain, $authinfo = "") {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
     }
     // if authinfo was not given as an argument, but has been set
-    if (($authinfo === null) && ($this->changes & 16))
+    if (($authinfo === null) && ($this->changes & 16)) {
       $authinfo = $this->authinfo;
+    }
 
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $domain);
-    if ( ! empty($authinfo))
+    if ( ! empty($authinfo)) {
       $this->client->assign('authinfo', $authinfo);
+    }
     $this->xmlQuery = $this->client->fetch("domain-transfer-query");
     $this->client->clearAllAssign();
 
@@ -1293,8 +1310,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @return   boolean status
    */
   public function transfer($domain, $authinfo, $newregistrant = "", $newauthinfo = "", $operation = "request") {
-    if ($domain === null)
+    if ($domain === null) {
       $domain = $this->domain;
+    }
     if ($domain == "") {
       $this->setError("Operation not allowed, set a domain name first!");
       return FALSE;
@@ -1313,12 +1331,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     $this->client->assign('operation', $operation);
     $this->client->assign('domain', $domain);
     $this->client->assign('authinfo', $authinfo);
-    if ( ! empty($newregistrant))
+    if ( ! empty($newregistrant)) {
       $this->client->assign('newregistrant', $newregistrant);
-    if (empty($newauthinfo))
+    }
+    if (empty($newauthinfo)) {
       $this->client->assign('newauthinfo', $this->authinfo());
-    else
+    } else {
       $this->client->assign('newauthinfo', $newauthinfo);
+    }
     $this->xmlQuery = $this->client->fetch("domain-transfer");
     $this->client->clearAllAssign();
 
@@ -1372,8 +1392,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    integer   restrict search to domains older then X months
    * @return   array    list of domains
    */
-  public function listDomains($userid = 1, $handle = null, $activeOnly = TRUE, $age = 0) {
-    return $this->storage->listDomains($userid, $handle, $activeOnly, $age);
+  public function listDomains($user_id = 1, $handle = null, $activeOnly = TRUE, $age = 0) {
+    return $this->storage->listDomains($user_id, $handle, $activeOnly, $age);
   }
 
   /**
@@ -1384,8 +1404,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function deleteDomainDB($domain, $userid = 1) {
-    return $this->storage->deleteDomain($domain, $userid);
+  public function deleteDomainDB($domain, $user_id = 1) {
+    return $this->storage->deleteDomain($domain, $user_id);
   }
 
   /**
@@ -1396,8 +1416,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @param    int      user ACL (optional), defaults to 1 (all domains)
    * @return   boolean  status
    */
-  public function restoreDomainDB($domain, $userid = 1) {
-    return $this->storage->restoreDomain($domain, $userid);
+  public function restoreDomainDB($domain, $user_id = 1) {
+    return $this->storage->restoreDomain($domain, $user_id);
   }
 
   /**
@@ -1426,11 +1446,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   public
    * @return   array    list of contacts
    */
-  public function listUsers($userid) {
-    if ($userid <> 1)
+  public function listUsers($user_id) {
+    if ($user_id <> 1) {
       return array();
-    else
+    } else {
       return $this->storage->listUsers();
+    }
   }
 
   /**
@@ -1439,28 +1460,42 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   public
    * @return   mixed     exported data (csv)
    */
-  public function export($userID) {
+  public function export($user_id) {
     $output = "";
-    $records = $this->storage->exportDomains($userID);
+    $records = $this->storage->exportDomains($user_id);
 
-    $titles = explode(";", (string)(@$this->client->EPPCfg->webinterface->exportTitles ?: 'ex_active;ex_domain;ex_authinfo;ex_crDate;ex_exDate;ex_handle;ex_org;ex_name;ex_billingID'));
-    $fields = explode(";", (string)(@$this->client->EPPCfg->webinterface->exportFields ?: 'domainActive;domain;domainAuthinfo;crDate;exDate;handle;org;name;billingID'));
+    $fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email', 'billing_id'];
     $delimiter = (string)(@$this->client->EPPCfg->webinterface->delimiter ?: ';');
     $enclosure = (string)(@$this->client->EPPCfg->webinterface->enclosure ?: '"');
-    $EOL = (strtoupper((string)(@$this->client->EPPCfg->webinterface->EOL ?: 'UNIX')) == 'UNIX') ? "\n" : "\r\n";
+    if (is_object($this->client->EPPCfg->webinterface->eol)) {
+      switch (strtolower($this->client->EPPCfg->webinterface->eol)) {
+        case "dos":
+          $eol = "\r\n";
+          break;
+        case "apple":
+          $eol = "\r";
+          break;
+        case "unix":
+        default:
+          $eol = "\n";
+          break;
+      }
+    }
 
     // title row
     $tmp = array();
-    foreach ($titles as $title)
+    foreach ($titles as $title) {
       $tmp[] = _($title);
-    $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $EOL;
+    }
+    $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $eol;
 
     // data rows
     foreach ($records as $record) {
       $tmp = array();
-      foreach ($fields as $field)
+      foreach ($fields as $field) {
         $tmp[] = $record[$field];
-      $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $EOL;
+      }
+      $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $eol;
     }
 
     return $output;
@@ -1472,12 +1507,13 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * @access   public
    * @return   mixed     imported data (states)
    */
-  public function import($values, $userID) {
+  public function import($values, $user_id) {
     $results = array();
 
     // verify we got any input at all
-    if (empty(trim($values)))
+    if (empty(trim($values))) {
       return $results;
+    }
 
     // create a new contact object
     $contact = new Net_EPP_IT_Contact($this->client, $this->storage);
@@ -1511,7 +1547,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
       // store/update contact
       $registrant = $this->storage->retrieveContact($this->get('registrant'));
-      $effectiveUserID = ($registrant === FALSE) ? $userID : $registrant['userID'];
+      $effectiveUserID = ($registrant === FALSE) ? $user_id : $registrant['user_id'];
       $result['step3_reg_store'] = $contact->storeDB($effectiveUserID) ? 'stored' : 'not stored';
 
       // store/update domain
