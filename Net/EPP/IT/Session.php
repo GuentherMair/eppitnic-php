@@ -1,6 +1,8 @@
 <?php
 
-require_once 'Net/EPP/AbstractObject.php';
+require_once dirname(__FILE__).'/../AbstractObject.php';
+
+use RedBeanPHP\R;
 
 /**
  * A simple class handling EPP sessions.
@@ -235,9 +237,19 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 
       // parse message (only in case of a poll "req") and store it
       if ((strtolower($type) == "req") && ($store === TRUE)) {
-        if ( ! $this->storage->storeParsedMessage(array_merge($this->parsePollReq(), array('cl_trid' => $this->client->get_clTRID(), 'sv_trid' => $this->svTRID)))) {
-	  return FALSE;
-        }
+        $parsed = $this->parsePollReq();
+        R::exec("
+          INSERT INTO messages (cl_trid, sv_trid, type, domain, ac_id, re_id, data)
+          VALUES (:cl_trid, :sv_trid, :type, :domain, :ac_id, :re_id, :data)
+        ", [
+          ':cl_trid' => $this->client->get_clTRID(),
+          ':sv_trid' => $this->svTRID,
+          ':type'    => $parsed['type'],
+          ':domain'  => $parsed['domain'],
+          ':ac_id'   => $parsed['acID'] ?? null,
+          ':re_id'   => $parsed['reID'] ?? null,
+          ':data'    => $parsed['data'],
+        ]);
       }
     } else if ($qrs === TRUE) {
       $this->messages = 0;
@@ -245,12 +257,18 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
 
     // see if we want to store an answer
     if (($store === TRUE) && $qrs) {
-      $this->storage->storeMessage(
-        $this->client->get_clTRID(),
-        $this->svTRID,
-        $this->svCode,
-        0,
-        $this->result);
+      R::exec("
+        INSERT INTO msgqueue (cl_trid, sv_trid, sv_code, status, sv_httpcode, sv_httpheaders, sv_httpdata)
+        VALUES (:cl_trid, :sv_trid, :sv_code, :status, :sv_httpcode, :sv_httpheaders, :sv_httpdata)
+      ", [
+        ':cl_trid'        => $this->client->get_clTRID(),
+        ':sv_trid'        => $this->svTRID,
+        ':sv_code'        => $this->svCode,
+        ':status'         => 0,
+        ':sv_httpcode'    => $this->result['code'],
+        ':sv_httpheaders' => $this->result['headers'],
+        ':sv_httpdata'    => $this->result['body'],
+      ]);
     }
 
     return $qrs;

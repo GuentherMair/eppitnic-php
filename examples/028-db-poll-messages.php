@@ -1,17 +1,13 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
+use RedBeanPHP\R;
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
 
-$results = $db->retrieveParsedMessages();
-
-if ($results === FALSE)
-  echo $db->getError() . "\n";
-else
-  print_r($results);
+$results = R::getAll("SELECT * FROM messages WHERE archived_time IS NULL ORDER BY id DESC");
+print_r($results);

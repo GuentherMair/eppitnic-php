@@ -1,10 +1,11 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Client.php';
+require_once dirname(__FILE__).'/../../../helpers/config.php';
+require_once dirname(__FILE__).'/../../../helpers/db.php';
+require_once dirname(__FILE__).'/Session.php';
+require_once dirname(__FILE__).'/Contact.php';
+require_once dirname(__FILE__).'/Domain.php';
 
 /**
  * This file provides a generic infrastructure to the WSDL interface.
@@ -47,7 +48,6 @@ require_once 'Net/EPP/IT/Domain.php';
 class Net_EPP_IT_WSDL
 {
   public $nic;
-  public $db;
   public $session;
   public $contact;
   public $domain;
@@ -59,22 +59,16 @@ class Net_EPP_IT_WSDL
    * class constructor
    *
    * @access   public
-   * @param    string   configuration file name or XML configuration string
    * @return   boolean  status
    */
-  public function __construct($cfg = null) {
-    if ($cfg === null) {
-      $cfg = realpath(dirname(__FILE__).'/../../../config.xml');
-    }
-
+  public function __construct() {
     // create EPP objects
-    $this->nic = new Net_EPP_Client($cfg);
-    $this->db = new Net_EPP_StorageDB($this->nic->EPPCfg->db);
-    $this->session = new Net_EPP_IT_Session($this->nic, $this->db);
+    $this->nic = new Net_EPP_Client();
+    $this->session = new Net_EPP_IT_Session($this->nic);
     $this->session->debug = LOG_DEBUG;
-    $this->contact = new Net_EPP_IT_Contact($this->nic, $this->db);
+    $this->contact = new Net_EPP_IT_Contact($this->nic);
     $this->contact->debug = LOG_DEBUG;
-    $this->domain = new Net_EPP_IT_Domain($this->nic, $this->db);
+    $this->domain = new Net_EPP_IT_Domain($this->nic);
     $this->domain->debug = LOG_DEBUG;
   }
 

@@ -1,16 +1,14 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // retrieve and test command line options
@@ -136,7 +134,7 @@ echo "Login OK.\n";
 
 foreach ($domains as $name) {
   // re-create domain object
-  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain = new Net_EPP_IT_Domain($nic);
 
   // lookup domain
   switch ($domain->check($name)) {

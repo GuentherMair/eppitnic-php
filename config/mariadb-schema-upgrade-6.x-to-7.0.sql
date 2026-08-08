@@ -221,18 +221,24 @@ ALTER TABLE messages
 
 
 -- ----------------------------------------------------------------------------
--- PART 4: NEW TABLE - changelog
+-- PART 4: NEW TABLES - changelog, reminder, accounting
 --
--- Depends on `users` existing under its final name (created in Part 2), so
--- this must run after Part 2. Not dependent on Part 3's column renames.
+-- changelog and reminder both carry a FOREIGN KEY into tables created in
+-- Part 2 (users, domains respectively), so this whole part must run after
+-- Part 2. Not dependent on Part 3's column renames.
 --
--- Note: `data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the rest of the
--- schema) as given -- a sensible choice here since it stores raw JSON, where
--- case-insensitive comparison/collation isn't meaningful. The CHECK
--- (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
+-- Note: `changelog.data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the
+-- rest of the schema) as given -- a sensible choice here since it stores raw
+-- JSON, where case-insensitive comparison/collation isn't meaningful. The
+-- CHECK (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
 -- 8.0.16+, using JSON_VALID) for CHECK constraints to actually be enforced
 -- rather than silently parsed-and-ignored -- worth confirming your server
 -- version supports enforced CHECK constraints before relying on it.
+--
+-- Note: `accounting.billing_id` has no FOREIGN KEY back to users.billing_id,
+-- unlike reminder.domain -> domains.domain. Given as specified -- if
+-- billing_id here is meant to always match a real user's billing_id, that's
+-- currently only enforced at the application layer, not the database.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE `changelog` (
@@ -248,12 +254,62 @@ CREATE TABLE `changelog` (
   CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `reminder` (
+  `id`                    serial,
+  `domain`                varchar(255) NOT NULL,
+  `date`                  date NOT NULL,
+  `notice`                varchar(255),
+  `email`                 varchar(64),
+  `action`                enum('create','update','delete'),
+  `active`                tinyint DEFAULT 1,
+  `created_time`          timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY (`domain`),
+  KEY (`action`),
+  CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting` (
+  `id`                    serial,
+  `operation`             varchar(64) NOT NULL,
+  `billing_id`            varchar(64) NOT NULL,
+  `object`                varchar(255) NOT NULL,
+  `date`                  date NOT NULL,
+  `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
+  `status`                tinyint DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY (`billing_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- ----------------------------------------------------------------------------
--- PART 5: POST-MIGRATION VERIFICATION
+-- PART 5: EXTEND users TABLE
+--
+-- Widens `password` (32 -> 255 chars -- needed for modern hash formats like
+-- bcrypt/argon2, which don't fit in 32 chars) and adds 7 new columns
+-- (active/admin flags, TOTP 2FA secrets, session/token limits, debug level),
+-- inserted with AFTER so the physical column order matches the new schema.
 -- ----------------------------------------------------------------------------
 
--- 5a. Confirm every renamed table now reports utf8mb4 / utf8mb4_unicode_ci
+ALTER TABLE users
+  MODIFY COLUMN `password` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  ADD COLUMN `active` TINYINT DEFAULT 1 AFTER `techc`,
+  ADD COLUMN `admin` TINYINT DEFAULT 0 AFTER `active`,
+  ADD COLUMN `totp_secret` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `admin`,
+  ADD COLUMN `totp_secret_pending` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `totp_secret`,
+  ADD COLUMN `max_token_age` INT AFTER `totp_secret_pending`,
+  ADD COLUMN `max_idle_time` INT AFTER `max_token_age`,
+  ADD COLUMN `debug_level` TINYINT AFTER `max_idle_time`,
+  ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug_level`,
+  ADD COLUMN `api_token_expires` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `api_token`,
+  ADD UNIQUE KEY (`api_token`);
+
+
+-- ----------------------------------------------------------------------------
+-- PART 6: POST-MIGRATION VERIFICATION
+-- ----------------------------------------------------------------------------
+
+-- 6a. Confirm every renamed table now reports utf8mb4 / utf8mb4_unicode_ci
 --     at both the table default and per-column level. (changelog is
 --     excluded from the per-column check below since `data` is
 --     intentionally utf8mb4_bin, not utf8mb4_unicode_ci.)
@@ -264,7 +320,7 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'changelog');
+                        'changelog','reminder','accounting');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
@@ -276,7 +332,7 @@ WHERE TABLE_SCHEMA = DATABASE()
 -- ^ this query should return ZERO rows. Any row returned means a column
 --   was missed and still has an old charset/collation.
 
--- 5b. Confirm the 4 DNSSEC columns are actually gone from domains.
+-- 6b. Confirm the 4 DNSSEC columns are actually gone from domains.
 SELECT COLUMN_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
@@ -284,7 +340,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND COLUMN_NAME IN ('dsAlgorithm','dsDigest','dsDigestType','dsKeyTag');
 -- ^ this query should return ZERO rows.
 
--- 5c. Confirm the archived column is actually gone from messages.
+-- 6c. Confirm the archived column is actually gone from messages.
 SELECT COLUMN_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
@@ -292,7 +348,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND COLUMN_NAME = 'archived';
 -- ^ this query should return ZERO rows.
 
--- 5d. Confirm no old camelCase column names remain anywhere in the 8
+-- 6d. Confirm no old camelCase column names remain anywhere in the 8
 --     original tables.
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
@@ -303,20 +359,23 @@ WHERE TABLE_SCHEMA = DATABASE()
 -- ^ this query should return ZERO rows (no upper-case characters left in
 --   any column name across these 8 tables).
 
--- 5e. Confirm changelog exists with the expected shape: PK, secondary
---     index, and the data column's charset/collation/CHECK constraint.
+-- 6e. Confirm changelog/reminder/accounting exist with the expected shape:
+--     PKs, secondary indexes, and changelog's data column
+--     charset/collation/CHECK constraint.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'changelog'
-ORDER BY ORDINAL_POSITION;
+  AND TABLE_NAME IN ('changelog','reminder','accounting')
+ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
-SELECT INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
+SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'changelog'
-ORDER BY INDEX_NAME, SEQ_IN_INDEX;
--- ^ expect: PRIMARY (id), object_lookup (object, object_id)
+  AND TABLE_NAME IN ('changelog','reminder','accounting')
+ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
+-- ^ expect: changelog: PRIMARY (id), object_lookup (object, object_id)
+--           reminder:  PRIMARY (id), domain (domain)
+--           accounting: PRIMARY (id), billing_id (billing_id)
 
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
@@ -324,8 +383,19 @@ WHERE CONSTRAINT_SCHEMA = DATABASE()
   AND TABLE_NAME = 'changelog';
 -- ^ expect one row enforcing json_valid(`data`)
 
--- 5f. Confirm foreign keys survived the rename/creation and point at the
---     new names, including changelog's new FK to users.
+-- 6f. Confirm users picked up the new columns, in the expected order, and
+--     that password was actually widened to 255.
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'users'
+ORDER BY ORDINAL_POSITION;
+-- ^ expect password as varchar(255), followed by active, admin, totp_secret,
+--   totp_secret_pending, max_token_age, max_idle_time, debug_level (in
+--   that order after techc).
+
+-- 6g. Confirm foreign keys survived the rename/creation and point at the
+--     new names, including changelog's and reminder's new FKs.
 SELECT
     TABLE_NAME        AS child_table,
     COLUMN_NAME        AS child_column,
@@ -337,9 +407,11 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'changelog');
+                      'changelog','reminder','accounting');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
 --           changelog.user_id -> users.id
+--           reminder.domain -> domains.domain
+-- (accounting has no FK by design -- see note above PART 4)

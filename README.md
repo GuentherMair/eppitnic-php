@@ -1,6 +1,8 @@
 # Requirements
 
-1. PHP 8.1 or newer
+1. PHP 8.0.0 or newer (verified against both the codebase's own syntax and
+   every Composer dependency's declared PHP requirement; `slim/psr7` and
+   `firebase/php-jwt` are the binding constraints at `^8.0`)
 2. [Composer](https://getcomposer.org/), to install the third-party
    dependencies (Smarty, nusoap, phpwhois, idna-convert) declared in
    `composer.json` — run `composer install` before first use
@@ -43,9 +45,8 @@ found in the `/docs/` folder.
 2. sample configuration (see config.xml)
 3. example script (see `/examples/` folder)
 4. WSDL interface (see `/examples-wsdl/` and `/docs/` folder)
-5. a simple GET-based WHOIS lookup endpoint (`/public/whois.php`) — **note:
-   this endpoint has no authentication yet and must not be exposed publicly
-   until an auth layer is added**
+5. a simple GET-based WHOIS lookup endpoint (`GET /v1/whois?domain=`, see
+   `routes/whois.php`) — requires a bearer token like every other route
 6. Smarty template engine (Composer dependency, see `composer.json`)
 
 

@@ -3,12 +3,22 @@ CREATE TABLE `users` (
   `billing_id`            varchar(64) unique NOT NULL,
   `description`           varchar(64),
   `username`              varchar(32),
-  `password`              varchar(32),
+  `password`              varchar(255),
   `email`                 varchar(64),
   `max_operations`        int DEFAULT 0,
   `dns`                   text,
   `techc`                 text,
-  PRIMARY KEY (`id`)
+  `active`                tinyint DEFAULT 1,
+  `admin`                 tinyint DEFAULT 0,
+  `totp_secret`           varchar(64),
+  `totp_secret_pending`   varchar(64),
+  `max_token_age`         int,
+  `max_idle_time`         int,
+  `debug_level`           tinyint,
+  `api_token`             varchar(64),
+  `api_token_expires`     bigint unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY (`api_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `changelog` (
@@ -130,4 +140,31 @@ CREATE TABLE `messages` (
   `archived_user_id`      bigint unsigned,
   `created_time`          timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `reminder` (
+  `id`                    serial,
+  `domain`                varchar(255) NOT NULL,
+  `date`                  date NOT NULL,
+  `notice`                varchar(255),
+  `email`                 varchar(64),
+  `action`                enum('create','update','delete'),
+  `active`                tinyint DEFAULT 1,
+  `created_time`          timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY (`domain`),
+  KEY (`action`),
+  CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `accounting` (
+  `id`                    serial,
+  `operation`             varchar(64) NOT NULL,
+  `billing_id`            varchar(64) NOT NULL,
+  `object`                varchar(255) NOT NULL,
+  `date`                  date NOT NULL,
+  `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
+  `status`                tinyint DEFAULT 0,
+  PRIMARY KEY (`id`),
+  KEY (`billing_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

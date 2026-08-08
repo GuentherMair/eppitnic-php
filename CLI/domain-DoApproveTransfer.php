@@ -1,10 +1,11 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:i:");
@@ -57,9 +58,8 @@ if (count($domains) <> count($authinfos)) {
 
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
-$domain = new Net_EPP_IT_Domain($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
+$domain = new Net_EPP_IT_Domain($nic);
 
 // send "hello"
 // send "hello"
@@ -79,7 +79,7 @@ echo "Login OK.\n";
 
 for ($i = 0; $i < count($domains); $i++) {
   // re-create domain object
-  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain = new Net_EPP_IT_Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   $name = $domains[$i];

@@ -1,12 +1,11 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:t:T:p:P:e:E:");
@@ -42,8 +41,7 @@ if ( ( ! isset($options['d']) && ! isset($options['f'])) || // no domain
 }
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // retrieve and test command line options
@@ -64,10 +62,10 @@ if (count($domains) < 1) {
 }
 
 function update_contact($handle, &$options) {
-  global $nic, $db;
+  global $nic;
 
   // create a new+clean contact object
-  $contact = new Net_EPP_IT_Contact($nic, $db);
+  $contact = new Net_EPP_IT_Contact($nic);
 
   // fetch the contact by its handle
   if (!$contact->fetch($handle)) {
@@ -172,7 +170,7 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 foreach ($domains as $name) {
-  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain = new Net_EPP_IT_Domain($nic);
   echo "Verifying domain '{$name}':\n";
   if ($domain->fetch($name)) {
     update_domain($domain, $options);

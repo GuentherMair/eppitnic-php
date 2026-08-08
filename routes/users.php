@@ -9,6 +9,12 @@ $app->get('/v1/users/renew-token', function (Request $request, Response $respons
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
 
+$app->get('/v1/users/me', function (Request $request, Response $response, array $args): Response {
+    $decoded = jwtVerify($request);
+    $response->getBody()->write(json_encode((array) $decoded->data));
+    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+});
+
 $app->post('/v1/users/authenticate', function (Request $request, Response $response, array $args): Response {
     $params   = $request->getParsedBody() ?? [];
     $username = $params['username'] ?? '';
@@ -24,8 +30,8 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     }
 
     $user = R::getAll("SELECT
-        id, admin, username, password, totp_secret, debugLevel, debugModules,
-        maxTokenAge, maxIdleTime, refreshPage
+        id, admin, username, password, totp_secret, debug_level,
+        max_token_age, max_idle_time
     FROM users WHERE username = :username AND active = 1", [
         ':username' => $username,
     ]);
@@ -64,11 +70,9 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         'has_totp'      => $hasTotp,
         'needs_totp'    => $needsTotp,
         'totp_verified' => $hasTotp,
-        'debugLevel'    => $user[0]['debugLevel'],
-        'debugModules'  => $user[0]['debugModules'],
-        'maxTokenAge'   => $user[0]['maxTokenAge'],
-        'maxIdleTime'   => $user[0]['maxIdleTime'],
-        'refreshPage'   => $user[0]['refreshPage'],
+        'debug_level'    => $user[0]['debug_level'],
+        'max_token_age'   => $user[0]['max_token_age'],
+        'max_idle_time'   => $user[0]['max_idle_time'],
     ])));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
@@ -77,8 +81,7 @@ $app->get('/v1/users', function (Request $request, Response $response, array $ar
     $user_id = jwtUserID($request);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules,
+        id, active, admin, username, max_token_age, max_idle_time, debug_level,
         totp_secret IS NOT NULL AS has_totp
     FROM users");
     $response->getBody()->write(json_encode([
@@ -91,8 +94,7 @@ $app->get('/v1/users/{id}', function (Request $request, Response $response, arra
     $user_id = jwtUserID($request);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules,
+        id, active, admin, username, max_token_age, max_idle_time, debug_level,
         totp_secret IS NOT NULL AS has_totp
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
@@ -129,8 +131,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, 'PASSWORD_CHANGED' AS password, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, 'PASSWORD_CHANGED' AS password, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -148,56 +149,47 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     if (!empty($params['password'])) {
         R::exec("
             UPDATE users SET
-                active       = :active,
-                admin        = :admin,
-                username     = :username,
-                password     = :password,
-                maxTokenAge  = :maxTokenAge,
-                maxIdleTime  = :maxIdleTime,
-                refreshPage  = :refreshPage,
-                debugLevel   = :debugLevel,
-                debugModules = :debugModules
+                active         = :active,
+                admin          = :admin,
+                username       = :username,
+                password       = :password,
+                max_token_age  = :max_token_age,
+                max_idle_time  = :max_idle_time,
+                debug_level    = :debug_level
             WHERE id = :id
         ", [
-            ':active'       => $params['active'],
-            ':admin'        => $params['admin'],
-            ':username'     => $params['username'],
-            ':password'     => password_hash($params['password'], PASSWORD_DEFAULT),
-            ':maxTokenAge'  => $params['maxTokenAge'],
-            ':maxIdleTime'  => $params['maxIdleTime'],
-            ':refreshPage'  => $params['refreshPage'],
-            ':debugLevel'   => $params['debugLevel'],
-            ':debugModules' => $params['debugModules'],
-            ':id'           => $args['id'],
+            ':active'        => $params['active'],
+            ':admin'         => $params['admin'],
+            ':username'      => $params['username'],
+            ':password'      => password_hash($params['password'], PASSWORD_DEFAULT),
+            ':max_token_age' => $params['max_token_age'],
+            ':max_idle_time' => $params['max_idle_time'],
+            ':debug_level'   => $params['debug_level'],
+            ':id'            => $args['id'],
         ]);
     } else {
         R::exec("
             UPDATE users SET
-                active       = :active,
-                admin        = :admin,
-                username     = :username,
-                maxTokenAge  = :maxTokenAge,
-                maxIdleTime  = :maxIdleTime,
-                refreshPage  = :refreshPage,
-                debugLevel   = :debugLevel,
-                debugModules = :debugModules
+                active         = :active,
+                admin          = :admin,
+                username       = :username,
+                max_token_age  = :max_token_age,
+                max_idle_time  = :max_idle_time,
+                debug_level    = :debug_level
             WHERE id = :id
         ", [
-            ':active'       => $params['active'],
-            ':admin'        => $params['admin'],
-            ':username'     => $params['username'],
-            ':maxTokenAge'  => $params['maxTokenAge'],
-            ':maxIdleTime'  => $params['maxIdleTime'],
-            ':refreshPage'  => $params['refreshPage'],
-            ':debugLevel'   => $params['debugLevel'],
-            ':debugModules' => $params['debugModules'],
-            ':id'           => $args['id'],
+            ':active'        => $params['active'],
+            ':admin'         => $params['admin'],
+            ':username'      => $params['username'],
+            ':max_token_age' => $params['max_token_age'],
+            ':max_idle_time' => $params['max_idle_time'],
+            ':debug_level'   => $params['debug_level'],
+            ':id'            => $args['id'],
         ]);
     }
 
     $users = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -215,27 +207,24 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     R::exec("
         INSERT INTO users (
             active, admin, username, password,
-            maxTokenAge, maxIdleTime, refreshPage, debugLevel, debugModules
+            max_token_age, max_idle_time, debug_level
         ) VALUES (
             :active, :admin, :username, :password,
-            :maxTokenAge, :maxIdleTime, :refreshPage, :debugLevel, :debugModules
+            :max_token_age, :max_idle_time, :debug_level
         )
     ", [
-        ':active'       => $params['active'],
-        ':admin'        => $params['admin'],
-        ':username'     => $params['username'],
-        ':password'     => password_hash($params['password'], PASSWORD_DEFAULT),
-        ':maxTokenAge'  => $params['maxTokenAge'],
-        ':maxIdleTime'  => $params['maxIdleTime'],
-        ':refreshPage'  => $params['refreshPage'],
-        ':debugLevel'   => $params['debugLevel'],
-        ':debugModules' => $params['debugModules'],
+        ':active'        => $params['active'],
+        ':admin'         => $params['admin'],
+        ':username'      => $params['username'],
+        ':password'      => password_hash($params['password'], PASSWORD_DEFAULT),
+        ':max_token_age' => $params['max_token_age'],
+        ':max_idle_time' => $params['max_idle_time'],
+        ':debug_level'   => $params['debug_level'],
     ]);
 
     $id = R::getInsertID();
     $users = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
@@ -254,8 +243,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -333,8 +321,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -361,8 +348,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, maxTokenAge, maxIdleTime,
-        refreshPage, debugLevel, debugModules
+        id, active, admin, username, max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -370,5 +356,68 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
+    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+});
+
+$app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
+    $decoded = jwtVerify($request);
+    $isAdmin = (int) $decoded->data->admin === 1;
+    $isOwner = (int) $decoded->data->id === (int) $args['id'];
+
+    if ( ! $isOwner && ! $isAdmin) {
+        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
+        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    $user = R::getAll("SELECT id FROM users WHERE id = :id AND active = 1", [
+        ':id' => $args['id'],
+    ]);
+    if (empty($user)) {
+        $response->getBody()->write(json_encode(['error' => 'User not found']));
+        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    $params = $request->getParsedBody() ?? [];
+    // absolute unix timestamp; 0 = no expiry (infinite)
+    $expires = isset($params['expires']) ? (int) $params['expires'] : 0;
+
+    // 32 random bytes as an opaque hex token -- stored only as a hash, same as passwords
+    $token = bin2hex(random_bytes(32));
+    R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE id = :id", [
+        ':token'   => hash('sha256', $token),
+        ':expires' => $expires,
+        ':id'      => $args['id'],
+    ]);
+
+    $user_id = (int) $decoded->data->id;
+    changelogInsert('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
+
+    // the plaintext token is only ever shown here, at issue time -- it can't be
+    // recovered later since only its hash is stored
+    $response->getBody()->write(json_encode([
+        'token'   => $token,
+        'expires' => $expires,
+    ]));
+    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+});
+
+$app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
+    $decoded = jwtVerify($request);
+    $isAdmin = (int) $decoded->data->admin === 1;
+    $isOwner = (int) $decoded->data->id === (int) $args['id'];
+
+    if ( ! $isOwner && ! $isAdmin) {
+        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
+        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    R::exec("UPDATE users SET api_token = NULL, api_token_expires = 0 WHERE id = :id", [
+        ':id' => $args['id'],
+    ]);
+
+    $user_id = (int) $decoded->data->id;
+    changelogInsert('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
+
+    $response->getBody()->write(json_encode(['revoked' => true]));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });

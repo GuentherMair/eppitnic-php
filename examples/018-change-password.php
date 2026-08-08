@@ -1,20 +1,18 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 $session->debug = LOG_DEBUG;
-$contact = new Net_EPP_IT_Contact($nic, $db);
+$contact = new Net_EPP_IT_Contact($nic);
 $contact->debug = LOG_DEBUG;
 
-$cfg = realpath(dirname(__FILE__).'/../config.xml');
+$cfg = realpath(dirname(__FILE__).'/../config/config.json');
 
 $new_password = substr(md5(rand()), 0, 8);
 
@@ -40,7 +38,9 @@ if ($session->login($new_password) === FALSE) {
 echo "Login OK.\n";
 
 // switch password inside configuration file
-$result = file_put_contents($cfg, str_replace("<password>".strtolower($nic->EPPCfg->password)."</password>", "<password>{$new_password}</password>", strtolower(file_get_contents($cfg))));
+$cfgData = json_decode(file_get_contents($cfg), true);
+$cfgData['epp']['password'] = $new_password;
+$result = file_put_contents($cfg, json_encode($cfgData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 
 // make sure password switch did complete successfully
 if ($result) {

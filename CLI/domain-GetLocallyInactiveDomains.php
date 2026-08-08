@@ -1,16 +1,17 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+
+use RedBeanPHP\R;
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
-$domain = new Net_EPP_IT_Domain($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
+$domain = new Net_EPP_IT_Domain($nic);
 
-// send "hello"
 // send "hello"
 if ( ! $session->hello()) {
   echo "Connection FAILED.\n";
@@ -28,9 +29,8 @@ echo "Login OK.\n";
 
 try {
   // list in-active domains
-  $stmt = $db->db->prepare("SELECT domain FROM domains WHERE active = 0");
-  $stmt->execute();
-  while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+  $rows = R::getAll("SELECT domain FROM domains WHERE active = 0");
+  foreach ($rows as $row) {
     if ($domain->check($row['domain']) !== TRUE) {
       if ($domain->fetch($row['domain'])) {
         echo "Domain '{$row['domain']}' still exists and should be removed.\n";
@@ -40,7 +40,7 @@ try {
       }
     }
   }
-} catch (PDOException $e) {
+} catch (\RedBeanPHP\RedException\SQL $e) {
   echo "[FAILURE] A database error occured: " . $e->getMessage() . "\n";
 }
 

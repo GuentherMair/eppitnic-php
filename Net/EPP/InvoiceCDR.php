@@ -1,6 +1,6 @@
 <?php
 
-require_once 'Net/EPP/InvoiceInterface.php';
+require_once dirname(__FILE__).'/InvoiceInterface.php';
 
 /**
  * A CDR file storage class for invoicing.

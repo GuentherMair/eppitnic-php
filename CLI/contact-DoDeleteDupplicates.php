@@ -1,18 +1,17 @@
 <?php
 
 $init = ($argc == 2) ? $argv[1] : "DUP";
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
+use RedBeanPHP\R;
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
-$contact = new Net_EPP_IT_Contact($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
+$contact = new Net_EPP_IT_Contact($nic);
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -30,20 +29,18 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 try {
-  $stmt = $db->db->prepare("SELECT handle FROM contacts WHERE active = 1 AND handle LIKE :init");
-  $stmt->execute(array(":init" => "{$init}%"));
-  while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    if ($contact->delete($row['name'])) {
-      echo "[SUCCESS] Contact '{$row['name']}' removed.\n";
+  $rows = R::getAll("SELECT handle FROM contacts WHERE active = 1 AND handle LIKE :init", [":init" => "{$init}%"]);
+  foreach ($rows as $row) {
+    if ($contact->delete($row['handle'])) {
+      echo "[SUCCESS] Contact '{$row['handle']}' removed.\n";
 
-      // try to delete or at least archive the handle
-      $stmt2 = $db->db->prepare("UPDATE contacts SET active = 0 WHERE active = 1 AND handle = :name; DELETE FROM contacts WHERE active = 1 AND handle = :name2");
-      $stmt2->execute(array(":name" => $row['name'], ":name2" => $row['name']));
+      // archive the handle locally
+      R::exec("UPDATE contacts SET active = 0 WHERE active = 1 AND handle = :name", [":name" => $row['handle']]);
     } else {
-      echo "[FAILURE] Contact '{$row['name']}' NOT removed (".$contact->getError().").\n";
+      echo "[FAILURE] Contact '{$row['handle']}' NOT removed (".$contact->getError().").\n";
     }
   }
-} catch (PDOException $e) {
+} catch (\RedBeanPHP\RedException\SQL $e) {
   echo "[FAILURE] A database error occured: " . $e->getMessage() . "\n";
 }
 

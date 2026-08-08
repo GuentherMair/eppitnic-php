@@ -1,17 +1,15 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 $session->debug = LOG_DEBUG;
-$contact = new Net_EPP_IT_Contact($nic, $db);
+$contact = new Net_EPP_IT_Contact($nic);
 $contact->debug = LOG_DEBUG;
 
 // send "hello"
@@ -59,7 +57,7 @@ switch ($contact->check($name)) {
       echo " done.\n";
 
       echo "Creating new object...";
-      $contact = new Net_EPP_IT_Contact($nic, $db);
+      $contact = new Net_EPP_IT_Contact($nic);
       $contact->debug = LOG_DEBUG;
       echo " done.\n";
 
@@ -107,7 +105,7 @@ switch ($contact->check($name)) {
         echo " done.\n";
 
         echo "Creating new object...";
-        $contact = new Net_EPP_IT_Contact($nic, $db);
+        $contact = new Net_EPP_IT_Contact($nic);
         $contact->debug = LOG_DEBUG;
         echo " done.\n";
 

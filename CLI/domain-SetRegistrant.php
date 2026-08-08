@@ -1,10 +1,11 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:r:");
@@ -48,10 +49,9 @@ if (empty($registrant)) {
 
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
-$contact = new Net_EPP_IT_Contact($nic, $db);
-$domain = new Net_EPP_IT_Domain($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
+$contact = new Net_EPP_IT_Contact($nic);
+$domain = new Net_EPP_IT_Domain($nic);
 
 // send "hello"
 // send "hello"
@@ -72,7 +72,7 @@ echo "Login OK.\n";
 if ($contact->fetch($registrant)) {
   foreach ($domain_names as $domain_name) {
 	// re-create domain object
-	$domain = new Net_EPP_IT_Domain($nic, $db);
+	$domain = new Net_EPP_IT_Domain($nic);
 	$domain->fetch($domain_name);
 	$domain->set('registrant', $registrant);
 	$domain->set('authinfo', substr(md5(rand()), 0, 16));

@@ -3,8 +3,11 @@
 use Algo26\IdnaConvert\ToIdn;
 use Algo26\IdnaConvert\ToUnicode;
 
-require_once 'Net/EPP/AbstractObject.php';
-require_once 'Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../AbstractObject.php';
+require_once dirname(__FILE__).'/Contact.php';
+require_once dirname(__FILE__).'/../../../helpers/changelog.php';
+
+use RedBeanPHP\R;
 
 /**
  * This class handles domain objects.
@@ -107,10 +110,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    *
    * @access   public
    * @param    Net_EPP_IT_Client         client class
-   * @param    Net_EPP_StorageInterface  storage class
    */
-  function __construct(&$client, &$storage) {
-    parent::__construct($client, $storage);
+  function __construct(&$client) {
+    parent::__construct($client);
 
     $this->initValues();
     $this->idn = new ToIdn();
@@ -1095,60 +1097,70 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
    * store domain to DB
    *
    * @access   public
-   * @param    string  user ACL
-   * @return   boolean status
+   * @param    string   user ACL
+   * @param    boolean  fire the DNS-sync 'create' event (default yes; a
+   *                     requested-but-not-yet-completed transfer-in passes
+   *                     false here, since we don't operate the zone yet)
+   * @return   boolean  status
    */
-  public function storeDB($user_id = 1) {
-    $domain['status'] = $this->status;
-    $domain['domain'] = $this->domain;
-    $domain['ns'] = $this->ns;
-    $domain['registrant'] = $this->registrant;
-    $domain['admin'] = $this->admin;
-    $domain['tech'] = $this->tech;
-    $domain['authinfo'] = $this->authinfo;
-    $domain['cr_date'] = $this->crDate;
-    $domain['ex_date'] = $this->exDate;
-    $domain['dnssec'] = $this->dnssec;
+  public function storeDB($user_id = 1, $notifyDNS = true) {
+    $data = [
+      'status'     => serialize($this->status),
+      'domain'     => $this->domain,
+      'ns'         => serialize($this->ns),
+      'registrant' => $this->registrant,
+      'admin'      => $this->admin,
+      'tech'       => serialize($this->tech),
+      'authinfo'   => $this->authinfo,
+      'cr_date'    => $this->crDate,
+      'ex_date'    => $this->exDate,
+      'dnssec'     => serialize($this->dnssec),
+    ];
 
-    // remove existing domain objects when storing (re-transfer-in / re-register / re-import)
     try {
-      $stmt = $this->storage->db->prepare("SELECT last_invoice, user_id FROM domains WHERE domain=:domain");
-      if ($stmt->execute(array(":domain" => $this->domain))) {
-        if ($stmt->rowCount() > 0) {
-          $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-          // save the last_invoice value!
-          $domain['last_invoice'] = $row['last_invoice'];
-
-          // keep the current user_id
-          $user_id = $row['user_id'];
-          $stmt = $this->storage->db->prepare("DELETE FROM domains WHERE domain=:domain");
-          $stmt->execute(array(":domain" => $this->domain));
-        }
+      // remove existing domain row when storing (re-transfer-in / re-register / re-import),
+      // preserving last_invoice and the current owner
+      $row = R::getRow("SELECT last_invoice, user_id FROM domains WHERE domain = ?", [$this->domain]);
+      if ( ! empty($row)) {
+        $data['last_invoice'] = $row['last_invoice'];
+        $user_id = $row['user_id'];
+        R::exec("DELETE FROM domains WHERE domain = ?", [$this->domain]);
       }
-    } catch (PDOException $e) {
-      $errorInfo = $this->storage->db->errorInfo();
-      return $this->setError($errorInfo[0], "unable to clean existing domain entry from 'domains': " . $e->getMessage());
-    }
 
-    // store domain
-    if ($this->storage->storeDomain($domain, $user_id)) {
-      return TRUE;
-    } else {
-      $this->setError($this->storage->getError());
+      $data['user_id'] = $user_id;
+      $set = [];
+      $params = [];
+      foreach ($data as $k => $v) {
+        $set[] = $k;
+        $params[":{$k}"] = $v;
+      }
+      R::exec("INSERT INTO domains (" . implode(', ', $set) . ") VALUES (" . implode(', ', array_keys($params)) . ")", $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to store domain '{$this->domain}': " . $e->getMessage());
       return FALSE;
     }
+
+    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$this->domain]);
+    changelogInsert('domains', $id, 'create', ['domain' => $this->domain], $user_id);
+
+    if ($notifyDNS) {
+      // DNS-sync queue: pdnsutil_updates.php picks this up to (re)create the zone
+      R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$this->domain, 'domain created']);
+    }
+
+    return TRUE;
   }
 
   /**
    * load domain from DB
    *
    * @access   public
-   * @param    string  domain to load
-   * @param    string  user ACL
-   * @return   boolean status
+   * @param    string   domain to load
+   * @param    int      user ACL
+   * @param    boolean  admin (unrestricted by user_id)
+   * @return   boolean  status
    */
-  public function loadDB($domain = null, $user_id = 1) {
+  public function loadDB($domain = null, $user_id = 1, $isAdmin = false) {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1160,56 +1172,53 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveDomain($domain, $user_id);
-    if ($tmp === FALSE) {
-      $this->setError($this->storage->getError());
-      return FALSE;
-    } else {
-      // initialize data
-      foreach ($tmp as $key => $value) {
-        $key = strtolower($key);
-        // only accept columns that map to a declared property (skips DB-only
-        // bookkeeping columns like 'id', 'active' and 'last_invoice')
-        if (property_exists($this, $key)) {
-          $this->$key = $value;
-        }
-      }
-
-      // convert these into arrays (even empty ones)
-      if ( ! is_array($this->ns)) {
-        $tmp = (string)$this->ns;
-        $this->ns = array();
-        $this->addNS($tmp);
-      } else if (empty($this->ns)) {
-        $this->ns = array();
-      }
-      if ( ! is_array($this->tech)) {
-        $tmp = (string)$this->tech;
-        $this->tech = array();
-        $this->addTECH($tmp);
-      } else if (empty($this->tech)) {
-        $this->tech = array();
-      }
-      
-      // initialize data
-      $this->changes = 0;
-      $this->ns_initial = $this->ns;
-      $this->admin_initial = $this->admin;
-      $this->tech_initial = $this->tech;
-      $this->dnssec_initial = $this->dnssec;
-      return TRUE;
+    $sql = "SELECT * FROM domains WHERE domain = :domain";
+    $params = [':domain' => $domain];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
     }
+
+    $tmp = R::getRow($sql, $params);
+    if (empty($tmp)) {
+      $this->setError("Domain '{$domain}' not found.");
+      return FALSE;
+    }
+
+    foreach ($tmp as $key => $value) {
+      $key = strtolower($key);
+      // only accept columns that map to a declared property (skips DB-only
+      // bookkeeping columns like 'id', 'active' and 'last_invoice')
+      if (in_array($key, ['status', 'ns', 'tech', 'dnssec'])) {
+        $this->$key = empty($value) ? array() : unserialize($value);
+      } else if (property_exists($this, $key)) {
+        $this->$key = $value;
+      }
+    }
+
+    // initialize data
+    $this->changes = 0;
+    $this->ns_initial = $this->ns;
+    $this->admin_initial = $this->admin;
+    $this->tech_initial = $this->tech;
+    $this->dnssec_initial = $this->dnssec;
+    return TRUE;
   }
 
   /**
    * update domain stored in DB
    *
    * @access   public
-   * @param    string  domain to update
-   * @param    string  user ACL
-   * @return   boolean status
+   * @param    string   domain to update
+   * @param    int      user ACL
+   * @param    boolean  admin (unrestricted by user_id)
+   * @param    int      changes bitmask to persist (optional, defaults to
+   *                     $this->changes). Pass this explicitly when update()
+   *                     was already called: it resets $this->changes to 0 on
+   *                     success, before updateDB() ever gets a chance to read it.
+   * @return   boolean  status
    */
-  public function updateDB($domain = null, $user_id = 1) {
+  public function updateDB($domain = null, $user_id = 1, $isAdmin = false, $changes = null) {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1219,36 +1228,62 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       return FALSE;
     }
 
-    if ($this->changes == 0) {
+    if ($changes === null) {
+      $changes = $this->changes;
+    }
+
+    if ($changes == 0) {
       $this->setError("Domain did not change!");
       return FALSE;
     }
 
-    $data['status'] = $this->status;
-    $data['user_id'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->user_id;
-    if (($this->changes & 1) > 0) $data['ns'] = $this->ns;
-    if (($this->changes & 2) > 0) {
+    $data['status'] = serialize($this->status);
+    $data['user_id'] = $user_id;
+    if (($changes & 1) > 0) $data['ns'] = serialize($this->ns);
+    if (($changes & 2) > 0) {
       $data['registrant'] = $this->registrant;
-      // get the new reginstrants' user_id (agent ID)
+      // get the new registrant's user_id (agent ID)
       // btw. it should not be possible to assign a registrant not owned by the current user
-      // (the user interface needs to take care of that!)
-      $tmp = new Net_EPP_IT_Contact($this->client, $this->storage);
-      $tmp->loadDB($this->registrant);
+      // (the caller needs to take care of that!)
+      $tmp = new Net_EPP_IT_Contact($this->client);
+      $tmp->loadDB($this->registrant, $user_id, true);
       $data['user_id'] = $tmp->get('user_id');
     }
-    if (($this->changes & 4) > 0) $data['admin'] = $this->admin;
-    if (($this->changes & 8) > 0) $data['tech'] = $this->tech;
-    if (($this->changes & 16) > 0) $data['authinfo'] = $this->authinfo;
-    if (($this->changes & 32) > 0) $data['dnssec'] = $this->dnssec;
+    if (($changes & 4) > 0) $data['admin'] = $this->admin;
+    if (($changes & 8) > 0) $data['tech'] = serialize($this->tech);
+    if (($changes & 16) > 0) $data['authinfo'] = $this->authinfo;
+    if (($changes & 32) > 0) $data['dnssec'] = serialize($this->dnssec);
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
 
-    if ($this->storage->updateDomain($data, $domain, $user_id)) {
-      return TRUE;
-    } else {
-      $this->setError($this->storage->getError());
+    $set = [];
+    $params = [':domain' => $domain];
+    foreach ($data as $k => $v) {
+      $set[] = "{$k} = :{$k}";
+      $params[":{$k}"] = $v;
+    }
+    $sql = "UPDATE domains SET " . implode(', ', $set) . " WHERE domain = :domain";
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :acl_user_id";
+      $params[':acl_user_id'] = $user_id;
+    }
+
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to update domain '{$domain}': " . $e->getMessage());
       return FALSE;
     }
+
+    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
+    changelogInsert('domains', $id, 'update', $data, $user_id);
+
+    // DNS-sync queue: only nameserver changes require a pdnsutil update
+    if (($changes & 1) > 0) {
+      R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'update')", [$domain, 'nameservers changed']);
+    }
+
+    return TRUE;
   }
 
   /**
@@ -1383,184 +1418,115 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   }
 
   /**
-   * listDomains wrapper (storage function provided by WI storage class!)
+   * list domains stored in DB (includes pending transfer-in domains)
    *
    * @access   public
-   * @param    int      user ACL (optional), defaults to 1 (all domains)
-   * @param    string   contact ACL (optional), defaults to null (all domains)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
+   * @param    string   restrict search to this registrant (optional)
    * @param    boolean  list only active domains (TRUE = yes / FALSE = no)
-   * @param    integer   restrict search to domains older then X months
+   * @param    integer  restrict search to domains older then X months
    * @return   array    list of domains
    */
-  public function listDomains($user_id = 1, $handle = null, $activeOnly = TRUE, $age = 0) {
-    return $this->storage->listDomains($user_id, $handle, $activeOnly, $age);
+  public function listDomains($user_id = 1, $isAdmin = false, $registrant = null, $activeOnly = TRUE, $age = 0) {
+    $where = ['1 = 1'];
+    $params = [];
+    if ( ! $isAdmin) {
+      $where[] = 'user_id = :user_id';
+      $params[':user_id'] = $user_id;
+    }
+    if ($registrant !== null) {
+      $where[] = 'registrant = :registrant';
+      $params[':registrant'] = $registrant;
+    }
+
+    // pending transfer-in domains (active/age restrictions do not apply)
+    $domains = R::getAll("
+      SELECT concat(domain, ' (transfer-in)') as domain, registrant, user_id
+      FROM transfers WHERE " . implode(' AND ', $where) . "
+      ORDER BY domain ASC", $params);
+
+    if ($activeOnly) {
+      $where[] = 'active = :active';
+      $params[':active'] = 1;
+    }
+    if ($age > 0) {
+      $where[] = 'ex_date < DATE_SUB(CURDATE(), INTERVAL :age MONTH)';
+      $params[':age'] = (int)$age;
+    }
+
+    $active = R::getAll("
+      SELECT domain, registrant, user_id
+      FROM domains WHERE " . implode(' AND ', $where) . "
+      ORDER BY domain ASC", $params);
+
+    return array_merge($domains, $active);
   }
 
   /**
-   * deleteDomain wrapper (storage function provided by WI storage class!)
+   * deactivate a domain stored in DB (soft delete)
    *
    * @access   public
    * @param    string   domain name to delete
-   * @param    int      user ACL (optional), defaults to 1 (all domains)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
    * @return   boolean  status
    */
-  public function deleteDomainDB($domain, $user_id = 1) {
-    return $this->storage->deleteDomain($domain, $user_id);
+  public function deleteDomainDB($domain, $user_id = 1, $isAdmin = false) {
+    $sql = "UPDATE domains SET active = 0 WHERE domain = :domain";
+    $params = [':domain' => $domain];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
+    }
+
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to deactivate domain '{$domain}': " . $e->getMessage());
+      return FALSE;
+    }
+
+    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
+    changelogInsert('domains', $id, 'delete', ['domain' => $domain], $user_id);
+
+    // DNS-sync queue: pdnsutil_updates.php tears the zone down (delay-gated)
+    R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'delete')", [$domain, 'domain deleted']);
+
+    return TRUE;
   }
 
   /**
-   * restoreDomain wrapper (storage function provided by WI storage class!)
+   * reactivate a domain stored in DB (undo a soft delete)
    *
    * @access   public
    * @param    string   domain name to restore
-   * @param    int      user ACL (optional), defaults to 1 (all domains)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
    * @return   boolean  status
    */
-  public function restoreDomainDB($domain, $user_id = 1) {
-    return $this->storage->restoreDomain($domain, $user_id);
-  }
-
-  /**
-   * invoiceableDomains wrapper (storage function provided by WI storage class!)
-   *
-   * @access   public
-   * @return   array    list of domains
-   */
-  public function invoiceableDomains() {
-    return $this->storage->invoiceableDomains();
-  }
-
-  /**
-   * renewDomains wrapper (storage function provided by WI storage class!)
-   *
-   * @access   public
-   * @return   boolean  status
-   */
-  public function renewDomains() {
-    return $this->storage->renewDomains();
-  }
-
-  /**
-   * listUsers wrapper (storage function provided by WI storage class!)
-   *
-   * @access   public
-   * @return   array    list of contacts
-   */
-  public function listUsers($user_id) {
-    if ($user_id <> 1) {
-      return array();
-    } else {
-      return $this->storage->listUsers();
-    }
-  }
-
-  /**
-   * export domain handler
-   *
-   * @access   public
-   * @return   mixed     exported data (csv)
-   */
-  public function export($user_id) {
-    $output = "";
-    $records = $this->storage->exportDomains($user_id);
-
-    $fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email', 'billing_id'];
-    $delimiter = (string)(@$this->client->EPPCfg->webinterface->delimiter ?: ';');
-    $enclosure = (string)(@$this->client->EPPCfg->webinterface->enclosure ?: '"');
-    if (is_object($this->client->EPPCfg->webinterface->eol)) {
-      switch (strtolower($this->client->EPPCfg->webinterface->eol)) {
-        case "dos":
-          $eol = "\r\n";
-          break;
-        case "apple":
-          $eol = "\r";
-          break;
-        case "unix":
-        default:
-          $eol = "\n";
-          break;
-      }
+  public function restoreDomainDB($domain, $user_id = 1, $isAdmin = false) {
+    $sql = "UPDATE domains SET active = 1 WHERE domain = :domain";
+    $params = [':domain' => $domain];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
     }
 
-    // title row
-    $tmp = array();
-    foreach ($titles as $title) {
-      $tmp[] = _($title);
-    }
-    $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $eol;
-
-    // data rows
-    foreach ($records as $record) {
-      $tmp = array();
-      foreach ($fields as $field) {
-        $tmp[] = $record[$field];
-      }
-      $output .= $enclosure . implode($enclosure.$delimiter.$enclosure, $tmp) . $enclosure . $eol;
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to activate domain '{$domain}': " . $e->getMessage());
+      return FALSE;
     }
 
-    return $output;
-  }
+    // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
+    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
+    changelogInsert('domains', $id, 'update', ['domain' => $domain, 'active' => 1], $user_id);
 
-  /**
-   * import domain handler
-   *
-   * @access   public
-   * @return   mixed     imported data (states)
-   */
-  public function import($values, $user_id) {
-    $results = array();
+    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come back
+    R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$domain, 'domain restored']);
 
-    // verify we got any input at all
-    if (empty(trim($values))) {
-      return $results;
-    }
-
-    // create a new contact object
-    $contact = new Net_EPP_IT_Contact($this->client, $this->storage);
-    $idn_decoder = new ToUnicode();
-
-    // iterate over all domains provided (and separated by common delimiters)
-    $domains = array_unique(preg_split("/[\s,;:]+/", strtolower(trim($values))));
-    foreach ($domains as $domain) {
-      // initialize status
-      $result = [
-        'step1_domain'     => 'unknown',
-        'step2_registrant' => 'unknown',
-        'step3_reg_store'  => 'unknown',
-        'step4_dom_store'  => 'unknown',
-      ];
-
-      // IT-NIC does not respond to queries for "xn--..." domain names!
-      $domain = $idn_decoder->convert($domain);
-      if ( ! $this->fetch($domain)) {
-        $result['step1_domain'] = 'not found';
-        $this->deleteDomainDB($domain);
-        continue;
-      }
-      $result['step1_domain'] = 'found';
-
-      if ( ! $contact->fetch($this->get('registrant'))) {
-        $result['step2_registrant'] = 'not found';
-        continue;
-      }
-      $result['step2_registrant'] = 'found';
-
-      // store/update contact
-      $registrant = $this->storage->retrieveContact($this->get('registrant'));
-      $effectiveUserID = ($registrant === FALSE) ? $user_id : $registrant['user_id'];
-      $result['step3_reg_store'] = $contact->storeDB($effectiveUserID) ? 'stored' : 'not stored';
-
-      // store/update domain
-      if ($this->storeDB($effectiveUserID)) {
-        $result['step4_dom_store'] = 'stored';
-        $this->storage->deleteTransfer($domain);
-      } else {
-        $result['step4_dom_store'] = 'not stored';
-      }
-
-      // done
-      $results[$domain] = $result;
-    }
-    return $results;
+    return TRUE;
   }
 }

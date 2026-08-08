@@ -11,7 +11,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
 // configuration
-require __DIR__ . '/../helpers/config.php';
+require dirname(__FILE__) . '/../helpers/config.php';
 
 // get timing for later logging
 $time_start = microtime(true);
@@ -21,33 +21,36 @@ setlocale(LC_MONETARY, $region['lc_monetary']);
 setlocale(LC_TIME, $region['lc_time']);
 
 // autoload composer-based components (Slim and JWT)
-require __DIR__ . '/../vendor/autoload.php';
+require dirname(__FILE__) . '/../vendor/autoload.php';
 
 // set up database connection
-$db = getConfig('db');
-R::setup("{$db['type']}:host={$db['host']};dbname={$db['name']};charset={$db['charset']}", $db['user'], $db['password']);
-R::freeze(true);
-R::getWriter()->setUseCache(true);
+require dirname(__FILE__) . '/../helpers/db.php';
 
 // initialize app
 $app = AppFactory::create();
 
 // helpers
-require __DIR__ . '/../helpers/middleware.php'; // CORS resides here
-require __DIR__ . '/../helpers/jwt.php';
-require __DIR__ . '/../helpers/totp.php';
-require __DIR__ . '/../helpers/network.php';
-require __DIR__ . '/../helpers/csv.php';
-require __DIR__ . '/../helpers/changelog.php';
+require dirname(__FILE__) . '/../helpers/middleware.php'; // CORS resides here
+require dirname(__FILE__) . '/../helpers/jwt.php';
+require dirname(__FILE__) . '/../helpers/totp.php';
+require dirname(__FILE__) . '/../helpers/network.php';
+require dirname(__FILE__) . '/../helpers/csv.php';
+require dirname(__FILE__) . '/../helpers/changelog.php';
+require dirname(__FILE__) . '/../helpers/epp.php';
+require dirname(__FILE__) . '/../helpers/contact.php';
+require dirname(__FILE__) . '/../helpers/validate.php';
 
 // routes
-require __DIR__ . '/../routes/root.php';
-require __DIR__ . '/../routes/network_check.php';
-require __DIR__ . '/../routes/users.php';
-require __DIR__ . '/../routes/session.php';
-require __DIR__ . '/../routes/contact.php';
-require __DIR__ . '/../routes/domain.php';
-require __DIR__ . '/../routes/changelog.php';
+require dirname(__FILE__) . '/../routes/root.php';
+require dirname(__FILE__) . '/../routes/network_check.php';
+require dirname(__FILE__) . '/../routes/users.php';
+require dirname(__FILE__) . '/../routes/session.php';
+require dirname(__FILE__) . '/../routes/contact.php';
+require dirname(__FILE__) . '/../routes/domain.php';
+require dirname(__FILE__) . '/../routes/accounting.php';
+require dirname(__FILE__) . '/../routes/reminders.php';
+require dirname(__FILE__) . '/../routes/whois.php';
+require dirname(__FILE__) . '/../routes/changelog.php';
 
 // run application
 try {

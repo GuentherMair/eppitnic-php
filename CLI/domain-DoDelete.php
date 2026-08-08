@@ -1,9 +1,10 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:");
@@ -35,8 +36,7 @@ if (count($domains) < 1) {
 }
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // send "hello"
@@ -56,7 +56,7 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 foreach ($domains as $name) {
-  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain = new Net_EPP_IT_Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   // lookup domain

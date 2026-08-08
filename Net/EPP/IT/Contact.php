@@ -1,6 +1,9 @@
 <?php
 
-require_once 'Net/EPP/AbstractObject.php';
+require_once dirname(__FILE__).'/../AbstractObject.php';
+require_once dirname(__FILE__).'/../../../helpers/changelog.php';
+
+use RedBeanPHP\R;
 
 /**
  * This class handles contact objects.
@@ -86,10 +89,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    *
    * @access   public
    * @param    Net_EPP_IT_Client         client class
-   * @param    Net_EPP_StorageInterface  storage class
    */
-  function __construct(&$client, &$storage) {
-    parent::__construct($client, $storage);
+  function __construct(&$client) {
+    parent::__construct($client);
 
     $this->authinfo = $this->authinfo();
     $this->initValues();
@@ -723,48 +725,64 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * store contact to DB
    *
    * @access   public
-   * @param    string  user ACL
+   * @param    int     user ACL
    * @return   boolean status
    */
   public function storeDB($user_id = 1) {
-    $contact['status'] = $this->status;
-    $contact['handle'] = $this->handle;
-    $contact['name'] = $this->name;
-    $contact['org'] = $this->org;
-    $contact['street'] = $this->street;
-    $contact['street2'] = $this->street2;
-    $contact['street3'] = $this->street3;
-    $contact['city'] = $this->city;
-    $contact['province'] = $this->province;
-    $contact['postalcode'] = $this->postalcode;
-    $contact['countrycode'] = $this->countrycode;
-    $contact['voice'] = $this->voice;
-    $contact['fax'] = $this->fax;
-    $contact['email'] = $this->email;
-    $contact['authinfo'] = $this->authinfo;
-    $contact['consentforpublishing'] = $this->consentforpublishing;
-    $contact['nationalitycode'] = $this->nationalitycode;
-    $contact['entitytype'] = $this->entitytype;
-    $contact['regcode'] = $this->regcode;
-    $contact['schoolcode'] = $this->schoolcode;
-
-    if ($this->storage->storeContact($contact, $user_id)) {
-      return TRUE;
-    } else {
-      $this->setError($this->storage->getError());
+    try {
+      R::exec("
+        INSERT INTO contacts (
+          user_id, status, handle, name, org, street, street2, street3, city, province,
+          postalcode, countrycode, voice, fax, email, authinfo, consentforpublishing,
+          nationalitycode, entitytype, regcode, schoolcode
+        ) VALUES (
+          :user_id, :status, :handle, :name, :org, :street, :street2, :street3, :city, :province,
+          :postalcode, :countrycode, :voice, :fax, :email, :authinfo, :consentforpublishing,
+          :nationalitycode, :entitytype, :regcode, :schoolcode
+        )
+      ", [
+        ':user_id'              => $user_id,
+        ':status'               => serialize($this->status),
+        ':handle'               => $this->handle,
+        ':name'                 => $this->name,
+        ':org'                  => $this->org,
+        ':street'               => $this->street,
+        ':street2'              => $this->street2,
+        ':street3'              => $this->street3,
+        ':city'                 => $this->city,
+        ':province'             => $this->province,
+        ':postalcode'           => $this->postalcode,
+        ':countrycode'          => $this->countrycode,
+        ':voice'                => $this->voice,
+        ':fax'                  => $this->fax,
+        ':email'                => $this->email,
+        ':authinfo'             => $this->authinfo,
+        ':consentforpublishing' => $this->consentforpublishing,
+        ':nationalitycode'      => $this->nationalitycode,
+        ':entitytype'           => $this->entitytype,
+        ':regcode'              => $this->regcode,
+        ':schoolcode'           => $this->schoolcode,
+      ]);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to store contact '{$this->handle}': " . $e->getMessage());
       return FALSE;
     }
+
+    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
+    changelogInsert('contacts', $id, 'create', ['handle' => $this->handle], $user_id);
+    return TRUE;
   }
 
   /**
    * load contact from DB
    *
    * @access   public
-   * @param    string  contact to load
-   * @param    string  user ACL
-   * @return   boolean status
+   * @param    string   contact to load
+   * @param    int      user ACL
+   * @param    boolean  admin (unrestricted by user_id)
+   * @return   boolean  status
    */
-  public function loadDB($contact = null, $user_id = 1) {
+  public function loadDB($contact = null, $user_id = 1, $isAdmin = false) {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -776,33 +794,43 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $tmp = $this->storage->retrieveContact($contact, $user_id);
-    if ($tmp === FALSE) {
-      $this->setError($this->storage->getError());
-      return FALSE;
-    } else {
-      $this->changes = 0;
-      foreach ($tmp as $key => $value) {
-        $key = strtolower($key);
-        // only accept columns that map to a declared property (skips DB-only
-        // bookkeeping columns like 'id' or 'active')
-        if (property_exists($this, $key)) {
-          $this->$key = $value;
-        }
-      }
-      return TRUE;
+    $sql = "SELECT * FROM contacts WHERE handle = :handle";
+    $params = [':handle' => $contact];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
     }
+
+    $tmp = R::getRow($sql, $params);
+    if (empty($tmp)) {
+      $this->setError("Contact '{$contact}' not found.");
+      return FALSE;
+    }
+
+    $this->changes = 0;
+    foreach ($tmp as $key => $value) {
+      $key = strtolower($key);
+      // only accept columns that map to a declared property (skips DB-only
+      // bookkeeping columns like 'id' or 'active')
+      if ($key == 'status') {
+        $this->status = empty($value) ? array() : unserialize($value);
+      } else if (property_exists($this, $key)) {
+        $this->$key = $value;
+      }
+    }
+    return TRUE;
   }
 
   /**
    * update contact stored in DB
    *
    * @access   public
-   * @param    string  contact to update
-   * @param    string  user ACL
-   * @return   boolean status
+   * @param    string   contact to update
+   * @param    int      user ACL
+   * @param    boolean  admin (unrestricted by user_id)
+   * @return   boolean  status
    */
-  public function updateDB($contact = null, $user_id = 1) {
+  public function updateDB($contact = null, $user_id = 1, $isAdmin = false) {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -815,8 +843,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
       return FALSE;
     }
 
-    $data['status'] = $this->status;
-    $data['user_id'] = isset($_SESSION['id']) ? $_SESSION['id'] : $this->user_id;
+    $data['status'] = serialize($this->status);
+    $data['user_id'] = $user_id;
     if (($this->changes & 1) > 0) $data['name'] = $this->name;
     if (($this->changes & 2) > 0) $data['org'] = $this->org;
     if (($this->changes & 4) > 0) $data['street'] = $this->street;
@@ -836,47 +864,111 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
     if (($this->changes & 131072) > 0) $data['schoolcode'] = $this->schoolcode;
 
-    if ($this->storage->updateContact($data, $contact, $user_id)) {
-      return TRUE;
-    } else {
-      $this->setError($this->storage->getError());
+    $set = [];
+    $params = [':handle' => $contact];
+    foreach ($data as $k => $v) {
+      $set[] = "{$k} = :{$k}";
+      $params[":{$k}"] = $v;
+    }
+    $sql = "UPDATE contacts SET " . implode(', ', $set) . " WHERE handle = :handle";
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :acl_user_id";
+      $params[':acl_user_id'] = $user_id;
+    }
+
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to update contact '{$contact}': " . $e->getMessage());
       return FALSE;
     }
+
+    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
+    changelogInsert('contacts', $id, 'update', $data, $user_id);
+    return TRUE;
   }
 
   /**
-   * listContacts wrapper (storage function provided by WI storage class!)
+   * list contacts stored in DB
    *
    * @access   public
-   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
    * @param    boolean  list only active contacts (TRUE = yes / FALSE = no)
    * @return   array    list of contacts
    */
-  public function listContacts($user_id = 1, $activeOnly = TRUE) {
-    return $this->storage->listContacts($user_id, $activeOnly);
+  public function listContacts($user_id = 1, $isAdmin = false, $activeOnly = TRUE) {
+    $where = ['1 = 1'];
+    $params = [];
+    if ( ! $isAdmin) {
+      $where[] = 'user_id = :user_id';
+      $params[':user_id'] = $user_id;
+    }
+    if ($activeOnly) {
+      $where[] = 'active = 1';
+    }
+    return R::getAll("SELECT handle, org, name, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
   }
 
   /**
-   * deleteContact wrapper (storage function provided by WI storage class!)
+   * deactivate a contact stored in DB (soft delete)
    *
    * @access   public
    * @param    string   contact name / handle
-   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
    * @return   boolean  status
    */
-  public function deleteContactDB($contact, $user_id = 1) {
-    return $this->storage->deleteContact($contact, $user_id);
+  public function deleteContactDB($contact, $user_id = 1, $isAdmin = false) {
+    $sql = "
+      UPDATE contacts SET active = 0
+      WHERE handle = :handle AND
+        (SELECT COUNT(1) FROM domains WHERE registrant = :handle2 AND active = 1) = 0";
+    $params = [':handle' => $contact, ':handle2' => $contact];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
+    }
+
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to deactivate contact '{$contact}': " . $e->getMessage());
+      return FALSE;
+    }
+
+    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
+    changelogInsert('contacts', $id, 'delete', ['handle' => $contact], $user_id);
+    return TRUE;
   }
 
   /**
-   * restoreContact wrapper (storage function provided by WI storage class!)
+   * reactivate a contact stored in DB (undo a soft delete)
    *
    * @access   public
    * @param    string   contact name / handle
-   * @param    int      user ACL (optional), defaults to 1 (all contacts)
+   * @param    int      user ACL (optional), defaults to 1
+   * @param    boolean  admin (unrestricted by user_id)
    * @return   boolean  status
    */
-  public function restoreContactDB($contact, $user_id = 1) {
-    return $this->storage->restoreContact($contact, $user_id);
+  public function restoreContactDB($contact, $user_id = 1, $isAdmin = false) {
+    $sql = "UPDATE contacts SET active = 1 WHERE handle = :handle";
+    $params = [':handle' => $contact];
+    if ( ! $isAdmin) {
+      $sql .= " AND user_id = :user_id";
+      $params[':user_id'] = $user_id;
+    }
+
+    try {
+      R::exec($sql, $params);
+    } catch (\RedBeanPHP\RedException\SQL $e) {
+      $this->setError("unable to activate contact '{$contact}': " . $e->getMessage());
+      return FALSE;
+    }
+
+    // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
+    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
+    changelogInsert('contacts', $id, 'update', ['handle' => $contact, 'active' => 1], $user_id);
+    return TRUE;
   }
 }

@@ -1,10 +1,11 @@
 <?php
 
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:r:a:t:n:");
@@ -12,10 +13,13 @@ if (( ! isset($options['d']) && ! isset($options['f'])) ||
     (isset($options['d']) && isset($options['f']))) {
   echo "SYNTAX: {$argv[0]} (-f FILE|-d DOMAIN[:DOMAIN:...]) -r REGISTRANT [-a ADMIN] -t TECH[:TECH:TECH:TECH:TECH:TECH] -n NS:NS[:NS:NS:NS:NS]\n";
   echo "\n";
-  echo "  -f FILE containing domain names to create\n";
+  echo "  -f FILE containing domain names to create, one per line. Each line is\n";
+  echo "     either a bare domain name (uses -r/-a/-t/-n below for that domain),\n";
+  echo "     or a ';'-separated row 'domain;registrant;tech[:tech:...];ns:ns[:...]'\n";
+  echo "     to set a distinct registrant/tech/ns for that domain\n";
   echo "  -d DOMAIN name(s) to craeate, given as colon-separated list on command line\n";
   echo "\n";
-  echo " -r registrant contact\n";
+  echo " -r registrant contact (required unless every -f row supplies its own)\n";
   echo " -a administrative contact\n";
   echo " -t technical contact(s) (1-6)\n";
   echo " -n nameserver records to add (2-6)\n";
@@ -29,44 +33,79 @@ if (isset($options['f']) && ! is_readable($options['f'])) {
   exit(FILE_NOT_READABLE);
 }
 
-// verify domain names
+// each entry: ['domain', 'registrant', 'admin', 'tech', 'ns'], the latter four
+// null when the line didn't supply its own and should fall back to -r/-a/-t/-n
 $domains = array();
-$tmp = isset($options['f']) ? explode("\n", trim(file_get_contents($options['f']))) : explode(":", $options['d']);
-foreach ($tmp as $domain)
-  if (substr($domain, -3) == '.it')
-    $domains[] = $domain;
+if (isset($options['f'])) {
+  foreach (explode("\n", trim(file_get_contents($options['f']))) as $line) {
+    $line = trim($line);
+    if ($line === '') continue;
+
+    // self-contained CSV row: domain;registrant;tech[:tech:...];ns:ns[:ns:...]
+    $fields = explode(";", $line);
+    if (count($fields) >= 4 && substr($fields[0], -3) == '.it') {
+      $domains[] = array(
+        'domain'     => $fields[0],
+        'registrant' => $fields[1],
+        'admin'      => $fields[1],
+        'tech'       => array_slice(explode(":", $fields[2]), 0, 6),
+        'ns'         => array_slice(explode(":", $fields[3]), 0, 6),
+      );
+    } else if (substr($line, -3) == '.it') {
+      $domains[] = array('domain' => $line, 'registrant' => null, 'admin' => null, 'tech' => null, 'ns' => null);
+    }
+  }
+} else {
+  foreach (explode(":", $options['d']) as $name) {
+    if (substr($name, -3) == '.it') {
+      $domains[] = array('domain' => $name, 'registrant' => null, 'admin' => null, 'tech' => null, 'ns' => null);
+    }
+  }
+}
 if (count($domains) < 1) {
   echo "No valid .IT domain given!\n";
   exit(INVALID_INPUT);
 }
 
-// verify other properties
-$registrant = $options['r'];
-if (empty($registrant)) {
-  echo "No registrant specified!\n";
-  exit(INVALID_INPUT);
+// -r/-a/-t/-n are the fallback for domains that didn't bring their own values
+$needsFallback = false;
+foreach ($domains as $d) {
+  if ($d['registrant'] === null) { $needsFallback = true; break; }
 }
 
-$admin = $options['a'];
-if (empty($admin))
-  $admin = $registrant;
+$registrant = $options['r'] ?? null;
+$admin = $options['a'] ?? $registrant;
+$tech = isset($options['t']) ? array_slice(explode(":", $options['t']), 0, 6) : array();
+$ns = isset($options['n']) ? array_slice(explode(":", $options['n']), 0, 6) : array();
 
-$tech = array_slice(explode(":", $options['t']), 0, 6);
-if (count($tech) < 1) {
-  echo "No technical contact specified!\n";
-  exit(INVALID_INPUT);
+if ($needsFallback) {
+  if (empty($registrant)) {
+    echo "No registrant specified!\n";
+    exit(INVALID_INPUT);
+  }
+  if (count($tech) < 1) {
+    echo "No technical contact specified!\n";
+    exit(INVALID_INPUT);
+  }
+  if (count($ns) < 2) {
+    echo "You need to specify at least 2 nameservers!\n";
+    exit(INVALID_INPUT);
+  }
 }
 
-$ns = array_slice(explode(":", $options['n']), 0, 6);
-if (count($ns) < 2) {
-  echo "You need to specify at least 2 nameservers!\n";
-  exit(INVALID_INPUT);
+foreach ($domains as &$d) {
+  if ($d['registrant'] === null) {
+    $d['registrant'] = $registrant;
+    $d['admin']      = $admin;
+    $d['tech']       = $tech;
+    $d['ns']         = $ns;
+  }
 }
+unset($d);
 
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // send "hello"
@@ -84,9 +123,20 @@ if ($session->login() === FALSE) {
 }
 echo "Login OK.\n";
 
-foreach ($domains as $name) {
+foreach ($domains as $entry) {
+  $name = $entry['domain'];
+  $registrant = $entry['registrant'];
+  $admin = $entry['admin'];
+  $tech = $entry['tech'];
+  $ns = $entry['ns'];
+
+  if (empty($tech) || count($ns) < 2) {
+    echo "Domain '{$name}' skipped: needs at least 1 tech contact and 2 nameservers.\n";
+    continue;
+  }
+
   // re-create domain object
-  $domain = new Net_EPP_IT_Domain($nic, $db);
+  $domain = new Net_EPP_IT_Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   // lookup domain
@@ -109,14 +159,10 @@ foreach ($domains as $name) {
           if ( ! $session->logout())
             echo "Verification session logout failed (code {$session->svCode}, '{$session->svMsg}').\n";
 
-          // append "-deleted" to server's hostname
-          $cfg = preg_replace('/<server>https:\/\/(.*).nic.it<\/server>/', '<server>https://${1}-deleted.nic.it</server>', file_get_contents('config.xml'));
-
-          // re-do session using connection to server for restoring domains
-          $nic = new Net_EPP_Client($cfg);
-          $db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-          $session = new Net_EPP_IT_Session($nic, $db);
-          $domain = new Net_EPP_IT_Domain($nic, $db);
+          // re-do session using the "-deleted" endpoint for restoring domains
+          $nic = new Net_EPP_Client(getConfig('epp')['server_deleted']);
+          $session = new Net_EPP_IT_Session($nic);
+          $domain = new Net_EPP_IT_Domain($nic);
 
           // send "hello"
           if ( ! $session->hello()) {

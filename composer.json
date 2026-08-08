@@ -3,13 +3,17 @@
     "description": "PHP library for the EPP interface of the Italian domain registry (nic.it)",
     "license": "BSD-3-Clause",
     "require": {
-        "php": ">=8.1",
+        "php": ">=8.0",
         "ext-curl": "*",
         "ext-simplexml": "*",
         "ext-pdo": "*",
         "smarty/smarty": "^5.0",
         "econea/nusoap": "^0.9.20",
         "kevinoo/phpwhois": "^6.3",
-        "algo26-matthias/idna-convert": "^3.1"
+        "algo26-matthias/idna-convert": "^3.1",
+        "gabordemooij/redbean": "^5.7",
+        "slim/slim": "^4.0",
+        "slim/psr7": "^1.8",
+        "firebase/php-jwt": "^7.1"
     }
 }

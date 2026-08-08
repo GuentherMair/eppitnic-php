@@ -1,6 +1,8 @@
 <?php
 
-require_once 'Net/EPP/LogSeverity.php';
+require_once dirname(__FILE__).'/LogSeverity.php';
+
+use RedBeanPHP\R;
 
 /**
  * An abstract class for other EPP objects (session, contact, domain).
@@ -49,7 +51,6 @@ require_once 'Net/EPP/LogSeverity.php';
 abstract class Net_EPP_AbstractObject
 {
   protected $client;
-  protected $storage;
 
   protected $trues = array("true", "TRUE", 1);
   protected $falses = array("false", "FALSE", 0, null);
@@ -463,11 +464,9 @@ abstract class Net_EPP_AbstractObject
    *
    * @access   public
    * @param    Net_EPP_IT_Client         client class
-   * @param    Net_EPP_StorageInterface  storage class
    */
-  public function __construct(&$client, &$storage) {
+  public function __construct(&$client) {
     $this->client  = $client;
-    $this->storage = $storage;
   }
 
   /**
@@ -645,11 +644,15 @@ abstract class Net_EPP_AbstractObject
   protected function ExecuteQuery($clTRType, $clTRObject, $store = TRUE) {
     // store request
     if ($store) {
-      $this->storage->storeTransaction(
-        $this->client->get_clTRID(),
-        $clTRType,
-        $clTRObject,
-        $this->xmlQuery);
+      R::exec("
+        INSERT INTO transactions (cl_trid, cl_trtype, cl_trobject, cl_trdata)
+        VALUES (:cl_trid, :cl_trtype, :cl_trobject, :cl_trdata)
+      ", [
+        ':cl_trid'     => $this->client->get_clTRID(),
+        ':cl_trtype'   => $clTRType,
+        ':cl_trobject' => $clTRObject,
+        ':cl_trdata'   => $this->xmlQuery,
+      ]);
     }
 
     // send request + parse response
@@ -693,14 +696,20 @@ abstract class Net_EPP_AbstractObject
 
     // store response
     if ($store) {
-      $this->storage->storeResponse(
-        $this->client->get_clTRID(),
-        $this->svTRID,
-        $this->svCode,
-        0,
-        $this->result,
-        $this->extValueReasonCode,
-        $this->extValueReason);
+      R::exec("
+        INSERT INTO responses (cl_trid, sv_trid, sv_code, status, sv_httpcode, sv_httpheaders, sv_httpdata, extvaluereasoncode, extvaluereason)
+        VALUES (:cl_trid, :sv_trid, :sv_code, :status, :sv_httpcode, :sv_httpheaders, :sv_httpdata, :extvaluereasoncode, :extvaluereason)
+      ", [
+        ':cl_trid'            => $this->client->get_clTRID(),
+        ':sv_trid'            => $this->svTRID,
+        ':sv_code'            => $this->svCode,
+        ':status'             => 0,
+        ':sv_httpcode'        => $this->result['code'],
+        ':sv_httpheaders'     => $this->result['headers'],
+        ':sv_httpdata'        => $this->result['body'],
+        ':extvaluereasoncode' => $this->extValueReasonCode,
+        ':extvaluereason'     => $this->extValueReason,
+      ]);
     }
 
     return $return_code;

@@ -41,27 +41,6 @@ use Smarty\Smarty;
  */
 
 /**
- * define the PHP_VERSION_ID (predefined as of 5.2.7)
- */
-if ( ! defined('PHP_VERSION_ID')) {
-  $version = explode('.', PHP_VERSION);
-  define('PHP_VERSION_ID', ($version[0] * 10000 + $version[1] * 100 + $version[2]));
-}
-
-/**
- * using lots of PHP5 functions like __construct, __destruct,
- * simplexml_load_string, simplexml_load_file, this won't work
- * with PHP < 5
- */
-if (PHP_VERSION_ID < 50300) {
-  $major = (int)floor(PHP_VERSION_ID / 10000);
-  $minor = (int)floor((PHP_VERSION_ID % 10000) / 100);
-  $rev = (int)(PHP_VERSION_ID % 100);
-  echo "This class (" . __FILE__ . ") requires at least PHP 5.3 (Smarty 3 and other limitations). You are running PHP {$major}.{$minor}.{$rev}!\n";
-  exit;
-}
-
-/**
  * Smarty and other third-party dependencies are managed through Composer.
  */
 require_once dirname(__FILE__).'/../../vendor/autoload.php';
@@ -70,7 +49,7 @@ require_once dirname(__FILE__).'/../../vendor/autoload.php';
  * Include curl class handler
  */
 if ( ! class_exists('Net_EPP_Curl')) {
-  require_once 'Net/EPP/Curl.php';
+  require_once dirname(__FILE__).'/Curl.php';
 }
 
 /**
@@ -79,7 +58,7 @@ if ( ! class_exists('Net_EPP_Curl')) {
 if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
 if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input file/CSV unreadable
 if ( ! defined('INVALID_INPUT'))     define('INVALID_INPUT', 3);      // eg. no valid .it domain given
-if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config.xml missing/not writable
+if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config/config.json missing/not writable
 if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable to write an output file
 
 /**
@@ -87,7 +66,7 @@ if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable 
  * can easily use variable-assignments directly with this
  * derived class, ie.
  *
- *   $nic = new Net_EPP_Client("config.xml");
+ *   $nic = new Net_EPP_Client();
  *   $nic->assign('username', $nic->EPPCfg->username);
  *
  */
@@ -105,33 +84,37 @@ class Net_EPP_Client extends Smarty
   /**
    * Class constructor
    *
-   *  - read configuration file
+   *  - read configuration from config/config.json (via helpers/config.php)
    *  - initialize smarty parent class and settings
    *  - initialize HTTP Client
    *
    * @access   public
-   * @param    string  configuration file or XML configuration string
+   * @param    string  optional server URL to use instead of epp.server (eg.
+   *                    nic.it's "-deleted" endpoint for restoring domains)
    */
-  public function __construct($cfg = null) {
-    if ($cfg === null) {
-      $cfg = realpath(dirname(__FILE__).'/../../config.xml');
-    }
+  public function __construct($serverOverride = null) {
+    require_once dirname(__FILE__).'/../../helpers/config.php';
 
-    if (is_readable($cfg)) {
-      $this->EPPCfg = @simplexml_load_file($cfg);
-    } else {
-      $this->EPPCfg = @simplexml_load_string($cfg);
-      if ($this->EPPCfg === FALSE) {
-        exit("FATAL ERROR: config file '".$cfg."' not readable or not a XML string\n");
-      }
-    }
+    $epp = getConfig('epp');
+    $region = getConfig('region');
+    $this->EPPCfg = (object)[
+      'timezone'        => $region['timezone'],
+      'server'          => $serverOverride ?: $epp['server'],
+      'port'            => $epp['port'],
+      'interface'       => $epp['interface'],
+      'username'        => $epp['username'],
+      'password'        => $epp['password'],
+      'lang'            => $epp['lang'],
+      'cl_trid_prefix'  => $epp['cl_trid_prefix'],
+      'certificatefile' => getConfig('certificatefile'),
+      'debugfile'       => getConfig('debugfile'),
+      'cookie_dir'      => getConfig('cookie_dir'),
+      'dnssec'          => (object)getConfig('dnssec'),
+      'smarty'          => (object)getConfig('smarty'),
+    ];
 
     // setup default time zone
-    if (@isset($this->EPPCfg->timezone)) {
-      date_default_timezone_set($this->EPPCfg->timezone);
-    } else {
-      date_default_timezone_set("Europe/Rome");
-    }
+    date_default_timezone_set($this->EPPCfg->timezone ?: "Europe/Rome");
 
     // call Smarty class constructor
     parent::__construct();

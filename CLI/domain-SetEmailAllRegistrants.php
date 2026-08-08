@@ -1,12 +1,11 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'Net/EPP/Client.php';
-require_once 'Net/EPP/StorageDB.php';
-require_once 'Net/EPP/IT/Session.php';
-require_once 'Net/EPP/IT/Contact.php';
-require_once 'Net/EPP/IT/Domain.php';
+require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+require_once dirname(__FILE__).'/../helpers/config.php';
+require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
 
 
 // retrieve and test command line options
@@ -51,8 +50,7 @@ if (empty($registrant_email)) {
 
 
 $nic = new Net_EPP_Client();
-$db = new Net_EPP_StorageDB($nic->EPPCfg->db);
-$session = new Net_EPP_IT_Session($nic, $db);
+$session = new Net_EPP_IT_Session($nic);
 
 
 // send "hello"
@@ -71,9 +69,9 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 foreach ($domain_names as $domain_name) {
-    $domain = new Net_EPP_IT_Domain($nic, $db);
+    $domain = new Net_EPP_IT_Domain($nic);
     if ($domain->fetch($domain_name)) {
-        $contact = new Net_EPP_IT_Contact($nic, $db);
+        $contact = new Net_EPP_IT_Contact($nic);
         $contact->fetch($domain->get('registrant'));
         $contact->set('email', $registrant_email);
         if ($contact->update()) {
@@ -82,7 +80,7 @@ foreach ($domain_names as $domain_name) {
             echo " done.\n";
 
             echo "Creating new object...";
-            $contact = new Net_EPP_IT_Contact($nic, $db);
+            $contact = new Net_EPP_IT_Contact($nic);
             echo " done.\n";
 
             echo "Fetching updated object data from EPP server:\n";

@@ -1,9 +1,7 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'vendor/autoload.php';
-require_once 'Net/EPP/IT/WSDL.php';
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL.php';
 
 /**
  * This file provides a WSDL interface to the EPP library.
@@ -78,8 +76,8 @@ $server->configureWSDL($wsdl_ns, 'urn:'.$wsdl_ns, false, $wsdl_style);
  * exit codes like 1000, 1001, 1002 et. al. are defined in 'statuscodes.php'
  * WSDL definitions for complex types (arrays and lists) are found in 'wsdl_typedefinitions.php'
  */
-require_once 'Net/EPP/IT/WSDL/statuscodes.php';
-require_once 'Net/EPP/IT/WSDL/wsdl_typedefinitions.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/statuscodes.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/wsdl_typedefinitions.php';
 
 /*
  * included per method you will find:
@@ -88,31 +86,31 @@ require_once 'Net/EPP/IT/WSDL/wsdl_typedefinitions.php';
  */
 
 // account related
-require_once 'Net/EPP/IT/WSDL/account.credit.php';
-require_once 'Net/EPP/IT/WSDL/account.poll-count.php';
-require_once 'Net/EPP/IT/WSDL/account.poll.php';
-require_once 'Net/EPP/IT/WSDL/account.poll-all.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/account.credit.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/account.poll-count.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/account.poll.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/account.poll-all.php';
 
 // contact related
-require_once 'Net/EPP/IT/WSDL/contact.create.php';
-require_once 'Net/EPP/IT/WSDL/contact.check.php';
-require_once 'Net/EPP/IT/WSDL/contact.info.php';
-require_once 'Net/EPP/IT/WSDL/contact.update.php';
-require_once 'Net/EPP/IT/WSDL/contact.delete.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/contact.create.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/contact.check.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/contact.info.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/contact.update.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/contact.delete.php';
 
 // domain related
-require_once 'Net/EPP/IT/WSDL/domain.changeRegistrant.php';
-require_once 'Net/EPP/IT/WSDL/domain.create.php';
-require_once 'Net/EPP/IT/WSDL/domain.check.php';
-require_once 'Net/EPP/IT/WSDL/domain.info.php';
-require_once 'Net/EPP/IT/WSDL/domain.infContacts.php';
-require_once 'Net/EPP/IT/WSDL/domain.update.php';
-require_once 'Net/EPP/IT/WSDL/domain.delete.php';
-require_once 'Net/EPP/IT/WSDL/domain.restore.php';
-require_once 'Net/EPP/IT/WSDL/domain.transfer-request.php';
-require_once 'Net/EPP/IT/WSDL/domain.transfer-cancel.php';
-require_once 'Net/EPP/IT/WSDL/domain.transfer-reject.php';
-require_once 'Net/EPP/IT/WSDL/domain.transfer-approve.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.changeRegistrant.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.create.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.check.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.info.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.infContacts.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.update.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.delete.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.restore.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.transfer-request.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.transfer-cancel.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.transfer-reject.php';
+require_once dirname(__FILE__).'/../Net/EPP/IT/WSDL/domain.transfer-approve.php';
 
 // print output
 $server->service(file_get_contents('php://input'));

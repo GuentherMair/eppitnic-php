@@ -1,8 +1,6 @@
 <?php
 
-set_include_path(dirname(__FILE__).'/..:'.ini_get('include_path'));
-
-require_once 'vendor/autoload.php'; 
+require_once dirname(__FILE__).'/../vendor/autoload.php'; 
 
 /**
  * This file is part of the WSDL interface to the EPP library.
