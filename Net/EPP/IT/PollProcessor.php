@@ -159,7 +159,7 @@ class Net_EPP_IT_PollProcessor
     // 3. INCOMING TRANSFERS -- reconcile every open local transfer request
     $transfers = R::getAll("
       SELECT
-        t.id, t.domain, t.techc, t.dns, t.user_id AS transferUserID,
+        t.id, t.domain, t.techc, t.dns, t.user_id AS transfer_user_id,
         c.name, c.email,
         u.id AS user_id, u.billing_id, u.email AS email_user
       FROM transfers t, contacts c, users u
@@ -223,7 +223,7 @@ class Net_EPP_IT_PollProcessor
           R::exec("INSERT INTO accounting (operation, billing_id, object, date) VALUES ('transfer', ?, ?, CURDATE())", [$transfer['billing_id'], $transfer['domain']]);
 
           // transfer-in completing counts as a DNS-sync 'create' event (storeDB() fires it)
-          $this->domain->storeDB((int) $transfer['transferUserID']);
+          $this->domain->storeDB((int) $transfer['transfer_user_id']);
 
           if ($archiveMsg !== false) {
             R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$archiveMsg]);
