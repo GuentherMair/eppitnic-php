@@ -1,0 +1,67 @@
+{
+  "region": {
+    "timezone": "Europe/Rome",
+    "lc_monetary": "it_IT",
+    "lc_time": "italian",
+  },
+
+  "jwt_psk": "<REPLACE_WITH_RANDOM_BASE64_32_BYTE_KEY>",
+
+  "allowed_origins": [
+    "",
+    "http://localhost:5173",
+    "http://eppitnic-testing-app.local",
+    "https://eppitnic.local",
+  ],
+  "allowed_headers": [
+    "Authorization",
+    "Content-Type",
+    "X-Api-Key",
+    "Content-Disposition",
+  ],
+  "allowed_methods": [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  "db": {
+    "type": "mysql",
+    "host": "localhost",
+    "name": "<DATABASE_NAME>",
+    "charset": "utf8",
+    "user": "<DATABASE_USER>",
+    "password": "<DATABASE_PASSWORD>",
+  },
+  "epp": {
+    "server": "https://epp.nic.it",
+    "port": null,
+    "interface": "",
+    "username": "<USERNAME>",
+    "password": "<PASSWORD>",
+    "passwordexpirydays": 120,
+    "passwordexpirynext": 1234567890,
+    "lang": "en"
+    "cl_trid_prefix": "<CLIENT_TRANSACTION_ID_PREFIX>",
+  },
+  "dnssec": {
+    "active": 0,
+    "algorithm": 10,
+    "digesttype": 2
+  },
+
+  "smarty": {
+    "use_sub_dirs": null,
+    "template_dir": null,
+    "config_dir": null,
+    "compile_dir": null,
+    "cache_dir": null
+  },
+
+  "debug": false,
+  "debugfile": "",
+  "cookie_dir": null
+}

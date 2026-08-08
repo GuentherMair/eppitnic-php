@@ -1,5 +1,8 @@
 <?php
 
+// RedBean
+use \RedBeanPHP\R;
+
 // Slim
 use Slim\Factory\AppFactory;
 
@@ -19,6 +22,12 @@ setlocale(LC_TIME, $region['lc_time']);
 
 // autoload composer-based components (Slim and JWT)
 require __DIR__ . '/../vendor/autoload.php';
+
+// set up database connection
+$db = getConfig('db');
+R::setup("{$db['type']}:host={$db['host']};dbname={$db['name']};charset={$db['charset']}", $db['user'], $db['password']);
+R::freeze(true);
+R::getWriter()->setUseCache(true);
 
 // initialize app
 $app = AppFactory::create();
