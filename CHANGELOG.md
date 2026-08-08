@@ -1,10 +1,22 @@
 # Changelog
 
 ## Version 7.0
-- PHP 8.5 migration: compatibility fixes, cleanups, and typo fixes across `CLI/`, `Net/EPP/`, and the `examples-wsdl/` scripts.
-- Bundled libraries updated and moved to composer: smarty, idna-convert, nusoap, phpwhois (old bundled `libs/` folder removed).
-- Flattened if-else nestings and unified exit codes across examples/ and CLI/ folders.
-- Removed 'tbl_' table prefixes.
+PHP 8.5 migration: compatibility fixes, cleanups, and typo fixes across all
+folders. The project imports all dependencies through composer and requires
+PHP >=8.0. Table prefixes ('tbl_') were also dropped.
+
+The legacy PHP/Smarty/jQuery web interface has been retired and replaced by a
+JSON/REST API (`public/`, routed via Slim) intended for a new frontend
+client. Authentication moved from PHP sessions to bearer-token JWTs
+(`firebase/php-jwt`), with optional TOTP-based MFA and long-lived API tokens
+for scripted access; passwords are now hashed with `password_hash()` instead
+of MD5.
+
+`Net_EPP_StorageDB`/`Net_EPP_StorageInterface` have been removed. Contact,
+Domain and Session persistence now talk to RedBeanPHP's `R::` facade
+directly, and configuration moved from `config.xml` to `config/config.json`.
+As part of this, DNS-sync notifications end up in, and will be waiting to be
+consumed from, the `reminder` queue.
 
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
