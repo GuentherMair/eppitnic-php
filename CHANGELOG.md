@@ -18,6 +18,8 @@ directly, and configuration moved from `config.xml` to `config/config.json`.
 As part of this, DNS-sync notifications end up in, and will be waiting to be
 consumed from, the `reminder` queue.
 
+WSDL support has been removed.
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

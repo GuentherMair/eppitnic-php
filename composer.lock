@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "68b394f9a330dc275a8011bee37ca230",
+    "content-hash": "62860f3fe354ad4ffcd2e50feb1e5d66",
     "packages": [
         {
             "name": "algo26-matthias/idna-convert",
@@ -61,78 +61,6 @@
                 "source": "https://github.com/algo26-matthias/idna-convert/tree/v3.2.1"
             },
             "time": "2025-10-10T11:40:12+00:00"
-        },
-        {
-            "name": "econea/nusoap",
-            "version": "v0.9.20",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/contributte/nusoap.git",
-                "reference": "802484f443cf16495eb085f04351076456077f99"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/contributte/nusoap/zipball/802484f443cf16495eb085f04351076456077f99",
-                "reference": "802484f443cf16495eb085f04351076456077f99",
-                "shasum": ""
-            },
-            "require": {
-                "ext-curl": "*",
-                "ext-json": "*",
-                "ext-xml": "*",
-                "ext-zlib": "*",
-                "php": ">=5.4"
-            },
-            "require-dev": {
-                "php-parallel-lint/php-parallel-lint": "~1.2.0"
-            },
-            "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "0.10.x-dev"
-                }
-            },
-            "autoload": {
-                "classmap": [
-                    "src/"
-                ]
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "LGPL-2.1-or-later"
-            ],
-            "authors": [
-                {
-                    "name": "Milan Felix Šulc",
-                    "homepage": "https://f3l1x.io"
-                }
-            ],
-            "description": "Fixed NuSOAP for PHP 5.4 - 8.2",
-            "homepage": "https://github.com/pwnlabs/nusoap",
-            "keywords": [
-                "client",
-                "http",
-                "nusoap",
-                "php",
-                "soap",
-                "transport",
-                "xml"
-            ],
-            "support": {
-                "issues": "https://github.com/contributte/nusoap/issues",
-                "source": "https://github.com/contributte/nusoap/tree/v0.9.20"
-            },
-            "funding": [
-                {
-                    "url": "https://contributte.org/partners.html",
-                    "type": "custom"
-                },
-                {
-                    "url": "https://github.com/f3l1x",
-                    "type": "github"
-                }
-            ],
-            "time": "2025-07-15T07:09:21+00:00"
         },
         {
             "name": "fig/http-message-util",

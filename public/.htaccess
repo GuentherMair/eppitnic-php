@@ -3,8 +3,7 @@
     Require all denied
 </FilesMatch>
 
-# Allow only index.php + wsdl.php
-#<FilesMatch "^(index|wsdl)\.php$">
+# Allow only index.php
 <FilesMatch "^(index)\.php$">
     Require all granted
 </FilesMatch>
