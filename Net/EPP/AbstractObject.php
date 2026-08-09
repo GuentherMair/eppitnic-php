@@ -1,6 +1,6 @@
 <?php
 
-require_once dirname(__FILE__).'/LogSeverity.php';
+require_once dirname(__FILE__).'/../../helpers/log_severity.php';
 
 use RedBeanPHP\R;
 

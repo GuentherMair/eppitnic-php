@@ -27,6 +27,31 @@ After you have set everything up in the configuration file, simply try to have a
 look at the `CLI/` and `examples/` folders.
 
 
+# User setup
+
+Every route that creates a user (`POST /v1/users`) requires an admin token
+to call it, so the very first admin account can't be created over the API —
+use `CLI/user-DoSetup.php` directly against the database instead:
+
+```
+php CLI/user-DoSetup.php -m user -u admin -p 'a-strong-password' -b ADMIN-001 -A
+```
+
+The same script can also issue a fixed, non-expiring (or time-limited) API
+token for scripted/headless access, as an alternative to logging in for a
+short-lived JWT:
+
+```
+php CLI/user-DoSetup.php -m token -u admin -x 0
+```
+
+`-x` takes a validity period in days, counted from now (e.g. `-x 365` for a
+token valid one year). `-x 0` (the default if `-x` is omitted) means the
+token never expires — the script prints a `WARNING` about this, since
+there's no automatic rotation. Prefer a real, finite `-x` unless a
+non-expiring credential is genuinely what you want.
+
+
 # ToDo's
 
 1. replace Smarty templates with XML builder
