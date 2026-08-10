@@ -1,14 +1,14 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Session;
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
-$contact = new Net_EPP_IT_Contact($nic);
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
+$session = new Session($nic);
+$contact = new Contact($nic);
 
 if ($argc < 2) {
   echo "SYNTAX: {$argv[0]} CONTACT\n";

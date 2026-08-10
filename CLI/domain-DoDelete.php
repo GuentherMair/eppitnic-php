@@ -1,10 +1,10 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:");
@@ -35,8 +35,8 @@ if (count($domains) < 1) {
   exit(INVALID_INPUT);
 }
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+$nic = new Client();
+$session = new Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // send "hello"
@@ -56,7 +56,7 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 foreach ($domains as $name) {
-  $domain = new Net_EPP_IT_Domain($nic);
+  $domain = new Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   // lookup domain

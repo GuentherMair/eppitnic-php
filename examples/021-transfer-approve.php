@@ -1,16 +1,15 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
+$session = new Session($nic);
 $session->debug = LOG_DEBUG;
-$domain = new Net_EPP_IT_Domain($nic);
+$domain = new Domain($nic);
 $domain->debug = LOG_DEBUG;
 
 // send "hello"

@@ -1,15 +1,15 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
-$domain = new Net_EPP_IT_Domain($nic);
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
+$session = new Session($nic);
+$domain = new Domain($nic);
 
 $domain_list = array();
 $contact_list = array();
@@ -35,7 +35,7 @@ foreach ($domain_list as $name => $values)
   $contact_list[$values['registrant']]['domains'][] = $values['domain'];
 
 foreach ($contact_list as $name => $values) {
-  $contact = new Net_EPP_IT_Contact($nic);
+  $contact = new Contact($nic);
   //$contact->debug = LOG_DEBUG;
   if ($contact->fetch($name)) {
     $contact->set('consentforpublishing', FALSE);

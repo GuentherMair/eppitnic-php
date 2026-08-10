@@ -1,9 +1,8 @@
 <?php
 
-require_once dirname(__FILE__).'/Session.php';
-require_once dirname(__FILE__).'/Domain.php';
-require_once dirname(__FILE__).'/Contact.php';
+namespace Net\EPP\IT;
 
+use Net\EPP\Client;
 use RedBeanPHP\R;
 
 /**
@@ -12,7 +11,7 @@ use RedBeanPHP\R;
  * controller's pollQueue()/verifyTransfer() methods.
  *
  * This is deliberately its own class rather than living inside
- * Net_EPP_IT_Session: everything it does operates on Domain objects
+ * Session: everything it does operates on Domain objects
  * (loadDB/fetch/addNS/remNS/addTECH/remTECH/update/storeDB/deleteDomainDB),
  * so folding it into Session would give Session a dependency on Domain that
  * nothing else in Net/EPP/IT/ has (Domain depends on Contact, nothing
@@ -52,31 +51,30 @@ use RedBeanPHP\R;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_PollProcessor
+ * @package     Net\EPP\IT\PollProcessor
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
-class Net_EPP_IT_PollProcessor
+class PollProcessor
 {
   protected $client;
   protected $domain;
   protected $contact;
 
-  public function __construct(&$client) {
+  public function __construct(Client &$client) {
     $this->client  = $client;
-    $this->domain  = new Net_EPP_IT_Domain($client);
-    $this->contact = new Net_EPP_IT_Contact($client);
+    $this->domain  = new Domain($client);
+    $this->contact = new Contact($client);
   }
 
   /**
    * drain the EPP server's poll queue: fetch + store + acknowledge every
    * currently queued message. Requires an already logged-in session.
    *
-   * @access   public
-   * @param    Net_EPP_IT_Session  an already connected/logged-in session
-   * @return   array               human-readable log lines
+   * @param Session $session an already connected/logged-in session
+   * @return array human-readable log lines
    */
-  public function drainQueue(Net_EPP_IT_Session $session): array {
+  public function drainQueue(Session $session): array {
     $log = [];
     $count = $session->pollMessageCount();
     $log[] = ($count === 0) ? "no messages in polling queue" : "{$count} messages in polling queue";
@@ -102,8 +100,7 @@ class Net_EPP_IT_PollProcessor
    * Requires an already logged-in session for the live transferStatus()
    * fallback query and the update()/storeDB() calls it makes.
    *
-   * @access   public
-   * @return   array   human-readable log lines
+   * @return array human-readable log lines
    */
   public function verifyTransfer(): array {
     $log = [];

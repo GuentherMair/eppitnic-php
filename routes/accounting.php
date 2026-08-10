@@ -1,11 +1,12 @@
 <?php
 
+use Net\EPP\Helpers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 $app->get('/v1/accounting', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $params  = $request->getQueryParams();
@@ -44,7 +45,7 @@ $app->get('/v1/accounting', function (Request $request, Response $response, arra
 });
 
 $app->get('/v1/accounting/forecast', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
 
     $items = (int) R::getCell("SELECT COUNT(1) FROM domains WHERE ex_date < DATE_ADD(current_timestamp, INTERVAL ? DAY)", [$days]);
@@ -56,7 +57,7 @@ $app->get('/v1/accounting/forecast', function (Request $request, Response $respo
 });
 
 $app->post('/v1/accounting/close', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtRequireAdmin($request);
+    $user_id = Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
     $ids = array_map('intval', (array) ($params['ids'] ?? []));
 

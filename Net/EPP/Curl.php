@@ -1,5 +1,7 @@
 <?php
 
+namespace Net\EPP;
+
 /**
  * A simple class handling HTTP sessions through cURL.
  *
@@ -33,14 +35,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_Curl
+ * @package     Net\EPP\Curl
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-class Net_EPP_Curl
+class Curl
 {
-  protected $_useragent = 'PHP Net_EPP_Curl 1.1';
+  protected $_useragent = 'PHP Net\EPP\Curl 1.1';
   protected $_url;
   protected $_port;
   protected $_certFile;
@@ -63,7 +65,7 @@ class Net_EPP_Curl
   protected $_body;
   protected $_error;
 
-  public function __construct($url, $authName = '', $authPass = '', $cookie_dir = '/tmp') {
+  public function __construct(string $url, string $authName = '', string $authPass = '', string $cookie_dir = '/tmp') {
     $this->_url = $url;
     $this->_cookieFileLocation = $cookie_dir.'/url_'.md5($url).'-uid_'.posix_getuid().'-cookie.txt';
     $this->_authName = $authName;
@@ -85,15 +87,15 @@ class Net_EPP_Curl
       fclose($this->_debugFile);
   }
 
-  public function setClientCert($certFile) {
+  public function setClientCert(string $certFile): void {
     $this->_certFile = $certFile;
   }
 
-  public function setInterface($interface) {
+  public function setInterface(string $interface): void {
     $this->_interface = $interface;
   }
 
-  public function setDebugFile($file) {
+  public function setDebugFile(string $file): void {
     if (is_writeable((file_exists($file) ? $file : dirname($file)))) {
       $this->_debugFile = fopen($file, 'a+');
     } else {
@@ -101,55 +103,55 @@ class Net_EPP_Curl
     }
   }
 
-  public function setMaxRedirects($maxRedirects) {
+  public function setMaxRedirects(int $maxRedirects): void {
     $this->_maxRedirects = (int)$maxRedirects;
   }
 
-  public function setTimeout($timeout) {
+  public function setTimeout(int $timeout): void {
     $this->_timeout = (int)$timeout;
   }
 
-  public function setReferer($referer) {
+  public function setReferer(string $referer): void {
     $this->_referer = $referer;
   }
 
-  public function setCookieFileLocation($path) {
+  public function setCookieFileLocation(string $path): void {
     $this->_cookieFileLocation = $path;
   }
 
-  public function getCookieFileLocation() {
+  public function getCookieFileLocation(): string {
     return $this->_cookieFileLocation;
   }
 
-  public function setBinaryTransfer($binaryTransfer) {
+  public function setBinaryTransfer(bool $binaryTransfer): void {
     $this->_binaryTransfer = $binaryTransfer ? true : false;
   }
 
-  public function setFollowLocation($followLocation) {
-    $this->_post = $followLocation ? true : false;
+  public function setFollowLocation(bool $followLocation): void {
+    $this->_followLocation = $followLocation ? true : false;
   }
 
-  public function setPost($post) {
+  public function setPost(bool $post): void {
     $this->_post = $post ? true : false;
   }
 
-  public function setUrl($url) {
+  public function setUrl(string $url): void {
     $this->_url = $url;
   }
 
-  public function setPort($port) {
+  public function setPort(int $port): void {
     $this->_port = $port;
   }
 
-  public function setUserAgent($userAgent) {
+  public function setUserAgent(string $userAgent): void {
     $this->_useragent = $userAgent;
   }
 
-  public function setHeaders($headers) {
+  public function setHeaders(array $headers): void {
     $this->_postHeaders = array_merge($this->_postHeaders, (array)$headers);
   }
 
-  public function query($postFields = null) {
+  public function query(?string $postFields = null): string {
     $ch = curl_init();
 
     curl_setopt($ch, CURLOPT_URL, $this->_url);
@@ -217,23 +219,23 @@ class Net_EPP_Curl
     return $this->_body;
   }
 
-  public function getHttpStatus() {
+  public function getHttpStatus(): int {
     return $this->_status;
   }
 
-  public function getHttpHeaders() {
+  public function getHttpHeaders(): string {
     return $this->_headers;
   }
 
-  public function getHttpBody() {
+  public function getHttpBody(): string {
     return $this->_body;
   }
 
-  public function getHttpError() {
+  public function getHttpError(): string {
     return $this->_error;
   }
 
-  public function __tostring() {
+  public function __tostring(): string {
     return $this->_body;
   }
 }

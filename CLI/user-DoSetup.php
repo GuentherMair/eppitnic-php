@@ -1,11 +1,16 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php'; // for the exit-code constants only, no EPP session needed
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../helpers/changelog.php';
+use Net\EPP\Config;
+use Net\EPP\Helpers;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 use RedBeanPHP\R;
+
+// no EPP session (and so no Net\EPP object, whose constructor would trigger
+// this as a side effect) is ever constructed here, so the DB connection
+// needs an explicit nudge
+Config::init();
 
 function syntax($argv0) {
   echo "SYNTAX: {$argv0} -m user  -u USERNAME -p PASSWORD [-b BILLING_ID] [-e EMAIL] [-d DESCRIPTION] [-o MAX_OPERATIONS] [-A]\n";
@@ -78,7 +83,7 @@ if ($mode === 'user') {
 
   $id = (int) R::getInsertID();
   // no authenticated actor exists yet in a CLI bootstrap context -- log the new user as its own actor
-  changelogInsert('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
+  Helpers::logChanges('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
 
   echo "[SUCCESS] user '{$username}' created (id {$id}" . ($isAdmin ? ", admin" : "") . ").\n";
   exit(0);
@@ -110,7 +115,7 @@ R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE
   ':expires' => $expires,
   ':id'      => $user['id'],
 ]);
-changelogInsert('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
+Helpers::logChanges('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
 
 echo "[SUCCESS] API token issued for '{$user['username']}' (id {$user['id']}).\n";
 echo "Token (shown only once, store it now): {$token}\n";

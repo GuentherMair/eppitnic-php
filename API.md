@@ -38,7 +38,7 @@ No auth required. Looks up `users` by `username` (must be `active = 1`),
 verifies `password` with `password_verify()` (bcrypt/argon2 via
 `password_hash()` — not MD5). If the account has a TOTP secret configured
 **and** the request isn't coming from a `safe_networks` CIDR
-(`config.json`), a valid `totp` code is required in the same request or the
+(the `settings` table, key `safe_networks`), a valid `totp` code is required in the same request or the
 call fails with `needs_totp` semantics (see below) — there is no separate
 two-step "submit password, then submit code" exchange; retry the whole call
 once you have the code.
@@ -180,7 +180,7 @@ end users**, and expect it to be locked down before any public launch.
 
 ## CORS
 
-Origin must appear verbatim in `config.json`'s `allowed_origins`, checked
+Origin must appear verbatim in the `settings` table's `allowed_origins`, checked
 with strict string equality against the `Origin` header — no wildcards, no
 subdomain matching. Preflight `OPTIONS` gets `204` if allowed, `403` if
 not; actual requests from a disallowed origin get `403` with a JSON body
@@ -222,7 +222,7 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 | `GET /` | public | plaintext "Hello, World!", not JSON — liveness check only |
 | `GET /v1/network-check` | public | `{"safe_network": bool, "client_ip": "..."}` — used pre-login to decide if the UI should prompt for a TOTP field |
 | `GET /v1/session/credit` | user | live EPP registry account balance, `{"credit": "..."}`; 502 if the registry session fails |
-| `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — logs into EPP with the new password to confirm it, then rewrites `config/config.json` on disk. Body `{"password"?: "..."}` (random if omitted). 502/400/500 on registry-connect / registry-reject / disk-write failure respectively |
+| `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — logs into EPP with the new password to confirm it, then updates the `epp` row in the `settings` table. Body `{"password"?: "..."}` (random if omitted). 502/400/500 on registry-connect / registry-reject / settings-update failure respectively |
 | `GET /v1/poll-queue` | admin | raw `messages` table rows, `?active=1\|0` (default `1` = `archived_time IS NULL` only) |
 | `GET /v1/poll-queue/{id}` | admin | single message, 404 if missing |
 | `POST /v1/poll-queue/{id}/archive` | admin | sets `archived_time`/`archived_user_id` |

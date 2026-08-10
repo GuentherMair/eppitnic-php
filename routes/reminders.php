@@ -1,11 +1,12 @@
 <?php
 
+use Net\EPP\Helpers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 $app->get('/v1/reminders', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $params = $request->getQueryParams();
 
     $page = max(1, (int) ($params['page'] ?? 1));
@@ -43,7 +44,7 @@ $app->get('/v1/reminders', function (Request $request, Response $response, array
 });
 
 $app->get('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
@@ -66,7 +67,7 @@ $app->get('/v1/domains/{name}/reminders', function (Request $request, Response $
 });
 
 $app->post('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
@@ -101,7 +102,7 @@ $app->post('/v1/domains/{name}/reminders', function (Request $request, Response 
 });
 
 $app->delete('/v1/reminders/{id}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $id = (int) $args['id'];

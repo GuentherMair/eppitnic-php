@@ -1,11 +1,11 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:t:T:p:P:e:E:");
@@ -40,8 +40,8 @@ if ( ( ! isset($options['d']) && ! isset($options['f'])) || // no domain
   exit(SYNTAX_ERROR);
 }
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+$nic = new Client();
+$session = new Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // retrieve and test command line options
@@ -65,7 +65,7 @@ function update_contact($handle, &$options) {
   global $nic;
 
   // create a new+clean contact object
-  $contact = new Net_EPP_IT_Contact($nic);
+  $contact = new Contact($nic);
 
   // fetch the contact by its handle
   if (!$contact->fetch($handle)) {
@@ -170,7 +170,7 @@ if ($session->login() === FALSE) {
 echo "Login OK.\n";
 
 foreach ($domains as $name) {
-  $domain = new Net_EPP_IT_Domain($nic);
+  $domain = new Domain($nic);
   echo "Verifying domain '{$name}':\n";
   if ($domain->fetch($name)) {
     update_domain($domain, $options);

@@ -1,8 +1,10 @@
 <?php
 
-require_once dirname(__FILE__).'/../AbstractObject.php';
-require_once dirname(__FILE__).'/../../../helpers/changelog.php';
+namespace Net\EPP\IT;
 
+use Net\EPP\AbstractObject;
+use Net\EPP\Client;
+use Net\EPP\Helpers;
 use RedBeanPHP\R;
 
 /**
@@ -38,22 +40,12 @@ use RedBeanPHP\R;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_Contact
+ * @package     Net\EPP\IT\Contact
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-/**
- * contact script exit codes (30-39), for use by CLI scripts / examples
- */
-if ( ! defined('CONTACT_CREATE_FAILED')) define('CONTACT_CREATE_FAILED', 30);
-if ( ! defined('CONTACT_FETCH_FAILED'))  define('CONTACT_FETCH_FAILED', 31);
-if ( ! defined('CONTACT_UPDATE_FAILED')) define('CONTACT_UPDATE_FAILED', 32);
-if ( ! defined('CONTACT_DELETE_FAILED')) define('CONTACT_DELETE_FAILED', 33);
-if ( ! defined('CONTACT_STORE_FAILED'))  define('CONTACT_STORE_FAILED', 34);
-if ( ! defined('CONTACT_CHECK_FAILED'))  define('CONTACT_CHECK_FAILED', 35);
-
-class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
+class Contact extends AbstractObject
 {
   //         name                  // change flag
   protected $user_id;              // use just in case of an updateRegistrant + change of agent
@@ -87,10 +79,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    *
    * (initializes authinfo)
    *
-   * @access   public
-   * @param    Net_EPP_IT_Client         client class
+   * @param Client $client client class
    */
-  function __construct(&$client) {
+  function __construct(Client &$client) {
     parent::__construct($client);
 
     $this->authinfo = $this->authinfo();
@@ -99,10 +90,8 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
   /**
    * initialize values
-   *
-   * @access   protected
    */
-  protected function initValues() {
+  protected function initValues(): void {
     $this->user_id              = 1;
     $this->status               = array();
     $this->handle               = "";
@@ -131,7 +120,7 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * check for possible values of TRUE
    */
-  private function isTrue($val) {
+  private function isTrue(mixed $val): bool {
     if ($val === TRUE) {
       return TRUE;
     } else if ((string)$val == "1") {
@@ -146,12 +135,11 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * restrict access to variables, so we can keep track of changes to them
    *
-   * @access   public
-   * @param    string  variable name
-   * @param    mix     value to set
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @param string $var variable name
+   * @param mixed $val value to set
+   * @return mixed value set or FALSE if variable name does not exist
    */
-  public function set($var, $val) {
+  public function set(string $var, mixed $val): mixed {
     // convert to lower-case
     $var = strtolower($var);
 
@@ -200,11 +188,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * get a single variable/setting from class
    *
-   * @access   public
-   * @param    string  variable name
-   * @return   mix     value of variable
+   * @param string $var variable name
+   * @return mixed value of variable
    */
-  public function get($var) {
+  public function get(string $var): mixed {
     $var = strtolower($var);
     return $this->$var;
   }
@@ -221,11 +208,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
    * 6 - altri soggetti
    * 7 - soggetti stranieri equiparati ai precedenti escluso persone fisiche
    *
-   * @access   protected
-   * @param    int       entity type
-   * @return   boolean   status
+   * @param int $type entity type
+   * @return bool status
    */
-  protected function setEntityType($type) {
+  protected function setEntityType(mixed $type): bool|int {
     $tmp = (int)$type;
     if (($tmp < 1) && ($tmp > 7)) {
       $tmp = 0; // failback to the default value
@@ -242,10 +228,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * set consent for publishing
    *
-   * @access   public
-   * @return   string "true"
+   * @return string "true"
    */
-  public function setConsent() {
+  public function setConsent(): bool|int {
     if ($this->consentforpublishing == 1) {
       return FALSE;
     }
@@ -257,10 +242,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * unset consent for publishing
    *
-   * @access   public
-   * @return   string "false"
+   * @return string "false"
    */
-  public function unsetConsent() {
+  public function unsetConsent(): bool|int {
     if ($this->consentforpublishing == 0) {
       return FALSE;
     }
@@ -272,10 +256,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * do sanity checks before sending changes to NIC
    *
-   * @access   protected
-   * @return   boolean   status
+   * @return bool status
    */
-  protected function sanity_checks() {
+  protected function sanity_checks(): int {
     $error = 0;
 
     // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
@@ -404,11 +387,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * check contact
    *
-   * @access   public
-   * @param    string  optional contact to check (set handle!)
-   * @return   boolean status (TRUE = available, FALSE = unavailable, -1 on error)
+   * @param string $contact optional contact to check (set handle!)
+   * @return bool status (TRUE = available, FALSE = unavailable, -1 on error)
    */
-  public function check($contact = null) {
+  public function check(array|string|null $contact = null): array|bool|int {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -446,13 +428,32 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   }
 
   /**
+   * generate a random, registry-unique contact handle. check() doesn't
+   * touch any other instance state, so this can be called on any contact
+   * object wired to a live EPP session -- the one being prepared for
+   * create() or an unrelated throwaway instance both work.
+   *
+   * @param int $maxAttempts max attempts before giving up
+   * @return string a 16-character handle, confirmed available at the registry
+   * @throws   \RuntimeException   if no unique handle could be found within $maxAttempts
+   */
+  public function generateHandle(int $maxAttempts = 5): string {
+    for ($i = 0; $i < $maxAttempts; $i++) {
+      $handle = strtoupper(bin2hex(random_bytes(8))); // 16 hex chars
+      if ($this->check($handle) === TRUE) {
+        return $handle;
+      }
+    }
+    throw new \RuntimeException("Unable to generate a unique contact handle after {$maxAttempts} attempts");
+  }
+
+  /**
    * create contact
    *
-   * @access   public
-   * @param    boolean execute internal sanity checks
-   * @return   boolean status
+   * @param bool $exec_checks execute internal sanity checks
+   * @return bool status
    */
-  public function create($exec_checks = FALSE) {
+  public function create(bool $exec_checks = FALSE): bool {
     if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
@@ -498,11 +499,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * fetch contact through EPP
    *
-   * @access   public
-   * @param    string  contact to load
-   * @return   boolean status
+   * @param string $contact contact to load
+   * @return bool status
    */
-  public function fetch($contact = null) {
+  public function fetch(?string $contact = null): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -562,10 +562,9 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * delete contact
    *
-   * @access   public
-   * @return   boolean status
+   * @return bool status
    */
-  public function delete($contact = null) {
+  public function delete(?string $contact = null): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -587,11 +586,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * update contact
    *
-   * @access   public
-   * @param    boolean execute internal sanity checks
-   * @return   boolean status
+   * @param bool $exec_checks execute internal sanity checks
+   * @return bool status
    */
-  public function update($exec_checks = FALSE) {
+  public function update(bool $exec_checks = FALSE): bool {
     if ($this->handle == "") {
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
@@ -672,12 +670,11 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * update contact status
    *
-   * @access   public
-   * @param    string  clientDeleteProhibited, clientUpdateProhibited
-   * @param    string  add, rem (optional, defaults to add)
-   * @return   boolean status
+   * @param string $state clientDeleteProhibited, clientUpdateProhibited
+   * @param string $adddel add, rem (optional, defaults to add)
+   * @return bool status
    */
-  public function updateStatus($state, $adddel = "add") {
+  public function updateStatus(string $state, string $adddel = "add"): bool {
     if ($this->handle == "") {
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
@@ -724,11 +721,10 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * store contact to DB
    *
-   * @access   public
-   * @param    int     user ACL
-   * @return   boolean status
+   * @param int $user_id user ACL
+   * @return bool status
    */
-  public function storeDB($user_id = 1) {
+  public function storeDB(int $user_id = 1): bool {
     try {
       R::exec("
         INSERT INTO contacts (
@@ -769,20 +765,19 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
-    changelogInsert('contacts', $id, 'create', ['handle' => $this->handle], $user_id);
+    Helpers::logChanges('contacts', $id, 'create', ['handle' => $this->handle], $user_id);
     return TRUE;
   }
 
   /**
    * load contact from DB
    *
-   * @access   public
-   * @param    string   contact to load
-   * @param    int      user ACL
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $contact contact to load
+   * @param int $user_id user ACL
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function loadDB($contact = null, $user_id = 1, $isAdmin = false) {
+  public function loadDB(?string $contact = null, int $user_id = 1, bool $isAdmin = false): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -824,13 +819,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * update contact stored in DB
    *
-   * @access   public
-   * @param    string   contact to update
-   * @param    int      user ACL
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $contact contact to update
+   * @param int $user_id user ACL
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function updateDB($contact = null, $user_id = 1, $isAdmin = false) {
+  public function updateDB(?string $contact = null, int $user_id = 1, bool $isAdmin = false): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -884,20 +878,19 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    changelogInsert('contacts', $id, 'update', $data, $user_id);
+    Helpers::logChanges('contacts', $id, 'update', $data, $user_id);
     return TRUE;
   }
 
   /**
    * list contacts stored in DB
    *
-   * @access   public
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @param    boolean  list only active contacts (TRUE = yes / FALSE = no)
-   * @return   array    list of contacts
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @param bool $activeOnly list only active contacts (TRUE = yes / FALSE = no)
+   * @return array list of contacts
    */
-  public function listContacts($user_id = 1, $isAdmin = false, $activeOnly = TRUE) {
+  public function listContacts(int $user_id = 1, bool $isAdmin = false, bool $activeOnly = TRUE): array {
     $where = ['1 = 1'];
     $params = [];
     if ( ! $isAdmin) {
@@ -913,13 +906,12 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
   /**
    * deactivate a contact stored in DB (soft delete)
    *
-   * @access   public
-   * @param    string   contact name / handle
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $contact contact name / handle
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function deleteContactDB($contact, $user_id = 1, $isAdmin = false) {
+  public function deleteContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
     $sql = "
       UPDATE contacts SET active = 0
       WHERE handle = :handle AND
@@ -938,20 +930,19 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    changelogInsert('contacts', $id, 'delete', ['handle' => $contact], $user_id);
+    Helpers::logChanges('contacts', $id, 'delete', ['handle' => $contact], $user_id);
     return TRUE;
   }
 
   /**
    * reactivate a contact stored in DB (undo a soft delete)
    *
-   * @access   public
-   * @param    string   contact name / handle
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $contact contact name / handle
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function restoreContactDB($contact, $user_id = 1, $isAdmin = false) {
+  public function restoreContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
     $sql = "UPDATE contacts SET active = 1 WHERE handle = :handle";
     $params = [':handle' => $contact];
     if ( ! $isAdmin) {
@@ -968,7 +959,42 @@ class Net_EPP_IT_Contact extends Net_EPP_AbstractObject
 
     // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
     $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    changelogInsert('contacts', $id, 'update', ['handle' => $contact, 'active' => 1], $user_id);
+    Helpers::logChanges('contacts', $id, 'update', ['handle' => $contact, 'active' => 1], $user_id);
     return TRUE;
+  }
+
+  /**
+   * create a brand-new EPP contact copying this contact's data (already
+   * fetch()ed), under a new local owner
+   *
+   * @param Client $nic a live client (used to construct the new Contact object)
+   * @param int $newOwnerId the new contact's local owner (users.id)
+   * @return string|false the new contact's handle, or false on failure
+   */
+  public function duplicate(Client $nic, int $newOwnerId): string|false {
+    $fields = [
+      'name', 'org', 'street', 'street2', 'street3', 'city', 'province',
+      'postalcode', 'countrycode', 'voice', 'fax', 'email',
+      'nationalitycode', 'entitytype', 'regcode', 'schoolcode',
+    ];
+
+    $new = new self($nic);
+    $new->set('handle', $new->generateHandle());
+    foreach ($fields as $field) {
+      $value = $this->get($field);
+      if ($value === '' || $value === null) {
+        continue;
+      }
+      // get() returns the already-escaped value set() stored -- undo one
+      // layer before re-escaping it, or it double-encodes on every copy
+      $new->set($field, html_entity_decode((string) $value, ENT_COMPAT, 'UTF-8'));
+    }
+    $new->set('authinfo', substr(md5(rand()), 0, 16));
+
+    if ( ! $new->create()) {
+      return false;
+    }
+    $new->storeDB($newOwnerId);
+    return $new->get('handle');
   }
 }

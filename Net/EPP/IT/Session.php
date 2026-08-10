@@ -1,7 +1,8 @@
 <?php
 
-require_once dirname(__FILE__).'/../AbstractObject.php';
+namespace Net\EPP\IT;
 
+use Net\EPP\AbstractObject;
 use RedBeanPHP\R;
 
 /**
@@ -37,21 +38,12 @@ use RedBeanPHP\R;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_Session
+ * @package     Net\EPP\IT\Session
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-/**
- * session script exit codes (10-19), for use by CLI scripts / examples
- */
-if ( ! defined('HELLO_FAILED'))           define('HELLO_FAILED', 10);
-if ( ! defined('LOGIN_FAILED'))           define('LOGIN_FAILED', 11);
-if ( ! defined('LOGOUT_FAILED'))          define('LOGOUT_FAILED', 12);
-if ( ! defined('POLL_FAILED'))            define('POLL_FAILED', 13);
-if ( ! defined('CHANGE_PASSWORD_FAILED')) define('CHANGE_PASSWORD_FAILED', 14);
-
-class Net_EPP_IT_Session extends Net_EPP_AbstractObject
+class Session extends AbstractObject
 {
   protected $credit = null;
   protected $messages = null;
@@ -61,31 +53,28 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * Class as a string
    *
-   * @access   public
-   * @return   text    credit
+   * @return string credit
    */
-  public function __toString() {
+  public function __toString(): string {
     return sprintf("%.2f", $this->credit);
   }
 
   /**
    * get a single variable/setting from class
    *
-   * @access   public
-   * @param    string  variable name
-   * @return   mix     value of variable
+   * @param string $var variable name
+   * @return mixed value of variable
    */
-  public function get($var) {
+  public function get(string $var): mixed {
     return $this->$var;
   }
 
   /**
    * session start
    *
-   * @access   public
-   * @return   boolean status
+   * @return bool status
    */
-  public function hello() {
+  public function hello(): bool {
     // fill xml template
     $this->xmlQuery = $this->client->fetch("session-hello");
     $this->client->clearAllAssign();
@@ -104,11 +93,10 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * session login/logout background method
    *
-   * @access   private
-   * @param    string  login/logout
-   * @return   mix     status (FALSE or EPP status code)
+   * @param string $which login/logout
+   * @return bool status
    */
-  private function loginout($which) {
+  private function loginout(string $which): bool {
     // fetch template
     $this->xmlQuery = $this->client->fetch($which);
     $this->client->clearAllAssign();
@@ -130,11 +118,10 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * session login
    *
-   * @access   public
-   * @param    string optional new password
-   * @return   mix    status (FALSE or EPP status code)
+   * @param string $newPW optional new password
+   * @return bool status
    */
-  public function login($newPW = "") {
+  public function login(string $newPW = ""): bool {
     // fill xml template
     $this->client->assign('username', $this->client->EPPCfg->username);
     $this->client->assign('password', $this->client->EPPCfg->password);
@@ -148,20 +135,18 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * session keepalive
    *
-   * @access   public
-   * @return   boolean status
+   * @return bool status
    */
-  public function keepalive() {
+  public function keepalive(): bool {
     return $this->hello();
   }
 
   /**
    * session logout
    *
-   * @access   public
-   * @return   mix    status (FALSE or EPP status code)
+   * @return bool status
    */
-  public function logout() {
+  public function logout(): bool {
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
 
@@ -172,10 +157,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
    * return current message ID
    * if queue has not yet been looked at, we are going to poll it once
    *
-   * @access   public
-   * @return   integer message ID on top of message stack
+   * @return int message ID on top of message stack
    */
-  public function pollID() {
+  public function pollID(): int {
     if ($this->msgID === null) $this->poll(FALSE);
     return (int)$this->msgID;
   }
@@ -184,10 +168,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
    * check number of messages in polling queue
    * if queue has not yet been looked at, we are going to poll it once
    *
-   * @access   public
-   * @return   integer amount of messages in queue
+   * @return int amount of messages in queue
    */
-  public function pollMessageCount() {
+  public function pollMessageCount(): int {
     if ($this->messages === null) $this->poll(FALSE);
     return (int)$this->messages;
   }
@@ -195,13 +178,12 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * poll message queue
    *
-   * @access   public
-   * @param    boolean  store message to DB (defaults to TRUE)
-   * @param    string   polling type (defaults to "req")
-   * @param    string   message ID (default to empty)
-   * @return   boolean  status
+   * @param bool $store store message to DB (defaults to TRUE)
+   * @param string $type polling type (defaults to "req")
+   * @param int|null $msgID message ID (default to empty)
+   * @return bool status
    */
-  public function poll($store = TRUE, $type = "req", $msgID = null) {
+  public function poll(bool $store = TRUE, string $type = "req", ?int $msgID = null): bool {
     switch (strtolower($type)) {
       case "req":
         break;
@@ -277,22 +259,19 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * method to remove trailing slashes from domain names (dnsErrorMsgData cases)
    *
-   * @access   protected
-   * @param    string     domain name
-   * @return   string     domain name
+   * @param string $domain domain name
+   * @return string domain name
    */
-  protected function stripTrailingDots($domain) {
+  protected function stripTrailingDots(string $domain): string {
     return (substr($domain, strlen($domain)-1) == ".") ? substr($domain, 0, strlen($domain)-1) : $domain;
   }
 
   /**
    * try to parse message received by poll "req"
    *
-   * @access   protected
-   * @param    boolean   store message to DB (defaults to TRUE)
-   * @return   array     [message type], [domain], [human readable data]
+   * @return array [message type], [domain], [human readable data]
    */
-  protected function parsePollReq() {
+  protected function parsePollReq(): array {
     $ns = $this->xmlResult->getNamespaces(TRUE);
 
     // passwdReminder
@@ -417,10 +396,9 @@ class Net_EPP_IT_Session extends Net_EPP_AbstractObject
   /**
    * show credit
    *
-   * @access   public
-   * @return   mix    amount or null (if login did not succeed)
+   * @return float|null amount or null (if login did not succeed)
    */
-  public function showCredit() {
+  public function showCredit(): ?float {
     return $this->credit;
   }
 }

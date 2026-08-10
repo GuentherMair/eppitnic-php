@@ -1,16 +1,18 @@
 <?php
 
+use Net\EPP\Config;
+use Net\EPP\Helpers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
-    $response->getBody()->write(json_encode(jwtBuild((array) $decoded->data)));
+    $decoded = Helpers::jwtVerify($request);
+    $response->getBody()->write(json_encode(Helpers::jwtBuild((array) $decoded->data)));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
 
 $app->get('/v1/users/me', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $response->getBody()->write(json_encode((array) $decoded->data));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
@@ -43,8 +45,8 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 
     $hasTotp   = !empty($user[0]['totp_secret']);
     $onSafeNet = false;
-    foreach (getConfig('safe_networks') as $cidr) {
-        if (clientIpInCidr($cidr)) {
+    foreach (Config::get('safe_networks') as $cidr) {
+        if (Helpers::clientIpInCidr($cidr)) {
             $onSafeNet = true;
             break;
         }
@@ -57,13 +59,13 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             $response->getBody()->write(json_encode(['error' => 'MFA code required']));
             return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
-        if (!totpVerify($user[0]['totp_secret'], $totpCode)) {
+        if (!Helpers::totpVerify($user[0]['totp_secret'], $totpCode)) {
             $response->getBody()->write(json_encode(['error' => 'Invalid MFA code']));
             return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
     }
 
-    $response->getBody()->write(json_encode(jwtBuild([
+    $response->getBody()->write(json_encode(Helpers::jwtBuild([
         'id'            => $user[0]['id'],
         'admin'         => $user[0]['admin'],
         'username'      => $user[0]['username'],
@@ -78,7 +80,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 });
 
 $app->get('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtUserID($request);
+    $user_id = Helpers::jwtUserID($request);
 
     $users = R::getAll("SELECT
         id, active, admin, username, max_token_age, max_idle_time, debug_level,
@@ -91,7 +93,7 @@ $app->get('/v1/users', function (Request $request, Response $response, array $ar
 });
 
 $app->get('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtUserID($request);
+    $user_id = Helpers::jwtUserID($request);
 
     $users = R::getAll("SELECT
         id, active, admin, username, max_token_age, max_idle_time, debug_level,
@@ -106,7 +108,7 @@ $app->get('/v1/users/{id}', function (Request $request, Response $response, arra
 });
 
 $app->put('/v1/changepassword/{id}', function (Request $request, Response $response, array $args): Response {
-    $decoded  = jwtRequireMfa($request);
+    $decoded  = Helpers::jwtRequireMfa($request);
     $user_id   = (int) $decoded->data->id;
     $params   = $request->getParsedBody() ?? [];
     $password = $params['password'] ?? '';
@@ -135,7 +137,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    changelogInsert('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -143,7 +145,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
 });
 
 $app->put('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtRequireAdmin($request);
+    $user_id = Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
     if (!empty($params['password'])) {
@@ -193,7 +195,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    changelogInsert('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -201,7 +203,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
 });
 
 $app->post('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtRequireAdmin($request);
+    $user_id = Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
     R::exec("
@@ -228,7 +230,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
-    changelogInsert('users', $id, 'create', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', $id, 'create', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -236,7 +238,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
 });
 
 $app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtRequireAdmin($request);
+    $user_id = Helpers::jwtRequireAdmin($request);
 
     R::exec("UPDATE users SET active = 0 WHERE id = :id", [
         ':id' => $args['id'],
@@ -247,7 +249,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    changelogInsert('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -255,7 +257,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
 });
 
 $app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
@@ -272,7 +274,7 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
         return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
-    $totp = totpGenerate($user[0]['username']);
+    $totp = Helpers::totpGenerate($user[0]['username']);
 
     R::exec("UPDATE users SET totp_secret_pending = :secret WHERE id = :id", [
         ':secret' => $totp['secret'],
@@ -287,7 +289,7 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
 });
 
 $app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
@@ -310,7 +312,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
         $response->getBody()->write(json_encode(['error' => 'No pending TOTP setup found']));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if (empty($totpCode) || !totpVerify($user[0]['totp_secret_pending'], $totpCode)) {
+    if (empty($totpCode) || !Helpers::totpVerify($user[0]['totp_secret_pending'], $totpCode)) {
         $response->getBody()->write(json_encode(['error' => 'Invalid TOTP code']));
         return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
@@ -325,7 +327,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    changelogInsert('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -333,7 +335,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
 });
 
 $app->delete('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtRequireMfa($request);
+    $decoded = Helpers::jwtRequireMfa($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
@@ -352,7 +354,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    changelogInsert('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
     $response->getBody()->write(json_encode([
         'users' => $users,
     ]));
@@ -360,7 +362,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
 });
 
 $app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
@@ -390,7 +392,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     ]);
 
     $user_id = (int) $decoded->data->id;
-    changelogInsert('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
+    Helpers::logChanges('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
 
     // the plaintext token is only ever shown here, at issue time -- it can't be
     // recovered later since only its hash is stored
@@ -402,7 +404,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
 });
 
 $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
@@ -416,7 +418,7 @@ $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $r
     ]);
 
     $user_id = (int) $decoded->data->id;
-    changelogInsert('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
+    Helpers::logChanges('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
 
     $response->getBody()->write(json_encode(['revoked' => true]));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');

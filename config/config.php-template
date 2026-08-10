@@ -1,0 +1,8 @@
+<?php
+
+define('DB_TYPE',     'mysql');
+define('DB_HOST',     'localhost');
+define('DB_NAME',     '<DATABASE_NAME>');
+define('DB_CHARSET',  'utf8');
+define('DB_USER',     '<DATABASE_USER>');
+define('DB_PASSWORD', '<DATABASE_PASSWORD>');

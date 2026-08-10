@@ -1,15 +1,15 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Session;
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
+$session = new Session($nic);
 $session->debug = LOG_DEBUG;
-$contact = new Net_EPP_IT_Contact($nic);
+$contact = new Contact($nic);
 $contact->debug = LOG_DEBUG;
 
 $handle = "GM0005";
@@ -32,7 +32,7 @@ echo "Login OK.\n";
 
 // create empty contact object
 echo "Creating new object...";
-$contact = new Net_EPP_IT_Contact($nic);
+$contact = new Contact($nic);
 $contact->debug = LOG_DEBUG;
 echo " done.\n";
 
@@ -51,7 +51,7 @@ if ($contact->update()) {
   echo " done.\n";
 
   echo "Creating new object...";
-  $contact = new Net_EPP_IT_Contact($nic);
+  $contact = new Contact($nic);
   $contact->debug = LOG_DEBUG;
   echo " done.\n";                     
 

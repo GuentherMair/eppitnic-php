@@ -1,15 +1,17 @@
 <?php
 
+use Net\EPP\Client;
+use Net\EPP\Helpers;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Domain;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
-
 /**
- * serialize a Net_EPP_IT_Domain's relevant fields for a JSON response
+ * serialize a Domain's relevant fields for a JSON response
  */
-function domainToArray(Net_EPP_IT_Domain $domain): array {
+function domainToArray(Domain $domain): array {
     return [
         'domain'     => $domain->get('domain'),
         'status'     => $domain->get('status'),
@@ -25,13 +27,13 @@ function domainToArray(Net_EPP_IT_Domain $domain): array {
 }
 
 $app->get('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $params  = $request->getQueryParams();
 
-    $nic = new Net_EPP_Client();
-    $domain = new Net_EPP_IT_Domain($nic);
+    $nic = new Client();
+    $domain = new Domain($nic);
     $domains = $domain->listDomains(
         $user_id,
         $isAdmin,
@@ -45,7 +47,7 @@ $app->get('/v1/domains', function (Request $request, Response $response, array $
 });
 
 $app->get('/v1/domains/expiring', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
@@ -73,7 +75,7 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
 });
 
 $app->get('/v1/domains/autocomplete', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $term = $request->getQueryParams()['term'] ?? '';
@@ -96,7 +98,7 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
 });
 
 $app->get('/v1/domains/export', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
 
@@ -141,7 +143,7 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/domains/transfers', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $registrant = $request->getQueryParams()['registrant'] ?? '';
@@ -176,14 +178,14 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
 });
 
 $app->get('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
 
     try {
-        $domain = withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $domain = Helpers::withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
+            $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return null;
             }
@@ -205,16 +207,16 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
 });
 
 $app->post('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = requireFields($params, ['domain', 'registrant']) ?? maxLength($params, DOMAIN_FIELD_MAX_LENGTHS)) {
+    if ($err = Helpers::requireFields($params, ['domain', 'registrant']) ?? Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
         $response->getBody()->write(json_encode(['error' => $err]));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if ( ! isValidDomainFormat($params['domain'])) {
+    if ( ! Helpers::isValidDomainFormat($params['domain'])) {
         $response->getBody()->write(json_encode(['error' => "'{$params['domain']}' is not a valid .it domain name"]));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
@@ -237,8 +239,8 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($params, $user_id) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($params, $user_id) {
+            $domain = new Domain($nic);
             $available = $domain->check($params['domain']);
 
             $domain->set('domain', $params['domain']);
@@ -281,7 +283,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $params = $request->getParsedBody() ?? [];
 
@@ -292,9 +294,9 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
     }
 
     try {
-        $results = withEppSession(function ($nic) use ($names, $user_id) {
-            $domain = new Net_EPP_IT_Domain($nic);
-            $contact = new Net_EPP_IT_Contact($nic);
+        $results = Helpers::withEppSession(function ($nic) use ($names, $user_id) {
+            $domain = new Domain($nic);
+            $contact = new Contact($nic);
             $idnDecoder = new \Algo26\IdnaConvert\ToUnicode();
 
             $results = [];
@@ -350,20 +352,20 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
 });
 
 $app->patch('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = maxLength($params, DOMAIN_FIELD_MAX_LENGTHS)) {
+    if ($err = Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
         $response->getBody()->write(json_encode(['error' => $err]));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+            $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
             }
@@ -423,7 +425,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
@@ -435,8 +437,8 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+            $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
             }
@@ -467,7 +469,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
@@ -480,8 +482,8 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     $action = $params['action'] ?? 'add';
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $params, $action) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $action) {
+            $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
             }
@@ -510,14 +512,14 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     }
     R::exec($sql, $sqlParams);
     $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-    changelogInsert('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
+    Helpers::logChanges('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
 
     $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
@@ -556,8 +558,8 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
+            $domain = new Domain($nic);
             if ( ! $domain->delete($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
@@ -579,14 +581,14 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $name = $args['name'];
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
+            $domain = new Domain($nic);
             if ( ! $domain->restore($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
@@ -608,7 +610,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
 });
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -625,18 +627,18 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $newOwnerId, $newOwner) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $newOwnerId, $newOwner) {
+            $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
             }
 
             // registrant and admin are always duplicated under the new owner
-            $oldRegistrant = new Net_EPP_IT_Contact($nic);
+            $oldRegistrant = new Contact($nic);
             if ( ! $oldRegistrant->fetch($domain->get('registrant'))) {
                 return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current registrant: ' . $oldRegistrant->getError()];
             }
-            $newRegistrantHandle = duplicateContact($nic, $oldRegistrant, $newOwnerId);
+            $newRegistrantHandle = $oldRegistrant->duplicate($nic, $newOwnerId);
             if ($newRegistrantHandle === false) {
                 return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate registrant contact: ' . $oldRegistrant->getError()];
             }
@@ -644,11 +646,11 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
             $newAdminHandle = null;
             $currentAdmin = $domain->get('admin');
             if ( ! empty($currentAdmin)) {
-                $oldAdmin = new Net_EPP_IT_Contact($nic);
+                $oldAdmin = new Contact($nic);
                 if ( ! $oldAdmin->fetch($currentAdmin)) {
                     return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current admin contact: ' . $oldAdmin->getError()];
                 }
-                $newAdminHandle = duplicateContact($nic, $oldAdmin, $newOwnerId);
+                $newAdminHandle = $oldAdmin->duplicate($nic, $newOwnerId);
                 if ($newAdminHandle === false) {
                     return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate admin contact: ' . $oldAdmin->getError()];
                 }
@@ -663,9 +665,9 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
                 $currentTech = (array) $domain->get('tech');
                 $firstTech = reset($currentTech);
                 if ( ! empty($firstTech)) {
-                    $oldTech = new Net_EPP_IT_Contact($nic);
+                    $oldTech = new Contact($nic);
                     if ($oldTech->fetch($firstTech)) {
-                        $newTechHandle = duplicateContact($nic, $oldTech, $newOwnerId);
+                        $newTechHandle = $oldTech->duplicate($nic, $newOwnerId);
                     }
                 }
             }
@@ -698,7 +700,7 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
             // reassign local ownership
             R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
             $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-            changelogInsert('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
+            Helpers::logChanges('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
 
             return ['ok' => true, 'domain' => $domain];
         });
@@ -717,7 +719,7 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
 });
 
 $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
@@ -728,8 +730,8 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($name, $params, $user_id) {
-            $domain = new Net_EPP_IT_Domain($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id) {
+            $domain = new Domain($nic);
             if ( ! $domain->transfer($name, $params['authinfo'])) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
@@ -762,15 +764,15 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
 
 foreach (['approve', 'reject', 'cancel'] as $transferAction) {
     $app->post("/v1/domains/{name}/transfer/{$transferAction}", function (Request $request, Response $response, array $args) use ($transferAction): Response {
-        jwtVerify($request);
+        Helpers::jwtVerify($request);
         $name = $args['name'];
         $params = $request->getParsedBody() ?? [];
         $authinfo = $params['authinfo'] ?? '';
         $method = 'transfer' . ucfirst($transferAction);
 
         try {
-            $result = withEppSession(function ($nic) use ($name, $authinfo, $method) {
-                $domain = new Net_EPP_IT_Domain($nic);
+            $result = Helpers::withEppSession(function ($nic) use ($name, $authinfo, $method) {
+                $domain = new Domain($nic);
                 if ( ! $domain->$method($name, $authinfo)) {
                     return ['ok' => false, 'error' => $domain->getError()];
                 }

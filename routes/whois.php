@@ -1,11 +1,12 @@
 <?php
 
+use Net\EPP\Helpers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use phpWhois\Whois;
 
 $app->get('/v1/whois', function (Request $request, Response $response, array $args): Response {
-    jwtVerify($request);
+    Helpers::jwtVerify($request);
 
     $domain = trim($request->getQueryParams()['domain'] ?? '');
     if ($domain === '') {

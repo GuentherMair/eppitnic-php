@@ -415,3 +415,55 @@ WHERE TABLE_SCHEMA = DATABASE()
 --           changelog.user_id -> users.id
 --           reminder.domain -> domains.domain
 -- (accounting has no FK by design -- see note above PART 4)
+
+
+-- ----------------------------------------------------------------------------
+-- PART 7: SETTINGS TABLE + SCHEMA VERSION STAMP
+--
+-- The `settings` table (key/value, value JSON-validated) holds every piece
+-- of application configuration except database credentials themselves (see
+-- config/config.php) -- introduced after this migration was first written,
+-- which is why it's appended here rather than folded into PART 4 with the
+-- other new tables.
+--
+-- The 'schema_version' row is what Config (helpers/config.php) checks on
+-- every initialization to decide whether any further
+-- config/mariadb-schema-upgrade-{from}-to-{to}.sql files need to run. The
+-- `settings` table not existing at all is how Config detects there's no
+-- stamp yet; it then assumes the legacy pre-versioning baseline '060700'
+-- and looks up config/mariadb-schema-upgrade-060700-to-*.sql -- i.e. this
+-- file -- through the exact same filename-convention lookup every other
+-- migration goes through, no special-casing of this file's name.
+--
+-- The explicit INSERT below is redundant with Config's own post-migration
+-- stamp (it stamps every migration file's target version after running it,
+-- this one included) -- kept anyway so running this file by hand via the
+-- `mysql` CLI, without Config involved at all, still leaves `settings`
+-- correctly stamped.
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `settings` (
+  `key`   varchar(64) NOT NULL,
+  `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`value`)),
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `settings` (`key`, `value`) VALUES
+  ('schema_version', '"070000"')
+  ON DUPLICATE KEY UPDATE `value` = '"070000"';
+INSERT INTO `settings` (`key`, `value`) VALUES
+  ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
+  ('jwt_psk', '""'),
+  ('safe_networks', '["127.0.0.1/32"]'),
+  ('allowed_origins', '[""]'),
+  ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
+  ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
+  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","passwordexpirydays":120,"passwordexpirynext":1234567890,"lang":"en","cl_trid_prefix":"EPPITNIC"}'),
+  ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
+  ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
+  ('debug', 'false'),
+  ('debugfile', '""'),
+  ('certificatefile', 'null'),
+  ('cookie_dir', 'null'),
+  ('pdnsutil_path', 'null'),
+  ('pdnsutil_ttl', '3600');

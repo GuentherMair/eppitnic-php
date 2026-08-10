@@ -1,11 +1,10 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:c:");
@@ -43,9 +42,8 @@ if (count($domains) < 1) {
 // the target tech-c set
 $contacts = array_slice(explode(":", $options['c']), 0, 6);
 
-
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+$nic = new Client();
+$session = new Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // send "hello"
@@ -65,7 +63,7 @@ echo "Login OK.\n";
 
 foreach ($domains as $name) {
   // recreate domain object
-  $domain = new Net_EPP_IT_Domain($nic);
+  $domain = new Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   // load domain object

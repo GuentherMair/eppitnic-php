@@ -1,5 +1,7 @@
 <?php
 
+namespace Net\EPP;
+
 use Smarty\Smarty;
 
 /**
@@ -35,7 +37,7 @@ use Smarty\Smarty;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_Client
+ * @package     Net\EPP\Client
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
@@ -46,31 +48,14 @@ use Smarty\Smarty;
 require_once dirname(__FILE__).'/../../vendor/autoload.php';
 
 /**
- * Include curl class handler
- */
-if ( ! class_exists('Net_EPP_Curl')) {
-  require_once dirname(__FILE__).'/Curl.php';
-}
-
-/**
- * generic script exit codes (1-9), for use by CLI scripts / examples
- */
-if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
-if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input file/CSV unreadable
-if ( ! defined('INVALID_INPUT'))     define('INVALID_INPUT', 3);      // eg. no valid .it domain given
-if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config/config.json missing/not writable
-if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable to write an output file
-
-/**
  * This class extends Smarty (a templating system) so we
  * can easily use variable-assignments directly with this
  * derived class, ie.
  *
- *   $nic = new Net_EPP_Client();
+ *   $nic = new Client();
  *   $nic->assign('username', $nic->EPPCfg->username);
- *
  */
-class Net_EPP_Client extends Smarty
+class Client extends Smarty
 {
   public $EPPCfg;
 
@@ -84,19 +69,16 @@ class Net_EPP_Client extends Smarty
   /**
    * Class constructor
    *
-   *  - read configuration from config/config.json (via helpers/config.php)
+   *  - read configuration from the `settings` DB table (via Config::get())
    *  - initialize smarty parent class and settings
    *  - initialize HTTP Client
    *
-   * @access   public
-   * @param    string  optional server URL to use instead of epp.server (eg.
+   * @param string $serverOverride optional server URL to use instead of epp.server (eg.
    *                    nic.it's "-deleted" endpoint for restoring domains)
    */
-  public function __construct($serverOverride = null) {
-    require_once dirname(__FILE__).'/../../helpers/config.php';
-
-    $epp = getConfig('epp');
-    $region = getConfig('region');
+  public function __construct(?string $serverOverride = null) {
+    $epp = Config::get('epp');
+    $region = Config::get('region');
     $this->EPPCfg = (object)[
       'timezone'        => $region['timezone'],
       'server'          => $serverOverride ?: $epp['server'],
@@ -106,11 +88,11 @@ class Net_EPP_Client extends Smarty
       'password'        => $epp['password'],
       'lang'            => $epp['lang'],
       'cl_trid_prefix'  => $epp['cl_trid_prefix'],
-      'certificatefile' => getConfig('certificatefile'),
-      'debugfile'       => getConfig('debugfile'),
-      'cookie_dir'      => getConfig('cookie_dir'),
-      'dnssec'          => (object)getConfig('dnssec'),
-      'smarty'          => (object)getConfig('smarty'),
+      'certificatefile' => Config::get('certificatefile'),
+      'debugfile'       => Config::get('debugfile'),
+      'cookie_dir'      => Config::get('cookie_dir'),
+      'dnssec'          => (object)Config::get('dnssec'),
+      'smarty'          => (object)Config::get('smarty'),
     ];
 
     // setup default time zone
@@ -143,7 +125,7 @@ class Net_EPP_Client extends Smarty
     $this->setCacheDir($cache_dir);
 
     // initialize httpClient
-    $this->httpClient = new Net_EPP_Curl($this->EPPCfg->server, '', '', $this->curl_cookie_dir);
+    $this->httpClient = new Curl($this->EPPCfg->server, '', '', $this->curl_cookie_dir);
     $this->httpClient->setHeaders($this->headers);
 
     // set server port
@@ -176,10 +158,8 @@ class Net_EPP_Client extends Smarty
 
   /**
    * smarty version wrapper
-   *
-   * @access   public
    */
-  public function clearAllAssign() {
+  public function clearAllAssign(): static {
     return parent::clearAllAssign();
   }
 
@@ -187,11 +167,10 @@ class Net_EPP_Client extends Smarty
    * make sure a directory is writable, falling back to the system temp
    * folder if it is not
    *
-   * @access   private
-   * @param    string  directory to verify
-   * @return   string  the given directory, or a writable fallback
+   * @param string $dir directory to verify
+   * @return string the given directory, or a writable fallback
    */
-  private function _ensureWritableDir($dir) {
+  private function _ensureWritableDir(string $dir): string {
     if (is_writeable($dir)) {
       return $dir;
     }
@@ -208,20 +187,18 @@ class Net_EPP_Client extends Smarty
   /**
    * reset curl connection by removing the curl cookie file
    *
-   * @access   public
-   * @return   boolean
+   * @return bool
    */
-  public function resetHttpClientCookie() {
+  public function resetHttpClientCookie(): bool {
     return unlink($this->httpClient->getCookieFileLocation());
   }
 
   /**
    * initialize the client transaction ID
    *
-   * @access   public
-   * @return   string  a random transaction ID, also stored to $clTRID
+   * @return string a random transaction ID, also stored to $clTRID
    */
-  public function set_clTRID() {
+  public function set_clTRID(): string {
     $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(md5(rand()), 0, 5);
     if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);
@@ -232,20 +209,18 @@ class Net_EPP_Client extends Smarty
   /**
    * retrieve current transaction ID
    *
-   * @access   public
-   * @return   string  the current transaction ID stored in $clTRID
+   * @return string the current transaction ID stored in $clTRID
    */
-  public function get_clTRID() {
+  public function get_clTRID(): string {
     return $this->clTRID;
   }
 
   /**
    * send a request to the EPP server
    *
-   * @access   public
-   * @return   array   the  response: (int) code, (array) headers, (string) body
+   * @return array the  response: (int) code, (array) headers, (string) body
    */
-  public function sendRequest($data) {
+  public function sendRequest(string $data): array {
     $this->cURLresponse['body'] = $this->httpClient->query($data);
     $this->cURLresponse['code'] = $this->httpClient->getHttpStatus();
     $this->cURLresponse['headers'] = $this->httpClient->getHttpHeaders();
@@ -257,21 +232,19 @@ class Net_EPP_Client extends Smarty
   /**
    * fetch the latest response from the EPP server
    *
-   * @access   public
-   * @return   array   the latest response: (int) code, (array) headers, (string) body
+   * @return array the latest response: (int) code, (array) headers, (string) body
    */
-  public function fetchResponse() {
+  public function fetchResponse(): array {
     return $this->cURLresponse;
   }
 
   /**
    * convert an xml response to an object
    *
-   * @access   public
-   * @param    string  option xml string to be parsed
-   * @return   object  xml class structure
+   * @param string $xml option xml string to be parsed
+   * @return object xml class structure
    */
-  public function parseResponse($xml = null) {
+  public function parseResponse(?string $xml = null): \SimpleXMLElement|false {
     if ($xml == null) {
       $response = $this->fetchResponse();
       return @simplexml_load_string($response['body']);
@@ -282,8 +255,6 @@ class Net_EPP_Client extends Smarty
 
   /**
    * class destructor
-   *
-   * @access   public
    */
   public function __destruct() {
   }

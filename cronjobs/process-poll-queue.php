@@ -1,8 +1,11 @@
 <?php
 
+use Net\EPP\Helpers;
+use Net\EPP\IT\PollProcessor;
+
 /**
  * Cron entry point: drains the EPP server's poll queue and reconciles
- * domain transfer state against it (Net_EPP_IT_PollProcessor). This can't
+ * domain transfer state against it (PollProcessor). This can't
  * be allowed to only happen when a user interacts with the web GUI/API --
  * it needs to run on a schedule regardless of user activity.
  *
@@ -15,15 +18,10 @@
 // suggested crontab entry, every 5 minutes:
 // 0-59/5 * * * *  php /path/to/cronjobs/process-poll-queue.php >> /var/log/eppitnic/poll-queue.log 2>&1
 
-require_once dirname(__FILE__).'/../helpers/config.php';
 require_once dirname(__FILE__).'/../vendor/autoload.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../helpers/epp.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/PollProcessor.php';
-
 try {
-    withEppSession(function ($nic, $session) {
-        $processor = new Net_EPP_IT_PollProcessor($nic);
+    Helpers::withEppSession(function ($nic, $session) {
+        $processor = new PollProcessor($nic);
 
         foreach ($processor->drainQueue($session) as $line) {
             echo $line . "\n";

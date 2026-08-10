@@ -1,14 +1,18 @@
 <?php
 
+use Net\EPP\Client;
+use Net\EPP\Config;
+use Net\EPP\Helpers;
+use Net\EPP\IT\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
-    jwtVerify($request);
+    Helpers::jwtVerify($request);
 
     try {
-        $credit = withEppSession(function ($nic, $session) {
+        $credit = Helpers::withEppSession(function ($nic, $session) {
             return $session->showCredit();
         });
     } catch (\RuntimeException $e) {
@@ -21,7 +25,7 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $params = $request->getQueryParams();
     $activeOnly = ($params['active'] ?? '1') !== '0';
 
@@ -33,7 +37,7 @@ $app->get('/v1/poll-queue', function (Request $request, Response $response, arra
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $id = (int) $args['id'];
 
     $message = R::getRow("SELECT * FROM messages WHERE id = ?", [$id]);
@@ -47,7 +51,7 @@ $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response,
 });
 
 $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $response, array $args): Response {
-    $user_id = jwtRequireAdmin($request);
+    $user_id = Helpers::jwtRequireAdmin($request);
     $id = (int) $args['id'];
 
     R::exec("UPDATE messages SET archived_time = NOW(), archived_user_id = ? WHERE id = ?", [$user_id, $id]);
@@ -57,16 +61,16 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
-    jwtRequireAdmin($request);
+    Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
     $newPassword = $params['password'] ?? substr(md5(rand()), 0, 8);
 
     // this is the shared EPP registry credential, not a per-user login password
-    // (that's PUT /v1/changepassword/{id}) -- can't go through withEppSession()
+    // (that's PUT /v1/changepassword/{id}) -- can't go through Helpers::withEppSession()
     // here since its normal login() would already run before we get a chance
     // to make *our* login the one that changes the password
-    $nic = new Net_EPP_Client();
-    $session = new Net_EPP_IT_Session($nic);
+    $nic = new Client();
+    $session = new Session($nic);
 
     if ( ! $session->hello()) {
         $response->getBody()->write(json_encode(['error' => 'EPP session unavailable: connection failed']));
@@ -78,12 +82,13 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
     }
     $session->logout();
 
-    // persist locally -- the registry password just changed, config.json must follow
-    $cfgFile = dirname(__FILE__).'/../config/config.json';
-    $cfgData = json_decode(file_get_contents($cfgFile), true);
-    $cfgData['epp']['password'] = $newPassword;
-    if (file_put_contents($cfgFile, json_encode($cfgData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) === false) {
-        $response->getBody()->write(json_encode(['error' => 'registry password changed but could not persist to config.json -- update it manually']));
+    // persist locally -- the registry password just changed, the 'epp' setting must follow
+    try {
+        $epp = Config::get('epp');
+        $epp['password'] = $newPassword;
+        Config::set('epp', $epp);
+    } catch (\Throwable $e) {
+        $response->getBody()->write(json_encode(['error' => 'registry password changed but could not persist to settings: ' . $e->getMessage() . ' -- update it manually']));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 

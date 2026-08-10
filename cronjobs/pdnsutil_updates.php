@@ -1,9 +1,12 @@
 <?php
 
+use Net\EPP\Config;
+use Net\EPP\IT\PollProcessor;
+
 /**
  * Cron entry point: applies pending DNS-sync events from the `reminder`
  * table (action = create/update/delete, written by routes/domain.php and
- * Net_EPP_IT_PollProcessor) to a PowerDNS authoritative server.
+ * PollProcessor) to a PowerDNS authoritative server.
  *
  * This talks to PowerDNS exclusively through `pdnsutil` shell invocations
  * -- never a direct database connection to PowerDNS's own backend, so it
@@ -39,17 +42,15 @@
  * Usage: php pdnsutil_updates.php [--delay-hours=N]
  */
 
-require_once dirname(__FILE__).'/../helpers/config.php';
 require_once dirname(__FILE__).'/../vendor/autoload.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
 
 use RedBeanPHP\R;
 
 $options = getopt('', ['delay-hours::']);
 $delayHours = isset($options['delay-hours']) ? (int) $options['delay-hours'] : 12;
 
-$pdnsutil = getConfig('pdnsutil_path') ?: 'pdnsutil';
-$ttl = (int) (getConfig('pdnsutil_ttl') ?: 3600);
+$pdnsutil = Config::get('pdnsutil_path') ?: 'pdnsutil';
+$ttl = (int) (Config::get('pdnsutil_ttl') ?: 3600);
 
 /**
  * run a pdnsutil subcommand, returning [exitCode, outputLines]

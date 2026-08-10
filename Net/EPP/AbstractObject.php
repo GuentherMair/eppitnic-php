@@ -1,6 +1,8 @@
 <?php
 
-require_once dirname(__FILE__).'/../../helpers/log_severity.php';
+namespace Net\EPP;
+
+require_once dirname(__FILE__).'/../../config/constants.php';
 
 use RedBeanPHP\R;
 
@@ -43,12 +45,12 @@ use RedBeanPHP\R;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_AbstractObject
+ * @package     Net\EPP\AbstractObject
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-abstract class Net_EPP_AbstractObject
+abstract class AbstractObject
 {
   protected $client;
 
@@ -462,29 +464,27 @@ abstract class Net_EPP_AbstractObject
   /**
    * Class constructor
    *
-   * @access   public
-   * @param    Net_EPP_IT_Client         client class
+   * @param Client $client client class
    */
-  public function __construct(&$client) {
+  public function __construct(Client &$client) {
     $this->client  = $client;
   }
 
   /**
    * Class as a string
    *
-   * @access   public
-   * @return   text    class settings
+   * @return string class settings
    */
-  public function __toString() {
+  public function __toString(): string {
     $class = get_class($this);
     $text = "[{$class}] variables:\n";
 
     try {
-      $rc = new ReflectionClass($this);
+      $rc = new \ReflectionClass($this);
 
       $props = $rc->getProperties(
-        ReflectionProperty::IS_PUBLIC |
-        ReflectionProperty::IS_PROTECTED);
+        \ReflectionProperty::IS_PUBLIC |
+        \ReflectionProperty::IS_PROTECTED);
 
       foreach ($props as $prop) {
         $prop->setAccessible(true);
@@ -537,7 +537,7 @@ abstract class Net_EPP_AbstractObject
         // add information
         $text .= " - {$name}: {$realvalue}\n";
       }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
       $text .= $e->getMessage();
     }
     return $text;
@@ -546,54 +546,49 @@ abstract class Net_EPP_AbstractObject
   /**
    * authinfo generator
    *
-   * @access   public
-   * @return   string[16]  random authinfo code
+   * @return string 16-character random authinfo code
    */
-  public function authinfo() {
+  public function authinfo(): string {
     return substr(md5(rand()), 0, 16);
   }
 
   /**
    * check existence of iso-3166-1 code
    *
-   * @access   protected
-   * @param    string    iso-3166-1 code
-   * @return   boolean   status
+   * @param string $code iso-3166-1 code
+   * @return bool status
    */
-  protected function is_iso3166_1($code) {
+  protected function is_iso3166_1(string $code): bool {
     return in_array($code, array_keys($this->iso3166_1));
   }
 
   /**
    * check existence of iso-3166-2:IT code
    *
-   * @access   protected
-   * @param    string    iso-3166-2:IT code
-   * @return   boolean   status
+   * @param string $code iso-3166-2:IT code
+   * @return bool status
    */
-  protected function is_iso3166_2it($code) {
+  protected function is_iso3166_2it(string $code): bool {
     return in_array($code, array_keys($this->iso3166_2it));
   }
 
   /**
    * check existence of iso-3166-1 code (european union)
    *
-   * @access   protected
-   * @param    string    iso-3166-1 code
-   * @return   boolean   status
+   * @param string $code iso-3166-1 code
+   * @return bool status
    */
-  protected function is_iso3166_1eu($code) {
+  protected function is_iso3166_1eu(string $code): bool {
     return in_array($code, array_keys($this->iso3166_1eu));
   }
 
   /**
    * set error code and message
    *
-   * @access   protected
-   * @param    string    error message
-   * @param    string    4-digit error code
+   * @param string $msg error message
+   * @param string $code 4-digit error code
    */
-  protected function setError($msg, $code = "0000") {
+  protected function setError(string $msg, string $code = "0000"): void {
     $this->svMsg = $msg;
     $this->svCode = $code;
   }
@@ -601,10 +596,9 @@ abstract class Net_EPP_AbstractObject
   /**
    * get error message
    *
-   * @access   public
-   * @return   string    error message
+   * @return string error message
    */
-  public function getError() {
+  public function getError(): string {
     $msg = "";
 
     // only try to set a message text if we got a EPP error message
@@ -635,13 +629,12 @@ abstract class Net_EPP_AbstractObject
   /**
    * execute ever returning queries to the server
    *
-   * @access   protected
-   * @param    string    client transaction type
-   * @param    string    client transaction object
-   * @param    boolean   store transaction and response
-   * @return   boolean   status
+   * @param string $clTRType client transaction type
+   * @param string $clTRObject client transaction object
+   * @param bool $store store transaction and response
+   * @return bool status
    */
-  protected function ExecuteQuery($clTRType, $clTRObject, $store = TRUE) {
+  protected function ExecuteQuery(string $clTRType, string $clTRObject, bool $store = TRUE): bool {
     // store request
     if ($store) {
       R::exec("

@@ -13,6 +13,15 @@
         "gabordemooij/redbean": "^5.7",
         "slim/slim": "^4.0",
         "slim/psr7": "^1.8",
-        "firebase/php-jwt": "^7.1"
+        "firebase/php-jwt": "^7.1",
+        "hexmode/io-mode": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Net\\EPP\\": "Net/EPP/"
+        },
+        "files": [
+            "config/constants.php"
+        ]
     }
 }

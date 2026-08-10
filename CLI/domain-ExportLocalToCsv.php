@@ -1,17 +1,19 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php'; // for the exit-code constants only, no EPP session needed
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
+use Net\EPP\Config;
 use RedBeanPHP\R;
+
+// export goes straight to a local DB report - no EPP session (and so no
+// Net\EPP object, whose constructor would trigger this as a side effect)
+// is ever constructed here, so the DB connection needs an explicit nudge
+Config::init();
 
 // retrieve and test command line options
 $options = getopt("u:a:o:");
 $user_id = isset($options['u']) ? (int)$options['u'] : 1;
 $isAdmin = isset($options['a']);
-
-// export goes straight to a local DB report - no EPP session is required
 $where = ['1 = 1'];
 $params = [];
 if ( ! $isAdmin) {

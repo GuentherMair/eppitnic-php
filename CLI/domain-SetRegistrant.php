@@ -1,11 +1,11 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:r:");
@@ -47,11 +47,10 @@ if (empty($registrant)) {
   exit(INVALID_INPUT);
 }
 
-
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
-$contact = new Net_EPP_IT_Contact($nic);
-$domain = new Net_EPP_IT_Domain($nic);
+$nic = new Client();
+$session = new Session($nic);
+$contact = new Contact($nic);
+$domain = new Domain($nic);
 
 // send "hello"
 // send "hello"
@@ -72,7 +71,7 @@ echo "Login OK.\n";
 if ($contact->fetch($registrant)) {
   foreach ($domain_names as $domain_name) {
 	// re-create domain object
-	$domain = new Net_EPP_IT_Domain($nic);
+	$domain = new Domain($nic);
 	$domain->fetch($domain_name);
 	$domain->set('registrant', $registrant);
 	$domain->set('authinfo', substr(md5(rand()), 0, 16));

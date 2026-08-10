@@ -12,18 +12,59 @@
 
 # Installation
 
-Run `composer install` to fetch the third-party dependencies into `vendor/`.
+Run `composer install` to fetch the third-party dependencies into `vendor/`
+and generate the class autoloader (`vendor/autoload.php`) — every script in
+`CLI/`/`examples/` needs only that one `require`, nothing else.
 
-Copy and configure `config/config.json-template` in `config/config.json`,
-choosing one of the following as EPP server name:
+A database is required for storing/persisting communication with the
+server (and, as of this version, all configuration except DB credentials
+themselves — see below). Set it up using the schema provided in
+`/config/mariadb-schema.sql`, which includes the `settings` table.
 
- - epp.nic.it (for production use)
- - pub-test.nic.it (for testing purposes)
+Configuration is split in two:
 
-A database is required for storing/persisting communication with the server.
-Set it up using the schema provided in `/config/mariadb-schema.sql`.
+1. `config/config.php` holds the database credentials — this is the one
+   thing that has to live in a file, since it's needed to even connect to
+   the database everything else is read from. Either copy
+   `config/config.php-template` to `config/config.php` and fill it in by
+   hand, or just run any CLI script (e.g. `php CLI/user-DoSetup.php ...`)
+   from an interactive terminal: if `config/config.php` is missing,
+   `Config` (`Net/EPP/Config.php`) notices, prompts you for the database
+   type/host/name/charset/user/password right there, and writes the file
+   itself. Running the same script non-interactively (cron, CI, piped
+   input) with no `config/config.php` in place fails with a clear error
+   instead of hanging on a prompt nobody can answer.
+2. Everything else lives in the `settings` table, pre-populated with
+   placeholder values by `/config/mariadb-schema.sql` itself — no separate
+   seed file to copy. A handful of settings that can't have a real default
+   (`jwt_psk`, `allowed_origins`, the EPP `username`/`password`/`cl_trid_prefix`)
+   are filled in for you: `jwt_psk` is silently auto-generated, and the
+   rest are prompted for — same as `config/config.php` above, the first
+   time `Config` runs from an interactive terminal and finds them still at
+   their placeholder. Everything else (`epp.server`, DNSSEC, Smarty, …) can
+   be left at its default or adjusted later with `Config::set()`.
 
-After you have set everything up in the configuration file, simply try to have a
+If you're upgrading an existing 6.x deployment from its `config.xml`
+instead of starting fresh, `CLI/config-DoMigrate.php` does both steps for
+you: `php CLI/config-DoMigrate.php` (reads `config.xml` from the repo root
+by default, or `-f PATH` to point elsewhere).
+
+The schema itself is versioned: the `settings` table carries a
+`schema_version` row, zero-padded `MMmmrr` (major/minor/release, e.g.
+`070000` for 7.0.0), and `Config` (`Net/EPP/Config.php`) checks it against
+`SCHEMA_VERSION` (`config/constants.php`) on every initialization,
+auto-applying `config/mariadb-schema-upgrade-{from}-to-{to}.sql` files one
+version-to-next-version step at a time until it catches up — including, if
+the `settings` table doesn't exist yet at all, starting from the assumed
+legacy baseline `060700` (currently resolving to
+`config/mariadb-schema-upgrade-060700-to-070000.sql`, which upgrades a
+legacy 6.7 schema, still on `tbl_*`-prefixed tables). No filename is
+hardcoded; every step, including that first one, is found purely by this
+naming convention. To add a future migration: drop a new
+`config/mariadb-schema-upgrade-{current}-to-{next}.sql` file and bump
+`SCHEMA_VERSION` to match — nothing else needs to change.
+
+After you have set everything up, simply try to have a
 look at the `CLI/` and `examples/` folders.
 
 

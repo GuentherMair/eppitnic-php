@@ -1,15 +1,16 @@
 <?php
 
+use Net\EPP\Client;
+use Net\EPP\Helpers;
+use Net\EPP\IT\Contact;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-
 /**
- * serialize a Net_EPP_IT_Contact's relevant fields for a JSON response
+ * serialize a Contact's relevant fields for a JSON response
  */
-function contactToArray(Net_EPP_IT_Contact $contact): array {
+function contactToArray(Contact $contact): array {
     return [
         'handle'                => $contact->get('handle'),
         'status'                => $contact->get('status'),
@@ -54,13 +55,13 @@ function canAccessContact(string $handle, int $user_id, bool $isAdmin): bool {
 }
 
 $app->get('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $params  = $request->getQueryParams();
 
-    $nic = new Net_EPP_Client();
-    $contact = new Net_EPP_IT_Contact($nic);
+    $nic = new Client();
+    $contact = new Contact($nic);
     $contacts = $contact->listContacts($user_id, $isAdmin, ($params['active'] ?? '1') !== '0');
 
     $response->getBody()->write(json_encode(['contacts' => $contacts]));
@@ -68,7 +69,7 @@ $app->get('/v1/contacts', function (Request $request, Response $response, array 
 });
 
 $app->get('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $handle = $args['handle'];
@@ -79,8 +80,8 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     }
 
     try {
-        $contact = withEppSession(function ($nic) use ($handle, $user_id) {
-            $contact = new Net_EPP_IT_Contact($nic);
+        $contact = Helpers::withEppSession(function ($nic) use ($handle, $user_id) {
+            $contact = new Contact($nic);
             if ( ! $contact->fetch($handle)) {
                 return null;
             }
@@ -102,22 +103,22 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = requireFields($params, ['name']) ?? maxLength($params, CONTACT_FIELD_MAX_LENGTHS)) {
+    if ($err = Helpers::requireFields($params, ['name']) ?? Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
         $response->getBody()->write(json_encode(['error' => $err]));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if ( ! empty($params['email']) && ! isValidEmailFormat($params['email'])) {
+    if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
         $response->getBody()->write(json_encode(['error' => 'email is not a valid address']));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($params, $user_id) {
-            $contact = new Net_EPP_IT_Contact($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($params, $user_id) {
+            $contact = new Contact($nic);
             foreach ($params as $key => $value) {
                 if ($key === 'handle') {
                     continue; // handled explicitly below
@@ -126,7 +127,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
                     $contact->set($key, $value);
                 }
             }
-            $contact->set('handle', empty($params['handle']) ? generateContactHandle(new Net_EPP_IT_Contact($nic)) : $params['handle']);
+            $contact->set('handle', empty($params['handle']) ? $contact->generateHandle() : $params['handle']);
             if (empty($params['authinfo'])) {
                 $contact->set('authinfo', substr(md5(rand()), 0, 16));
             }
@@ -151,7 +152,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $handle = $args['handle'];
@@ -161,18 +162,18 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
         $response->getBody()->write(json_encode(['error' => 'You are not authorized to update this contact']));
         return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if ($err = maxLength($params, CONTACT_FIELD_MAX_LENGTHS)) {
+    if ($err = Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
         $response->getBody()->write(json_encode(['error' => $err]));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
-    if ( ! empty($params['email']) && ! isValidEmailFormat($params['email'])) {
+    if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
         $response->getBody()->write(json_encode(['error' => 'email is not a valid address']));
         return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     try {
-        $result = withEppSession(function ($nic) use ($handle, $params, $user_id, $isAdmin) {
-            $contact = new Net_EPP_IT_Contact($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($handle, $params, $user_id, $isAdmin) {
+            $contact = new Contact($nic);
             if ( ! $contact->fetch($handle)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Contact '{$handle}' not found"];
             }
@@ -202,14 +203,14 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = jwtVerify($request);
+    $decoded = Helpers::jwtVerify($request);
     $user_id = (int) $decoded->data->id;
     $isAdmin = (int) $decoded->data->admin === 1;
     $handle = $args['handle'];
 
     try {
-        $result = withEppSession(function ($nic) use ($handle, $user_id, $isAdmin) {
-            $contact = new Net_EPP_IT_Contact($nic);
+        $result = Helpers::withEppSession(function ($nic) use ($handle, $user_id, $isAdmin) {
+            $contact = new Contact($nic);
             if ( ! $contact->delete($handle)) {
                 return ['ok' => false, 'error' => $contact->getError()];
             }

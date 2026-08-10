@@ -1,26 +1,19 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
+use Net\EPP\Client;
+use Net\EPP\Config;
+use Net\EPP\IT\Contact;
+use Net\EPP\IT\Session;
 
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
+$session = new Session($nic);
 $session->debug = LOG_DEBUG;
-$contact = new Net_EPP_IT_Contact($nic);
+$contact = new Contact($nic);
 $contact->debug = LOG_DEBUG;
 
-$cfg = realpath(dirname(__FILE__).'/../config/config.json');
-
 $new_password = substr(md5(rand()), 0, 8);
-
-// check availability and writeability of configuration file
-if ( ! is_writable($cfg)) {
-  echo "Config file '".$cfg."' does not exist or is not writable.\n";
-  exit(CONFIG_ERROR);
-}
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -37,19 +30,17 @@ if ($session->login($new_password) === FALSE) {
 }
 echo "Login OK.\n";
 
-// switch password inside configuration file
-$cfgData = json_decode(file_get_contents($cfg), true);
-$cfgData['epp']['password'] = $new_password;
-$result = file_put_contents($cfg, json_encode($cfgData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-
-// make sure password switch did complete successfully
-if ($result) {
-  echo "Overall password update on server side and in '{$cfg}' was successfull.\n";
-} else {
+// switch password inside the 'epp' setting
+try {
+  $epp = Config::get('epp');
+  $epp['password'] = $new_password;
+  Config::set('epp', $epp);
+  echo "Overall password update on server side and in the 'epp' setting was successfull.\n";
+} catch (\Throwable $e) {
   // maybe you prefer to send an email here or exit with a different exit code or ...
   echo "\n";
-  echo "WARNING: password update on server side succeeded, but '{$cfg}'\n";
-  echo "         could not be updated! Set the password to: {$new_password}\n";
+  echo "WARNING: password update on server side succeeded, but the 'epp' setting\n";
+  echo "         could not be updated ({$e->getMessage()})! Set the password to: {$new_password}\n";
   echo "         or you will not be able to log in again!\n";
   echo "\n";
 }

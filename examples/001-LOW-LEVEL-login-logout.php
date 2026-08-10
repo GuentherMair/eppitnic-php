@@ -1,8 +1,10 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
+use Net\EPP\Client;
 
-$nic = new Net_EPP_Client();
+require_once dirname(__FILE__).'/../vendor/autoload.php';
+
+$nic = new Client();
 
 // see "templates/" folder for variables
 

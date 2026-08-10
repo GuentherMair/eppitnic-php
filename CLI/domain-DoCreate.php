@@ -1,11 +1,11 @@
 <?php
 
-require_once dirname(__FILE__).'/../Net/EPP/Client.php';
-require_once dirname(__FILE__).'/../helpers/config.php';
-require_once dirname(__FILE__).'/../helpers/db.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Session.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Contact.php';
-require_once dirname(__FILE__).'/../Net/EPP/IT/Domain.php';
+use Net\EPP\Client;
+use Net\EPP\Config;
+use Net\EPP\IT\Domain;
+use Net\EPP\IT\Session;
+
+require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 // retrieve and test command line options
 $options = getopt("d:f:r:a:t:n:");
@@ -103,9 +103,8 @@ foreach ($domains as &$d) {
 }
 unset($d);
 
-
-$nic = new Net_EPP_Client();
-$session = new Net_EPP_IT_Session($nic);
+$nic = new Client();
+$session = new Session($nic);
 //$session->debug = LOG_DEBUG;
 
 // send "hello"
@@ -136,7 +135,7 @@ foreach ($domains as $entry) {
   }
 
   // re-create domain object
-  $domain = new Net_EPP_IT_Domain($nic);
+  $domain = new Domain($nic);
   //$domain->debug = LOG_DEBUG;
 
   // lookup domain
@@ -160,9 +159,9 @@ foreach ($domains as $entry) {
             echo "Verification session logout failed (code {$session->svCode}, '{$session->svMsg}').\n";
 
           // re-do session using the "-deleted" endpoint for restoring domains
-          $nic = new Net_EPP_Client(getConfig('epp')['server_deleted']);
-          $session = new Net_EPP_IT_Session($nic);
-          $domain = new Net_EPP_IT_Domain($nic);
+          $nic = new Client(Config::get('epp')['server_deleted']);
+          $session = new Session($nic);
+          $domain = new Domain($nic);
 
           // send "hello"
           if ( ! $session->hello()) {

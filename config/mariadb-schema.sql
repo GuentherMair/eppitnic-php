@@ -168,3 +168,27 @@ CREATE TABLE `accounting` (
   PRIMARY KEY (`id`),
   KEY (`billing_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `settings` (
+  `key`   varchar(64) NOT NULL,
+  `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`value`)),
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `settings` (`key`, `value`) VALUES
+  ('schema_version', '"070000"'),
+  ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
+  ('jwt_psk', '""'),
+  ('safe_networks', '["127.0.0.1/32"]'),
+  ('allowed_origins', '[""]'),
+  ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
+  ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
+  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","passwordexpirydays":120,"passwordexpirynext":1234567890,"lang":"en","cl_trid_prefix":"EPPITNIC"}'),
+  ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
+  ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
+  ('debug', 'false'),
+  ('debugfile', '""'),
+  ('certificatefile', 'null'),
+  ('cookie_dir', 'null'),
+  ('pdnsutil_path', 'null'),
+  ('pdnsutil_ttl', '3600');

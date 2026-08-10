@@ -1,12 +1,13 @@
 <?php
 
+namespace Net\EPP\IT;
+
 use Algo26\IdnaConvert\ToIdn;
 use Algo26\IdnaConvert\ToUnicode;
 
-require_once dirname(__FILE__).'/../AbstractObject.php';
-require_once dirname(__FILE__).'/Contact.php';
-require_once dirname(__FILE__).'/../../../helpers/changelog.php';
-
+use Net\EPP\AbstractObject;
+use Net\EPP\Client;
+use Net\EPP\Helpers;
 use RedBeanPHP\R;
 
 /**
@@ -42,26 +43,12 @@ use RedBeanPHP\R;
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @category    Net
- * @package     Net_EPP_IT_Domain
+ * @package     Net\EPP\IT\Domain
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-/**
- * domain script exit codes (20-29), for use by CLI scripts / examples
- */
-if ( ! defined('DOMAIN_CREATE_FAILED'))   define('DOMAIN_CREATE_FAILED', 20);
-if ( ! defined('DOMAIN_FETCH_FAILED'))    define('DOMAIN_FETCH_FAILED', 21);
-if ( ! defined('DOMAIN_UPDATE_FAILED'))   define('DOMAIN_UPDATE_FAILED', 22);
-if ( ! defined('DOMAIN_DELETE_FAILED'))   define('DOMAIN_DELETE_FAILED', 23);
-if ( ! defined('DOMAIN_STORE_FAILED'))    define('DOMAIN_STORE_FAILED', 24);
-if ( ! defined('DOMAIN_CHECK_FAILED'))    define('DOMAIN_CHECK_FAILED', 25);
-if ( ! defined('DOMAIN_RESTORE_FAILED'))  define('DOMAIN_RESTORE_FAILED', 26);
-if ( ! defined('DOMAIN_TRANSFER_FAILED')) define('DOMAIN_TRANSFER_FAILED', 27);
-if ( ! defined('DOMAIN_EXPORT_FAILED'))   define('DOMAIN_EXPORT_FAILED', 28);
-if ( ! defined('DOMAIN_IMPORT_FAILED'))   define('DOMAIN_IMPORT_FAILED', 29);
-
-class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
+class Domain extends AbstractObject
 {
   //         name               // change flag
   protected $user_id;           // use just in case of an updateRegistrant + change of agent
@@ -103,15 +90,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   // DNSSEC status (enabled or not)
   protected $dnssec_status;
 
-  /*
+  /**
    * Class constructor
    *
    * (initializes authinfo)
    *
-   * @access   public
-   * @param    Net_EPP_IT_Client         client class
+   * @param Client $client client class
    */
-  function __construct(&$client) {
+  function __construct(Client &$client) {
     parent::__construct($client);
 
     $this->initValues();
@@ -121,10 +107,8 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
   /**
    * initialize values
-   *
-   * @access   protected
    */
-  protected function initValues() {
+  protected function initValues(): void {
     $this->user_id           = 1;
     $this->status            = array();
     $this->domain            = "";
@@ -151,12 +135,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * restrict access to variables, so we can keep track of changes to them
    *
-   * @access   public
-   * @param    string  variable name
-   * @param    mix     value to set
-   * @return   mix     value set or FALSE if variable name does not exist
+   * @param string $var variable name
+   * @param mixed $val value to set
+   * @return mixed value set or FALSE if variable name does not exist
    */
-  public function set($var, $val) {
+  public function set(string $var, mixed $val): mixed {
     // convert to lower-case
     $var = strtolower($var);
 
@@ -191,11 +174,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * remove a DNSSEC data set
    *
-   * @access   public
-   * @param    string  keytag
-   * @return   mix     keytag on success, false on failure
+   * @param string $digest the digest value identifying which DNSSEC record to remove
+   * @return string|false the digest on success, false on failure
    */
-  public function remDNSSEC($digest) {
+  public function remDNSSEC(string $digest): string|false {
     if (isset($this->dnssec_initial[$digest])) {
       $this->changes |= 32;
       unset($this->dnssec[$digest]);
@@ -209,14 +191,13 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * add a DNSSEC data set
    *
-   * @access   public
-   * @param    string  keytag
-   * @param    string  algorithm
-   * @param    string  digesttype
-   * @param    string  digest
-   * @return   mix     keytag on success, false on failure
+   * @param string $keytag keytag
+   * @param string $algorithm algorithm
+   * @param string $digesttype digesttype
+   * @param string $digest digest
+   * @return string|false the digest on success, false on failure
    */
-  public function addDNSSEC($keytag, $algorithm, $digesttype, $digest) {
+  public function addDNSSEC(string $keytag, string $algorithm, string $digesttype, string $digest): string|false {
     // don't allow empty values
     if (empty($keytag) || empty($algorithm) || empty($digesttype) || empty($digest)) {
       $this->setError("All values (keytag, algorithm, digesttype, digest) must be given and must NOT be empty.");
@@ -250,11 +231,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * get a single variable/setting from class
    *
-   * @access   public
-   * @param    string  variable name
-   * @return   mix     value of variable
+   * @param string $var variable name
+   * @return mixed value of variable
    */
-  public function get($var) {
+  public function get(string $var): mixed {
     // if tech only holds 1 value (as in most cases) return a string and not an array
     if (($var == "tech") && (count($this->tech) == 1)) {
       return current($this->tech);
@@ -266,11 +246,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * remove a technical contact
    *
-   * @access   public
-   * @param    string  tech contact name
-   * @return   mix     value removed or FALSE if variable name does not exist
+   * @param string $name tech contact name
+   * @return string|false value removed or FALSE if variable name does not exist
    */
-  public function remTECH($name) {
+  public function remTECH(string $name): string|false {
     if (isset($this->tech[$name])) {
       unset($this->tech[$name]);
       $this->changes |= 8;
@@ -283,11 +262,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * add a technical contact
    *
-   * @access   public
-   * @param    string  tech contact name
-   * @return   mix     value set or FALSE if there was an error
+   * @param string $name tech contact name
+   * @return string|false value set or FALSE if there was an error
    */
-  public function addTECH($name) {
+  public function addTECH(string $name): string|false {
     if (empty($name)) {
       return FALSE;
     }
@@ -303,11 +281,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * remove a nameserver
    *
-   * @access   public
-   * @param    string   NS name
-   * @return   mix      value set or FALSE if variable name does not exist
+   * @param string $name NS name
+   * @return string|false value set or FALSE if variable name does not exist
    */
-  public function remNS($name) {
+  public function remNS(string $name): string|false {
     // DNS names must be in punycode format (if below an IDN domain)
     $name = $this->idn->convert($name);
     if (isset($this->ns[$name])) {
@@ -322,12 +299,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * add a nameserver
    *
-   * @access   public
-   * @param    string  NS name
-   * @param    mix     ip addresses to set (an array of two, one or a string)
-   * @return   mix     value set or FALSE on error
+   * @param string $name NS name
+   * @param mixed $addr ip addresses to set (an array of two, one or a string)
+   * @return string|false value set or FALSE on error
    */
-  public function addNS($name, $addr = null) {
+  public function addNS(string $name, array|string|null $addr = null): string|false {
     $dns1 = "";
     $dns2 = "";
     $ip_changed = FALSE;
@@ -418,10 +394,9 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * do sanity checks before sending changes to NIC
    *
-   * @access   protected
-   * @return   boolean   status
+   * @return bool status
    */
-  protected function sanity_checks() {
+  protected function sanity_checks(): int {
     $error = 0;
 
     // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
@@ -516,11 +491,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * check domain
    *
-   * @access   public
-   * @param    string  optional domain to check (set domain!)
-   * @return   boolean status (TRUE = available, FALSE = unavailable, -1 on error)
+   * @param string $domain optional domain to check (set domain!)
+   * @return bool status (TRUE = available, FALSE = unavailable, -1 on error)
    */
-  public function check($domain = null) {
+  public function check(array|string|null $domain = null): array|bool|int {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -572,11 +546,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * create domain
    *
-   * @access   public
-   * @param    boolean execute internal sanity checks
-   * @return   boolean status
+   * @param bool $exec_checks execute internal sanity checks
+   * @return bool status
    */
-  public function create($exec_checks = FALSE) {
+  public function create(bool $exec_checks = FALSE): bool {
     if ($exec_checks) {
       $sanity = $this->sanity_checks();
       if ($sanity <> 0) {
@@ -616,13 +589,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * fetch domain through EPP
    *
-   * @access   public
-   * @param    string  domain to load
-   * @param    string  authinfo string (domain sponsored by other registrar)
-   * @param    string  
-   * @return   boolean status
+   * @param string $domain domain to load
+   * @param string $authinfo authinfo string (domain sponsored by other registrar)
+   * @param string $infContacts restrict linked-contact info to this type ('all', 'registrant', 'admin', 'tech', or blank for none)
+   * @return bool status
    */
-  public function fetch($domain = null, $authinfo = null, $infContacts = '') {
+  public function fetch(?string $domain = null, ?string $authinfo = null, string $infContacts = ''): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -778,21 +750,19 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * print domain status - the states will be set after a call to fetch()
    *
-   * @access   public
-   * @return   mix     server side state (text-string or FALSE)
+   * @return array|false server side state (array of status strings, or FALSE)
    */
-  public function state() {
+  public function state(): array|false {
     return ($this->status === null) ? FALSE : $this->status;
   }
 
   /**
    * delete domain
    *
-   * @access   public
-   * @param    string  domain name to delete
-   * @return   boolean status
+   * @param string $domain domain name to delete
+   * @return bool status
    */
-  public function delete($domain = null) {
+  public function delete(?string $domain = null): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -814,11 +784,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * update domain
    *
-   * @access   public
-   * @param    boolean execute internal sanity checks
-   * @return   boolean status
+   * @param bool $exec_checks execute internal sanity checks
+   * @return bool status
    */
-  public function update($exec_checks = FALSE) {
+  public function update(bool $exec_checks = FALSE): bool {
     if ($this->domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -965,11 +934,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * update domain registrant
    *
-   * @access   public
-   * @param    boolean execute internal sanity checks
-   * @return   boolean status
+   * @param bool $exec_checks execute internal sanity checks
+   * @return bool status
    */
-  public function updateRegistrant($exec_checks = FALSE) {
+  public function updateRegistrant(bool $exec_checks = FALSE): bool {
     if ($this->domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -1019,12 +987,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * update domain status
    *
-   * @access   public
-   * @param    string  clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock
-   * @param    string  add, rem (optional, defaults to add)
-   * @return   boolean status
+   * @param string $state clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock
+   * @param string $adddel add, rem (optional, defaults to add)
+   * @return bool status
    */
-  public function updateStatus($state, $adddel = "add") {
+  public function updateStatus(string $state, string $adddel = "add"): bool {
     if ($this->domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -1070,11 +1037,10 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * restore domain
    *
-   * @access   public
-   * @param    string  domain name to restore
-   * @return   boolean status
+   * @param string $domain domain name to restore
+   * @return bool status
    */
-  public function restore($domain = null) {
+  public function restore(?string $domain = null): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1096,14 +1062,13 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * store domain to DB
    *
-   * @access   public
-   * @param    string   user ACL
-   * @param    boolean  fire the DNS-sync 'create' event (default yes; a
+   * @param int $user_id user ACL
+   * @param bool $notifyDNS fire the DNS-sync 'create' event (default yes; a
    *                     requested-but-not-yet-completed transfer-in passes
    *                     false here, since we don't operate the zone yet)
-   * @return   boolean  status
+   * @return bool status
    */
-  public function storeDB($user_id = 1, $notifyDNS = true) {
+  public function storeDB(int $user_id = 1, bool $notifyDNS = true): bool {
     $data = [
       'status'     => serialize($this->status),
       'domain'     => $this->domain,
@@ -1141,7 +1106,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$this->domain]);
-    changelogInsert('domains', $id, 'create', ['domain' => $this->domain], $user_id);
+    Helpers::logChanges('domains', $id, 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
       // DNS-sync queue: pdnsutil_updates.php picks this up to (re)create the zone
@@ -1154,13 +1119,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * load domain from DB
    *
-   * @access   public
-   * @param    string   domain to load
-   * @param    int      user ACL
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $domain domain to load
+   * @param int $user_id user ACL
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function loadDB($domain = null, $user_id = 1, $isAdmin = false) {
+  public function loadDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1208,17 +1172,16 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * update domain stored in DB
    *
-   * @access   public
-   * @param    string   domain to update
-   * @param    int      user ACL
-   * @param    boolean  admin (unrestricted by user_id)
-   * @param    int      changes bitmask to persist (optional, defaults to
+   * @param string $domain domain to update
+   * @param int $user_id user ACL
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @param int $changes changes bitmask to persist (optional, defaults to
    *                     $this->changes). Pass this explicitly when update()
    *                     was already called: it resets $this->changes to 0 on
    *                     success, before updateDB() ever gets a chance to read it.
-   * @return   boolean  status
+   * @return bool status
    */
-  public function updateDB($domain = null, $user_id = 1, $isAdmin = false, $changes = null) {
+  public function updateDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false, ?int $changes = null): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1245,7 +1208,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
       // get the new registrant's user_id (agent ID)
       // btw. it should not be possible to assign a registrant not owned by the current user
       // (the caller needs to take care of that!)
-      $tmp = new Net_EPP_IT_Contact($this->client);
+      $tmp = new Contact($this->client);
       $tmp->loadDB($this->registrant, $user_id, true);
       $data['user_id'] = $tmp->get('user_id');
     }
@@ -1276,7 +1239,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    changelogInsert('domains', $id, 'update', $data, $user_id);
+    Helpers::logChanges('domains', $id, 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update
     if (($changes & 1) > 0) {
@@ -1289,12 +1252,11 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * transfer status
    *
-   * @access   public
-   * @param    string  domain to transfer
-   * @param    string  domain authinfo code
-   * @return   boolean status
+   * @param string $domain domain to transfer
+   * @param string $authinfo domain authinfo code
+   * @return bool status
    */
-  public function transferStatus($domain, $authinfo = "") {
+  public function transferStatus(?string $domain, ?string $authinfo = ""): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1336,15 +1298,14 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * transfer domain / transfer-trade domain
    *
-   * @access   public
-   * @param    string  domain to transfer
-   * @param    string  domain authinfo code
-   * @param    string  new registrant (optional / trade)
-   * @param    string  new authinfo (optional)
-   * @param    string  transfer type (defaults to "request")
-   * @return   boolean status
+   * @param string $domain domain to transfer
+   * @param string $authinfo domain authinfo code
+   * @param string $newregistrant new registrant (optional / trade)
+   * @param string $newauthinfo new authinfo (optional)
+   * @param string $operation transfer type (defaults to "request")
+   * @return bool status
    */
-  public function transfer($domain, $authinfo, $newregistrant = "", $newauthinfo = "", $operation = "request") {
+  public function transfer(?string $domain, ?string $authinfo, string $newregistrant = "", string $newauthinfo = "", string $operation = "request"): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1384,51 +1345,47 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * approve domain transfer to another registrar
    *
-   * @access   protected
-   * @param    string     domain to operate on
-   * @param    string     domain authinfo code
-   * @return   boolean    status
+   * @param string $domain domain to operate on
+   * @param string $authinfo domain authinfo code
+   * @return bool status
    */
-  public function transferApprove($domain, $authinfo) {
+  public function transferApprove(string $domain, string $authinfo): bool {
     return $this->transfer($domain, $authinfo, "", "", "approve");
   }
 
   /**
    * reject domain transfer to another registrar
    *
-   * @access   protected
-   * @param    string     domain to operate on
-   * @param    string     domain authinfo code
-   * @return   boolean    status
+   * @param string $domain domain to operate on
+   * @param string $authinfo domain authinfo code
+   * @return bool status
    */
-  public function transferReject($domain, $authinfo) {
+  public function transferReject(string $domain, string $authinfo): bool {
     return $this->transfer($domain, $authinfo, "", "", "reject");
   }
 
   /**
    * cancel domain transfer from another registrar
    *
-   * @access   public
-   * @param    string  domain to transfer
-   * @param    string  domain authinfo code
-   * @return   boolean status
+   * @param string $domain domain to transfer
+   * @param string $authinfo domain authinfo code
+   * @return bool status
    */
-  public function transferCancel($domain, $authinfo) {
+  public function transferCancel(string $domain, string $authinfo): bool {
     return $this->transfer($domain, $authinfo, "", "", "cancel");
   }
 
   /**
    * list domains stored in DB (includes pending transfer-in domains)
    *
-   * @access   public
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @param    string   restrict search to this registrant (optional)
-   * @param    boolean  list only active domains (TRUE = yes / FALSE = no)
-   * @param    integer  restrict search to domains older then X months
-   * @return   array    list of domains
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @param string $registrant restrict search to this registrant (optional)
+   * @param bool $activeOnly list only active domains (TRUE = yes / FALSE = no)
+   * @param int $age restrict search to domains older then X months
+   * @return array list of domains
    */
-  public function listDomains($user_id = 1, $isAdmin = false, $registrant = null, $activeOnly = TRUE, $age = 0) {
+  public function listDomains(int $user_id = 1, bool $isAdmin = false, ?string $registrant = null, bool $activeOnly = TRUE, int $age = 0): array {
     $where = ['1 = 1'];
     $params = [];
     if ( ! $isAdmin) {
@@ -1466,13 +1423,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * deactivate a domain stored in DB (soft delete)
    *
-   * @access   public
-   * @param    string   domain name to delete
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $domain domain name to delete
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function deleteDomainDB($domain, $user_id = 1, $isAdmin = false) {
+  public function deleteDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
     $sql = "UPDATE domains SET active = 0 WHERE domain = :domain";
     $params = [':domain' => $domain];
     if ( ! $isAdmin) {
@@ -1488,7 +1444,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
     }
 
     $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    changelogInsert('domains', $id, 'delete', ['domain' => $domain], $user_id);
+    Helpers::logChanges('domains', $id, 'delete', ['domain' => $domain], $user_id);
 
     // DNS-sync queue: pdnsutil_updates.php tears the zone down (delay-gated)
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'delete')", [$domain, 'domain deleted']);
@@ -1499,13 +1455,12 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
   /**
    * reactivate a domain stored in DB (undo a soft delete)
    *
-   * @access   public
-   * @param    string   domain name to restore
-   * @param    int      user ACL (optional), defaults to 1
-   * @param    boolean  admin (unrestricted by user_id)
-   * @return   boolean  status
+   * @param string $domain domain name to restore
+   * @param int $user_id user ACL (optional), defaults to 1
+   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @return bool status
    */
-  public function restoreDomainDB($domain, $user_id = 1, $isAdmin = false) {
+  public function restoreDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
     $sql = "UPDATE domains SET active = 1 WHERE domain = :domain";
     $params = [':domain' => $domain];
     if ( ! $isAdmin) {
@@ -1522,7 +1477,7 @@ class Net_EPP_IT_Domain extends Net_EPP_AbstractObject
 
     // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
     $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    changelogInsert('domains', $id, 'update', ['domain' => $domain, 'active' => 1], $user_id);
+    Helpers::logChanges('domains', $id, 'update', ['domain' => $domain, 'active' => 1], $user_id);
 
     // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come back
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$domain, 'domain restored']);
