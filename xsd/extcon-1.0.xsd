@@ -23,17 +23,31 @@
 			<minInclusive value="1"/>
 			<maxInclusive value="7"/>
 		</restriction>
+	</simpleType>	
+	<simpleType name="schoolCodeType">
+		<restriction base="token">
+			<pattern value="[a-zA-Z]{2}[a-zA-Z0-9]{5}[0-9]{2}[a-zA-Z0-9]"/>
+		</restriction>
 	</simpleType>
 
 	<element name="create" type="extcon:allContactType"/>
-	<element name="update" type="extcon:allUpdateContactType"/>
-	<element name="infData" type="extcon:allContactType"/>
+	<element name="update" type="extcon:allOptionalContactType"/>
+	<element name="infData" type="extcon:allOptionalContactType"/>
 		
 	<complexType name="registrantType">
 		<sequence>
 			<element name="nationalityCode" type="extcon:nationalityCodeType"/>
 			<element name="entityType" type="extcon:entityTypeType"/>
 			<element name="regCode" type="token"/>
+			<element name="schoolCode" type="extcon:schoolCodeType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+		<complexType name="optionalRegistrantType">
+		<sequence>
+			<element name="nationalityCode" type="extcon:nationalityCodeType" minOccurs="0"/>
+			<element name="entityType" type="extcon:entityTypeType" minOccurs="0"/>
+			<element name="regCode" type="token" minOccurs="0"/>
+			<element name="schoolCode" type="extcon:schoolCodeType" minOccurs="0"/>
 		</sequence>
 	</complexType>
 	<complexType name="allContactType">
@@ -42,10 +56,10 @@
 			<element name="registrant" type="extcon:registrantType" minOccurs="0"/>
 		</sequence>
 	</complexType>
-	<complexType name="allUpdateContactType">
+	<complexType name="allOptionalContactType">
 		<sequence>
 			<element name="consentForPublishing" type="boolean" minOccurs="0"/>
-			<element name="registrant" type="extcon:registrantType" minOccurs="0"/>
+			<element name="registrant" type="extcon:optionalRegistrantType" minOccurs="0"/>
 		</sequence>
 	</complexType>
 	<!--
