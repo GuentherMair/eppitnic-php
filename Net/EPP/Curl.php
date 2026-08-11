@@ -40,7 +40,7 @@ namespace Net\EPP;
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
 
-class Curl
+class Curl implements Transport
 {
   protected $_useragent = 'PHP Net\EPP\Curl 1.1';
   protected $_url;
@@ -202,7 +202,8 @@ class Curl
     $this->_body = substr($response, $header_size);
     $this->_error = ($response === false) ? curl_error($ch) : "";
     $header_out = curl_getinfo($ch, CURLINFO_HEADER_OUT);
-    curl_close($ch);
+    // no curl_close(): a no-op since PHP 8.0 (CurlHandle is freed by the GC)
+    // and deprecated outright since 8.5, where calling it warns on every query
 
     // write debug information
     if ($this->_debugFile) {

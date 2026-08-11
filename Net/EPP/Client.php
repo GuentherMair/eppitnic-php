@@ -164,6 +164,20 @@ class Client extends Smarty
   }
 
   /**
+   * replace the HTTP transport configured by the constructor
+   *
+   * Exists for the test suite, which substitutes a Transport returning canned
+   * responses so request generation and response parsing can be exercised
+   * without a registry. Production code never calls this -- the constructor
+   * has already wired up a fully configured Curl instance.
+   *
+   * @param Transport $transport the transport to send subsequent requests through
+   */
+  public function setTransport(Transport $transport): void {
+    $this->httpClient = $transport;
+  }
+
+  /**
    * make sure a directory is writable, falling back to the system temp
    * folder if it is not
    *

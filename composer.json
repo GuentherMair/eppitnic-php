@@ -25,5 +25,16 @@
         "files": [
             "config/constants.php"
         ]
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Net\\EPP\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
     }
 }

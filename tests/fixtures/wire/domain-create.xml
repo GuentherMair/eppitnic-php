@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <create>
+      <domain:create xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:domain-1.0 domain-1.0.xsd">
+        <domain:name>example-one.it</domain:name>
+        <domain:period unit="y">1</domain:period>
+        <domain:ns>
+          <domain:hostAttr>
+            <domain:hostName>ns1.example-one.it</domain:hostName>
+            <domain:hostAddr ip="v4">192.0.2.1</domain:hostAddr>
+            <domain:hostAddr ip="v6">2001:db8::1</domain:hostAddr>
+          </domain:hostAttr>
+          <domain:hostAttr>
+            <domain:hostName>ns2.example.net</domain:hostName>
+          </domain:hostAttr>
+        </domain:ns>
+        <domain:registrant>REGI1234REGI5678</domain:registrant>
+        <domain:contact type="admin">ADMIN123ADMIN456</domain:contact>
+        <domain:contact type="tech">TECH1234TECH5678</domain:contact>
+        <domain:contact type="tech">TECH9012TECH3456</domain:contact>
+        <domain:authInfo>
+          <domain:pw>AUTHINFO12345678</domain:pw>
+        </domain:authInfo>
+      </domain:create>
+    </create>
+    <clTRID>NORMALIZED</clTRID>
+  </command>
+</epp>

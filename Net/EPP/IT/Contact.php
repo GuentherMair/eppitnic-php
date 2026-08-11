@@ -485,11 +485,19 @@ class Contact extends AbstractObject
       $addr[] = array('name' => 'cc', 'value' => $this->countrycode);
     }
 
-    // contact information
+    // Contact information: only fields that actually changed appear here.
+    //
+    // This distinction is the whole point. In EPP an empty <contact:fax/>
+    // means "remove the fax number", so the value carried here has to
+    // separate "the caller set fax to an empty string" from "the caller never
+    // mentioned fax at all". Every field used to be listed unconditionally,
+    // with an empty value standing in for "unchanged" -- which the template
+    // could not tell apart from a deliberate clear, so simply updating a
+    // contact's email also wiped its fax at the registry.
     $contact = array();
-    $contact[] = array('name' => 'voice', 'value' => (($this->changes & 512) > 0) ? $this->voice : '');
-    $contact[] = array('name' => 'fax', 'value' => (($this->changes & 1024) > 0) ? $this->fax : '');
-    $contact[] = array('name' => 'email', 'value' => (($this->changes & 2048) > 0) ? $this->email : '');
+    if (($this->changes & 512) > 0)  $contact[] = array('name' => 'voice', 'value' => $this->voice);
+    if (($this->changes & 1024) > 0) $contact[] = array('name' => 'fax',   'value' => $this->fax);
+    if (($this->changes & 2048) > 0) $contact[] = array('name' => 'email', 'value' => $this->email);
 
     // registrant information
     $registrant = array();
@@ -512,7 +520,9 @@ class Contact extends AbstractObject
 
     $this->client->assign('postalinfo', empty($postalinfo) ? array() : $postalinfo);
     $this->client->assign('addr', empty($addr) ? array() : $addr);
-    $this->client->assign('contact', empty($contact) ? '' : $contact);
+    // always an array, never '' -- the template counts it, and a string would
+    // make the "did anything change?" test in the template silently true
+    $this->client->assign('contact', $contact);
     $this->client->assign('registrant', empty($registrant) ? '' : $registrant);
     $this->client->assign('authinfo', (($this->changes & 4096) > 0) ? $this->authinfo : '');
     $this->client->assign('consentForPublishing', (($this->changes & 8192) > 0) ? $this->consentforpublishing : '');

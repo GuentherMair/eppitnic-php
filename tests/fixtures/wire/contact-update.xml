@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <command>
+    <update>
+      <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
+        <contact:id>ABCD1234EFGH5678</contact:id>
+        <contact:chg>
+          <contact:postalInfo type="loc">
+            <contact:name>Mario Rossi</contact:name>
+            <contact:org>Rossi &amp; Figli S.r.l.</contact:org>
+            <contact:addr>
+              <contact:street>Via Roma 1</contact:street>
+              <contact:street>Scala B</contact:street>
+              <contact:street>Interno 3</contact:street>
+              <contact:city>Bolzano</contact:city>
+              <contact:sp>BZ</contact:sp>
+              <contact:pc>39100</contact:pc>
+              <contact:cc>IT</contact:cc>
+            </contact:addr>
+          </contact:postalInfo>
+          <contact:voice>+39.0471000000</contact:voice>
+          <contact:fax>+39.0471000001</contact:fax>
+          <contact:email>mario.rossi@example.it</contact:email>
+          <contact:authInfo>
+            <contact:pw>AUTHINFO12345678</contact:pw>
+          </contact:authInfo>
+        </contact:chg>
+      </contact:update>
+    </update>
+    <extension>
+      <extcon:update xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extcon-1.0 extcon-1.0.xsd">
+        <extcon:consentForPublishing>1</extcon:consentForPublishing>
+        <extcon:registrant>
+          <extcon:nationalityCode>IT</extcon:nationalityCode>
+          <extcon:entityType>2</extcon:entityType>
+          <extcon:regCode>01234567890</extcon:regCode>
+        </extcon:registrant>
+      </extcon:update>
+    </extension>
+    <clTRID>NORMALIZED</clTRID>
+  </command>
+</epp>

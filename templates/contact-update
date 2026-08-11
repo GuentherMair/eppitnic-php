@@ -7,7 +7,7 @@
       <contact:update xmlns:contact="urn:ietf:params:xml:ns:contact-1.0"
                       xsi:schemaLocation="urn:ietf:params:xml:ns:contact-1.0 contact-1.0.xsd">
         <contact:id>{$id}</contact:id>
-        {if count($postalinfo) gt 0 or count($addr) gt 0 or isset($contact)}
+        {if count($postalinfo) gt 0 or count($addr) gt 0 or count($contact) gt 0 or $authinfo ne ""}
         <contact:chg>
         {if count($postalinfo) gt 0 or count($addr) gt 0}
           <contact:postalInfo type="loc">
@@ -23,18 +23,25 @@
           {/if}
           </contact:postalInfo>
         {/if}
-        {if isset($contact)}
+        {* $contact only ever contains fields the caller actually changed
+           (Contact::update()), so an empty value here is a deliberate clear
+           rather than "not mentioned". EPP expresses that as an empty element,
+           which is only meaningful for the optional fields -- fax. *}
         {foreach from=$contact item=i}
           {if $i.value ne ""}<contact:{$i.name}>{$i.value}</contact:{$i.name}>{/if}
           {if $i.value eq "" && $i.name eq "fax"}<contact:{$i.name}/>{/if}
         {/foreach}
+        {* authInfo belongs INSIDE <chg>, as the last element before <disclose>
+           (contact-1.0.xsd "chgType": postalInfo, voice, fax, email, authInfo,
+           disclose). It used to sit outside, as a sibling of <chg>, which the
+           registry's own schema validation rejects with a 2001 "Command syntax
+           error" -- so every contact update that rotated the auth code failed. *}
+        {if $authinfo ne ""}
+          <contact:authInfo>
+            <contact:pw>{$authinfo|escape}</contact:pw>
+          </contact:authInfo>
         {/if}
         </contact:chg>
-        {/if}
-        {if $authinfo ne ""}
-        <contact:authInfo>
-          <contact:pw>{$authinfo|escape}</contact:pw>
-        </contact:authInfo>
         {/if}
       </contact:update>
     </update>

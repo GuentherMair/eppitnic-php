@@ -10,3 +10,6 @@
 /smarty/cache/*
 !/smarty/compile/.gitkeep
 !/smarty/cache/.gitkeep
+
+# phpunit
+/.phpunit.cache/

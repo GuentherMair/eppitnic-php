@@ -94,6 +94,34 @@ final class Config
     }
 
     /**
+     * Install a fully-formed settings array as the singleton's state, without
+     * touching the database at all -- no connect(), no migrate(), no
+     * setupSettings() (which would prompt, or auto-generate a jwt_psk).
+     *
+     * Exists for the test suite: nearly everything in this codebase reaches
+     * Config through Client's constructor, so without this hook every unit
+     * test would need a live MariaDB with a migrated schema, and CI would need
+     * one too. Production code must not call it -- get()/set() would then be
+     * answering from a cache no database ever backed, and set() would still
+     * try to REPLACE INTO a table it never connected to.
+     *
+     * @param array $settings the complete settings map, as get() should answer it
+     */
+    public static function loadForTesting(array $settings): void {
+        $instance = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
+        $instance->settings = $settings;
+        self::$instance = $instance;
+    }
+
+    /**
+     * Drop the singleton, so the next call rebuilds it (from the database, or
+     * from whatever loadForTesting() installs next). Test-suite teardown only.
+     */
+    public static function reset(): void {
+        self::$instance = null;
+    }
+
+    /**
      * @param string $key setting name
      * @return mixed the setting's value
      * @throws \RuntimeException if $key was never seeded
