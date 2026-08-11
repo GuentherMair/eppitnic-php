@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:extgovcon="http://www.nic.it/ITNIC-EPP/extgovcon-1.0"
+		xmlns="http://www.w3.org/2001/XMLSchema"
+		targetNamespace="http://www.nic.it/ITNIC-EPP/extgovcon-1.0"
+		elementFormDefault="qualified">
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 contact extension for gov.it.
+        </documentation>
+	</annotation>
+
+	<element name="create" type="extgovcon:govRegistrantType"/>
+	<element name="infData" type="extgovcon:govRegistrantType"/>
+	<element name="creData" type="extgovcon:govOrgChangedType"/>
+
+	<complexType name="govRegistrantValueType">
+		<sequence>
+			<element name="ipaCode" type="token"/>
+			<element name="uoCode" type="token" minOccurs="0"/>
+		</sequence>
+	</complexType>
+
+	<complexType name="govRegistrantType">
+		<sequence>
+			<element name="govRegistrant" type="extgovcon:govRegistrantValueType"/>
+		</sequence>
+	</complexType>
+
+	<simpleType name="govOrgChangedValueType">
+		<restriction base="normalizedString">
+			<maxLength value="255"/>
+		</restriction>
+	</simpleType>
+
+	<complexType name="govOrgChangedType">
+		<sequence>
+			<element name="govOrgChanged" type="extgovcon:govOrgChangedValueType"/>
+		</sequence>
+	</complexType>
+
+	<!--
+    End of schema.
+  -->
+</schema>

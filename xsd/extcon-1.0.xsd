@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:epp="urn:ietf:params:xml:ns:epp-1.0" xmlns:eppcom="urn:ietf:params:xml:ns:eppcom-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.nic.it/ITNIC-EPP/extcon-1.0" elementFormDefault="qualified">
+	<!--
+    Import common element types.
+  -->
+	<import namespace="urn:ietf:params:xml:ns:eppcom-1.0" schemaLocation="eppcom-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:epp-1.0" schemaLocation="epp-1.0.xsd"/>
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 contact extension.
+        </documentation>
+	</annotation>
+	<!--
+    nationalityCode type.
+  -->
+	<simpleType name="nationalityCodeType">
+		<restriction base="token">
+			<pattern value="[a-zA-Z]{2}"/>
+		</restriction>
+	</simpleType>
+	<simpleType name="entityTypeType">
+		<restriction base="integer">
+			<minInclusive value="1"/>
+			<maxInclusive value="7"/>
+		</restriction>
+	</simpleType>
+
+	<element name="create" type="extcon:allContactType"/>
+	<element name="update" type="extcon:allUpdateContactType"/>
+	<element name="infData" type="extcon:allContactType"/>
+		
+	<complexType name="registrantType">
+		<sequence>
+			<element name="nationalityCode" type="extcon:nationalityCodeType"/>
+			<element name="entityType" type="extcon:entityTypeType"/>
+			<element name="regCode" type="token"/>
+		</sequence>
+	</complexType>
+	<complexType name="allContactType">
+		<sequence>
+			<element name="consentForPublishing" type="boolean"/>
+			<element name="registrant" type="extcon:registrantType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<complexType name="allUpdateContactType">
+		<sequence>
+			<element name="consentForPublishing" type="boolean" minOccurs="0"/>
+			<element name="registrant" type="extcon:registrantType" minOccurs="0"/>
+		</sequence>
+	</complexType>
+	<!--
+    End of schema.
+  -->
+</schema>

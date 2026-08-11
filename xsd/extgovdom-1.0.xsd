@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:extgovdom="http://www.nic.it/ITNIC-EPP/extgovdom-1.0"
+		xmlns="http://www.w3.org/2001/XMLSchema"
+		xmlns:extgovcon="http://www.nic.it/ITNIC-EPP/extgovcon-1.0"
+		targetNamespace="http://www.nic.it/ITNIC-EPP/extgovdom-1.0"
+		elementFormDefault="qualified">
+
+	<!--
+Import common element types.
+-->
+	<import namespace="http://www.nic.it/ITNIC-EPP/extgovcon-1.0" schemaLocation="extgovcon-1.0.xsd"/>
+
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 domain extension for gov.it.
+        </documentation>
+	</annotation>
+
+	<element name="create" type="extgovdom:validationCodeType"/>
+	<element name="update" type="extgovdom:validationCodeType"/>
+	<element name="trade" type="extgovdom:validationCodeType"/>
+	<element name="infContactsData" type="extgovcon:govRegistrantType"/>
+
+	<complexType name="validationCodeType">
+		<sequence>
+			<element name="validationCode" type="token"/>
+		</sequence>
+	</complexType>
+
+	<!--
+    End of schema.
+  -->
+</schema>

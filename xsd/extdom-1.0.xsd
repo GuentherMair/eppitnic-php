@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0" xmlns:epp="urn:ietf:params:xml:ns:epp-1.0" xmlns:eppcom="urn:ietf:params:xml:ns:eppcom-1.0" xmlns="http://www.w3.org/2001/XMLSchema" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" targetNamespace="http://www.nic.it/ITNIC-EPP/extdom-1.0" elementFormDefault="qualified">
+	<!--
+  Import common element types.
+  -->
+	<import namespace="urn:ietf:params:xml:ns:eppcom-1.0" schemaLocation="eppcom-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:epp-1.0" schemaLocation="epp-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:domain-1.0" schemaLocation="domain-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:contact-1.0" schemaLocation="contact-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:rgp-1.0" schemaLocation="rgp-1.0.xsd"/>
+
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 domain extension.
+        </documentation>
+	</annotation>
+	<element name="dlgMsgData" type="extdom:dlgMsgDataType"/>
+	<element name="simpleMsgData" type="extdom:simpleMsgDataType"/>
+	<element name="trade" type="extdom:tradeType"/>
+	<element name="dnsErrorMsgData" type="extdom:dnsValidationMsgDataType"/>
+    <element name="infData" type="extdom:ownStatusDataType" />
+    <element name="infNsToValidateData" type="extdom:nsToValidateDataType" />
+    <element name="chgStatusMsgData" type="extdom:chgStatusMsgDataType" />
+
+	<complexType name="dlgMsgDataType">
+		<sequence>
+			<element name="name" type="eppcom:labelType" maxOccurs="unbounded"/>
+			<element name="ns" type="eppcom:labelType"/>
+		</sequence>
+	</complexType>
+	<complexType name="simpleMsgDataType">
+		<sequence>
+			<element name="name" type="eppcom:labelType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>
+	<complexType name="tradeType">
+		<sequence>
+			<element name="transferTrade" type="extdom:transferTradeType"/>
+		</sequence>
+	</complexType>
+	<complexType name="transferTradeType">
+		<sequence>
+			<element name="newRegistrant" type="domain:clIDChgType"/>
+			<element name="newAuthInfo" type="extdom:authInfoTradeType"/>
+		</sequence>
+	</complexType>
+			<!--
+    Allow the authInfo value to be nullified by including an
+    empty element within the choice.
+  -->
+	<complexType name="authInfoTradeType">
+		<choice>
+			<element name="pw" type="eppcom:pwAuthInfoType"/>
+			<element name="ext" type="eppcom:extAuthInfoType"/>
+		</choice>
+	</complexType>
+	
+		
+	<!-- XML response to DNS validation request  -->
+	
+  <simpleType name="validationStatus">
+    <restriction base="token">
+      <enumeration value="SUCCEEDED" />
+      <enumeration value="FAILED" />
+      <enumeration value="WARNING" />
+    </restriction>
+  </simpleType>
+
+  <complexType name="dnsreport">
+    <simpleContent>
+      <extension base="string">
+        <attribute name="level" type="string" use="optional" />
+      </extension>
+    </simpleContent>
+  </complexType>
+
+  <complexType name="validationNode">
+    <sequence maxOccurs="1" minOccurs="0">
+      <element name="dnsreport" type="extdom:dnsreport"></element>
+    </sequence>
+    <attribute name="name" type="eppcom:minTokenType"></attribute>
+    <attribute name="status" type="extdom:validationStatus"></attribute>
+  </complexType>
+
+  <complexType name="testResult">
+    <complexContent>
+      <extension base="extdom:validationNode">
+        <sequence maxOccurs="unbounded" minOccurs="0">
+          <element name="dns" type="extdom:validationNode" />
+        </sequence>
+      </extension>
+    </complexContent>  
+  </complexType>
+
+  <complexType name="domainResult">
+    <complexContent>
+      <extension base="extdom:validationNode">
+        <sequence maxOccurs="unbounded" minOccurs="1">
+          <element name="test" type="extdom:testResult" />
+        </sequence>
+      </extension>
+    </complexContent>
+  </complexType>
+ 
+   <complexType name="dnsValidationReport">
+      	<sequence>	
+	      	<element name="domain" type="extdom:domainResult" />
+      	</sequence>
+  </complexType>
+ 
+  <complexType name="dnsValidationMsgDataType">
+    <sequence>
+      <element name="responseId" type="eppcom:minTokenType" maxOccurs="1" minOccurs="1"/>
+      <element name="validationDate" type="dateTime" maxOccurs="1" minOccurs="1" />
+      <element name="report" type="extdom:dnsValidationReport" maxOccurs="1" minOccurs="1"/>
+    </sequence>
+  </complexType>
+	
+  <!--
+    Own Status is a combination of attributes and an optional
+    human-readable message that may be expressed in languages
+    other than English.
+  -->
+  <complexType name="ownStatusType">
+    <simpleContent>
+      <extension base="normalizedString">
+        <attribute name="s" type="extdom:ownStatusValueType" use="required" />
+        <attribute name="lang" type="language" default="en" />
+      </extension>
+    </simpleContent>
+  </complexType>
+
+  <simpleType name="ownStatusValueType">
+    <restriction base="token">
+      <enumeration value="dnsHold" />
+      <enumeration value="noRegistrar" />
+      <enumeration value="challenged" />
+      <enumeration value="revoked" />
+      <enumeration value="toBeReassigned" />
+      <enumeration value="notRenewed" />
+      <enumeration value="bulk" />
+    </restriction>
+  </simpleType>
+	
+  <complexType name="ownStatusDataType">
+    <sequence>
+      <element name="ownStatus" type="extdom:ownStatusType"
+        maxOccurs="unbounded" />
+    </sequence>
+  </complexType>
+
+	
+  <complexType name="nsToValidateDataType">
+    <sequence>
+      <element name="nsToValidate" type="domain:nsType" maxOccurs="unbounded" />
+    </sequence>
+  </complexType>
+	
+  <complexType name="targetStatusType">
+    <sequence>
+	    <element name="status" type="domain:statusType" minOccurs="0" maxOccurs="unbounded" />
+		<element name="rgpStatus" type="rgp:statusType" minOccurs="0"  maxOccurs="unbounded" />
+		<element name="ownStatus" type="extdom:ownStatusType" minOccurs="0"  maxOccurs="unbounded" />
+    </sequence>
+  </complexType>
+
+  <complexType name="chgStatusMsgDataType">
+    <sequence>
+	<element name="name" type="eppcom:labelType"/>
+	<element name="targetStatus" type="extdom:targetStatusType"/>
+    </sequence>
+  </complexType>
+
+	<!--
+  End of schema.
+  -->
+</schema>

@@ -14,31 +14,46 @@
 --     already-converted parent doesn't block the ALTER. No FK checks are
 --     skipped that would let bad data in -- no rows are inserted/deleted
 --     by this script, only column/table metadata + rebuild.
+--   * `handleID` (MyISAM, utf8mb3) is NOT touched anywhere in this script --
+--     it isn't part of any target schema seen so far. Confirm whether it's
+--     legacy/dead or still needed before deciding what to do with it.
 -- ============================================================================
 
 
 -- ----------------------------------------------------------------------------
--- PART 1: PRE-FLIGHT CHECK
+-- PART 1: PRE-FLIGHT CHECKS
 --
--- utf8_bin (current, assumed) is case-sensitive. utf8mb4_unicode_ci (target)
--- is case-insensitive. Any UNIQUE column that currently holds values differing
--- only by case (e.g. 'Foo' and 'foo') will collide once the collation
--- changes, and CONVERT TO CHARACTER SET will fail (or worse, silently need
--- manual resolution) partway through the migration.
+-- Everything in this part is read-only (SELECTs only) until the final
+-- SIGNAL/no-op decision -- an abort here leaves the database completely
+-- untouched. Covers two kinds of risk:
 --
--- This checks every UNIQUE text column across the 8 tables. If any collision
--- is found, it SIGNALs an error, which — under default `mysql` CLI settings —
--- halts the script immediately, before Part 2 runs.
+--   (a) Case-insensitive collisions in UNIQUE text columns moving from a
+--       case-sensitive collation to a case-insensitive one. Of the columns
+--       checked, only tbl_domains.domain is actually at risk in the current
+--       dump -- its table default is utf8mb3_bin (case-sensitive) and
+--       `domain` has no column-level override. tbl_contacts.handle and
+--       tbl_transfers.domain are already utf8mb3_general_ci (case-
+--       insensitive) today, so converting them to utf8mb4_unicode_ci changes
+--       nothing about their case-sensitivity -- those two checks are kept
+--       anyway as cheap, harmless insurance.
+--
+--   (b) Data that would violate PART 3's stricter shape for `reminder`
+--       (TEXT -> VARCHAR(255), nullable `date` -> NOT NULL) or would make
+--       PART 3's new `reminder.domain -> domains.domain` FK impossible to
+--       add (orphaned domain values).
+--
+-- If any check fails, it SIGNALs an error, which -- under default `mysql`
+-- CLI settings -- halts the script immediately, before PART 2 runs.
 -- ----------------------------------------------------------------------------
 
-DROP PROCEDURE IF EXISTS `_check_case_collisions`;
+DROP PROCEDURE IF EXISTS `_migration_preflight_checks`;
 
 DELIMITER $$
 
-CREATE PROCEDURE `_check_case_collisions`()
+CREATE PROCEDURE `_migration_preflight_checks`()
 BEGIN
     DECLARE cnt INT DEFAULT 0;
-    DECLARE msg VARCHAR(255);
+    DECLARE msg VARCHAR (255);
 
     -- (tbl_users.billingID is not checked: the column is dropped by this
     -- migration, so a case-insensitive collision in it cannot break anything.)
@@ -56,7 +71,8 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
 
-    -- tbl_domains.domain (unique, NOT NULL)
+    -- tbl_domains.domain (unique, NOT NULL) -- the one column genuinely
+    -- moving from case-sensitive to case-insensitive.
     SELECT COUNT(*) INTO cnt FROM (
         SELECT LOWER(domain) AS k
         FROM tbl_domains
@@ -82,15 +98,45 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
 
-    SELECT 'PRE-FLIGHT OK: no case-insensitive collisions found in unique columns.' AS result;
+    -- tbl_reminder.notice: TEXT -> VARCHAR(255) in PART 3. Anything longer
+    -- would be silently truncated (or rejected in strict mode).
+    SELECT COUNT(*) INTO cnt FROM tbl_reminder WHERE CHAR_LENGTH(notice) > 255;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_reminder.notice has ', cnt,
+                          ' row(s) longer than 255 characters. Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    -- tbl_reminder.date: nullable today, becomes NOT NULL in PART 3.
+    SELECT COUNT(*) INTO cnt FROM tbl_reminder WHERE `date` IS NULL;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_reminder.date has ', cnt,
+                          ' NULL row(s). Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    -- tbl_reminder.domain: PART 3 adds a real FK to domains.domain. Any
+    -- value here with no matching row in tbl_domains would make that
+    -- ADD CONSTRAINT fail outright.
+    SELECT COUNT(*) INTO cnt
+    FROM tbl_reminder r
+    LEFT JOIN tbl_domains d ON d.domain = r.domain
+    WHERE d.domain IS NULL;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_reminder has ', cnt,
+                          ' row(s) whose domain has no match in tbl_domains. Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    SELECT 'PRE-FLIGHT OK: no collisions, no oversized/NULL reminder data, no orphaned reminder domains.' AS result;
 END$$
 
 DELIMITER ;
 
-CALL `_check_case_collisions`();
-DROP PROCEDURE `_check_case_collisions`;
+CALL `_migration_preflight_checks`();
+DROP PROCEDURE `_migration_preflight_checks`;
 
--- If you got here without an error above, it's safe to proceed to Part 2.
+-- If you got here without an error above, it's safe to proceed to PART 2.
 
 
 -- ----------------------------------------------------------------------------
@@ -98,6 +144,27 @@ DROP PROCEDURE `_check_case_collisions`;
 -- ----------------------------------------------------------------------------
 
 SET FOREIGN_KEY_CHECKS = 0;
+
+-- Drop the 3 FK constraints whose referenced/referencing TEXT column is
+-- about to be rebuilt by CONVERT TO CHARACTER SET below. MariaDB refuses to
+-- change such a column in place (error 1833: "Cannot change column ...: used
+-- in a foreign key constraint") regardless of FOREIGN_KEY_CHECKS, so the
+-- constraint has to be removed first, not just have validation disabled.
+--   * tbl_accounting_ibfk_1 is dropped for good -- billing_id is being
+--     decoupled from users entirely (see PART 3: users.billingID is DROPped,
+--     not renamed).
+--   * tbl_domains_ibfk_2 and tbl_transfers_ibfk_1 are recreated further down,
+--     once contacts.handle has its new charset -- the relationship itself
+--     isn't changing, only the physical column's charset underneath it.
+ALTER TABLE tbl_accounting DROP FOREIGN KEY tbl_accounting_ibfk_1;
+ALTER TABLE tbl_domains DROP FOREIGN KEY tbl_domains_ibfk_2;
+ALTER TABLE tbl_transfers DROP FOREIGN KEY tbl_transfers_ibfk_1;
+
+-- tbl_contacts_ibfk_1 (contacts.userID -> users.id) and tbl_domains_ibfk_1
+-- (domains.userID -> users.id) are deliberately left alone: both sides are
+-- BIGINT, and CONVERT TO CHARACTER SET only rewrites char/text-type columns
+-- -- id/userID are never touched by it, so there's nothing for error 1833
+-- to trip over there.
 
 ALTER TABLE tbl_users
   RENAME TO users,
@@ -143,14 +210,38 @@ ALTER TABLE tbl_messages
 ALTER TABLE messages
   DROP COLUMN archived;
 
+-- tbl_accounting and tbl_reminder both already exist live with real data
+-- (AUTO_INCREMENT 593 and 70 respectively in the dump) -- they get the same
+-- rename + convert treatment as the original 8 tables, not a fresh
+-- CREATE TABLE (a fresh CREATE TABLE would build an empty table under the
+-- new name and strand every existing row under the old one).
+ALTER TABLE tbl_accounting
+  RENAME TO accounting,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE tbl_reminder
+  RENAME TO reminder,
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Recreate the two FKs dropped above, now that contacts.handle carries its
+-- final charset. FOREIGN_KEY_CHECKS is still 0 here, which is fine: this
+-- isn't new data risk, it's restoring a relationship that was already valid
+-- a moment ago and whose underlying data hasn't changed in between.
+ALTER TABLE domains
+  ADD CONSTRAINT FOREIGN KEY (registrant) REFERENCES contacts(handle) ON UPDATE CASCADE;
+
+ALTER TABLE transfers
+  ADD CONSTRAINT FOREIGN KEY (registrant) REFERENCES contacts(handle) ON UPDATE CASCADE;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 
 -- ----------------------------------------------------------------------------
--- PART 3: COLUMN NAME CORRECTIONS
+-- PART 3: COLUMN NAME CORRECTIONS + STRUCTURAL FIXES
 --
 -- Renames columns from the original camelCase names to the corrected
--- lower_snake_case names, per the target schema supplied.
+-- lower_snake_case names, per the target schema supplied, and brings
+-- accounting/reminder the rest of the way to their target shape.
 --
 -- CHANGE COLUMN requires the full column definition, not just the new name,
 -- so each clause restates the existing type/nullability/default. Text
@@ -162,10 +253,19 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- `billingID` is dropped rather than renamed: invoicing has been taken out of
 -- this codebase entirely (it will be reimplemented elsewhere), so nothing reads
--- a billing identifier any more.
+-- a billing identifier any more. Safe now that PART 2 already dropped the
+-- FK from (the former) tbl_accounting.
 ALTER TABLE users
   DROP COLUMN `billingID`,
   CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
+
+-- `billingID` here is renamed, not dropped, unlike users.billingID above:
+-- this is a historical record of what was billed, and it stays -- it simply
+-- no longer has a FK back to users now that billing/invoicing lives outside
+-- this codebase (that FK was dropped for good in PART 2).
+ALTER TABLE accounting
+  CHANGE COLUMN `billingID` `billing_id` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  RENAME INDEX `billingID` TO `billing_id`;
 
 ALTER TABLE transactions
   CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -212,21 +312,44 @@ ALTER TABLE messages
   CHANGE COLUMN `archivedTime` `archived_time` DATETIME DEFAULT NULL,
   CHANGE COLUMN `createdTime` `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
+-- `reminder` pre-dates this migration (unlike changelog) and already holds
+-- data, so -- unlike changelog -- it's altered in place here rather than
+-- created fresh; PART 2 only renamed + converted its charset, this finishes
+-- the job: reorders columns to match the target layout, narrows `notice`
+-- from TEXT to VARCHAR(255) and makes `date` NOT NULL (both pre-flight
+-- checked in PART 1), adds `action`/`created_time`, adds a real PRIMARY KEY
+-- (it only had a UNIQUE KEY before), and adds the domain -> domains.domain
+-- FK (orphans also pre-flight checked in PART 1, so this should succeed
+-- cleanly under FOREIGN_KEY_CHECKS=1, already restored by PART 2).
+ALTER TABLE reminder
+  MODIFY COLUMN `domain` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL AFTER `id`,
+  MODIFY COLUMN `date` DATE NOT NULL AFTER `domain`,
+  MODIFY COLUMN `notice` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `date`,
+  MODIFY COLUMN `email` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `notice`,
+  ADD COLUMN `action` ENUM('create','update','delete') AFTER `email`,
+  MODIFY COLUMN `active` TINYINT DEFAULT 1 AFTER `action`,
+  ADD COLUMN `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `active`,
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `domain` (`domain`),
+  ADD KEY `action` (`action`),
+  ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
+
 
 -- ----------------------------------------------------------------------------
--- PART 4: NEW TABLES - changelog, reminder
+-- PART 4: NEW TABLE - changelog
 --
--- changelog and reminder both carry a FOREIGN KEY into tables created in
--- Part 2 (users, domains respectively), so this whole part must run after
--- Part 2. Not dependent on Part 3's column renames.
+-- Unlike accounting/reminder, changelog has no equivalent in the dump --
+-- there is no tbl_changelog -- so this genuinely is a fresh CREATE TABLE.
+-- Depends on `users` existing under its final name (created in Part 2), so
+-- this must run after Part 2. Not dependent on Part 3's column renames.
 --
--- Note: `changelog.data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the
--- rest of the schema) as given -- a sensible choice here since it stores raw
--- JSON, where case-insensitive comparison/collation isn't meaningful. The
--- CHECK (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
+-- Note: `data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the rest of the
+-- schema) as given -- a sensible choice here since it stores raw JSON, where
+-- case-insensitive comparison/collation isn't meaningful. The CHECK
+-- (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
 -- 8.0.16+, using JSON_VALID) for CHECK constraints to actually be enforced
--- rather than silently parsed-and-ignored -- worth confirming your server
--- version supports enforced CHECK constraints before relying on it.
+-- rather than silently parsed-and-ignored -- your dump's server version
+-- (11.8.8-MariaDB) comfortably supports this.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE `changelog` (
@@ -242,29 +365,15 @@ CREATE TABLE `changelog` (
   CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `reminder` (
-  `id`                    serial,
-  `domain`                varchar(255) NOT NULL,
-  `date`                  date NOT NULL,
-  `notice`                varchar(255),
-  `email`                 varchar(64),
-  `action`                enum('create','update','delete'),
-  `active`                tinyint DEFAULT 1,
-  `created_time`          timestamp DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY (`domain`),
-  KEY (`action`),
-  CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 -- ----------------------------------------------------------------------------
 -- PART 5: EXTEND users TABLE
 --
 -- Widens `password` (32 -> 255 chars -- needed for modern hash formats like
--- bcrypt/argon2, which don't fit in 32 chars) and adds 7 new columns
--- (active/admin flags, TOTP 2FA secrets, session/token limits, debug level),
--- inserted with AFTER so the physical column order matches the new schema.
+-- bcrypt/argon2, which don't fit in 32 chars) and adds 9 new columns
+-- (active/admin flags, TOTP 2FA secrets, session/token limits, debug level,
+-- API token + its expiry), inserted with AFTER so the physical column order
+-- matches the new schema.
 --
 -- `dns` is dropped: it is a leftover of the legacy web interface and nothing in
 -- this codebase ever reads or writes it (its sibling `techc` is still used, by
@@ -301,13 +410,14 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'changelog','reminder');
+                        'accounting','reminder','changelog');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
-                      'transactions','responses','msgqueue','messages')
+                      'transactions','responses','msgqueue','messages',
+                      'accounting','reminder')
   AND CHARACTER_SET_NAME IS NOT NULL
   AND (CHARACTER_SET_NAME <> 'utf8mb4' OR COLLATION_NAME <> 'utf8mb4_unicode_ci');
 -- ^ this query should return ZERO rows. Any row returned means a column
@@ -329,16 +439,17 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND COLUMN_NAME = 'archived';
 -- ^ this query should return ZERO rows.
 
--- 6d. Confirm no old camelCase column names remain anywhere in the 8
---     original tables.
+-- 6d. Confirm no old camelCase column names remain anywhere across the 10
+--     migrated tables.
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
-                      'transactions','responses','msgqueue','messages')
+                      'transactions','responses','msgqueue','messages',
+                      'accounting','reminder')
   AND BINARY COLUMN_NAME REGEXP '[A-Z]';
 -- ^ this query should return ZERO rows (no upper-case characters left in
---   any column name across these 8 tables).
+--   any column name across these 10 tables).
 
 -- 6e. Confirm changelog/reminder exist with the expected shape:
 --     PKs, secondary indexes, and changelog's data column
@@ -355,7 +466,10 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('changelog','reminder')
 ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
 -- ^ expect: changelog: PRIMARY (id), object_lookup (object, object_id)
---           reminder:  PRIMARY (id), domain (domain)
+--           reminder:  PRIMARY (id), id (id, the pre-existing redundant
+--                      UNIQUE KEY -- harmless, matches the pattern already
+--                      present on every other original table), domain
+--                      (domain), action (action)
 
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
@@ -371,11 +485,11 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'users'
 ORDER BY ORDINAL_POSITION;
 -- ^ expect password as varchar(255), followed by active, admin, totp_secret,
---   totp_secret_pending, max_token_age, max_idle_time, debug_level (in
---   that order after techc).
+--   totp_secret_pending, max_token_age, max_idle_time, debug_level,
+--   api_token, api_token_expires (in that order after techc), and no `dns`.
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the
---     new names, including changelog's and reminder's new FKs.
+--     new names, including changelog's and reminder's FKs.
 SELECT
     TABLE_NAME        AS child_table,
     COLUMN_NAME        AS child_column,
@@ -387,13 +501,15 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'changelog','reminder');
+                      'accounting','reminder','changelog');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
 --           changelog.user_id -> users.id
 --           reminder.domain -> domains.domain
+-- (accounting should NOT appear here at all -- its FK to users was dropped
+-- for good in PART 2, by design)
 
 -- 6h. DATA coherence, not schema shape: report any domain whose registrant
 --     contact belongs to a different local user than the domain itself.
