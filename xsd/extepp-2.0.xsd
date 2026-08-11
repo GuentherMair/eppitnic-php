@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+  <schema targetNamespace="http://www.nic.it/ITNIC-EPP/extepp-2.0"
+          xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0"
+
+          xmlns="http://www.w3.org/2001/XMLSchema"
+
+          elementFormDefault="qualified">
+
+  <!--
+  Import common element types.
+  -->
+
+    <annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 EPP extension.
+        </documentation>
+    </annotation>
+
+    <element name="passwdReminder" type="extepp:passwdReminderType"/>
+    <element name="creditMsgData" type="extepp:creditMsgDataType"/>
+	<element name="reasonCode" type="unsignedShort"/> 
+	<element name="wrongValue" type="extepp:wrongElementValueType"/>       
+    <element name="wrongNamespaceReminder" type="extepp:wrongNamespaceReminderType"/>
+    
+      <complexType name="passwdReminderType">
+          <sequence>
+              <element name="exDate" type="dateTime"/>
+          </sequence>
+      </complexType>
+
+      <complexType name="creditMsgDataType">
+          <sequence>
+              <element name="credit" type="string" />
+              <element name="untilDate" type="dateTime" minOccurs="0"/>
+              <element name="creditNeeded" type="string" minOccurs="0"/>
+          </sequence>
+      </complexType>
+
+
+	  <complexType name="wrongElementValueType">
+	    <sequence>
+	      <element name="element" type="token"/> 
+	      <element name="namespace" type="token"/> 
+	      <element name="value" type="token"/>       
+	    </sequence>
+	  </complexType>
+
+      <complexType name="wrongNamespaceReminderType">
+          <sequence>
+              <element name="wrongNamespaceInfo" type="extepp:wrongNamespaceInfoType" minOccurs="0" maxOccurs="unbounded"/>
+          </sequence>
+      </complexType>
+
+      <complexType name="wrongNamespaceInfoType">
+          <sequence>
+              <element name="wrongNamespace" type="token" minOccurs="0"/>
+              <element name="rightNamespace" type="token"/>
+          </sequence>
+      </complexType>
+
+  <!--
+  End of schema.
+  -->
+  </schema>

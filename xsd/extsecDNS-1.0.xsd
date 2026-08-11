@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns="http://www.w3.org/2001/XMLSchema"
+        xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0"          
+        xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1" 
+        xmlns:extsecDNS="http://www.nic.it/ITNIC-EPP/extsecDNS-1.0"
+        targetNamespace="http://www.nic.it/ITNIC-EPP/extsecDNS-1.0" 
+        elementFormDefault="qualified">
+	<!--
+  Import common element types.
+  -->
+	<import namespace="urn:ietf:params:xml:ns:secDNS-1.1" schemaLocation="secDNS-1.1.xsd"/>
+	<import namespace="http://www.nic.it/ITNIC-EPP/extdom-2.0" schemaLocation="extdom-2.0.xsd"/>
+	
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 DNSSEC extension.
+        </documentation>
+	</annotation>
+	
+    <element name="infDsOrKeyToValidateData" type="extsecDNS:dsOrKeyToValidateDataType" />
+    <element name="secDnsErrorMsgData" type="extsecDNS:DnsValidatorResult"/>
+       
+   <simpleType name="remAllType">
+	  <restriction base="string">
+	  <length value="0"/>
+	  </restriction>
+   </simpleType>    
+       
+   <complexType name="dsOrKeyToValidateDataType">
+	   <choice>
+		    <sequence>
+		      <element name="dsOrKeysToValidate" type="secDNS:dsOrKeyType"/>
+		    </sequence>
+	         <element name="remAll" type="extsecDNS:remAllType"/>
+	   </choice>
+  </complexType>
+        		
+	<complexType name="DnsValidatorResult">
+	  	<sequence>
+	  		<element name="dsOrKeys" type="secDNS:dsOrKeyType" />
+	  		<element name="tests" type="extsecDNS:ValidationTestList" />
+	  		<element name="queries" type="extsecDNS:QueryList"/>
+	  	</sequence>
+	  	<attribute name="version" type="string"/>
+	</complexType>		
+			  
+	 <complexType name="ValidationTest">
+		<sequence>
+			<element name="nameserver" minOccurs="0" maxOccurs="unbounded" type="extsecDNS:NameserverResult"/>
+			<element name="detail" type="extsecDNS:Detail" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="name" type="string" use="required"/>
+		<attribute name="status" type="extdom:DnsValidatorStatus" />
+		<attribute name="skipped" type="boolean" />
+	</complexType>
+	
+		<complexType name="NameserverResult">
+		<sequence>
+			<element name="detail" type="extsecDNS:Detail" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>		
+		<attribute name="name" use="required" type="string"/>
+		<attribute name="status" use="required" type="extdom:DnsValidatorStatus" />
+	</complexType>
+	
+		<complexType name="Detail">
+		<simpleContent>
+			<extension base="string">
+				<attribute name="name" use="optional" type="string"/>
+				<attribute name="status" use="optional" type="extdom:DnsValidatorStatus" />
+				<attribute name="queryId" use="optional" type="int"/>
+		</extension>
+		</simpleContent>
+	</complexType>
+	
+	<complexType name="ValidationTestList">
+	  	<sequence>
+	  		<element name="test" type="extsecDNS:ValidationTest" minOccurs="1" maxOccurs="unbounded"/>
+	  	</sequence>
+	</complexType>
+	
+	    <simpleType name="QueryType">
+	      <restriction base="string">
+	            <enumeration value="DNSKEY"/>
+	            <enumeration value="RRSIG"/>
+	            <enumeration value="DS"/>
+	        </restriction>
+	    </simpleType>
+	   
+	<complexType name="QueryResult">
+		<sequence>
+			<element name="queryFor" type="string"/>
+			<element name="type" type="extsecDNS:QueryType"/>
+			<element name="destination" type="string"/>
+			<element name="result" type="string"/>
+		</sequence>
+		<attribute name="id" type="int"/>
+	</complexType>	
+
+	<complexType name="QueryList">
+	  	<sequence>
+	  		<element name="query" type="extsecDNS:QueryResult" minOccurs="0" maxOccurs="unbounded"/>
+	  	</sequence>
+	</complexType>
+
+</schema>

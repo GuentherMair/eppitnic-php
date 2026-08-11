@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" 
+        xmlns:epp="urn:ietf:params:xml:ns:epp-1.0" 
+        xmlns:eppcom="urn:ietf:params:xml:ns:eppcom-1.0" 
+        xmlns="http://www.w3.org/2001/XMLSchema" 
+        xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" 
+        xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" 
+        xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" 
+        xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" 
+        xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1" 
+        targetNamespace="http://www.nic.it/ITNIC-EPP/extdom-2.0" 
+        elementFormDefault="qualified">
+	<!--
+  Import common element types.
+  -->
+	<import namespace="urn:ietf:params:xml:ns:eppcom-1.0" schemaLocation="eppcom-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:epp-1.0" schemaLocation="epp-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:domain-1.0" schemaLocation="domain-itnic.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:contact-1.0" schemaLocation="contact-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:rgp-1.0" schemaLocation="rgp-itnic.xsd"/>
+	<import namespace="http://www.nic.it/ITNIC-EPP/extcon-1.0" schemaLocation="extcon-1.0.xsd"/>
+	<import namespace="urn:ietf:params:xml:ns:secDNS-1.1" schemaLocation="secDNS-1.1.xsd"/>
+
+	<annotation>
+		<documentation>
+         IT-NIC Extensible Provisioning Protocol v1.0 domain extension.
+        </documentation>
+	</annotation>
+	<element name="trade" type="extdom:tradeType"/>
+	
+	<element name="infContacts" type="extdom:infContactsType"/>
+	
+	<element name="infContactsData" type="extdom:infContactsDataType"/>
+	<element name="dlgMsgData" type="extdom:dlgMsgDataType"/>
+	<element name="simpleMsgData" type="extdom:simpleMsgDataType"/>	
+	<element name="dnsErrorMsgData" type="extdom:DnsValidatorResult"/>
+	<element name="dnsWarningMsgData" type="extdom:dnsWarningValidationMsgDataType"/>
+    <element name="infData" type="extdom:ownStatusDataType" />
+    <element name="infNsToValidateData" type="extdom:nsToValidateDataType" />
+    <element name="chgStatusMsgData" type="extdom:chgStatusMsgDataType" />
+    <element name="delayedDebitAndRefundMsgData" type="extdom:delayedDebitAndRefundMsgDataType" />
+    <element name="refundRenewsForBulkTransferMsgData" type="extdom:refundRenewsForBulkTransferMsgDataType" />
+    <element name="remappedIdnData" type="extdom:remappedIdnDataType" />
+    
+	<complexType name="tradeType">
+		<sequence>
+			<element name="transferTrade" type="extdom:transferTradeType"/>
+		</sequence>
+	</complexType>
+	<complexType name="transferTradeType">
+		<sequence>
+			<element name="newRegistrant" type="domain:clIDChgType"/>
+			<element name="newAuthInfo" type="extdom:authInfoTradeType"/>
+		</sequence>
+	</complexType>
+			<!--
+    Allow the authInfo value to be nullified by including an
+    empty element within the choice.
+  -->
+	<complexType name="authInfoTradeType">
+		<choice>
+			<element name="pw" type="eppcom:pwAuthInfoType"/>
+			<element name="ext" type="eppcom:extAuthInfoType"/>
+		</choice>
+	</complexType>
+
+	<complexType name="infContactsType">
+	    <attribute name="op" type="extdom:infContactsOpType" use="required"/>
+	</complexType>
+		
+   <simpleType name="infContactsOpType">
+    <restriction base="token">
+      <enumeration value="all" />
+      <enumeration value="registrant" />
+      <enumeration value="admin" />
+      <enumeration value="tech" />
+    </restriction>
+  </simpleType>
+
+
+	<complexType name="infContactsDataType">
+		<sequence>
+      <element name="registrant" type="extdom:infCommonContactType" minOccurs="0" />
+      <element name="contact" type="extdom:infContactType" minOccurs="0"
+        maxOccurs="unbounded" />
+		</sequence>
+	</complexType>
+	
+  <complexType name="infCommonContactType">
+		<sequence>
+        <element name="infContact" type="contact:infDataType"/>
+        <element name="extInfo" type="extcon:allOptionalContactType"/>   
+		</sequence>
+  </complexType>
+
+
+  <complexType name="infContactType">
+  <complexContent>
+    <extension base="extdom:infCommonContactType">
+        <attribute name="type" type="extdom:infContactAttrType" />
+    </extension>
+  </complexContent>		
+  </complexType> 
+  
+  <simpleType name="infContactAttrType">
+    <restriction base="token">
+      <enumeration value="admin" />
+      <enumeration value="tech" />
+    </restriction>
+  </simpleType>
+
+
+
+	<complexType name="dlgMsgDataType">
+		<sequence>
+			<element name="name" type="eppcom:labelType" maxOccurs="unbounded"/>
+			<element name="ns" type="eppcom:labelType"/>
+		</sequence>
+	</complexType>
+	<complexType name="simpleMsgDataType">
+		<sequence>
+			<element name="name" type="eppcom:labelType" maxOccurs="unbounded"/>
+		</sequence>
+	</complexType>		  
+  
+    <complexType name="dnsWarningValidationMsgDataType">
+    <sequence>
+		<element name="chgStatusMsgData" type="extdom:chgStatusMsgDataType"/>
+		<element name="dnsWarningData" type="extdom:DnsValidatorResult"/>
+    </sequence>
+  </complexType>
+	
+  <!--
+    Own Status is a combination of attributes and an optional
+    human-readable message that may be expressed in languages
+    other than English.
+  -->
+  <complexType name="ownStatusType">
+    <simpleContent>
+      <extension base="normalizedString">
+        <attribute name="s" type="extdom:ownStatusValueType" use="required" />
+        <attribute name="lang" type="language" default="en" />
+      </extension>
+    </simpleContent>
+  </complexType>
+
+  <simpleType name="ownStatusValueType">
+    <restriction base="token">
+      <enumeration value="dnsHold" />
+      <enumeration value="noRegistrar" />
+      <enumeration value="challenged" />
+      <enumeration value="revoked" />
+      <enumeration value="toBeReassigned" />
+      <enumeration value="notRenewed" />
+      <enumeration value="bulk" />
+    </restriction>
+  </simpleType>
+	
+  <complexType name="ownStatusDataType">
+    <sequence>
+      <element name="ownStatus" type="extdom:ownStatusType"
+        maxOccurs="unbounded" />
+    </sequence>
+  </complexType>
+
+  <complexType name="nsToValidateDataType">
+    <sequence>
+      <element name="nsToValidate" type="domain:nsType" maxOccurs="unbounded" />
+    </sequence>
+  </complexType>
+  	
+  <complexType name="targetStatusType">
+    <sequence>
+	   <element ref="domain:status" minOccurs="0" maxOccurs="unbounded"/>
+	   <element ref="rgp:rgpStatus" minOccurs="0" maxOccurs="unbounded"/>
+	   <element name="ownStatus" type="extdom:ownStatusType" minOccurs="0"  maxOccurs="unbounded" />
+	  </sequence>
+  </complexType>
+
+  <complexType name="chgStatusMsgDataType">
+    <sequence>
+		<element name="name" type="eppcom:labelType"/>
+		<element name="targetStatus" type="extdom:targetStatusType"/>
+    </sequence>
+  </complexType>
+
+  <complexType name="delayedDebitAndRefundMsgDataType">
+    <sequence>
+		<element name="name" type="eppcom:labelType"/>
+		<element name="debitDate" type="dateTime" minOccurs="0"/>
+		<element name="amount" type="string"/>
+    </sequence>
+  </complexType>
+
+  <complexType name="refundRenewsForBulkTransferMsgDataType">
+    <sequence>
+		<element name="domainsNum" type="string"/>
+		<element name="amount" type="string"/>
+		<element name="bulkTransferId" type="string"/>
+    </sequence>
+  </complexType>
+
+  <complexType name="remappedIdnDataType">
+    <sequence>
+		<element name="idnRequested" type="eppcom:labelType"/>
+		<element name="idnCreated" type="eppcom:labelType"/>
+    </sequence>
+  </complexType>
+
+	<complexType name="DnsValidatorResult">
+	  	<sequence>
+	  		<element name="domain" type="string" />
+	  		<element name="status" type="extdom:DnsValidatorStatus" />
+	  		<element name="validationId" type="string" />
+	  		<element name="validationDate" type="dateTime"/>
+	  		<element name="nameservers" type="extdom:NameserverList" />
+	  		<element name="tests" type="extdom:ValidationTestList" />
+	  		<element name="queries" type="extdom:QueryList"/>
+	  	</sequence>
+	  	<attribute name="version" type="string"/>
+	</complexType>
+	
+	<simpleType name="DnsValidatorStatus">
+		<restriction base="string">
+			<enumeration value="SUCCEEDED"/>
+			<enumeration value="WARNING"/>
+			<enumeration value="FAILED"/>
+		</restriction>
+	</simpleType>
+	
+	<!-- Query's type list, not complete -->
+	<simpleType name="QueryType">
+		<restriction base="string">
+			<enumeration value="ANY"/>
+			<enumeration value="SOA"/>
+			<enumeration value="NS"/>
+			<enumeration value="A"/>
+			<enumeration value="MX"/>
+			<enumeration value="AAAA"/>
+			<enumeration value="CNAME"/>
+			<enumeration value="PTR"/>
+			<enumeration value="TXT"/>
+		</restriction>
+	</simpleType>
+	
+	<complexType name="ValidationTest">
+		<sequence>
+			<element name="nameserver" minOccurs="0" maxOccurs="unbounded" type="extdom:NameserverResult"/>
+			<element name="detail" type="extdom:Detail" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="name" type="string" use="required"/>
+		<attribute name="status" type="extdom:DnsValidatorStatus" />
+		<attribute name="skipped" type="boolean" />
+	</complexType>
+	
+	<complexType name="ValidationTestList">
+	  	<sequence>
+	  		<element name="test" type="extdom:ValidationTest" minOccurs="1" maxOccurs="unbounded"/>
+	  	</sequence>
+	</complexType>
+	
+	<complexType name="QueryResult">
+		<sequence>
+			<element name="queryFor" type="string"/>
+			<element name="type" type="extdom:QueryType"/>
+			<element name="destination" type="string"/>
+			<element name="result" type="string"/>
+		</sequence>
+		<attribute name="id" type="int"/>
+	</complexType>
+	
+	<complexType name="QueryList">
+	  	<sequence>
+	  		<element name="query" type="extdom:QueryResult" minOccurs="0" maxOccurs="unbounded"/>
+	  	</sequence>
+	</complexType>
+	
+	<complexType name="NameserverResult">
+		<sequence>
+			<element name="detail" type="extdom:Detail" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>		
+		<attribute name="name" use="required" type="string"/>
+		<attribute name="status" use="required" type="extdom:DnsValidatorStatus" />
+	</complexType>
+	
+	<complexType name="Detail">
+		<simpleContent>
+			<extension base="string">
+				<attribute name="name" use="optional" type="string"/>
+				<attribute name="status" use="optional" type="extdom:DnsValidatorStatus" />
+				<attribute name="queryId" use="optional" type="int"/>
+		</extension>
+		</simpleContent>
+	</complexType>
+	
+	<complexType name="Nameserver">
+		<sequence>
+			<element name="address" type="extdom:IPAddress" minOccurs="0" maxOccurs="unbounded"/>
+		</sequence>
+		<attribute name="name" use="required" type="string" />
+	</complexType>
+	
+	<complexType name="IPAddress">
+		<simpleContent>
+     		<extension base="string">
+        		<attribute name="type" use="required" type="extdom:IPAddressType" />
+			</extension>
+    	</simpleContent>
+	</complexType>
+	
+	<complexType name="NameserverList">
+	  	<sequence>
+	  		<element name="nameserver" type="extdom:Nameserver" minOccurs="0" maxOccurs="unbounded"/>
+	  	</sequence>
+	</complexType>
+	
+	<simpleType name="IPAddressType">
+		<restriction base="string">
+			<enumeration value="IPv4"/>
+			<enumeration value="IPv6"/>
+		</restriction>
+	</simpleType>
+
+
+	<!--
+  End of schema.
+  -->
+</schema>

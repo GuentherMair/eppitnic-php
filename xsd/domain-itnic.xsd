@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:ietf:params:xml:ns:domain-1.0" elementFormDefault="qualified">
+	<include schemaLocation="domain-1.0.xsd"/>
+	<element name="status" type="domain:statusType"/>
+</schema>
