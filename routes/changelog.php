@@ -12,8 +12,7 @@ $app->get('/v1/changelog/{object}/{object_id}', function (Request $request, Resp
         ':object'    => $args['object'],
         ':object_id' => $args['object_id'],
     ]);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'changelog' => $changelog,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });

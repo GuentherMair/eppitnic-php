@@ -10,8 +10,7 @@ $app->get('/v1/whois', function (Request $request, Response $response, array $ar
 
     $domain = trim($request->getQueryParams()['domain'] ?? '');
     if ($domain === '') {
-        $response->getBody()->write(json_encode(['error' => "Missing or empty 'domain' parameter"]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Missing or empty 'domain' parameter"], 400);
     }
 
     try {
@@ -23,10 +22,8 @@ $app->get('/v1/whois', function (Request $request, Response $response, array $ar
             $result['regrinfo']['domain']['status'] = "multiple status fields (see detailed output)";
         }
 
-        $response->getBody()->write(json_encode($result));
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, $result);
     } catch (\Throwable $e) {
-        $response->getBody()->write(json_encode(['error' => 'WHOIS lookup failed: ' . $e->getMessage()]));
-        return $response->withStatus(500)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'WHOIS lookup failed: ' . $e->getMessage()], 500);
     }
 });

@@ -14,9 +14,8 @@ $app->get('/v1/network-check', function (Request $request, Response $response, a
         }
     }
 
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'safe_network' => $safeNetwork,
         'client_ip'    => Helpers::clientIp(),
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });

@@ -33,20 +33,17 @@ $app->get('/v1/reminders', function (Request $request, Response $response, array
         ORDER BY id DESC
         LIMIT " . (($page - 1) * $pageSize) . ", " . $pageSize, $bind);
 
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'total' => $total,
         'filteredTotal' => $total,
         'page' => $page,
         'pageSize' => $pageSize,
         'rows' => $rows,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->get('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
 
     $where = ['d.domain = r.domain', 'r.active = 1', 'd.domain = :domain'];
@@ -62,20 +59,16 @@ $app->get('/v1/domains/{name}/reminders', function (Request $request, Response $
         WHERE " . implode(' AND ', $where) . "
         ORDER BY r.date DESC", $bind);
 
-    $response->getBody()->write(json_encode(['reminders' => $reminders]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['reminders' => $reminders]);
 });
 
 $app->post('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
     if (empty($params['date']) || empty($params['notice'])) {
-        $response->getBody()->write(json_encode(['error' => 'date and notice are required']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'date and notice are required'], 400);
     }
 
     $where = ['domain = :domain'];
@@ -86,8 +79,7 @@ $app->post('/v1/domains/{name}/reminders', function (Request $request, Response 
     }
     $owns = (int) R::getCell("SELECT COUNT(*) FROM domains WHERE " . implode(' AND ', $where), $bind);
     if ($owns !== 1) {
-        $response->getBody()->write(json_encode(['error' => "Domain '{$name}' does not belong to this user"]));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Domain '{$name}' does not belong to this user"], 403);
     }
 
     R::exec("INSERT INTO reminder (domain, date, notice, email) VALUES (:domain, :date, :notice, :email)", [
@@ -97,14 +89,11 @@ $app->post('/v1/domains/{name}/reminders', function (Request $request, Response 
         ':email'  => $params['email'] ?? '',
     ]);
 
-    $response->getBody()->write(json_encode(['created' => true, 'domain' => $name]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['created' => true, 'domain' => $name], 201);
 });
 
 $app->delete('/v1/reminders/{id}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $id = (int) $args['id'];
 
     $where = ['r.id = :id', 'r.domain = d.domain'];
@@ -115,12 +104,10 @@ $app->delete('/v1/reminders/{id}', function (Request $request, Response $respons
     }
     $owns = (int) R::getCell("SELECT COUNT(*) FROM domains d, reminder r WHERE " . implode(' AND ', $where), $bind);
     if ($owns !== 1) {
-        $response->getBody()->write(json_encode(['error' => "Reminder not found or does not belong to this user"]));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Reminder not found or does not belong to this user"], 403);
     }
 
     R::exec("UPDATE reminder SET active = 0 WHERE id = ?", [$id]);
 
-    $response->getBody()->write(json_encode(['archived' => true, 'id' => $id]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['archived' => true, 'id' => $id]);
 });

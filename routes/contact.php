@@ -55,28 +55,22 @@ function canAccessContact(string $handle, int $user_id, bool $isAdmin): bool {
 }
 
 $app->get('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
     $contact = new Contact($nic);
     $contacts = $contact->listContacts($user_id, $isAdmin, ($params['active'] ?? '1') !== '0');
 
-    $response->getBody()->write(json_encode(['contacts' => $contacts]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['contacts' => $contacts]);
 });
 
 $app->get('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $handle = $args['handle'];
 
     if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to view this contact']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to view this contact'], 403);
     }
 
     // the registry is authoritative -- its answer is returned as-is, never
@@ -95,8 +89,7 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     }
 
     if ($contact !== null) {
-        $response->getBody()->write(json_encode(['contact' => contactToArray($contact), 'stale' => false]));
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['contact' => contactToArray($contact), 'stale' => false]);
     }
 
     // registry lookup failed: serve the last known local state instead, flagged
@@ -108,26 +101,21 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     $nic = new Client();
     $contact = new Contact($nic);
     if ( ! $contact->loadDB($handle, $user_id, true)) {
-        $response->getBody()->write(json_encode(['error' => "Contact '{$handle}' not found"]));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Contact '{$handle}' not found"], 404);
     }
 
-    $response->getBody()->write(json_encode(['contact' => contactToArray($contact), 'stale' => true]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['contact' => contactToArray($contact), 'stale' => true]);
 });
 
 $app->post('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
+    $user_id = Helpers::jwtUserID($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Helpers::requireFields($params, ['name']) ?? Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
-        $response->getBody()->write(json_encode(['error' => $err]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $err], 400);
     }
     if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
-        $response->getBody()->write(json_encode(['error' => 'email is not a valid address']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'email is not a valid address'], 400);
     }
 
     try {
@@ -152,37 +140,29 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             return ['ok' => true, 'contact' => $contact];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['contact' => contactToArray($result['contact'])]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['contact' => contactToArray($result['contact'])], 201);
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $handle = $args['handle'];
     $params = $request->getParsedBody() ?? [];
 
     if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to update this contact']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to update this contact'], 403);
     }
     if ($err = Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
-        $response->getBody()->write(json_encode(['error' => $err]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $err], 400);
     }
     if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
-        $response->getBody()->write(json_encode(['error' => 'email is not a valid address']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'email is not a valid address'], 400);
     }
 
     try {
@@ -203,23 +183,18 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
             return ['ok' => true, 'contact' => $contact];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus($result['status'])->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], $result['status']);
     }
 
-    $response->getBody()->write(json_encode(['contact' => contactToArray($result['contact'])]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['contact' => contactToArray($result['contact'])]);
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $handle = $args['handle'];
 
     try {
@@ -232,15 +207,12 @@ $app->delete('/v1/contacts/{handle}', function (Request $request, Response $resp
             return ['ok' => true];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['deleted' => true, 'handle' => $handle]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['deleted' => true, 'handle' => $handle]);
 });

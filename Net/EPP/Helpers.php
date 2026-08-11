@@ -65,6 +65,59 @@ final class Helpers
     public const BOM = "\xef\xbb\xbf";
 
     // -----------------------------------------------------------------
+    // HTTP responses
+    // -----------------------------------------------------------------
+
+    /**
+     * write $body as the JSON response, with the status and content type every
+     * route in this application returns.
+     *
+     * Exists because the three-line write/withStatus/withHeader incantation was
+     * repeated at 129 call sites, and a route that got one of the three subtly
+     * wrong -- a missing charset, a 200 on an error path -- looked exactly like
+     * the 128 that got it right.
+     *
+     * @param Response $response the response to write to
+     * @param array $body the payload, JSON-encoded as-is
+     * @param int $status the HTTP status code
+     * @return Response the response, ready to return
+     */
+    public static function json(Response $response, array $body, int $status = 200): Response {
+        $response->getBody()->write(json_encode($body));
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    /**
+     * the authenticated caller, as every route needs them
+     *
+     * Just the two fields: a route wanting more of the token (routes/users.php
+     * reads username, has_totp and friends) calls jwtVerify() directly and
+     * gets the whole claims object, so carrying it here too would be a second
+     * way to reach the same thing.
+     *
+     * @param Request $request the incoming HTTP request
+     * @return array{id: int, isAdmin: bool}
+     * @throws HttpUnauthorizedException if the request carries no usable credential
+     */
+    public static function actor(Request $request): array {
+        $decoded = self::jwtVerify($request);
+        return [
+            'id'      => (int) $decoded->data->id,
+            'isAdmin' => (int) $decoded->data->admin === 1,
+        ];
+    }
+
+    // Note: there is deliberately no withEppSession()-plus-502 wrapper here.
+    // With json() in place each of those catch blocks is a single line, and
+    // the alternative -- returning a [result, ?Response] tuple the caller has
+    // to unpack and test -- hides the control flow rather than shortening it.
+    // One route (GET /v1/domains/{name}) also treats an unreachable registry
+    // as "fall back to the local row" rather than as a 502, so it could not
+    // use such a wrapper anyway.
+
+    // -----------------------------------------------------------------
     // changelog
     // -----------------------------------------------------------------
 

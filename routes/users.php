@@ -7,14 +7,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Helpers::jwtVerify($request);
-    $response->getBody()->write(json_encode(Helpers::jwtBuild((array) $decoded->data)));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, Helpers::jwtBuild((array) $decoded->data));
 });
 
 $app->get('/v1/users/me', function (Request $request, Response $response, array $args): Response {
     $decoded = Helpers::jwtVerify($request);
-    $response->getBody()->write(json_encode((array) $decoded->data));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, (array) $decoded->data);
 });
 
 $app->post('/v1/users/authenticate', function (Request $request, Response $response, array $args): Response {
@@ -23,12 +21,10 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     $password = $params['password'] ?? '';
 
     if (empty($username)) {
-        $response->getBody()->write(json_encode(['error' => 'Please provide a username']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'Please provide a username'], 401);
     }
     if (empty($password)) {
-        $response->getBody()->write(json_encode(['error' => 'Please provide a password']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'Please provide a password'], 401);
     }
 
     $user = R::getAll("SELECT
@@ -39,8 +35,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     ]);
 
     if (empty($user) || !password_verify($password, $user[0]['password'])) {
-        $response->getBody()->write(json_encode(['error' => 'Wrong username or password']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'Wrong username or password'], 401);
     }
 
     $hasTotp   = !empty($user[0]['totp_secret']);
@@ -56,16 +51,14 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     if ($needsTotp) {
         $totpCode = $params['totp'] ?? '';
         if (empty($totpCode)) {
-            $response->getBody()->write(json_encode(['error' => 'MFA code required']));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => 'MFA code required'], 401);
         }
         if (!Helpers::totpVerify($user[0]['totp_secret'], $totpCode)) {
-            $response->getBody()->write(json_encode(['error' => 'Invalid MFA code']));
-            return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => 'Invalid MFA code'], 401);
         }
     }
 
-    $response->getBody()->write(json_encode(Helpers::jwtBuild([
+    return Helpers::json($response, Helpers::jwtBuild([
         'id'            => $user[0]['id'],
         'admin'         => $user[0]['admin'],
         'username'      => $user[0]['username'],
@@ -75,8 +68,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         'debug_level'    => $user[0]['debug_level'],
         'max_token_age'   => $user[0]['max_token_age'],
         'max_idle_time'   => $user[0]['max_idle_time'],
-    ])));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]));
 });
 
 $app->get('/v1/users', function (Request $request, Response $response, array $args): Response {
@@ -86,10 +78,9 @@ $app->get('/v1/users', function (Request $request, Response $response, array $ar
         id, active, admin, username, max_token_age, max_idle_time, debug_level,
         totp_secret IS NOT NULL AS has_totp
     FROM users");
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->get('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
@@ -101,10 +92,9 @@ $app->get('/v1/users/{id}', function (Request $request, Response $response, arra
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->put('/v1/changepassword/{id}', function (Request $request, Response $response, array $args): Response {
@@ -114,16 +104,14 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     $password = $params['password'] ?? '';
 
     if (empty($password)) {
-        $response->getBody()->write(json_encode(['error' => 'Please provide a password']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'Please provide a password'], 401);
     }
 
     // 403, not 401: the caller is authenticated, they are just not allowed to
     // change this particular user's password. Matches every other authorization
     // refusal in the codebase.
     if (($args['id'] != $decoded->data->id) && ($decoded->data->admin != 1)) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("
@@ -141,10 +129,9 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
         ':id' => $args['id'],
     ]);
     Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->put('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
@@ -157,8 +144,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     // been omit-to-leave-unchanged here)
     $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $args['id']]);
     if (empty($current)) {
-        $response->getBody()->write(json_encode(['error' => 'User not found']));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'User not found'], 404);
     }
 
     // the UNIQUE column is pre-checked (excluding this row) for the same reason
@@ -170,8 +156,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
             ':id'       => $args['id'],
         ]);
         if ($taken > 0) {
-            $response->getBody()->write(json_encode(['error' => "username '{$username}' is already taken"]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => "username '{$username}' is already taken"], 400);
         }
     }
 
@@ -206,10 +191,9 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
         ':id' => $args['id'],
     ]);
     Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->post('/v1/users', function (Request $request, Response $response, array $args): Response {
@@ -217,8 +201,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Helpers::requireFields($params, ['username', 'password'])) {
-        $response->getBody()->write(json_encode(['error' => $err]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $err], 400);
     }
 
     // pre-check the UNIQUE column, so a collision comes back as a 400 with a
@@ -227,8 +210,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':username' => $params['username'],
     ]);
     if ( ! empty($taken)) {
-        $response->getBody()->write(json_encode(['error' => "username '{$params['username']}' is already taken"]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "username '{$params['username']}' is already taken"], 400);
     }
 
     R::exec("
@@ -261,10 +243,9 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':id' => $id,
     ]);
     Helpers::logChanges('users', $id, 'create', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ], 201);
 });
 
 $app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
@@ -280,10 +261,9 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
         ':id' => $args['id'],
     ]);
     Helpers::logChanges('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
@@ -292,16 +272,14 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $user = R::getAll("SELECT id, username FROM users WHERE id = :id AND active = 1", [
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        $response->getBody()->write(json_encode(['error' => 'User not found']));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'User not found'], 404);
     }
 
     $totp = Helpers::totpGenerate($user[0]['username']);
@@ -311,11 +289,10 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
         ':id'     => $args['id'],
     ]);
 
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'secret' => $totp['secret'],
         'uri'    => $totp['uri'],
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
@@ -324,8 +301,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $params   = $request->getParsedBody() ?? [];
@@ -335,16 +311,13 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        $response->getBody()->write(json_encode(['error' => 'User not found']));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'User not found'], 404);
     }
     if (empty($user[0]['totp_secret_pending'])) {
-        $response->getBody()->write(json_encode(['error' => 'No pending TOTP setup found']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'No pending TOTP setup found'], 400);
     }
     if (empty($totpCode) || !Helpers::totpVerify($user[0]['totp_secret_pending'], $totpCode)) {
-        $response->getBody()->write(json_encode(['error' => 'Invalid TOTP code']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'Invalid TOTP code'], 401);
     }
 
     R::exec("UPDATE users SET totp_secret = totp_secret_pending, totp_secret_pending = NULL WHERE id = :id", [
@@ -358,10 +331,9 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
         ':id' => $args['id'],
     ]);
     Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->delete('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
@@ -370,8 +342,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("UPDATE users SET totp_secret = NULL, totp_secret_pending = NULL WHERE id = :id", [
@@ -385,10 +356,9 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
         ':id' => $args['id'],
     ]);
     Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'users' => $users,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
@@ -397,16 +367,14 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $user = R::getAll("SELECT id FROM users WHERE id = :id AND active = 1", [
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        $response->getBody()->write(json_encode(['error' => 'User not found']));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'User not found'], 404);
     }
 
     $params = $request->getParsedBody() ?? [];
@@ -426,11 +394,10 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
 
     // the plaintext token is only ever shown here, at issue time -- it can't be
     // recovered later since only its hash is stored
-    $response->getBody()->write(json_encode([
+    return Helpers::json($response, [
         'token'   => $token,
         'expires' => $expires,
-    ]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    ]);
 });
 
 $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
@@ -439,8 +406,7 @@ $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $r
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {
-        $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("UPDATE users SET api_token = NULL, api_token_expires = 0 WHERE id = :id", [
@@ -450,6 +416,5 @@ $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $r
     $user_id = (int) $decoded->data->id;
     Helpers::logChanges('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
 
-    $response->getBody()->write(json_encode(['revoked' => true]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['revoked' => true]);
 });

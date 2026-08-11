@@ -76,8 +76,7 @@ function domainHeldByAnotherUser(string $domain, int $user_id, bool $isAdmin): b
  * the 403 every ownership check above answers with
  */
 function domainForbidden(Response $response, string $domain): Response {
-    $response->getBody()->write(json_encode(['error' => "You are not authorized to modify domain '{$domain}'"]));
-    return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['error' => "You are not authorized to modify domain '{$domain}'"], 403);
 }
 
 /**
@@ -106,9 +105,7 @@ function canUseAsRegistrant(string $handle, int $user_id, bool $isAdmin): bool {
 }
 
 $app->get('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
@@ -121,14 +118,11 @@ $app->get('/v1/domains', function (Request $request, Response $response, array $
         isset($params['age']) ? (int) $params['age'] : 0
     );
 
-    $response->getBody()->write(json_encode(['domains' => $domains]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domains' => $domains]);
 });
 
 $app->get('/v1/domains/expiring', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
 
     // scoped by the DOMAIN's owner, like every other domain route (listDomains(),
@@ -153,14 +147,11 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
             " . implode(' AND ', $where) . "
         ORDER BY d.ex_date ASC", $params);
 
-    $response->getBody()->write(json_encode(['domains' => $domains]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domains' => $domains]);
 });
 
 $app->get('/v1/domains/autocomplete', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $term = $request->getQueryParams()['term'] ?? '';
     $limit = (int) ($request->getQueryParams()['limit'] ?? 10) ?: 10;
 
@@ -176,14 +167,11 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
     $domains = array_merge($domains, $transfersIn);
     sort($domains);
 
-    $response->getBody()->write(json_encode(['domains' => array_slice($domains, 0, $limit)]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domains' => array_slice($domains, 0, $limit)]);
 });
 
 $app->get('/v1/domains/export', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
 
     $where = ['1 = 1'];
     $params = [];
@@ -225,9 +213,7 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/domains/transfers', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $registrant = $request->getQueryParams()['registrant'] ?? '';
 
     // scoped by who REQUESTED the transfer (transfers.user_id), which is also
@@ -260,14 +246,11 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
         return $row;
     }, $rows);
 
-    $response->getBody()->write(json_encode(['transfers' => $transfers]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['transfers' => $transfers]);
 });
 
 $app->get('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
 
     // the registry is authoritative -- its answer is returned as-is, never
@@ -286,8 +269,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     }
 
     if ($domain !== null) {
-        $response->getBody()->write(json_encode(['domain' => domainToArray($domain), 'stale' => false]));
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['domain' => domainToArray($domain), 'stale' => false]);
     }
 
     // registry lookup failed: serve the last known local state instead, flagged
@@ -297,31 +279,24 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     $nic = new Client();
     $domain = new Domain($nic);
     if ( ! $domain->loadDB($name, $user_id, $isAdmin)) {
-        $response->getBody()->write(json_encode(['error' => "Domain '{$name}' not found"]));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Domain '{$name}' not found"], 404);
     }
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($domain), 'stale' => true]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($domain), 'stale' => true]);
 });
 
 $app->post('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Helpers::requireFields($params, ['domain', 'registrant']) ?? Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
-        $response->getBody()->write(json_encode(['error' => $err]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $err], 400);
     }
     if ( ! Helpers::isValidDomainFormat($params['domain'])) {
-        $response->getBody()->write(json_encode(['error' => "'{$params['domain']}' is not a valid .it domain name"]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "'{$params['domain']}' is not a valid .it domain name"], 400);
     }
     if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
-        $response->getBody()->write(json_encode(['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"]));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
 
     // quota check -- count today's domain creations against this user's cap,
@@ -335,8 +310,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
                 WHERE user_id = ? AND object = 'domains' AND action = 'create' AND DATE(timestamp) = CURDATE()
             ", [$user_id]);
             if ($used >= $maxOps) {
-                $response->getBody()->write(json_encode(['error' => 'Daily operation quota exceeded']));
-                return $response->withStatus(429)->withHeader('Content-Type', 'application/json; charset=utf-8');
+                return Helpers::json($response, ['error' => 'Daily operation quota exceeded'], 429);
             }
         }
     }
@@ -372,28 +346,23 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
             return ['ok' => true, 'domain' => $domain];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($result['domain'])], 201);
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
+    $user_id = Helpers::jwtUserID($request);
     $params = $request->getParsedBody() ?? [];
 
     $names = array_unique(array_filter(array_map('trim', (array) ($params['domains'] ?? []))));
     if (empty($names)) {
-        $response->getBody()->write(json_encode(['error' => 'domains is required (array of domain names)']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'domains is required (array of domain names)'], 400);
     }
 
     try {
@@ -446,18 +415,14 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
             return $results;
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
-    $response->getBody()->write(json_encode(['results' => $results]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['results' => $results]);
 });
 
 $app->patch('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -465,8 +430,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
         return domainForbidden($response, $name);
     }
     if ($err = Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
-        $response->getBody()->write(json_encode(['error' => $err]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $err], 400);
     }
 
     try {
@@ -517,23 +481,18 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             return ['ok' => true, 'domain' => $domain];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus($result['status'])->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], $result['status']);
     }
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -541,16 +500,14 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
         return domainForbidden($response, $name);
     }
     if (empty($params['registrant'])) {
-        $response->getBody()->write(json_encode(['error' => 'registrant is required']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'registrant is required'], 400);
     }
     // a registrant change also moves the domain's local ownership to that
     // contact's owner (Domain::updateDB()), so this must be a contact the
     // caller owns -- otherwise it is a way to hand your domain to someone else,
     // or to take one out of your own listings by accident
     if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
-        $response->getBody()->write(json_encode(['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"]));
-        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
 
     try {
@@ -572,23 +529,18 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             return ['ok' => true, 'domain' => $domain];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus($result['status'])->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], $result['status']);
     }
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -596,8 +548,7 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
         return domainForbidden($response, $name);
     }
     if (empty($params['state'])) {
-        $response->getBody()->write(json_encode(['error' => 'state is required']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'state is required'], 400);
     }
     $action = $params['action'] ?? 'add';
 
@@ -613,13 +564,11 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
             return ['ok' => true, 'domain' => $domain];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus($result['status'])->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], $result['status']);
     }
 
     // updateStatus() doesn't participate in the changes-bitmask, so it can't
@@ -634,14 +583,11 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
     Helpers::logChanges('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getQueryParams();
     $mode = $params['mode'] ?? 'now';
@@ -655,8 +601,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
     if ($mode === 'expiry' || $mode === 'date') {
         $date = $mode === 'date' ? ($params['date'] ?? null) : null;
         if ($mode === 'date' && empty($date)) {
-            $response->getBody()->write(json_encode(['error' => 'date is required when mode=date']));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => 'date is required when mode=date'], 400);
         }
 
         $row = R::getRow("SELECT id, ex_date FROM domains WHERE domain = :domain" . ($isAdmin ? '' : ' AND user_id = :user_id'), array_filter([
@@ -664,8 +609,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             ':user_id' => $isAdmin ? null : $user_id,
         ], fn($v) => $v !== null));
         if (empty($row)) {
-            $response->getBody()->write(json_encode(['error' => "Domain '{$name}' not found"]));
-            return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => "Domain '{$name}' not found"], 404);
         }
 
         // no `action` here -- this is a future-dated notice, not a DNS-sync event yet.
@@ -679,8 +623,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             ':notice' => 'scheduled deletion',
         ]);
 
-        $response->getBody()->write(json_encode(['scheduled' => true, 'domain' => $name, 'date' => $date ?: $row['ex_date']]));
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['scheduled' => true, 'domain' => $name, 'date' => $date ?: $row['ex_date']]);
     }
 
     try {
@@ -693,23 +636,18 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return ['ok' => true];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['deleted' => true, 'domain' => $name]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['deleted' => true, 'domain' => $name]);
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
 
     if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
@@ -726,17 +664,14 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
             return ['ok' => true];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['restored' => true, 'domain' => $name]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['restored' => true, 'domain' => $name]);
 });
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {
@@ -745,15 +680,13 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
     $params = $request->getParsedBody() ?? [];
 
     if (empty($params['user_id'])) {
-        $response->getBody()->write(json_encode(['error' => 'user_id (the new owner) is required']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'user_id (the new owner) is required'], 400);
     }
     $newOwnerId = (int) $params['user_id'];
 
     $newOwner = R::getRow("SELECT id, techc FROM users WHERE id = ?", [$newOwnerId]);
     if (empty($newOwner)) {
-        $response->getBody()->write(json_encode(['error' => "User id {$newOwnerId} not found"]));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "User id {$newOwnerId} not found"], 404);
     }
 
     try {
@@ -835,23 +768,18 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
             return ['ok' => true, 'domain' => $domain];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus($result['status'])->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], $result['status']);
     }
 
-    $response->getBody()->write(json_encode(['domain' => domainToArray($result['domain'])]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    $user_id = (int) $decoded->data->id;
-    $isAdmin = (int) $decoded->data->admin === 1;
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -862,8 +790,7 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
         return domainForbidden($response, $name);
     }
     if (empty($params['authinfo'])) {
-        $response->getBody()->write(json_encode(['error' => 'authinfo is required']));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'authinfo is required'], 400);
     }
 
     try {
@@ -886,24 +813,19 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
             return ['ok' => true];
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        $response->getBody()->write(json_encode(['error' => $result['error']]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $result['error']], 400);
     }
 
-    $response->getBody()->write(json_encode(['requested' => true, 'domain' => $name]));
-    return $response->withStatus(201)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['requested' => true, 'domain' => $name], 201);
 });
 
 foreach (['approve', 'reject', 'cancel'] as $transferAction) {
     $app->post("/v1/domains/{name}/transfer/{$transferAction}", function (Request $request, Response $response, array $args) use ($transferAction): Response {
-        $decoded = Helpers::jwtVerify($request);
-        $user_id = (int) $decoded->data->id;
-        $isAdmin = (int) $decoded->data->admin === 1;
+        ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
         $name = $args['name'];
         $params = $request->getParsedBody() ?? [];
         $authinfo = $params['authinfo'] ?? '';
@@ -929,16 +851,13 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
                 return ['ok' => true];
             });
         } catch (\RuntimeException $e) {
-            $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-            return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => $e->getMessage()], 502);
         }
 
         if ( ! $result['ok']) {
-            $response->getBody()->write(json_encode(['error' => $result['error']]));
-            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+            return Helpers::json($response, ['error' => $result['error']], 400);
         }
 
-        $response->getBody()->write(json_encode([$transferAction => true, 'domain' => $name]));
-        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, [$transferAction => true, 'domain' => $name]);
     });
 }

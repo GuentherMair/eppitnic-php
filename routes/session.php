@@ -35,8 +35,7 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
     // which is what a UI needs to tell "not set up yet" from "set up"
     $public['password_set'] = ($epp['password'] ?? '') !== '';
 
-    $response->getBody()->write(json_encode(['epp' => $public]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['epp' => $public]);
 });
 
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
@@ -47,12 +46,10 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
             return $session->showCredit();
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
 
-    $response->getBody()->write(json_encode(['credit' => $credit]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['credit' => $credit]);
 });
 
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
@@ -63,8 +60,7 @@ $app->get('/v1/poll-queue', function (Request $request, Response $response, arra
     $where = $activeOnly ? 'archived_time IS NULL' : '1 = 1';
     $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC");
 
-    $response->getBody()->write(json_encode(['messages' => $messages]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['messages' => $messages]);
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
@@ -73,12 +69,10 @@ $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response,
 
     $message = R::getRow("SELECT * FROM messages WHERE id = ?", [$id]);
     if (empty($message)) {
-        $response->getBody()->write(json_encode(['error' => "Message id {$id} not found"]));
-        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => "Message id {$id} not found"], 404);
     }
 
-    $response->getBody()->write(json_encode(['message' => $message]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['message' => $message]);
 });
 
 $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $response, array $args): Response {
@@ -87,8 +81,7 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
 
     R::exec("UPDATE messages SET archived_time = NOW(), archived_user_id = ? WHERE id = ?", [$user_id, $id]);
 
-    $response->getBody()->write(json_encode(['archived' => true, 'id' => $id]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['archived' => true, 'id' => $id]);
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
@@ -110,12 +103,10 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
     $session = new Session($nic);
 
     if ( ! $session->hello()) {
-        $response->getBody()->write(json_encode(['error' => 'EPP session unavailable: connection failed']));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'EPP session unavailable: connection failed'], 502);
     }
     if ($session->login($newPassword) === FALSE) {
-        $response->getBody()->write(json_encode(['error' => $session->getError()]));
-        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => $session->getError()], 400);
     }
     $session->logout();
 
@@ -125,10 +116,8 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
         $epp['password'] = $newPassword;
         Config::set('epp', $epp);
     } catch (\Throwable $e) {
-        $response->getBody()->write(json_encode(['error' => 'registry password changed but could not persist to settings: ' . $e->getMessage() . ' -- update it manually']));
-        return $response->withStatus(500)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return Helpers::json($response, ['error' => 'registry password changed but could not persist to settings: ' . $e->getMessage() . ' -- update it manually'], 500);
     }
 
-    $response->getBody()->write(json_encode(['changed' => true]));
-    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    return Helpers::json($response, ['changed' => true]);
 });
