@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0" xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1" xmlns:extsecDNS="http://www.nic.it/ITNIC-EPP/extsecDNS-1.0">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="155039125">
+      <qDate>2026-01-13T00:54:14.000+01:00</qDate>
+      <msg lang="en">Domain transfer is expired: transfer has been example-17.it should therefore remove the records contained on your nameservers for such domain name.</msg>
+    </msgQ>
+    <resData>
+      <domain:trnData>
+        <domain:name>example-16.it</domain:name>
+        <domain:trStatus>serverApproved</domain:trStatus>
+        <domain:reID>TEST-REG</domain:reID>
+        <domain:reDate>2026-01-12T08:52:55.000+01:00</domain:reDate>
+        <domain:acID>OTHER-REG</domain:acID>
+        <domain:acDate>2026-01-13T00:54:14.324+01:00</domain:acDate>
+      </domain:trnData>
+    </resData>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

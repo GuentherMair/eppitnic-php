@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0" xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1" xmlns:extsecDNS="http://www.nic.it/ITNIC-EPP/extsecDNS-1.0">
+  <response>
+    <result code="1000">
+      <msg lang="en">Command completed successfully</msg>
+    </result>
+    <resData>
+      <domain:infData>
+        <domain:name>example-1.it</domain:name>
+        <domain:roid>TESTHANDLE000002</domain:roid>
+        <domain:status s="ok" lang="en"/>
+        <domain:registrant>TESTHANDLE000001</domain:registrant>
+        <domain:contact type="admin">TESTHANDLE000001</domain:contact>
+        <domain:contact type="tech">TESTHANDLE000001</domain:contact>
+        <domain:ns>
+          <domain:hostAttr>
+            <domain:hostName>example-6.it</domain:hostName>
+          </domain:hostAttr>
+          <domain:hostAttr>
+            <domain:hostName>example-7.it</domain:hostName>
+          </domain:hostAttr>
+          <domain:hostAttr>
+            <domain:hostName>example-8.it</domain:hostName>
+          </domain:hostAttr>
+          <domain:hostAttr>
+            <domain:hostName>example-9.it</domain:hostName>
+          </domain:hostAttr>
+        </domain:ns>
+        <domain:clID>TEST-REG</domain:clID>
+        <domain:crID>TEST-REG</domain:crID>
+        <domain:crDate>2025-02-20T09:02:37.000+01:00</domain:crDate>
+        <domain:upID>TEST-REG</domain:upID>
+        <domain:upDate>2025-02-20T09:02:37.000+01:00</domain:upDate>
+        <domain:exDate>2026-02-20T23:59:59.000+01:00</domain:exDate>
+        <domain:authInfo>
+          <domain:pw>AUTHINFO12345678</domain:pw>
+        </domain:authInfo>
+      </domain:infData>
+    </resData>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

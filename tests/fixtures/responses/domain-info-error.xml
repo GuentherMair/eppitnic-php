@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0">
+  <response>
+    <result code="2202">
+      <msg lang="en">Invalid authorization information</msg>
+      <value>
+        <extepp:wrongValue>
+          <extepp:element>name</extepp:element>
+          <extepp:namespace>urn:ietf:params:xml:ns:domain-1.0</extepp:namespace>
+          <extepp:value>example-10.it</extepp:value>
+        </extepp:wrongValue>
+      </value>
+      <extValue>
+        <value>
+          <extepp:reasonCode>9085</extepp:reasonCode>
+        </value>
+        <reason lang="en">Invalid domain authorization information or domain does not exist</reason>
+      </extValue>
+    </result>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

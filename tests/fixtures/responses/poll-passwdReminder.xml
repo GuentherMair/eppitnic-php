@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0" xmlns:secDNS="urn:ietf:params:xml:ns:secDNS-1.1" xmlns:extsecDNS="http://www.nic.it/ITNIC-EPP/extsecDNS-1.0">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="149985828">
+      <qDate>2025-07-13T00:00:15.000+02:00</qDate>
+      <msg lang="en">Password will expire soon</msg>
+    </msgQ>
+    <extension>
+      <extepp:passwdReminder>
+        <extepp:exDate>2025-07-25T00:18:05.000+02:00</extepp:exDate>
+      </extepp:passwdReminder>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

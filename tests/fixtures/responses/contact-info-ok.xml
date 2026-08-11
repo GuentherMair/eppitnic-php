@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0">
+  <response>
+    <result code="1000">
+      <msg lang="en">Command completed successfully</msg>
+    </result>
+    <resData>
+      <contact:infData>
+        <contact:id>TESTHANDLE000003</contact:id>
+        <contact:roid>TESTHANDLE000004</contact:roid>
+        <contact:status s="ok" lang="en"/>
+        <contact:status s="linked" lang="en"/>
+        <contact:postalInfo type="loc">
+          <contact:name>Mario Rossi</contact:name>
+          <contact:org>Rossi &amp; Figli S.r.l.</contact:org>
+          <contact:addr>
+            <contact:street>Via Roma 1</contact:street>
+            <contact:city>Bolzano</contact:city>
+            <contact:sp>BZ</contact:sp>
+            <contact:pc>39100</contact:pc>
+            <contact:cc>IT</contact:cc>
+          </contact:addr>
+        </contact:postalInfo>
+        <contact:voice x="">+39.0471000000</contact:voice>
+        <contact:email>example-11.it@example-12.it</contact:email>
+        <contact:clID>TEST-REG</contact:clID>
+        <contact:crID>TEST-REG</contact:crID>
+        <contact:crDate>2017-11-14T07:29:35.000+01:00</contact:crDate>
+        <contact:upID>TEST-REG</contact:upID>
+        <contact:upDate>2020-10-01T12:37:56.000+02:00</contact:upDate>
+      </contact:infData>
+    </resData>
+    <extension>
+      <extcon:infData>
+        <extcon:consentForPublishing>true</extcon:consentForPublishing>
+        <extcon:registrant>
+          <extcon:nationalityCode>IT</extcon:nationalityCode>
+          <extcon:entityType>2</extcon:entityType>
+          <extcon:regCode>01234567890</extcon:regCode>
+        </extcon:registrant>
+      </extcon:infData>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>
