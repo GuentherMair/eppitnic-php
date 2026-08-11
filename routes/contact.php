@@ -143,7 +143,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             }
             $contact->set('handle', empty($params['handle']) ? $contact->generateHandle() : $params['handle']);
             if (empty($params['authinfo'])) {
-                $contact->set('authinfo', substr(md5(rand()), 0, 16));
+                $contact->set('authinfo', $contact->authinfo());
             }
             if ( ! $contact->create()) {
                 return ['ok' => false, 'error' => $contact->getError()];

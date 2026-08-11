@@ -74,7 +74,7 @@ if ($contact->fetch($registrant)) {
 	$domain = new Domain($nic);
 	$domain->fetch($domain_name);
 	$domain->set('registrant', $registrant);
-	$domain->set('authinfo', substr(md5(rand()), 0, 16));
+	$domain->set('authinfo', $domain->authinfo());
 
 	// update domain
 	if ($domain->updateRegistrant()) {

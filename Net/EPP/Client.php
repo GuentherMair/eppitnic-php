@@ -213,7 +213,10 @@ class Client extends Smarty
    * @return string a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID(): string {
-    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(md5(rand()), 0, 5);
+    // the random tail only has to keep two transactions started in the same
+    // second apart; random_bytes() rather than rand() so that a restarted
+    // process cannot replay the same sequence of ids
+    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(bin2hex(random_bytes(3)), 0, 5);
     if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);
     }
@@ -240,36 +243,16 @@ class Client extends Smarty
     $this->cURLresponse['headers'] = $this->httpClient->getHttpHeaders();
     $this->cURLresponse['error'] = $this->httpClient->getHttpError();
 
-    return $this->fetchResponse();
-  }
-
-  /**
-   * fetch the latest response from the EPP server
-   *
-   * @return array the latest response: (int) code, (array) headers, (string) body
-   */
-  public function fetchResponse(): array {
     return $this->cURLresponse;
   }
 
   /**
    * convert an xml response to an object
    *
-   * @param string $xml option xml string to be parsed
-   * @return object xml class structure
+   * @param string $xml the xml string to parse
+   * @return \SimpleXMLElement|false the parsed document, or false if it wasn't well-formed
    */
-  public function parseResponse(?string $xml = null): \SimpleXMLElement|false {
-    if ($xml == null) {
-      $response = $this->fetchResponse();
-      return @simplexml_load_string($response['body']);
-    } else {
-      return @simplexml_load_string($xml);
-    }
-  }
-
-  /**
-   * class destructor
-   */
-  public function __destruct() {
+  public function parseResponse(string $xml): \SimpleXMLElement|false {
+    return @simplexml_load_string($xml);
   }
 }

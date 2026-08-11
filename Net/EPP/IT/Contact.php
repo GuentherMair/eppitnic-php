@@ -885,7 +885,7 @@ class Contact extends AbstractObject
       // layer before re-escaping it, or it double-encodes on every copy
       $new->set($field, html_entity_decode((string) $value, ENT_COMPAT, 'UTF-8'));
     }
-    $new->set('authinfo', substr(md5(rand()), 0, 16));
+    $new->set('authinfo', $new->authinfo());
 
     if ( ! $new->create()) {
       return false;

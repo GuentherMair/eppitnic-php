@@ -204,17 +204,18 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
 
     $titles = ['Active', 'Domain', 'Auth-Info', 'Created', 'Expires', 'Registrant Handle', 'Registrant Org', 'Registrant Name', 'Registrant Email'];
     $fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email'];
-    $delimiter = ';';
-    $enclosure = '"';
-    $eol = "\n";
 
-    $csv = $enclosure . implode($enclosure.$delimiter.$enclosure, $titles) . $enclosure . $eol;
+    // Helpers::rowToCSV() rather than inlining the quoting a fourth time. It
+    // also doubles embedded quotes, which the inline version here did not: an
+    // organisation named 'Rossi "Da Bepi" S.r.l.' used to end the field early
+    // and shift every following column of that row.
+    $csv = Helpers::rowToCSV($titles, ';');
     foreach ($records as $record) {
         $row = [];
         foreach ($fields as $field) {
             $row[] = $record[$field];
         }
-        $csv .= $enclosure . implode($enclosure.$delimiter.$enclosure, $row) . $enclosure . $eol;
+        $csv .= Helpers::rowToCSV($row, ';');
     }
 
     $response->getBody()->write($csv);
@@ -350,7 +351,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
             if ( ! empty($params['admin'])) $domain->set('admin', $params['admin']);
             foreach ((array) ($params['tech'] ?? []) as $tech) $domain->addTECH($tech);
             foreach ((array) ($params['ns'] ?? []) as $ns) $domain->addNS($ns['name'] ?? $ns, $ns['ip'] ?? null);
-            $domain->set('authinfo', $params['authinfo'] ?? substr(md5(rand()), 0, 16));
+            $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
 
             if ($available === TRUE) {
                 if ( ! $domain->create()) {
@@ -562,7 +563,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             $domain->set('registrant', $params['registrant']);
             // updateRegistrant() requires authinfo to change alongside registrant --
             // rotate it (caller-supplied, or freshly generated) as part of the change
-            $domain->set('authinfo', $params['authinfo'] ?? substr(md5(rand()), 0, 16));
+            $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
 
             if ( ! $domain->updateRegistrant()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
@@ -804,7 +805,7 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
             // step 1: registrant change is its own EPP command, requiring authinfo to
             // change alongside it -- do this before anything else touches $domain
             $domain->set('registrant', $newRegistrantHandle);
-            $domain->set('authinfo', substr(md5(rand()), 0, 16));
+            $domain->set('authinfo', $domain->authinfo());
             if ( ! $domain->updateRegistrant()) {
                 return ['ok' => false, 'status' => 400, 'error' => 'registrant change failed: ' . $domain->getError()];
             }

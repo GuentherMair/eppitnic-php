@@ -94,7 +94,13 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
     Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
-    $newPassword = $params['password'] ?? substr(md5(rand()), 0, 8);
+    // 16 hex characters from the CSPRNG -- identical to what
+    // Helpers::rotateEppPasswordOnReminder() generates for the same credential.
+    // This used to be substr(md5(rand()), 0, 8): eight characters carrying at
+    // most rand()'s ~31 bits, protecting the shared registry account. Note 16
+    // is also the ceiling -- EPP's pwType caps this credential at 16
+    // characters, and the registry rejects anything longer outright.
+    $newPassword = $params['password'] ?? bin2hex(random_bytes(8));
 
     // this is the shared EPP registry credential, not a per-user login password
     // (that's PUT /v1/changepassword/{id}) -- can't go through Helpers::withEppSession()
