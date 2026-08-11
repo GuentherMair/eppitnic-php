@@ -13,7 +13,7 @@ use RedBeanPHP\R;
 Config::init();
 
 function syntax($argv0) {
-  echo "SYNTAX: {$argv0} -m user  -u USERNAME -p PASSWORD [-b BILLING_ID] [-e EMAIL] [-d DESCRIPTION] [-o MAX_OPERATIONS] [-A]\n";
+  echo "SYNTAX: {$argv0} -m user  -u USERNAME -p PASSWORD [-e EMAIL] [-d DESCRIPTION] [-o MAX_OPERATIONS] [-A]\n";
   echo "        {$argv0} -m token -u USERNAME [-x DAYS]\n";
   echo "\n";
   echo "  -m user   create a new local login account. This is the preferred way to\n";
@@ -23,7 +23,6 @@ function syntax($argv0) {
   echo "\n";
   echo "    -u USERNAME        login username (required)\n";
   echo "    -p PASSWORD        plaintext password, hashed before storing (required)\n";
-  echo "    -b BILLING_ID      unique billing reference (optional, defaults to '')\n";
   echo "    -e EMAIL           contact email address\n";
   echo "    -d DESCRIPTION     free-text description\n";
   echo "    -o MAX_OPERATIONS  daily domain-create quota, 0 = unlimited (default 0)\n";
@@ -40,7 +39,7 @@ function syntax($argv0) {
 }
 
 // retrieve and test command line options
-$options = getopt("m:u:p:b:e:d:o:x:A");
+$options = getopt("m:u:p:e:d:o:x:A");
 $mode = $options['m'] ?? null;
 
 if ($mode !== 'user' && $mode !== 'token') {
@@ -54,25 +53,19 @@ if ($mode === 'user') {
     exit(SYNTAX_ERROR);
   }
 
-  $username   = $options['u'];
-  $billing_id = $options['b'] ?? '';
+  $username = $options['u'];
 
   if ((int) R::getCell("SELECT COUNT(*) FROM users WHERE username = ?", [$username]) > 0) {
     echo "[FAILURE] username '{$username}' is already taken.\n";
-    exit(INVALID_INPUT);
-  }
-  if ((int) R::getCell("SELECT COUNT(*) FROM users WHERE billing_id = ?", [$billing_id]) > 0) {
-    echo "[FAILURE] billing_id '{$billing_id}' is already taken.\n";
     exit(INVALID_INPUT);
   }
 
   $isAdmin = isset($options['A']);
 
   R::exec("
-    INSERT INTO users (billing_id, description, username, password, email, max_operations, active, admin)
-    VALUES (:billing_id, :description, :username, :password, :email, :max_operations, 1, :admin)
+    INSERT INTO users (description, username, password, email, max_operations, active, admin)
+    VALUES (:description, :username, :password, :email, :max_operations, 1, :admin)
   ", [
-    ':billing_id'     => $billing_id,
     ':description'    => $options['d'] ?? null,
     ':username'       => $username,
     ':password'       => password_hash($options['p'], PASSWORD_DEFAULT),

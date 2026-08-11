@@ -3,7 +3,7 @@
 ## Version 7.0.0
 PHP 8.5 migration: compatibility fixes, cleanups, and typo fixes across all
 folders. The project imports all dependencies through composer and requires
-PHP >=8.0. Table prefixes ('tbl_') were also dropped.
+PHP >=8.1. Table prefixes ('tbl_') were also dropped.
 
 The legacy PHP/Smarty/jQuery web interface has been retired and replaced by a
 JSON/REST API (`public/`, routed via Slim) intended for a new frontend
@@ -14,9 +14,42 @@ of MD5.
 
 `Net_EPP_StorageDB`/`Net_EPP_StorageInterface` have been removed. Contact,
 Domain and Session persistence now talk to RedBeanPHP's `R::` facade
-directly, and configuration moved from `config.xml` to `config/config.json`.
-As part of this, DNS-sync notifications end up in, and will be waiting to be
-consumed from, the `reminder` queue.
+directly, and configuration moved out of `config.xml`: the database
+credentials live in `config/config.php` (the one thing that must be a file,
+since it is needed to reach the database at all) and everything else in the
+`settings` table, read through `Net\EPP\Config`. `CLI/config-DoMigrate.php`
+converts an existing `config.xml` into both. As part of this, DNS-sync
+notifications end up in, and will be waiting to be consumed from, the
+`reminder` queue.
+
+Invoicing has been removed from this codebase along with the `InvoicingCDR`
+class: the `/v1/accounting` routes, the `accounting` table and the
+`users.billing_id` column are all gone. It will be reimplemented differently.
+
+Domain scoping is now uniform: every domain route filters non-admins by the
+domain's own owner (`domains.user_id`), and pending transfers by whoever
+requested them (`transfers.user_id`). `GET /v1/domains/expiring` previously
+filtered by the registrant contact's owner instead, so a domain whose
+registrant belonged to another user was missing from its owner's renewals list
+and present in that other user's — where every write route refused it.
+Relatedly, a domain's registrant must now be a contact the caller owns
+(`POST /v1/domains`, `POST /v1/domains/{name}/registrant`), which is what kept
+those two notions of ownership able to drift apart in the first place.
+
+The registry's `passwdReminder` poll messages are now acted on rather than
+merely stored: `cronjobs/process-poll-queue.php` rotates the shared EPP
+password when one is outstanding, rate-limited to one attempt per 24 hours by
+the `epp` setting's new `lastPasswordUpdate` timestamp. The unused `debug`,
+`epp.passwordexpirydays` and `epp.passwordexpirynext` settings, and the unused
+`users.dns` column, have been dropped.
+
+`Domain->get('tech')` now always returns an array (keyed handle => handle).
+It previously returned a bare string whenever the domain had exactly one
+technical contact — the common case — which silently corrupted callers that
+handled the result uniformly: `array_keys((array) $domain->get('tech'))`
+evaluated to `[0]` instead of the handle, so the REST API reported a tech
+contact of `0` and update diffs computed from it never removed the outgoing
+contact. Callers that special-cased the string return can drop that branch.
 
 WSDL support has been dropped.
 

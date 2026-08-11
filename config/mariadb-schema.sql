@@ -1,12 +1,10 @@
 CREATE TABLE `users` (
   `id`                    serial,
-  `billing_id`            varchar(64) unique NOT NULL,
   `description`           varchar(64),
   `username`              varchar(32),
   `password`              varchar(255),
   `email`                 varchar(64),
   `max_operations`        int DEFAULT 0,
-  `dns`                   text,
   `techc`                 text,
   `active`                tinyint DEFAULT 1,
   `admin`                 tinyint DEFAULT 0,
@@ -157,18 +155,6 @@ CREATE TABLE `reminder` (
   CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `accounting` (
-  `id`                    serial,
-  `operation`             varchar(64) NOT NULL,
-  `billing_id`            varchar(64) NOT NULL,
-  `object`                varchar(255) NOT NULL,
-  `date`                  date NOT NULL,
-  `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
-  `status`                tinyint DEFAULT 0,
-  PRIMARY KEY (`id`),
-  KEY (`billing_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE `settings` (
   `key`   varchar(64) NOT NULL,
   `value` text CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`value`)),
@@ -180,13 +166,16 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
-  ('allowed_origins', '[""]'),
+  ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
-  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","passwordexpirydays":120,"passwordexpirynext":1234567890,"lang":"en","cl_trid_prefix":"EPPITNIC"}'),
+  -- lastPasswordUpdate is a unix timestamp, maintained by the passwdReminder
+  -- handler in cronjobs/process-poll-queue.php: it records when an automated
+  -- registry-password rotation was last attempted, so at most one is tried per
+  -- 24 hours. 0 means "never attempted".
+  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
   ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
-  ('debug', 'false'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
   ('cookie_dir', 'null'),

@@ -375,13 +375,16 @@ class Session extends AbstractObject
         " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acDate . ") to " .
         @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID .
         " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reDate . ")";
-      // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers
+      // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers.
+      // Both are cast to string here: they are bound straight into the messages
+      // INSERT by poll(), and a SimpleXMLElement only survives PDO binding via
+      // its __toString(), which is an accident waiting to change.
       return array(
-        'type'   => $type,
+        'type'   => (string)$type,
         'domain' => $this->stripTrailingDots($domain),
         'data'   => $title,
-        'acID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
-        'reID'   => @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID,
+        'acID'   => (string)@$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
+        'reID'   => (string)@$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID,
       );
     }
 

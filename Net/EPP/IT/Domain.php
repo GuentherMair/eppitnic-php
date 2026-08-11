@@ -143,14 +143,23 @@ class Domain extends AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // in PHP 5.2.3 the 4th parameter "double_encode" was added
-    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+    // 'ns' and 'tech' are collections -- dispatch them before the string
+    // escaping below, which would TypeError on an array. Passing an array here
+    // is a caller error either way (addNS()/addTECH() each take one entry), but
+    // it should come back as FALSE rather than a fatal.
+    if ($var == "ns" || $var == "tech") {
+      if (is_array($val)) {
+        $this->setError("set('{$var}', ...) takes a single value; use add" . strtoupper($var) . "() per entry.");
+        return FALSE;
+      }
+      $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
+      return ($var == "ns") ? $this->addNS($val) : $this->addTECH($val);
+    }
 
-    if ($var == "ns") {
-      return $this->addNS($val);
-    } else if ($var == "tech") {
-      return $this->addTECH($val);
-    } else if (isset($this->$var)) {
+    // in PHP 5.2.3 the 4th parameter "double_encode" was added
+    $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
+
+    if (isset($this->$var)) {
       if ($this->$var == $val) {
         return FALSE; // value didn't change!
       } else {
@@ -231,16 +240,19 @@ class Domain extends AbstractObject
   /**
    * get a single variable/setting from class
    *
+   * Note that 'tech' always comes back as an array (keyed handle => handle),
+   * even when the domain has exactly one technical contact. It used to be
+   * returned as a bare string in that single-contact case -- the common case --
+   * which silently broke every caller that handled the result uniformly:
+   * array_keys((array) $domain->get('tech')) yielded [0] rather than the
+   * handle, so single-tech domains reported a tech contact of "0" and update
+   * diffs computed against it never removed the outgoing contact.
+   *
    * @param string $var variable name
    * @return mixed value of variable
    */
   public function get(string $var): mixed {
-    // if tech only holds 1 value (as in most cases) return a string and not an array
-    if (($var == "tech") && (count($this->tech) == 1)) {
-      return current($this->tech);
-    } else {
-      return $this->$var;
-    }
+    return $this->$var;
   }
 
   /**
@@ -392,103 +404,6 @@ class Domain extends AbstractObject
   }
 
   /**
-   * do sanity checks before sending changes to NIC
-   *
-   * @return bool status
-   */
-  protected function sanity_checks(): int {
-    $error = 0;
-
-    // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
-    if ( ! ctype_alnum(implode("", explode(".", implode("", explode("-", $this->domain)))))) {
-      $error |= 1;
-    }
-
-    // empty values
-    if (empty($this->domain) || empty($this->registrant) || empty($this->admin) || empty($this->tech) || empty($this->authinfo)) {
-      $error |= 2;
-    }
-
-    // amount of NS records
-    if ((count($this->ns) < 2) || (count($this->ns) > 6)) {
-      $error |= 4;
-    }
-
-    // length
-    if ((strlen($this->domain) < 6) || (strlen($this->domain) > 255)) {
-      $error |= 8;
-    }
-
-    // pre-/postfix checks
-    $tmp = explode(".", $this->domain);
-    if ((substr($tmp[0], 0, 4) == "xn--") || (substr($tmp[0], 0, 1) == "-") || (substr($tmp[0], -1) == "-")) {
-      $error |= 16;
-    }
-
-    // authinfo length
-    if ((strlen($this->authinfo) < 8) || (strlen($this->authinfo) > 32)) {
-      $error |= 32;
-    }
-
-    /*
-     * different contacts
-     *
-     * This check is temporarily disabled because it depends on the registrants
-     * "EntityType" value as specified by the registry:
-     *
-     *   'Se il Registrante è una persona fisica (EntityType = 1) il
-     *    Registrante ed il contatto am- ministrativo (admin) devono
-     *    coincidere. Tali campi dovranno, pertanto, contenere lo
-     *    stesso contact-ID associato ad un contatto, già registrato
-     *    nel Database del Registro, completo dell’estensione relativa
-     *    ai dati del Registrante.'
-     *
-     * To re-enable this check, we would need to execute a contact-info command
-     * and then compare the return value for EntityType.
-     *
-     * Thanks to Mr. Fundinger for pointing this out!
-     */
-    //if (($this->registrant == $this->admin) || ($this->registrant == $this->tech) || ($this->admin == $this->tech))
-    //  $error |= 64;
-
-    // glue records (this does not care about v4/v6)
-    foreach ($this->ns as $hostname => $values) {
-      if ((substr($hostname, strlen($this->domain)*-1) == $this->domain) && ! isset($values['ip'])) {
-        $error |= 128;
-      }
-    }
-
-    /*
-     * allowed dnssec algorithms
-     *  3 (DSA/SHA-1)
-     *  5 (RSA/SHA-1)
-     *  6 (DSA-NSEC3-SHA1)
-     *  7 (RSASHA1-NSEC3-SHA1)
-     *  8 (RSA/SHA-256)
-     *  10 (RSA/SHA-512)
-     *  12 (ECC-GOST)
-     *  13 (ECDSAP256SHA256)
-     *  14 (ECDSAP384SHA384)
-     */
-    if ( ! empty($this->dnssec_algorithm) && ! in_array($this->dnssec_algorithm, array(3, 5, 6, 7, 8, 10, 12, 13, 14))) {
-      $error |= 256;
-    }
-
-    /*
-     * allowed dnssec digest types
-     *  1 (SHA-1)
-     *  2 (SHA-256)
-     *  3 (GOST R 34.11-94)
-     *  4 (SHA-384)
-     */
-    if ( ! empty($this->dnssec_digesttype) && ! in_array($this->dnssec_digesttype, array(1, 2, 3, 4))) {
-      $error |= 512;
-    }
-
-    return $error;
-  }
-
-  /**
    * check domain
    *
    * @param string $domain optional domain to check (set domain!)
@@ -501,7 +416,10 @@ class Domain extends AbstractObject
     if (!is_array($domain)) {
       $domain = array($domain);
     }
-    if ($domain == "") {
+    // checked after the array cast, so it has to test the cast value: the old
+    // `$domain == ""` compared an array against a string and was never true
+    $domain = array_values(array_filter($domain, fn($d) => (string)$d !== ""));
+    if (empty($domain)) {
       $this->setError("Operation not allowed, set a domain name first!");
       return -2;
     }
@@ -546,18 +464,9 @@ class Domain extends AbstractObject
   /**
    * create domain
    *
-   * @param bool $exec_checks execute internal sanity checks
    * @return bool status
    */
-  public function create(bool $exec_checks = FALSE): bool {
-    if ($exec_checks) {
-      $sanity = $this->sanity_checks();
-      if ($sanity <> 0) {
-        $this->setError("Sanity checks failed with code '".$sanity."'!");
-        return FALSE;
-      }
-    }
-
+  public function create(): bool {
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('domain', $this->domain);
@@ -784,10 +693,9 @@ class Domain extends AbstractObject
   /**
    * update domain
    *
-   * @param bool $exec_checks execute internal sanity checks
    * @return bool status
    */
-  public function update(bool $exec_checks = FALSE): bool {
+  public function update(): bool {
     if ($this->domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -799,13 +707,6 @@ class Domain extends AbstractObject
     if (($this->changes & 2) > 0) {
       $this->setError("Update the registrant through updateRegistrant()!");
       return FALSE;
-    }
-    if ($exec_checks) {
-      $sanity = $this->sanity_checks();
-      if ($sanity <> 0) {
-        $this->setError("Sanity checks failed with code '".$sanity."'!");
-        return FALSE;
-      }
     }
 
     // fill xml template
@@ -925,6 +826,10 @@ class Domain extends AbstractObject
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
+      // dnssec_initial belongs with the others: create(), fetch() and loadDB()
+      // all maintain it, and without it a second update() on the same object
+      // diffs DNSSEC against pre-first-update state and re-sends stale changes
+      $this->dnssec_initial = $this->dnssec;
       return TRUE;
     } else {
       return FALSE;
@@ -934,10 +839,9 @@ class Domain extends AbstractObject
   /**
    * update domain registrant
    *
-   * @param bool $exec_checks execute internal sanity checks
    * @return bool status
    */
-  public function updateRegistrant(bool $exec_checks = FALSE): bool {
+  public function updateRegistrant(): bool {
     if ($this->domain == "") {
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
@@ -945,13 +849,6 @@ class Domain extends AbstractObject
     if ((($this->changes & 2) == 0) || (($this->changes & 16) == 0)) {
       $this->setError("You MUST update the registrant and authinfo variables!");
       return FALSE;
-    }
-    if ($exec_checks) {
-      $sanity = $this->sanity_checks();
-      if ($sanity <> 0) {
-        $this->setError("Sanity checks failed with code '".$sanity."'!");
-        return FALSE;
-      }
     }
 
     // fill xml template

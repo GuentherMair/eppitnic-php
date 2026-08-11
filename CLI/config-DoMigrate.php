@@ -71,20 +71,28 @@ $settings = [
   // no config.xml source -- seeded with the same placeholder
   // config/mariadb-schema.sql uses; review and adjust by hand
   'safe_networks'   => ['127.0.0.1/32'],
-  'allowed_origins' => ['', 'http://localhost:5173', 'http://eppitnic-testing-app.local', 'https://eppitnic.local'],
+  // browser origins only, and deployment-specific -- seeded empty rather than
+  // with whatever hostnames happened to be on the author's machine. Requests
+  // with no Origin header (curl, cron, API-token clients) are unaffected by
+  // this list; see the CORS middleware in Net/EPP/Helpers.php.
+  'allowed_origins' => [],
   'allowed_headers' => ['Authorization', 'Content-Type', 'X-Api-Key', 'Content-Disposition'],
   'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   'epp' => [
-    'server'             => xmlStr($xml->server),
-    'server_deleted'     => 'https://epp-deleted.nic.it', // no config.xml source
-    'port'               => $port !== '' ? (int) $port : null,
-    'interface'          => xmlStr($xml->interface),
-    'username'           => xmlStr($xml->username),
-    'password'           => xmlStr($xml->password),
-    'passwordexpirydays' => (int) xmlStr($xml->passwordexpirydays),
-    'passwordexpirynext' => (int) xmlStr($xml->passwordexpirynext),
-    'lang'               => xmlStr($xml->lang),
-    'cl_trid_prefix'     => xmlStr($xml->clTRIDprefix),
+    'server'         => xmlStr($xml->server),
+    'server_deleted' => 'https://epp-deleted.nic.it', // no config.xml source
+    'port'           => $port !== '' ? (int) $port : null,
+    'interface'      => xmlStr($xml->interface),
+    'username'       => xmlStr($xml->username),
+    'password'       => xmlStr($xml->password),
+    'lang'           => xmlStr($xml->lang),
+    'cl_trid_prefix' => xmlStr($xml->clTRIDprefix),
+    // config.xml's passwordexpirydays/passwordexpirynext are deliberately not
+    // carried over: nothing ever read them. Automated rotation is now driven by
+    // the registry's own passwdReminder poll messages, and this timestamp is
+    // what rate-limits it to one attempt per 24 hours (see
+    // cronjobs/process-poll-queue.php). 0 means "never attempted".
+    'lastPasswordUpdate' => 0,
   ],
   'dnssec' => [
     'active'     => (int) xmlStr($xml->dnssec->active),
@@ -98,7 +106,10 @@ $settings = [
     'compile_dir'  => xmlStr($xml->smarty->compile_dir)  !== '' ? xmlStr($xml->smarty->compile_dir)  : null,
     'cache_dir'    => xmlStr($xml->smarty->cache_dir)    !== '' ? xmlStr($xml->smarty->cache_dir)    : null,
   ],
-  'debug'           => (bool) (int) xmlStr($xml->DEBUG),
+  // config.xml's DEBUG flag is not carried over -- nothing ever read the
+  // resulting 'debug' setting. Per-object verbosity is the $debug property on
+  // Net\EPP objects (LOG_* levels), and debugfile below is what turns on cURL
+  // wire logging.
   'debugfile'       => xmlStr($xml->debugfile),
   'certificatefile' => null, // no config.xml source
   'cookie_dir'      => xmlStr($xml->cookie_dir) !== '' ? xmlStr($xml->cookie_dir) : null,

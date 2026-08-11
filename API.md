@@ -67,7 +67,14 @@ Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
   (the code was just checked); it exists because the same claims shape is
   reused for `renew-token`, where it can be false (see MFA gate below).
 - `max_token_age` — minutes until expiry, default `240` (4h) if the user
-  record doesn't set one; feeds `jwtBuild()`'s `exp` claim.
+  record doesn't set one; feeds `jwtBuild()`'s `exp` claim. `null`, `0` and
+  negative values all mean "use the default" (`0` would otherwise mint an
+  already-expired token). `renew-token` re-signs the same claim, so a renewed
+  token keeps the user's lifetime rather than reverting to the default.
+- `max_idle_time` — **not implemented.** It is stored on the user, accepted by
+  `POST`/`PUT /v1/users`, and echoed back in the claims, but nothing anywhere
+  enforces an idle timeout: no last-seen timestamp is tracked per token. Treat
+  it as a reserved field. A token's only expiry is `max_token_age`.
 - Failure: `401` with `{"error": "Wrong username or password"}` /
   `{"error": "MFA code required"}` / `{"error": "Invalid MFA code"}`.
 
@@ -122,17 +129,36 @@ for a has-TOTP account without the code (not currently possible through
 
 `PUT /v1/changepassword/{id}` (auth: self-with-MFA or admin) — body
 `{"password": "..."}`. This is the local `users.password`, unrelated to the
-shared EPP registry credential (below).
+shared EPP registry credential (below). Trying to change another user's
+password without being an admin is **403** — it answered 401 previously,
+which contradicted every other authorization refusal in the API.
 
 ## Authorization model
 
 - `admin` claim `=== 1` → unrestricted, sees/manages every user's data, can
   hit `jwtRequireAdmin`-gated routes.
-- Everyone else is scoped to their own `user_id` (or `billing_id` for
-  accounting) — every list/read/write handler that isn't admin-only filters
+- Everyone else is scoped to their own `user_id` — every list/read/write
+  handler that isn't admin-only filters
   its query by the caller's id. There is no per-resource ACL table; it's a
   `WHERE user_id = :id` (or ownership join) added to the query, or a 403 if
   the ownership check fails outright.
+- Every domain **write** route checks ownership (`canAccessDomain()`,
+  `routes/domain.php`) *before* opening an EPP session, so a rejected call
+  never reaches the registry: 403
+  `{"error": "You are not authorized to modify domain '...'"}`. A domain
+  belongs to exactly one local user — there is no wider attachment rule like
+  contacts have. Two deliberate exceptions, both claim-style operations where
+  the caller isn't expected to own the domain yet:
+  `POST /v1/domains/{name}/transfer` and `.../transfer/cancel` (see their rows
+  below).
+- A domain's registrant must be a contact the caller **owns**
+  (`canUseAsRegistrant()`, `routes/domain.php`): `POST /v1/domains` and
+  `POST /v1/domains/{name}/registrant` 403 otherwise. This is stricter than
+  the read rule below on purpose — being allowed to *see* a contact because it
+  hangs off one of your domains is not grounds for making it the registrant of
+  another. It also keeps a domain's owner and its registrant's owner from
+  drifting apart, since a registrant change reassigns the domain's local
+  ownership to that contact's owner.
 - Contacts have a wider access rule than domains
   (`canAccessContact()`, `routes/contact.php`): a reseller may `GET`/`PATCH`
   a contact they don't directly own, as long as it's attached (as
@@ -142,15 +168,20 @@ shared EPP registry credential (below).
 ## Talking to the registry (EPP)
 
 Handlers that need a live round-trip to the .it registry wrap their EPP
-calls in `withEppSession()` (`helpers/epp.php`): connect, `hello()`+
+calls in `withEppSession()` (`Net/EPP/Helpers.php`): connect, `hello()`+
 `login()`, run the callback, always `logout()` — one registry session per
 HTTP request, nothing pooled. If `hello()`/`login()` fails, the route
 returns **502** with `{"error": "EPP session unavailable: ..."}` — this is
 distinct from a `400`, which means the registry responded but rejected the
 operation (bad input, business-rule violation, etc.). Routes that only
 touch the local DB (`GET /v1/domains`, `.../expiring`, `.../autocomplete`,
-`.../export`, `.../transfers`, most of `contacts`/`accounting`/`reminders`)
+`.../export`, `.../transfers`, most of `contacts`/`reminders`)
 never pay this cost.
+
+The two single-object reads — `GET /v1/domains/{name}` and
+`GET /v1/contacts/{handle}` — are the exception to the 502 rule: rather than
+failing when the registry is unavailable, they fall back to the local DB and
+mark the payload `"stale": true`. Every other EPP-backed route still 502s.
 
 ## Error shapes
 
@@ -189,10 +220,21 @@ failure, just with an explanatory body visible to non-browser clients).
 Allowed headers/methods are also config-driven (`allowed_headers`,
 `allowed_methods`).
 
+**Requests with no `Origin` header bypass this check entirely** and are served
+normally, with no `Access-Control-Allow-*` headers on the response. CORS is
+enforced by browsers on top of an `Origin`; with none present there is nothing
+to police. This is the path every non-browser client takes — curl, cron jobs,
+and anything using a fixed API token — so `allowed_origins` only ever governs
+browsers, and shipping it empty (as both schema seeds now do) locks out browser
+clients without touching scripted ones. Note this is a behaviour change: the
+seeds previously contained a single empty-string entry, which is what let
+origin-less requests through, and configuring a real origin list silently
+revoked that.
+
 ## Pagination convention
 
-Used by `GET /v1/accounting`, `GET /v1/reminders` (admin-only variant),
-and any future list-heavy endpoint that adopts it (not every list route
+Used by `GET /v1/reminders` (admin-only variant) and any future list-heavy
+endpoint that adopts it (not every list route
 does — see per-route notes, most domain/contact listings return the full
 scoped set unpaginated):
 ```json
@@ -221,6 +263,7 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 |---|---|---|
 | `GET /` | public | plaintext "Hello, World!", not JSON — liveness check only |
 | `GET /v1/network-check` | public | `{"safe_network": bool, "client_ip": "..."}` — used pre-login to decide if the UI should prompt for a TOTP field |
+| `GET /v1/session/epp` | admin | the shared EPP registry account this installation uses, `{"epp": {...}}`: `server`, `server_deleted`, `port`, `interface`, `username`, `lang`, `cl_trid_prefix`, `lastPasswordUpdate` (unix timestamp of the last automated password rotation attempt, `0` = never), plus `password_set` (bool). Local DB only, no registry round-trip. **The password itself is never returned** — the field list is an allow-list, so anything added to the `epp` setting later is withheld until explicitly published |
 | `GET /v1/session/credit` | user | live EPP registry account balance, `{"credit": "..."}`; 502 if the registry session fails |
 | `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — logs into EPP with the new password to confirm it, then updates the `epp` row in the `settings` table. Body `{"password"?: "..."}` (random if omitted). 502/400/500 on registry-connect / registry-reject / settings-update failure respectively |
 | `GET /v1/poll-queue` | admin | raw `messages` table rows, `?active=1\|0` (default `1` = `archived_time IS NULL` only) |
@@ -233,8 +276,8 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 |---|---|---|
 | `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug_level, has_totp`. Never returns password hashes |
 | `GET /v1/users/{id}` | user | same field set, single row (also unscoped — any logged-in user can look up any other user by id) |
-| `POST /v1/users` | admin | create; body: `active, admin, username, password, max_token_age, max_idle_time, debug_level` |
-| `PUT /v1/users/{id}` | admin | full update of the same field set (password optional — omit to leave unchanged) |
+| `POST /v1/users` | admin | create. Required: `username`, `password`. Optional: `description`, `email`, `max_operations` (daily domain-create quota, `0` = unlimited), `active` (default `1`), `admin` (default `0`), `max_token_age`, `max_idle_time`, `debug_level`. `400` if a required field is missing or if `username` is already taken |
+| `PUT /v1/users/{id}` | admin | update of the same field set. **Every field is optional** — anything omitted keeps its current value (this includes `password`, as before). `404` if the id doesn't exist, `400` on a `username` collision with another row |
 | `DELETE /v1/users/{id}` | admin | soft-delete (`active = 0`) — does **not** block deleting id `1`, unlike the original plan's intent; be careful in the UI |
 
 ### Domains
@@ -245,23 +288,23 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/domains` | user | local DB only, no EPP round-trip. Query params: `registrant` (exact match), `active` (`1`\|`0`, default `1`), `age` (months since `ex_date`, filters to older-than). Returns **raw DB rows** `{domain, registrant, user_id}` per entry — not `domainToArray()` — plus any pending transfer-in requests with `" (transfer-in)"` appended to the domain name as a literal string suffix (not a separate field — parse it out if the UI needs to distinguish) |
-| `GET /v1/domains/expiring?days=30` | user | local DB, joined with registrant contact + billing info; unscoped rows include `handle, org, name, email, billing_id` alongside the domain columns |
+| `GET /v1/domains/expiring?days=30` | user | local DB, joined with the registrant contact; rows include `handle, org, name, email` alongside the domain columns. Scoped by the **domain's** owner (`domains.user_id`), same as every other domain route |
 | `GET /v1/domains/autocomplete?term=&limit=10` | user | domain-name substring search (`LIKE %term%`), includes transfer-in pending domains with the same `" (transfer-in)"` suffix, returns `{"domains": ["a.it", "b.it (transfer-in)", ...]}` |
-| `GET /v1/domains/export` | user | **not JSON** — `text/csv` with `Content-Disposition: attachment`, columns `Active;Domain;Auth-Info;Created;Expires;Registrant Handle;Registrant Org;Registrant Name;Registrant Email;Billing ID` |
-| `GET /v1/domains/transfers?registrant=` | user | pending local transfer-in requests (the `transfers` table, not registry `pendingTransfer` polling state) — `techc`/`dns` are unserialized back into arrays for the response |
-| `GET /v1/domains/{name}` | user | live EPP `fetch()` + local `loadDB()`, `domainToArray()` shape. 404 if not found at the registry, 502 if the registry session itself fails |
-| `POST /v1/domains` | user | create-or-transfer-request in one call: `check()`s the name first, `create()`s if available, otherwise issues a `transfer()` request if it's held elsewhere. Body: `domain*, registrant*, admin?, tech?: [...], ns?: [{name,ip?}...], authinfo?` (`*` = required). **Daily quota enforced** for non-admins via `users.max_operations` vs. today's `changelog` create-count — `429` with `{"error": "Daily operation quota exceeded"}` when hit. `201` + `domainToArray()` on success |
+| `GET /v1/domains/export` | user | **not JSON** — `text/csv` with `Content-Disposition: attachment`, columns `Active;Domain;Auth-Info;Created;Expires;Registrant Handle;Registrant Org;Registrant Name;Registrant Email` |
+| `GET /v1/domains/transfers?registrant=` | user | pending local transfer-in requests (the `transfers` table, not registry `pendingTransfer` polling state) — `techc`/`dns` are unserialized back into arrays for the response. Scoped by who **requested** the transfer (`transfers.user_id`), matching what `.../transfer/cancel` authorizes against |
+| `GET /v1/domains/{name}` | user | registry-first: live EPP `fetch()`, returned as-is in the `domainToArray()` shape with `"stale": false`. If the registry can't answer — `fetch()` fails **or** the session itself fails — falls back to the local DB row and returns it with `"stale": true`. 404 only when neither source has it (the local fallback is scoped by `user_id`, so a domain you don't own counts as absent). This route no longer returns 502 |
+| `POST /v1/domains` | user | create-or-transfer-request in one call: `check()`s the name first, `create()`s if available, otherwise issues a `transfer()` request if it's held elsewhere. Body: `domain*, registrant*, admin?, tech?: [...], ns?: [{name,ip?}...], authinfo?` (`*` = required). The `registrant` must be a contact you own, else 403. **Daily quota enforced** for non-admins via `users.max_operations` vs. today's `changelog` create-count — `429` with `{"error": "Daily operation quota exceeded"}` when hit. `201` + `domainToArray()` on success |
 | `POST /v1/domains/import` | user | body `{"domains": ["a.it", ...]}` — pulls each from the registry into the local DB (idempotent reconciliation, not a create). Response is a per-domain step-by-step diagnostic object (`step1_domain`, `step2_registrant`, `step3_reg_store`, `step4_dom_store`, each `"found"/"not found"/"stored"/"not stored"/"unknown"`), not a simple success flag — useful for surfacing partial failures in a bulk-import UI |
 | `PATCH /v1/domains/{name}` | user | partial update: `admin`, `authinfo` set directly; `ns`, `tech`, `dnssec` are **full-target-list diffs** — send the complete desired array and the server computes add/remove, don't send deltas. `dnssec` entries are `{keytag, algorithm, digesttype, digest}`. Registrant changes are **not** accepted here — see the dedicated endpoint below |
-| `POST /v1/domains/{name}/registrant` | user | dedicated registrant-change flow (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}` — authinfo is rotated automatically (server-generated if omitted) since the registry requires it to change alongside the registrant |
+| `POST /v1/domains/{name}/registrant` | user | dedicated registrant-change flow (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}` — the new registrant must be a contact you own (403 otherwise), since this also moves the domain's local ownership to that contact's owner — authinfo is rotated automatically (server-generated if omitted) since the registry requires it to change alongside the registrant |
 | `POST /v1/domains/{name}/status` | user | body `{"state"*, "action"?: "add"\|"rem" (default "add")}` — EPP status flags (e.g. `clientTransferProhibited`) |
-| `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry at all** — just inserts a future-dated `reminder` row (`date` required when `mode=date`; defaults to the domain's `ex_date` for `mode=expiry`) for some other process to act on later. `mode=date` 400s if `date` is missing |
+| `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | ownership is checked up front, so a domain you don't own is **403** in every mode (it used to be a 404 for `mode=expiry\|date`). `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry at all** — just inserts a future-dated `reminder` row (`date` required when `mode=date`; defaults to the domain's `ex_date` for `mode=expiry`) for some other process to act on later. `mode=date` 400s if `date` is missing |
 | `POST /v1/domains/{name}/restore` | user | undelete a `pendingDelete`/redemption-period domain |
 | `POST /v1/domains/{name}/owner` | admin | reassigns local ownership to another user: duplicates the registrant (and admin, if set) contact under the new owner, picks the new owner's default tech contact (`users.techc`) or duplicates the current one, runs `updateRegistrant()` then a generic `update()`, then flips `domains.user_id`. Body `{"user_id"*}` (the new owner). Multi-step — can partially fail (e.g. registrant duplicated but registrant-change rejected); check `error` carefully in the UI |
-| `POST /v1/domains/{name}/transfer` | user | request-transfer-in, storing the desired post-transfer registrant/tech/ns locally (`transfers` table) for `PollProcessor` to apply once the registry confirms. Body `{"authinfo"*, "registrant"?, "tech"?: [...], "ns"?: [...]}` |
-| `POST /v1/domains/{name}/transfer/approve` | user | body `{"authinfo"?}` |
-| `POST /v1/domains/{name}/transfer/reject` | user | body `{"authinfo"?}` |
-| `POST /v1/domains/{name}/transfer/cancel` | user | body `{"authinfo"?}`; unlike approve/reject, does **not** delete the local `transfers` row (cancelling an outgoing request the local side itself made, not one incoming) |
+| `POST /v1/domains/{name}/transfer` | user | request-transfer-in, storing the desired post-transfer registrant/tech/ns locally (`transfers` table) for `PollProcessor` to apply once the registry confirms. Body `{"authinfo"*, "registrant"?, "tech"?: [...], "ns"?: [...]}`. **Not** ownership-checked — you're claiming a domain you don't hold yet — but 403 if another local user already holds it |
+| `POST /v1/domains/{name}/transfer/approve` | user | body `{"authinfo"?}`; ownership-checked against `domains` (you're answering a request for a domain you sponsor) |
+| `POST /v1/domains/{name}/transfer/reject` | user | body `{"authinfo"?}`; ownership-checked against `domains` |
+| `POST /v1/domains/{name}/transfer/cancel` | user | body `{"authinfo"?}`; unlike approve/reject, does **not** delete the local `transfers` row (cancelling an outgoing request the local side itself made, not one incoming). Ownership check accepts a pending `transfers` row too, since the domain isn't in `domains` yet |
 
 ### Contacts
 
@@ -270,7 +313,7 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/contacts?active=1\|0` | user | local DB only, scoped rows: `{handle, org, name, user_id}` (not the full `contactToArray()` shape — fetch by handle for full detail) |
-| `GET /v1/contacts/{handle}` | user (+ownership/attachment check) | live EPP `fetch()`, full `contactToArray()`. 403 if `canAccessContact()` fails, 404 if not found at the registry |
+| `GET /v1/contacts/{handle}` | user (+ownership/attachment check) | registry-first, same contract as `GET /v1/domains/{name}`: live EPP `fetch()` returned with `"stale": false`, falling back to the local row with `"stale": true` when the registry can't answer. 403 if `canAccessContact()` fails, 404 when neither source has it. No longer returns 502 |
 | `POST /v1/contacts` | user | body: any of the `contactToArray()` fields except `status`/`consentforpublishing` (server-managed), plus optional `handle` (16 random hex chars, registry-checked for uniqueness, if omitted) and `authinfo` (server-generated if omitted). `name` is required. `201` + full contact on success |
 | `PATCH /v1/contacts/{handle}` | user (+ownership/attachment check) | same field allow-list as create, partial update |
 | `DELETE /v1/contacts/{handle}` | user | **no `canAccessContact()` check** — only succeeds if the registry itself allows the delete (i.e. the contact isn't attached to any domain there), but there's no local ownership gate before attempting it. Treat as a gap if tightening auth later |
@@ -287,14 +330,6 @@ scheduled notices (`action` NULL, e.g. "renew this domain").
 | `GET /v1/domains/{name}/reminders` | user | scoped to domains the caller owns (or all, if admin); only `active = 1` rows, and only `{id, date, domain, email, notice}` — `action` is not exposed here (this endpoint is meant for the human-notice use case) |
 | `POST /v1/domains/{name}/reminders` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
 | `DELETE /v1/reminders/{id}` | user | soft-delete (`active = 0`); 403 if the reminder's domain isn't owned by the caller |
-
-### Accounting
-
-| Method & path | Auth | Notes |
-|---|---|---|
-| `GET /v1/accounting?page=&pageSize=&search=` | user | paginated; non-admins are scoped by their own `billing_id` (looked up from `users`), not `user_id` directly — accounting rows are keyed by `billing_id`, matching how the registry itself bills. `search` does a `LIKE` match against `object` OR `operation` |
-| `GET /v1/accounting/forecast?days=30` | admin | rough revenue estimate — `(domains expiring within N days) + (domains created in the last year) / 360 * N` — an approximation, not a real invoiceable-amount calculation |
-| `POST /v1/accounting/close` | admin | body `{"ids": [1,2,3]}` — bulk-marks `accounting.status = 1` |
 
 ### Changelog (audit trail)
 
@@ -323,6 +358,11 @@ scheduled notices (`action` NULL, e.g. "renew this domain").
 - No refresh-token flow — `GET /v1/users/renew-token` just re-signs the
   same claims from whatever token you already have; if it's expired,
   you're back to a full login.
+- `max_idle_time` is accepted and stored but never enforced (see above) —
+  there is no idle-session timeout, only absolute token expiry.
+- Invoicing/accounting has been removed from this API entirely (no
+  `/v1/accounting` routes, no `accounting` table, no `users.billing_id`); it
+  will be reimplemented separately.
 - Domain/contact write endpoints don't return `422`-style field-level
   validation errors — `requireFields()`/`maxLength()` return a single
   string naming the first problem found, not a structured per-field list.

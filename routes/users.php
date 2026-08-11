@@ -118,9 +118,12 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
         return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
+    // 403, not 401: the caller is authenticated, they are just not allowed to
+    // change this particular user's password. Matches every other authorization
+    // refusal in the codebase.
     if (($args['id'] != $decoded->data->id) && ($decoded->data->admin != 1)) {
         $response->getBody()->write(json_encode(['error' => 'You are not authorized to perform this operation']));
-        return $response->withStatus(401)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     R::exec("
@@ -148,50 +151,57 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     $user_id = Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
-    if (!empty($params['password'])) {
-        R::exec("
-            UPDATE users SET
-                active         = :active,
-                admin          = :admin,
-                username       = :username,
-                password       = :password,
-                max_token_age  = :max_token_age,
-                max_idle_time  = :max_idle_time,
-                debug_level    = :debug_level
-            WHERE id = :id
-        ", [
-            ':active'        => $params['active'],
-            ':admin'         => $params['admin'],
-            ':username'      => $params['username'],
-            ':password'      => password_hash($params['password'], PASSWORD_DEFAULT),
-            ':max_token_age' => $params['max_token_age'],
-            ':max_idle_time' => $params['max_idle_time'],
-            ':debug_level'   => $params['debug_level'],
-            ':id'            => $args['id'],
-        ]);
-    } else {
-        R::exec("
-            UPDATE users SET
-                active         = :active,
-                admin          = :admin,
-                username       = :username,
-                max_token_age  = :max_token_age,
-                max_idle_time  = :max_idle_time,
-                debug_level    = :debug_level
-            WHERE id = :id
-        ", [
-            ':active'        => $params['active'],
-            ':admin'         => $params['admin'],
-            ':username'      => $params['username'],
-            ':max_token_age' => $params['max_token_age'],
-            ':max_idle_time' => $params['max_idle_time'],
-            ':debug_level'   => $params['debug_level'],
-            ':id'            => $args['id'],
-        ]);
+    // load the row first: an unknown id is a 404 rather than a silent no-op, and
+    // every field the caller omits falls back to its current value instead of
+    // being overwritten with NULL (same spirit as password, which has always
+    // been omit-to-leave-unchanged here)
+    $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $args['id']]);
+    if (empty($current)) {
+        $response->getBody()->write(json_encode(['error' => 'User not found']));
+        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
+    // the UNIQUE column is pre-checked (excluding this row) for the same reason
+    // as in POST: a 400 beats an uncaught SQL error
+    $username = $params['username'] ?? $current['username'];
+    if ($username !== $current['username']) {
+        $taken = (int) R::getCell("SELECT COUNT(*) FROM users WHERE username = :username AND id <> :id", [
+            ':username' => $username,
+            ':id'       => $args['id'],
+        ]);
+        if ($taken > 0) {
+            $response->getBody()->write(json_encode(['error' => "username '{$username}' is already taken"]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+    }
+
+    $fields = [
+        'description'    => $params['description'] ?? $current['description'],
+        'username'       => $username,
+        'email'          => $params['email'] ?? $current['email'],
+        'max_operations' => (int) ($params['max_operations'] ?? $current['max_operations']),
+        'active'         => (int) ($params['active'] ?? $current['active']),
+        'admin'          => (int) ($params['admin'] ?? $current['admin']),
+        'max_token_age'  => $params['max_token_age'] ?? $current['max_token_age'],
+        'max_idle_time'  => $params['max_idle_time'] ?? $current['max_idle_time'],
+        'debug_level'    => $params['debug_level'] ?? $current['debug_level'],
+    ];
+    // the password column is only touched when a new one was actually supplied
+    if ( ! empty($params['password'])) {
+        $fields['password'] = password_hash($params['password'], PASSWORD_DEFAULT);
+    }
+
+    $set = [];
+    $bind = [':id' => $args['id']];
+    foreach ($fields as $k => $v) {
+        $set[] = "{$k} = :{$k}";
+        $bind[":{$k}"] = $v;
+    }
+    R::exec("UPDATE users SET " . implode(', ', $set) . " WHERE id = :id", $bind);
+
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, email, max_operations,
+        max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -206,27 +216,47 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     $user_id = Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
+    if ($err = Helpers::requireFields($params, ['username', 'password'])) {
+        $response->getBody()->write(json_encode(['error' => $err]));
+        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    // pre-check the UNIQUE column, so a collision comes back as a 400 with a
+    // clear message instead of an uncaught SQL error surfacing as a 500
+    $taken = R::getRow("SELECT username FROM users WHERE username = :username", [
+        ':username' => $params['username'],
+    ]);
+    if ( ! empty($taken)) {
+        $response->getBody()->write(json_encode(['error' => "username '{$params['username']}' is already taken"]));
+        return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
     R::exec("
         INSERT INTO users (
-            active, admin, username, password,
-            max_token_age, max_idle_time, debug_level
+            description, username, password, email,
+            max_operations, active, admin, max_token_age, max_idle_time, debug_level
         ) VALUES (
-            :active, :admin, :username, :password,
-            :max_token_age, :max_idle_time, :debug_level
+            :description, :username, :password, :email,
+            :max_operations, :active, :admin, :max_token_age, :max_idle_time, :debug_level
         )
     ", [
-        ':active'        => $params['active'],
-        ':admin'         => $params['admin'],
-        ':username'      => $params['username'],
-        ':password'      => password_hash($params['password'], PASSWORD_DEFAULT),
-        ':max_token_age' => $params['max_token_age'],
-        ':max_idle_time' => $params['max_idle_time'],
-        ':debug_level'   => $params['debug_level'],
+        ':description'    => $params['description'] ?? null,
+        ':username'       => $params['username'],
+        ':password'       => password_hash($params['password'], PASSWORD_DEFAULT),
+        ':email'          => $params['email'] ?? null,
+        // 0 means "no quota" -- see the max_operations check in routes/domain.php
+        ':max_operations' => (int) ($params['max_operations'] ?? 0),
+        ':active'         => (int) ($params['active'] ?? 1),
+        ':admin'          => (int) ($params['admin'] ?? 0),
+        ':max_token_age'  => $params['max_token_age'] ?? null,
+        ':max_idle_time'  => $params['max_idle_time'] ?? null,
+        ':debug_level'    => $params['debug_level'] ?? null,
     ]);
 
     $id = R::getInsertID();
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, email, max_operations,
+        max_token_age, max_idle_time, debug_level
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);

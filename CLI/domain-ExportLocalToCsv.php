@@ -23,18 +23,16 @@ if ( ! $isAdmin) {
 $records = R::getAll("
   SELECT
     d.active, d.domain, d.authinfo, d.cr_date, d.ex_date,
-    c.handle, c.org, c.name, c.email,
-    u.billing_id
+    c.handle, c.org, c.name, c.email
   FROM
-    users u, contacts c, domains d
+    contacts c, domains d
   WHERE
     d.registrant = c.handle AND
-    c.user_id = u.id AND
     " . implode(' AND ', $where) . "
   ORDER BY d.domain ASC", $params);
 
-$titles = ['Active', 'Domain', 'Auth-Info', 'Created', 'Expires', 'Registrant Handle', 'Registrant Org', 'Registrant Name', 'Registrant Email', 'Billing ID'];
-$fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email', 'billing_id'];
+$titles = ['Active', 'Domain', 'Auth-Info', 'Created', 'Expires', 'Registrant Handle', 'Registrant Org', 'Registrant Name', 'Registrant Email'];
+$fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email'];
 $delimiter = ';';
 $enclosure = '"';
 $eol = "\n";

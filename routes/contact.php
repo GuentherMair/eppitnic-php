@@ -79,26 +79,40 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
         return $response->withStatus(403)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
+    // the registry is authoritative -- its answer is returned as-is, never
+    // overlaid with the local row (overlaying is what used to blank the whole
+    // object out, since loadDB() re-initializes before its own lookup and
+    // leaves it empty when that lookup misses). Mirrors GET /v1/domains/{name}.
     try {
-        $contact = Helpers::withEppSession(function ($nic) use ($handle, $user_id) {
+        $contact = Helpers::withEppSession(function ($nic) use ($handle) {
             $contact = new Contact($nic);
-            if ( ! $contact->fetch($handle)) {
-                return null;
-            }
-            $contact->loadDB($handle, $user_id, true);
-            return $contact;
+            return $contact->fetch($handle) ? $contact : null;
         });
     } catch (\RuntimeException $e) {
-        $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
-        return $response->withStatus(502)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        // registry unreachable -- indistinguishable from "not found" as far as
+        // this route is concerned, both fall through to the local fallback
+        $contact = null;
     }
 
-    if ($contact === null) {
+    if ($contact !== null) {
+        $response->getBody()->write(json_encode(['contact' => contactToArray($contact), 'stale' => false]));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+
+    // registry lookup failed: serve the last known local state instead, flagged
+    // as potentially out of date. The ACL argument stays TRUE deliberately --
+    // canAccessContact() above has already authorized this caller, including the
+    // attached-to-a-domain-I-own case where the contact is owned by somebody
+    // else, and scoping the fallback by user_id would 404 exactly those.
+    // (via a variable: Contact::__construct() takes its Client by reference)
+    $nic = new Client();
+    $contact = new Contact($nic);
+    if ( ! $contact->loadDB($handle, $user_id, true)) {
         $response->getBody()->write(json_encode(['error' => "Contact '{$handle}' not found"]));
         return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
-    $response->getBody()->write(json_encode(['contact' => contactToArray($contact)]));
+    $response->getBody()->write(json_encode(['contact' => contactToArray($contact), 'stale' => true]));
     return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
 });
 

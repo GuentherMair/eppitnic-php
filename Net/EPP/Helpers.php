@@ -122,6 +122,93 @@ final class Helpers
         }
     }
 
+    /**
+     * Act on any unacknowledged `passwdReminder` poll message by rotating the
+     * shared EPP registry password.
+     *
+     * The registry warns, through the poll queue, that the account password is
+     * approaching expiry; Session::parsePollReq() already recognises and stores
+     * those messages, but nothing acted on them, so the warning just piled up
+     * until the credential expired and every EPP call started failing.
+     *
+     * This cannot go through withEppSession(): the new password is carried by
+     * the EPP <login> command itself (Session::login($newPW)), so the rotation
+     * has to *be* the login, not something done inside an existing session.
+     * Call it after any withEppSession() work has finished and logged out.
+     *
+     * At most one rotation is attempted per 24 hours, tracked by the `epp`
+     * setting's `lastPasswordUpdate` (a unix timestamp). The stamp is written
+     * *before* the attempt, deliberately: if a rotation half-succeeds -- the
+     * registry accepts the new password but the response is lost -- retrying
+     * minutes later with yet another password would make things worse, and the
+     * registry re-sends its reminder well before the credential actually
+     * expires, so waiting a day is safe.
+     *
+     * @return array human-readable log lines, in the same style as PollProcessor
+     */
+    public static function rotateEppPasswordOnReminder(): array {
+        $log = [];
+
+        $reminders = R::getAll(
+            "SELECT id, data FROM messages WHERE type = 'passwdReminder' AND archived_time IS NULL ORDER BY id ASC"
+        );
+        if (empty($reminders)) {
+            return ["no outstanding passwdReminder messages"];
+        }
+        $log[] = count($reminders) . " passwdReminder message(s) outstanding (registry reports expiry '" . $reminders[0]['data'] . "')";
+
+        $epp = Config::get('epp');
+        $last = (int) ($epp['lastPasswordUpdate'] ?? 0);
+        $age = time() - $last;
+        if ($last > 0 && $age < 86400) {
+            $log[] = "  last rotation attempt was " . round($age / 3600, 1) . "h ago -- skipping (one attempt per 24h)";
+            return $log;
+        }
+
+        // 16 hex characters: cryptographically random, and the same character
+        // class the registry already accepts for this credential
+        $newPassword = bin2hex(random_bytes(8));
+
+        // mark the attempt before making it -- see the note above
+        $epp['lastPasswordUpdate'] = time();
+        Config::set('epp', $epp);
+
+        $nic = new Client();
+        $session = new Session($nic);
+
+        if ( ! $session->hello()) {
+            $log[] = "  FAILED: registry connection unavailable -- messages left unacknowledged, will retry after 24h";
+            return $log;
+        }
+        if ($session->login($newPassword) === FALSE) {
+            $log[] = "  FAILED: registry rejected the password change (" . $session->getError() . ")";
+            $log[] = "  messages left unacknowledged, will retry after 24h";
+            return $log;
+        }
+        $session->logout();
+
+        // The registry has already accepted the new password at this point, so a
+        // failure to persist it locally locks this installation out of EPP
+        // entirely. Print the password: an operator reading the cron log is the
+        // only remaining way to recover it.
+        try {
+            $epp['password'] = $newPassword;
+            Config::set('epp', $epp);
+        } catch (\Throwable $e) {
+            $log[] = "  CRITICAL: the registry password was changed to '{$newPassword}' but storing it";
+            $log[] = "  locally FAILED (" . $e->getMessage() . "). Set the 'epp' setting's password to that";
+            $log[] = "  value by hand NOW -- EPP access is broken until you do.";
+            return $log;
+        }
+
+        foreach ($reminders as $reminder) {
+            R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$reminder['id']]);
+        }
+
+        $log[] = "  registry password rotated and stored, " . count($reminders) . " message(s) acknowledged";
+        return $log;
+    }
+
     // -----------------------------------------------------------------
     // JWT / fixed API token auth
     // -----------------------------------------------------------------
@@ -256,11 +343,21 @@ final class Helpers
     /**
      * sign a new JWT for $data, adding the standard claims
      *
-     * @param array $data claims to embed (may include 'maxTokenAge', in minutes, defaulting to 240)
+     * The token's lifetime comes from $data['max_token_age'], in minutes --
+     * spelled exactly like the users column and the claim every caller already
+     * passes. It used to be read as 'maxTokenAge', which no call site ever set,
+     * so users.max_token_age was silently ignored and every token got the
+     * 240-minute default. A null or non-positive value still means "use the
+     * default": 0 would otherwise mint a token that has already expired.
+     *
+     * @param array $data claims to embed (may include 'max_token_age', in minutes, defaulting to 240)
      * @return array $data merged with the signed 'token' string
      */
     public static function jwtBuild(array $data): array {
-        $maxTokenAge = isset($data['maxTokenAge']) ? (int) $data['maxTokenAge'] : 240;
+        $maxTokenAge = (int) ($data['max_token_age'] ?? 0);
+        if ($maxTokenAge <= 0) {
+            $maxTokenAge = 240;
+        }
 
         $iat = time();
         $nbf = $iat - 60 * 5;
@@ -294,7 +391,11 @@ final class Helpers
      * @return array ['secret' => ..., 'uri' => ...]
      */
     public static function totpGenerate(string $username): array {
-        $totp = TOTP::generate();
+        // 20 bytes / 160 bits -- the size RFC 4226 section 4 recommends, and what
+        // authenticator apps expect. otphp's own default is 64 bytes, whose
+        // 103-character base32 encoding does not fit users.totp_secret varchar(64)
+        // (config/mariadb-schema.sql) and would be silently truncated on write.
+        $totp = TOTP::generate(null, 20);
         $totp->setLabel($username);
         $totp->setIssuer('inet-services.it');
         return [
@@ -350,6 +451,24 @@ final class Helpers
         // Access-Control-Allow-Methods with all allowed methods
         $app->add(function (Request $request, RequestHandler $handler) use ($app): Response {
             $origin = $request->getHeaderLine('Origin');
+
+            // A request without an Origin header is not a browser cross-origin
+            // request: curl, cron jobs and fixed-API-token clients all land here.
+            // CORS is something browsers enforce on top of an Origin, so with
+            // none present there is nothing to police, and an empty
+            // Access-Control-Allow-Origin header would be meaningless anyway.
+            // This used to be expressed by keeping "" in allowed_origins, which
+            // made a security-relevant behaviour hinge on an invisible empty
+            // string -- and broke every scripted client the moment an operator
+            // configured a real origin list over the placeholder.
+            if ($origin === '') {
+                $response = $handler->handle($request);
+                if (ob_get_contents()) {
+                    ob_clean();
+                }
+                return $response;
+            }
+
             $isAllowed = in_array($origin, Config::get('allowed_origins'), strict: true);
 
             if ($request->getMethod() === 'OPTIONS') {

@@ -610,17 +610,20 @@ abstract class AbstractObject
     }
 
     if ($this->debug == LOG_DEBUG) {
+      // $result/$xmlQuery are only populated once ExecuteQuery() has run --
+      // getError() is reachable before that (any setError() on a missing
+      // precondition), so neither can be dereferenced unguarded here
       $msg = "Generic error (if set):\n".
              "-----------------------\n".
              $msg."\n".
              "\n".
              "Query sent to server:\n".
              "---------------------\n".
-             $this->xmlQuery."\n".
+             ($this->xmlQuery ?? "[no query was sent]")."\n".
              "\n".
              "Response received from server:\n".
              "------------------------------\n".
-             $this->result['body']."\n";
+             ($this->result['body'] ?? "[no response was received]")."\n";
     }
 
     return $msg;

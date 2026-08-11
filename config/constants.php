@@ -27,6 +27,7 @@ if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input f
 if ( ! defined('INVALID_INPUT'))     define('INVALID_INPUT', 3);      // eg. no valid .it domain given
 if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config/config.php missing/incomplete, or DB unreachable
 if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable to write an output file
+if ( ! defined('DATA_INCONSISTENT')) define('DATA_INCONSISTENT', 6);  // a check script ran fine but found bad data
 
 // session script exit codes (10-19), for use by CLI scripts / examples
 if ( ! defined('HELLO_FAILED'))           define('HELLO_FAILED', 10);

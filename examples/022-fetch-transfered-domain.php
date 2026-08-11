@@ -38,7 +38,8 @@ switch ( $domain->check($name) ) {
     if ( $domain->fetch($name) ) {
       echo " - Registrant: " . $domain->get('registrant') . "\n";
       echo " - Admin-C: " . $domain->get('admin') . "\n";
-      echo " - Tech-C: " . $domain->get('tech') . "\n";
+      foreach ($domain->get('tech') as $single_tech)
+        echo " - Tech-C: " . $single_tech . "\n";
       $state = $domain->get('status');
       foreach ( $state as $s )
         echo " - state '" . $s . "'\n";

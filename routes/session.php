@@ -8,6 +8,37 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
+/**
+ * the `epp` setting's fields that may be exposed over the API.
+ *
+ * An allow-list, not a blacklist of secrets: the shared registry password lives
+ * in the same setting, and so might whatever secret gets added next. Listing
+ * what is safe means a new field defaults to *not* being published, rather than
+ * leaking until somebody remembers to exclude it. Add new non-secret fields
+ * here deliberately.
+ */
+const EPP_PUBLIC_FIELDS = [
+    'server', 'server_deleted', 'port', 'interface',
+    'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
+];
+
+$app->get('/v1/session/epp', function (Request $request, Response $response, array $args): Response {
+    Helpers::jwtRequireAdmin($request);
+
+    $epp = Config::get('epp');
+
+    $public = [];
+    foreach (EPP_PUBLIC_FIELDS as $field) {
+        $public[$field] = $epp[$field] ?? null;
+    }
+    // never the password itself -- this only reports whether one is configured,
+    // which is what a UI needs to tell "not set up yet" from "set up"
+    $public['password_set'] = ($epp['password'] ?? '') !== '';
+
+    $response->getBody()->write(json_encode(['epp' => $public]));
+    return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+});
+
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
     Helpers::jwtVerify($request);
 

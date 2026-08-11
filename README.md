@@ -1,8 +1,9 @@
 # Requirements
 
-1. PHP 8.0.0 or newer (verified against both the codebase's own syntax and
-   every Composer dependency's declared PHP requirement; `slim/psr7` and
-   `firebase/php-jwt` are the binding constraints at `^8.0`)
+1. PHP 8.1.0 or newer (verified against both the codebase's own syntax and
+   every Composer dependency's declared PHP requirement; the code itself is
+   8.0-compatible, but `spomky-labs/otphp` — which provides TOTP/MFA — and its
+   `symfony/deprecation-contracts` dependency bind the minimum at `>=8.1`)
 2. [Composer](https://getcomposer.org/), to install the third-party
    dependencies declared in `composer.json` — run `composer install` before
    first use
@@ -44,6 +45,11 @@ Configuration is split in two:
    their placeholder. Everything else (`epp.server`, DNSSEC, Smarty, …) can
    be left at its default or adjusted later with `Config::set()`.
 
+   One setting is maintained by the software rather than by you:
+   `epp.lastPasswordUpdate`, a unix timestamp recording when an automated
+   registry-password rotation was last attempted (see "Registry password
+   rotation" below). Leave it at `0` on a fresh install.
+
 If you're upgrading an existing 6.x deployment from its `config.xml`
 instead of starting fresh, `CLI/config-DoMigrate.php` does both steps for
 you: `php CLI/config-DoMigrate.php` (reads `config.xml` from the repo root
@@ -68,6 +74,48 @@ After you have set everything up, simply try to have a
 look at the `CLI/` and `examples/` folders.
 
 
+# Web server
+
+The `CLI/` and `examples/` scripts need nothing beyond PHP. The REST API
+(documented in `API.md`) additionally needs a web server, configured two ways:
+
+1. **The document root must be `public/`, and only `public/`.** Everything
+   else in the checkout has to stay outside the served tree —
+   `config/config.php` holds the database credentials, and `CLI/`,
+   `cronjobs/` and `vendor/` have no reason to be reachable over HTTP.
+2. **Anything that is not a real file must be routed to
+   `public/index.php`.** Slim is a front controller: `/v1/domains` exists
+   only as a route inside `index.php`, never as a file on disk, so without
+   this the web server answers 404 before PHP is ever involved — the whole
+   API looks dead.
+
+Ready-made configurations for both are in `config/apache-vhost.sample` and
+`config/nginx.sample`. Copy the one you need, adjust the host name, paths and
+certificates, and enable it. To check the result, `GET /v1/network-check` is
+public and needs no token:
+
+```
+curl -i https://epp.example.com/v1/network-check
+```
+
+That must come back as JSON. An HTML 404 means the front-controller routing
+isn't in place.
+
+For local development you can skip all of this — PHP's built-in server
+already routes everything to one script:
+
+```
+php -S localhost:8080 -t public public/index.php
+```
+
+Finally, Smarty compiles the EPP templates into `smarty/compile/` and caches
+into `smarty/cache/`. Both are part of the repository, but they must be
+**writable by the user the web server runs as** (`www-data`, `php-fpm`, …).
+If they are not, `Net/EPP/Client.php` falls back to the system temp directory
+and emits a notice on every request — workable, but it means compiled
+templates land in a shared world-writable directory.
+
+
 # User setup
 
 Every route that creates a user (`POST /v1/users`) requires an admin token
@@ -75,7 +123,7 @@ to call it, so the very first admin account can't be created over the API —
 use `CLI/user-DoSetup.php` directly against the database instead:
 
 ```
-php CLI/user-DoSetup.php -m user -u admin -p 'a-strong-password' -b ADMIN-001 -A
+php CLI/user-DoSetup.php -m user -u admin -p 'a-strong-password' -A
 ```
 
 The same script can also issue a fixed, non-expiring (or time-limited) API
@@ -91,6 +139,59 @@ token valid one year). `-x 0` (the default if `-x` is omitted) means the
 token never expires — the script prints a `WARNING` about this, since
 there's no automatic rotation. Prefer a real, finite `-x` unless a
 non-expiring credential is genuinely what you want.
+
+
+# Ownership coherence
+
+Two columns describe ownership of a domain: `domains.user_id` (who owns the
+domain) and `contacts.user_id` (who owns the contact acting as its
+registrant). From 7.0.0 on they are expected to agree — every domain route
+scopes non-admins by the domain's own owner, and the API refuses to set a
+registrant the caller doesn't own. Legacy 6.x data never enforced this, so an
+upgraded database can contain rows where they disagree; such a domain is
+editable by its owner but attributed to somebody else, and cannot be repaired
+by simply re-saving it (its owner isn't allowed to name that contact, and the
+contact's owner isn't allowed to touch the domain).
+
+```
+php CLI/domain-CheckOwnershipCoherence.php
+```
+
+lists any such domain, plus any pending transfer-in request that would create
+one when it completes, and prints how to resolve each. It changes nothing.
+Exit code `0` means coherent, `6` means mismatches were found — so it can run
+from cron and alert on the exit status; add `-q` to suppress the output and
+keep only the exit code.
+
+The same query is section 6h of
+`config/mariadb-schema-upgrade-060700-to-070000.sql`, but that only prints
+anything when the migration is applied by hand through the `mysql` client, so
+prefer this script after an automatic migration.
+
+
+# Registry password rotation
+
+nic.it warns, through the EPP poll queue, that the account password is
+approaching expiry. Those `passwdReminder` messages are acted on by
+`cronjobs/process-poll-queue.php`: when one is outstanding it generates a new
+password, sets it at the registry (EPP carries a new password in the `<login>`
+command, so the rotation *is* a login), stores it in the `epp` setting, and
+acknowledges the message. Run that cron job — without it the reminders
+accumulate unread until the credential expires and every EPP call starts
+failing.
+
+At most one rotation is attempted per 24 hours, tracked by
+`epp.lastPasswordUpdate`. The timestamp is written *before* the attempt, on
+purpose: if a rotation half-succeeds — the registry accepts the new password
+but the reply is lost — retrying minutes later with yet another password would
+compound the problem, and the registry re-sends its reminder well before the
+credential actually expires.
+
+The one failure worth watching the logs for is the registry accepting the new
+password while storing it locally fails; that locks this installation out of
+EPP. The job prints the new password to stdout in that case, so keep the cron
+output somewhere you can read it (the suggested crontab line redirects it to
+`/var/log/eppitnic/poll-queue.log`).
 
 
 # ToDo's

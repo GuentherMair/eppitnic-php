@@ -1,9 +1,0 @@
-# Block everything
-<FilesMatch ".*">
-    Require all denied
-</FilesMatch>
-
-# Allow only index.php
-<FilesMatch "^(index)\.php$">
-    Require all granted
-</FilesMatch>

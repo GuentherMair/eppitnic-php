@@ -31,7 +31,6 @@ require dirname(__FILE__) . '/../routes/users.php';
 require dirname(__FILE__) . '/../routes/session.php';
 require dirname(__FILE__) . '/../routes/contact.php';
 require dirname(__FILE__) . '/../routes/domain.php';
-require dirname(__FILE__) . '/../routes/accounting.php';
 require dirname(__FILE__) . '/../routes/reminders.php';
 require dirname(__FILE__) . '/../routes/whois.php';
 require dirname(__FILE__) . '/../routes/changelog.php';

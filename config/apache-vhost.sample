@@ -1,0 +1,52 @@
+# Sample Apache virtual host for the eppitnic REST API.
+#
+# Copy this into your Apache configuration (e.g. /etc/apache2/sites-available/)
+# and adjust ServerName, the paths and the TLS certificate locations.
+#
+# Two things matter here:
+#
+# 1. The document root is `public/`, and ONLY `public/`. The rest of the
+#    checkout must stay outside the served tree -- config/config.php holds the
+#    database credentials, and CLI/, cronjobs/ and vendor/ have no business
+#    being reachable over HTTP.
+#
+# 2. The rewrite below is what makes the API work at all. Slim is a front
+#    controller: every route lives inside public/index.php, so a request for
+#    /v1/domains has no matching file on disk and Apache would answer 404 long
+#    before PHP is involved. The rule sends anything that is not a real file to
+#    index.php, which then routes it.
+#
+# There is deliberately no .htaccess in public/ -- the rewrite lives here, and
+# AllowOverride None spares Apache a per-request stat() looking for one.
+
+<VirtualHost *:443>
+    ServerName      epp.example.com
+    DocumentRoot    /srv/eppitnic/public
+
+    <Directory /srv/eppitnic/public>
+        AllowOverride None
+        Require all granted
+
+        # front controller
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^ index.php [QSA,L]
+
+        # Alternative, if you would rather not depend on mod_rewrite -- it does
+        # the same job in one directive:
+        #   FallbackResource /index.php
+    </Directory>
+
+    # The Authorization header carries the bearer token. Some Apache/PHP
+    # combinations strip it before PHP sees it, which makes every request look
+    # unauthenticated; uncomment if Helpers::jwtVerify() reports a missing token
+    # for requests that definitely sent one.
+    #CGIPassAuth On
+
+    SSLEngine               on
+    SSLCertificateFile      /etc/ssl/certs/epp.example.com.crt
+    SSLCertificateKeyFile   /etc/ssl/private/epp.example.com.key
+
+    ErrorLog    ${APACHE_LOG_DIR}/eppitnic-error.log
+    CustomLog   ${APACHE_LOG_DIR}/eppitnic-access.log combined
+</VirtualHost>

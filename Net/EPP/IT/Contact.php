@@ -143,8 +143,10 @@ class Contact extends AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // in PHP 5.2.3 the 4th parameter "double_encode" was added
-    $val = htmlspecialchars($val, ENT_COMPAT, 'UTF-8', false);
+    // in PHP 5.2.3 the 4th parameter "double_encode" was added.
+    // Cast first: route handlers forward decoded JSON straight in here, and a
+    // JSON null would otherwise hit the deprecated null-to-string coercion.
+    $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
 
     if ($var == "entitytype") {
       return $this->setEntityType($val);
@@ -254,137 +256,6 @@ class Contact extends AbstractObject
   }
 
   /**
-   * do sanity checks before sending changes to NIC
-   *
-   * @return bool status
-   */
-  protected function sanity_checks(): int {
-    $error = 0;
-
-    // the name rules: (1) remove hyphens, (2) the rest must be alphanumeric
-    if ( ! ctype_alnum(implode("", explode("-", $this->handle)))) {
-      $error |= 1;
-    }
-
-    /*
-     * the voice rules:
-     *
-     * 1) must begin with "+"
-     * 2) must have an int. prefix separated by "." from the national part
-     * 3) E.164 requests the country code to be of max. 3 digits
-     * 4) E.164 specifies the full number to be max. 15 digits
-     * 5) may not contain anything else (don't use int typecasts!)
-     */
-    $tmp = explode(".", substr($this->voice, 1));
-    $tmp[0] = ctype_digit(isset($tmp[0]) ? $tmp[0] : "") ? $tmp[0] : "";
-    $tmp[1] = ctype_digit(isset($tmp[1]) ? $tmp[1] : "") ? $tmp[1] : "";
-    if ((substr($this->voice, 0, 1) != "+") ||
-        (count($tmp) <> 2) ||
-        (strlen($tmp[0]) > 3 || strlen($tmp[0]) < 1) ||
-        (strlen($tmp[1]) > (15-strlen($tmp[0])) || strlen($tmp[1]) < 1) ||
-        ("+" . implode(".", array($tmp[0], $tmp[1])) != $this->voice)) {
-      $error |= 2;
-    }
-
-    /*
-     * the email rules:
-     * this could become somewhat complex, so...
-     *
-     * 1) make sure there is a MX record for the domain part
-     * 2) make sure the first element has at least one character
-     */
-    $tmp = explode("@", $this->email);
-    if ( ! getmxrr($tmp[count($tmp)-1], $tmp2) || (strlen($tmp[0]) < 1)) {
-      $error |= 4;
-    }
-
-    // the country code
-    if ( ! $this->is_iso3166_1($this->countrycode)) {
-      $error |= 8;
-    }
-
-    // the province code
-    if (($this->countrycode == "IT") && ( ! $this->is_iso3166_2it($this->province))) {
-      $error |= 16;
-    }
-
-    // relation entitytype <=> countrycode
-    if (($this->entitytype > 1) && ( ! $this->is_iso3166_1eu($this->countrycode))) {
-      $error |= 32;
-    }
-
-    // relation entitytype 1 <=> countrycode or nationalitycode
-    if (($this->entitytype == 1) &&
-        ( ! $this->is_iso3166_1eu($this->countrycode)) &&
-        ( ! $this->is_iso3166_1eu($this->nationalitycode))) {
-      $error |= 64;
-    }
-
-    // entitytype 1: name => org
-    if (($this->entitytype == 1)) {
-      $this->org = $this->name;
-    }
-    if (empty($this->org)) {
-      $this->org = $this->name;
-    }
-
-    // relation entitytype <=> regcode (these checks are a rough guess at some points)
-    switch ($this->entitytype) {
-      case 1: // persone fisiche italiane e straniere
-        if ($this->nationalitycode == "IT") {
-          if ( ! ((strlen($this->regcode) == 16) &&
-                 ctype_alnum($this->regcode) &&
-                 ctype_digit(substr($this->regcode, 6, 2)) &&
-                 ctype_digit(substr($this->regcode, 9, 2)) &&
-                 ctype_digit(substr($this->regcode, 12, 3))) &&
-               ($this->regcode <> "n.a."))
-            $error |= 128;
-        } else {
-          // content of regcode is not defined for this case
-        }
-        break;
-      case 4: // enti no-profit
-        if ( ! ctype_digit($this->regcode) && ! ($this->regcode == "n.a.")) {
-          $error |= 512;
-        }
-        break;
-      case 2: // società/imprese individuali
-      case 3: // liberi professionisti/ordini professionali
-      case 5: // enti pubblici
-      case 6: // altri soggetti
-        if ( ! ctype_digit($this->regcode) || strlen($this->regcode) <> 11) {
-          $error |= 256;
-        }
-        break;
-      case 0: // don't set any output related to entity types (role contacts)
-      case 7: // soggetti stranieri equiparati ai precedenti escluso le persone fisiche
-        break;
-    }
-
-    // schoolcodes for registering .edu.it domains require an entity type of 2, 4 or 5
-    if ($this->schoolcode && ! in_array($this->entitytype, array(2, 4, 5))) {
-      $error |= 2048;
-    }
-
-    /*
-     * basic data must be filled in
-     */
-    if (($this->handle == "") ||
-        ($this->name == "") ||
-        ($this->street == "") ||
-        ($this->city == "") ||
-        ($this->province == "") ||
-        ($this->postalcode == "") ||
-        ($this->countrycode == "") ||
-        ($this->voice == "") ||
-        ($this->email == "")) {
-      $error |= 1024;
-    }
-
-    return $error;
-  }
-
-  /**
    * check contact
    *
    * @param string $contact optional contact to check (set handle!)
@@ -397,6 +268,9 @@ class Contact extends AbstractObject
     if ( ! is_array($contact)) {
       $contact = array($contact);
     }
+    // array($null) / array("") is a one-element array, so the plain empty()
+    // check below never fired for the case it was meant to catch
+    $contact = array_values(array_filter($contact, fn($c) => (string)$c !== ""));
     if (empty($contact)) {
       $this->setError("Operation not allowed, set a handle!");
       return -2;
@@ -450,18 +324,9 @@ class Contact extends AbstractObject
   /**
    * create contact
    *
-   * @param bool $exec_checks execute internal sanity checks
    * @return bool status
    */
-  public function create(bool $exec_checks = FALSE): bool {
-    if ($exec_checks) {
-      $sanity = $this->sanity_checks();
-      if ($sanity <> 0) {
-        $this->setError("Sanity checks failed with code '".$sanity."'!");
-        return FALSE;
-      }
-    }
-
+  public function create(): bool {
     // fill xml template
     $this->client->assign('clTRID', $this->client->set_clTRID());
     $this->client->assign('id', $this->handle);
@@ -586,10 +451,9 @@ class Contact extends AbstractObject
   /**
    * update contact
    *
-   * @param bool $exec_checks execute internal sanity checks
    * @return bool status
    */
-  public function update(bool $exec_checks = FALSE): bool {
+  public function update(): bool {
     if ($this->handle == "") {
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
@@ -597,13 +461,6 @@ class Contact extends AbstractObject
     if ($this->changes == 0) {
       $this->setError("Handle did not change!");
       return FALSE;
-    }
-    if ($exec_checks) {
-      $sanity = $this->sanity_checks();
-      if ($sanity <> 0) {
-        $this->setError("Sanity checks failed with code '".$sanity."'!");
-        return FALSE;
-      }
     }
 
     // postalinfo
@@ -721,51 +578,80 @@ class Contact extends AbstractObject
   /**
    * store contact to DB
    *
-   * @param int $user_id user ACL
+   * Upserts: a handle that already exists locally is updated in place instead
+   * of failing on the UNIQUE key. It was previously an INSERT only, so
+   * re-storing a known contact always threw, was swallowed, and returned
+   * FALSE -- which is why re-running an import reported 'not stored' for every
+   * registrant it had already seen.
+   *
+   * Unlike Domain::storeDB() this cannot delete-then-insert: domains.registrant
+   * is a foreign key onto contacts.handle, so removing the row would be
+   * rejected for any contact currently used as a registrant.
+   *
+   * Two things are deliberately left alone when updating an existing row:
+   * `user_id` (re-importing somebody else's contact must not silently reassign
+   * ownership -- $user_id applies to new rows only) and `active` (a contact
+   * deactivated on purpose by deleteContactDB() should not be resurrected as a
+   * side effect of an import).
+   *
+   * @param int $user_id user ACL, applied to newly created rows only
    * @return bool status
    */
   public function storeDB(int $user_id = 1): bool {
+    $data = [
+      'status'               => serialize($this->status),
+      'name'                 => $this->name,
+      'org'                  => $this->org,
+      'street'               => $this->street,
+      'street2'              => $this->street2,
+      'street3'              => $this->street3,
+      'city'                 => $this->city,
+      'province'             => $this->province,
+      'postalcode'           => $this->postalcode,
+      'countrycode'          => $this->countrycode,
+      'voice'                => $this->voice,
+      'fax'                  => $this->fax,
+      'email'                => $this->email,
+      'authinfo'             => $this->authinfo,
+      'consentforpublishing' => $this->consentforpublishing,
+      'nationalitycode'      => $this->nationalitycode,
+      'entitytype'           => $this->entitytype,
+      'regcode'              => $this->regcode,
+      'schoolcode'           => $this->schoolcode,
+    ];
+
+    $existing = R::getRow("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
+
     try {
-      R::exec("
-        INSERT INTO contacts (
-          user_id, status, handle, name, org, street, street2, street3, city, province,
-          postalcode, countrycode, voice, fax, email, authinfo, consentforpublishing,
-          nationalitycode, entitytype, regcode, schoolcode
-        ) VALUES (
-          :user_id, :status, :handle, :name, :org, :street, :street2, :street3, :city, :province,
-          :postalcode, :countrycode, :voice, :fax, :email, :authinfo, :consentforpublishing,
-          :nationalitycode, :entitytype, :regcode, :schoolcode
-        )
-      ", [
-        ':user_id'              => $user_id,
-        ':status'               => serialize($this->status),
-        ':handle'               => $this->handle,
-        ':name'                 => $this->name,
-        ':org'                  => $this->org,
-        ':street'               => $this->street,
-        ':street2'              => $this->street2,
-        ':street3'              => $this->street3,
-        ':city'                 => $this->city,
-        ':province'             => $this->province,
-        ':postalcode'           => $this->postalcode,
-        ':countrycode'          => $this->countrycode,
-        ':voice'                => $this->voice,
-        ':fax'                  => $this->fax,
-        ':email'                => $this->email,
-        ':authinfo'             => $this->authinfo,
-        ':consentforpublishing' => $this->consentforpublishing,
-        ':nationalitycode'      => $this->nationalitycode,
-        ':entitytype'           => $this->entitytype,
-        ':regcode'              => $this->regcode,
-        ':schoolcode'           => $this->schoolcode,
-      ]);
+      if (empty($existing)) {
+        $data['handle'] = $this->handle;
+        $data['user_id'] = $user_id;
+
+        $params = [];
+        foreach ($data as $k => $v) {
+          $params[":{$k}"] = $v;
+        }
+        R::exec(
+          "INSERT INTO contacts (" . implode(', ', array_keys($data)) . ") " .
+          "VALUES (" . implode(', ', array_keys($params)) . ")",
+          $params
+        );
+      } else {
+        $set = [];
+        $params = [':handle' => $this->handle];
+        foreach ($data as $k => $v) {
+          $set[] = "{$k} = :{$k}";
+          $params[":{$k}"] = $v;
+        }
+        R::exec("UPDATE contacts SET " . implode(', ', $set) . " WHERE handle = :handle", $params);
+      }
     } catch (\RedBeanPHP\RedException\SQL $e) {
       $this->setError("unable to store contact '{$this->handle}': " . $e->getMessage());
       return FALSE;
     }
 
     $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
-    Helpers::logChanges('contacts', $id, 'create', ['handle' => $this->handle], $user_id);
+    Helpers::logChanges('contacts', $id, empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id);
     return TRUE;
   }
 

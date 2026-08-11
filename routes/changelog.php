@@ -3,6 +3,7 @@
 use Net\EPP\Helpers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use RedBeanPHP\R;
 
 $app->get('/v1/changelog/{object}/{object_id}', function (Request $request, Response $response, array $args): Response {
     $user_id = Helpers::jwtUserID($request);

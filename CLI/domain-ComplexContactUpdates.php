@@ -120,9 +120,6 @@ function update_domain(&$domain, &$options) {
 
   // verify if the tech-c needs to be replaced
   $techc = $domain->get("tech");
-  if (!is_array($techc)) {
-    $techc = [ $techc ];
-  }
   if (in_array($old_tech_c, $techc)) {
     echo "- removing contact '{$old_tech_c}' from tech-c's: '".implode("', '", $techc)."'\n";
     $domain->addTECH($new_tech_c);

@@ -40,10 +40,7 @@ switch ($domain->check($name)) {
     if ($domain->fetch($name, $authinfo, 'all')) {
       echo " - Registrant: " . $domain->get('registrant') . "\n";
       echo " - Admin-C: " . $domain->get('admin') . "\n";
-      $tech = $domain->get('tech');
-      if ( ! is_array($tech)) {
-        echo " - Tech-C: {$tech}\n";
-      } else foreach ($tech as $single_tech) {
+      foreach ($domain->get('tech') as $single_tech) {
         echo " - Tech-C: {$single_tech}\n";
       }
       $state = $domain->get('status');

@@ -45,7 +45,7 @@ if ($domain->loadDB($name)) {
     echo "Domain {$name} found.\n";
     $domain->addDNSSEC(12345, 3, 1, '49FD46E6C4B45C55D4AC');
     $domain->addDNSSEC(9876, 8, 3, '59FD46E6C4B45C55D4AC');
-    if ($domain->storeDB($name)) {
+    if ($domain->storeDB()) {
       echo "Domain stored in DB. Run again to handle an update!\n";
     } else {
       echo "Failed to store Domain in DB!!\n";

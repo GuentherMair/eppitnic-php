@@ -1,0 +1,43 @@
+# Sample nginx server block for the eppitnic REST API.
+#
+# Adjust server_name, the paths and the PHP-FPM socket. See
+# config/apache-vhost.sample for the same setup on Apache.
+#
+# As there, the two things that matter are that the root is `public/` and only
+# `public/` (config/config.php holds the database credentials, and CLI/,
+# cronjobs/ and vendor/ must not be reachable over HTTP), and that anything
+# which is not a real file is handed to index.php -- Slim is a front
+# controller, so /v1/domains exists only as a route inside index.php, never as
+# a file on disk.
+
+server {
+    listen              443 ssl;
+    server_name         epp.example.com;
+    root                /srv/eppitnic/public;
+    index               index.php;
+
+    ssl_certificate     /etc/ssl/certs/epp.example.com.crt;
+    ssl_certificate_key /etc/ssl/private/epp.example.com.key;
+
+    # front controller
+    location / {
+        try_files $uri /index.php$is_args$args;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        include         fastcgi_params;
+        fastcgi_param   SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param   DOCUMENT_ROOT   $realpath_root;
+        fastcgi_pass    unix:/run/php/php-fpm.sock;
+    }
+
+    # CSV exports (GET /v1/domains/export) can outgrow the default buffers on
+    # large accounts
+    fastcgi_buffers     16 16k;
+    fastcgi_buffer_size 32k;
+
+    access_log /var/log/nginx/eppitnic-access.log;
+    error_log  /var/log/nginx/eppitnic-error.log;
+}

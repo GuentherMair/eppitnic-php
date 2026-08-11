@@ -40,18 +40,8 @@ BEGIN
     DECLARE cnt INT DEFAULT 0;
     DECLARE msg VARCHAR(255);
 
-    -- tbl_users.billingID (unique, NOT NULL)
-    SELECT COUNT(*) INTO cnt FROM (
-        SELECT LOWER(billingID) AS k
-        FROM tbl_users
-        GROUP BY LOWER(billingID)
-        HAVING COUNT(*) > 1
-    ) x;
-    IF cnt > 0 THEN
-        SET msg = CONCAT('Abort: tbl_users.billingID has ', cnt,
-                          ' case-insensitive collision group(s). Resolve before migrating.');
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
-    END IF;
+    -- (tbl_users.billingID is not checked: the column is dropped by this
+    -- migration, so a case-insensitive collision in it cannot break anything.)
 
     -- tbl_contacts.handle (unique, NOT NULL)
     SELECT COUNT(*) INTO cnt FROM (
@@ -170,8 +160,11 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- renamed column -- they do not need to be, and must not be, redeclared here.
 -- ----------------------------------------------------------------------------
 
+-- `billingID` is dropped rather than renamed: invoicing has been taken out of
+-- this codebase entirely (it will be reimplemented elsewhere), so nothing reads
+-- a billing identifier any more.
 ALTER TABLE users
-  CHANGE COLUMN `billingID` `billing_id` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  DROP COLUMN `billingID`,
   CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
 
 ALTER TABLE transactions
@@ -221,7 +214,7 @@ ALTER TABLE messages
 
 
 -- ----------------------------------------------------------------------------
--- PART 4: NEW TABLES - changelog, reminder, accounting
+-- PART 4: NEW TABLES - changelog, reminder
 --
 -- changelog and reminder both carry a FOREIGN KEY into tables created in
 -- Part 2 (users, domains respectively), so this whole part must run after
@@ -234,11 +227,6 @@ ALTER TABLE messages
 -- 8.0.16+, using JSON_VALID) for CHECK constraints to actually be enforced
 -- rather than silently parsed-and-ignored -- worth confirming your server
 -- version supports enforced CHECK constraints before relying on it.
---
--- Note: `accounting.billing_id` has no FOREIGN KEY back to users.billing_id,
--- unlike reminder.domain -> domains.domain. Given as specified -- if
--- billing_id here is meant to always match a real user's billing_id, that's
--- currently only enforced at the application layer, not the database.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE `changelog` (
@@ -269,18 +257,6 @@ CREATE TABLE `reminder` (
   CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `accounting` (
-  `id`                    serial,
-  `operation`             varchar(64) NOT NULL,
-  `billing_id`            varchar(64) NOT NULL,
-  `object`                varchar(255) NOT NULL,
-  `date`                  date NOT NULL,
-  `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
-  `status`                tinyint DEFAULT 0,
-  PRIMARY KEY (`id`),
-  KEY (`billing_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 
 -- ----------------------------------------------------------------------------
 -- PART 5: EXTEND users TABLE
@@ -289,10 +265,15 @@ CREATE TABLE `accounting` (
 -- bcrypt/argon2, which don't fit in 32 chars) and adds 7 new columns
 -- (active/admin flags, TOTP 2FA secrets, session/token limits, debug level),
 -- inserted with AFTER so the physical column order matches the new schema.
+--
+-- `dns` is dropped: it is a leftover of the legacy web interface and nothing in
+-- this codebase ever reads or writes it (its sibling `techc` is still used, by
+-- POST /v1/domains/{name}/owner).
 -- ----------------------------------------------------------------------------
 
 ALTER TABLE users
   MODIFY COLUMN `password` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  DROP COLUMN `dns`,
   ADD COLUMN `active` TINYINT DEFAULT 1 AFTER `techc`,
   ADD COLUMN `admin` TINYINT DEFAULT 0 AFTER `active`,
   ADD COLUMN `totp_secret` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `admin`,
@@ -320,7 +301,7 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'changelog','reminder','accounting');
+                        'changelog','reminder');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
@@ -359,23 +340,22 @@ WHERE TABLE_SCHEMA = DATABASE()
 -- ^ this query should return ZERO rows (no upper-case characters left in
 --   any column name across these 8 tables).
 
--- 6e. Confirm changelog/reminder/accounting exist with the expected shape:
+-- 6e. Confirm changelog/reminder exist with the expected shape:
 --     PKs, secondary indexes, and changelog's data column
 --     charset/collation/CHECK constraint.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('changelog','reminder','accounting')
+  AND TABLE_NAME IN ('changelog','reminder')
 ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
 SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('changelog','reminder','accounting')
+  AND TABLE_NAME IN ('changelog','reminder')
 ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
 -- ^ expect: changelog: PRIMARY (id), object_lookup (object, object_id)
 --           reminder:  PRIMARY (id), domain (domain)
---           accounting: PRIMARY (id), billing_id (billing_id)
 
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
@@ -407,14 +387,53 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'changelog','reminder','accounting');
+                      'changelog','reminder');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
 --           changelog.user_id -> users.id
 --           reminder.domain -> domains.domain
--- (accounting has no FK by design -- see note above PART 4)
+
+-- 6h. DATA coherence, not schema shape: report any domain whose registrant
+--     contact belongs to a different local user than the domain itself.
+--
+--     There are two independent notions of ownership in this schema --
+--     domains.user_id (who owns the domain) and contacts.user_id (who owns the
+--     contact acting as its registrant) -- and the legacy 6.x code never kept
+--     them in step. From 7.0.0 on they are expected to agree:
+--
+--       * every domain list/read/write route scopes non-admins by
+--         domains.user_id, so a row where the two disagree is visible and
+--         editable to the domain's owner but attributed to somebody else;
+--       * the API refuses to set a registrant the caller does not own
+--         (canUseAsRegistrant(), routes/domain.php), so an inherited mismatch
+--         cannot be repaired by simply re-saving the domain -- its owner is not
+--         allowed to name that contact, and the contact's owner is not allowed
+--         to touch the domain.
+--
+--     This is deliberately a report, not a pre-flight abort: it describes data
+--     that was already inconsistent before the migration, and nothing about the
+--     migration itself fails because of it. Fix the rows afterwards.
+SELECT
+    d.domain,
+    d.user_id     AS domain_owner,
+    d.registrant  AS registrant_handle,
+    c.user_id     AS registrant_owner
+FROM domains d
+JOIN contacts c ON c.handle = d.registrant
+WHERE d.user_id <> c.user_id
+ORDER BY d.domain;
+-- ^ expect ZERO rows.
+--   For each row that does come back, decide which user should really own the
+--   domain and then either
+--     (a) duplicate the registrant contact under the domain's owner and point
+--         the domain at the copy -- POST /v1/domains/{name}/owner does exactly
+--         this (contact duplication + registrant change + reassignment), or
+--     (b) hand the domain to the registrant's owner:
+--           UPDATE domains SET user_id = <registrant_owner> WHERE domain = '<domain>';
+--   Option (b) is a single statement but moves the domain out of its current
+--   owner's listings, so confirm the intent before running it.
 
 
 -- ----------------------------------------------------------------------------
@@ -455,15 +474,23 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
-  ('allowed_origins', '[""]'),
+  ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
-  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","passwordexpirydays":120,"passwordexpirynext":1234567890,"lang":"en","cl_trid_prefix":"EPPITNIC"}'),
+  -- lastPasswordUpdate is a unix timestamp, maintained by the passwdReminder
+  -- handler in cronjobs/process-poll-queue.php: it records when an automated
+  -- registry-password rotation was last attempted, so at most one is tried per
+  -- 24 hours. 0 means "never attempted".
+  ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
   ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
-  ('debug', 'false'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
   ('cookie_dir', 'null'),
   ('pdnsutil_path', 'null'),
-  ('pdnsutil_ttl', '3600');
+  ('pdnsutil_ttl', '3600')
+  -- keep the seed idempotent: a partially populated `settings` table (a half
+  -- finished earlier run, or a hand-seeded one) would otherwise abort the whole
+  -- migration on the first duplicate key. Existing values win -- this seeds
+  -- defaults, it must never overwrite something an operator has configured.
+  ON DUPLICATE KEY UPDATE `value` = `settings`.`value`;
