@@ -7,7 +7,8 @@ use Net\EPP\IT\Domain;
 use RedBeanPHP\R;
 
 /**
- * Domains as CSV, from the local database or from the registry.
+ * Domains from the local database or from the registry, as CSV (the default),
+ * JSON Lines or one JSON document.
  *
  * Replaces CLI/domain-ExportLocalToCsv.php (--source=local, the default) and
  * CLI/domain-ExportDetailsToCsv.php (--source=registry), which produced the
@@ -29,7 +30,7 @@ final class DomainExportCommand extends Command
     ];
 
     public function describe(): string {
-        return 'export domains as CSV';
+        return 'export domains as CSV, JSON Lines or JSON';
     }
 
     public function arguments(): string {
@@ -38,11 +39,21 @@ final class DomainExportCommand extends Command
 
     public function options(): array {
         return [
-            'source='  => "'local' (default) reads the database, 'registry' fetches each domain live",
-            'output='  => 'write to this file instead of standard output',
-            'file='    => 'read domain names from this file (--source=registry)',
+            'source='   => "'local' (default) reads the database, 'registry' fetches each domain live",
+            'csv'       => 'write CSV (the default for this command)',
+            'output='   => 'write to this file instead of standard output',
+            'file='     => 'read domain names from this file (--source=registry)',
             'all-users' => 'export every user\'s domains, not just --user\'s',
         ];
+    }
+
+    /**
+     * An export is a bulk dump, so CSV is what it produces unless asked
+     * otherwise. --jsonl is the other format that suits the job; --json works
+     * too, but holds every row in memory to emit one array.
+     */
+    protected function defaultFormat(): string {
+        return self::FORMAT_CSV;
     }
 
     public function run(): int {
@@ -51,28 +62,60 @@ final class DomainExportCommand extends Command
             throw new UsageError("--source must be 'local' or 'registry'");
         }
 
-        $rows = $source === 'local' ? $this->fromDatabase() : $this->fromRegistry();
-
-        $csv = Helpers::rowToCSV(array_keys(self::COLUMNS), ';');
-        foreach ($rows as $row) {
-            $csv .= Helpers::rowToCSV(
-                array_map(fn($field) => $row[$field] ?? '', array_values(self::COLUMNS)),
-                ';'
-            );
+        if ($this->hasOption('csv') && $this->format() !== self::FORMAT_CSV) {
+            throw new UsageError('--csv cannot be combined with --json or --jsonl');
         }
 
+        $rows = $source === 'local' ? $this->fromDatabase() : $this->fromRegistry();
+
+        // normalised to the documented column set in either format, so a
+        // consumer sees the same fields whichever it asks for
+        $records = array_map(
+            fn($row) => array_combine(
+                array_values(self::COLUMNS),
+                array_map(fn($field) => $row[$field] ?? '', array_values(self::COLUMNS))
+            ),
+            $rows
+        );
+
+        $body = $this->render($records);
+
         if ($output = $this->option('output')) {
-            if (file_put_contents($output, $csv) === false) {
+            if (file_put_contents($output, $body) === false) {
                 $this->warn("unable to write to '{$output}'");
                 return OUTPUT_ERROR;
             }
-            $this->line(count($rows) . " domain(s) written to {$output}");
+            $this->line(count($records) . " domain(s) written to {$output}");
             return 0;
         }
 
-        // the CSV is the output here, so it goes out whatever --json says
-        echo $csv;
+        echo $body;
         return 0;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $records
+     * @return string the whole export, in the requested format
+     */
+    private function render(array $records): string {
+        switch ($this->format()) {
+            case self::FORMAT_JSON:
+                return json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
+
+            case self::FORMAT_JSONL:
+                $out = '';
+                foreach ($records as $record) {
+                    $out .= json_encode($record, JSON_UNESCAPED_SLASHES) . "\n";
+                }
+                return $out;
+
+            default:
+                $out = Helpers::rowToCSV(array_keys(self::COLUMNS), ';');
+                foreach ($records as $record) {
+                    $out .= Helpers::rowToCSV(array_values($record), ';');
+                }
+                return $out;
+        }
     }
 
     /**

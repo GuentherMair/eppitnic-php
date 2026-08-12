@@ -67,7 +67,7 @@ final class ContactInfoCommand extends Command
                     'regcode'              => $contact->get('regcode'),
                 ];
 
-                $this->record($this->format($record), $record);
+                $this->record($this->render($record), $record);
 
                 if ($store) {
                     if ($contact->storeDB($userId)) {
@@ -83,7 +83,7 @@ final class ContactInfoCommand extends Command
         return $failures > 0 ? CONTACT_FETCH_FAILED : 0;
     }
 
-    private function format(array $c): string {
+    private function render(array $c): string {
         $out = $c['handle'] . "\n";
         foreach ([
             'name' => $c['name'], 'org' => $c['org'],

@@ -537,6 +537,16 @@ class Domain extends AbstractObject
     // query server
     if ($this->ExecuteQuery("domain-info", $domain)) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
+
+      // A success code is not a promise that the payload is there. Without
+      // this, a response carrying 1000 and no <resData> walks straight into
+      // reading properties off null -- a wall of warnings rather than a
+      // failure the caller can act on.
+      if ( ! isset($ns['domain'], $this->xmlResult->response->resData)) {
+        $this->setError("The registry accepted the query but returned no domain data.");
+        return FALSE;
+      }
+
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
 
       $this->domain = $domain;

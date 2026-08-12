@@ -285,6 +285,14 @@ class Contact extends AbstractObject
     // query server
     if ($this->ExecuteQuery("contact-check", implode(";", $contact))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
+
+      // see the note in Domain::fetch(): a success code does not guarantee a
+      // payload, and reading one that is not there only produces warnings
+      if ( ! isset($ns['contact'], $this->xmlResult->response->resData)) {
+        $this->setError("The registry accepted the query but returned no contact data.");
+        return FALSE;
+      }
+
       $tmp = $this->xmlResult->response->resData->children($ns['contact']);
       if (count($tmp->chkData->cd) == 1) {
         return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;

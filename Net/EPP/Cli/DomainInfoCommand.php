@@ -74,7 +74,7 @@ final class DomainInfoCommand extends Command
                     $record['contacts'] = $domain->get('infcontacts');
                 }
 
-                $this->record($this->format($record), $record);
+                $this->record($this->render($record), $record);
 
                 if ($store) {
                     if ($domain->storeDB($userId)) {
@@ -94,7 +94,7 @@ final class DomainInfoCommand extends Command
      * @param array $d the record built above
      * @return string the human-readable rendering
      */
-    private function format(array $d): string {
+    private function render(array $d): string {
         $out = $d['domain'] . "\n";
         $out .= sprintf("  %-12s %s\n", 'registrant', $d['registrant']);
         $out .= sprintf("  %-12s %s\n", 'admin', $d['admin'] !== '' ? $d['admin'] : '-');
