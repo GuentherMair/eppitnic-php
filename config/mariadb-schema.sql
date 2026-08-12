@@ -162,7 +162,7 @@ CREATE TABLE `settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `settings` (`key`, `value`) VALUES
-  ('schema_version', '"070100"'),
+  ('schema_version', '"070000"'),
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),

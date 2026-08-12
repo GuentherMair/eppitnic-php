@@ -123,6 +123,10 @@ It runs read-only pre-flight checks first and aborts without touching anything
 if it finds a problem — in practice, domain names that differ only in case and
 would collide under the new collation. Resolve those and re-run.
 
+It also decodes the HTML entities 6.x stored in text columns: values used to be
+escaped on the way in, so an organisation named `Rossi & Figli` was held as
+`Rossi &amp; Figli` and read back that way everywhere.
+
 `handleID` (MyISAM, utf8mb3) is deliberately left alone; it belongs to no
 schema still in use. Drop it yourself once you have confirmed you do not need it.
 
@@ -141,11 +145,6 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 - WSDL support is gone.
 
 ### Afterwards
-
-Text stored before 7.1 holds HTML entities -- an organisation named
-`Rossi & Figli` reads `Rossi &amp; Figli` -- because values used to be escaped
-on the way in. The `070000-to-070100` migration decodes them; it runs
-automatically like every other step, and reports what it changed.
 
 Messages stored before this release may carry `type = 'unknown'` and an empty
 `domain`, mostly DNS validation failures. New messages are parsed correctly;

@@ -8,6 +8,8 @@
 --   * THIS SCRIPT DESTROYS DATA, deliberately, in two places: tbl_accounting
 --     is dropped in full (PART 2) and users.billingID is dropped (PART 3).
 --     Invoicing has left this codebase; export both first if you want them.
+--   * Text columns are rewritten to decode the HTML entities 6.x stored (see
+--     PART 3): "Rossi &amp; Figli" becomes "Rossi & Figli".
 --   * Run this via a non-interactive client that stops on the first error,
 --     e.g.:  mysql -u USER -p DBNAME < migrate_rename_charset.sql
 --     (this is the default `mysql` CLI behaviour; do NOT pass --force)
@@ -386,6 +388,50 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 
 -- ----------------------------------------------------------------------------
+-- Decode the HTML entities in stored text.
+--
+-- Contact::set() and Domain::set() used to run every value through
+-- htmlspecialchars() before storing it, so 6.x data holds entities rather than
+-- the characters themselves: an organisation named
+--
+--     Rossi & Figli S.r.l.
+--
+-- is stored as "Rossi &amp; Figli S.r.l." and comes back that way from every
+-- read. It was the wrong escaping for the job as well -- these values are sent
+-- to the registry as XML, which is now escaped at serialization instead,
+-- exactly once.
+--
+-- Order matters: &amp; is decoded LAST. Doing it first would turn a literal
+-- "&amp;lt;" -- somebody who really typed "&lt;" -- into "<". Decoding the
+-- others first and & last is the exact inverse of one htmlspecialchars() pass,
+-- which is what was applied. ENT_COMPAT was used, which encodes & < > and "
+-- but not the single quote, so there is no &#039; to undo.
+--
+-- A no-op on data that has no entities: every REPLACE() simply matches
+-- nothing.
+-- ----------------------------------------------------------------------------
+
+UPDATE contacts SET
+  name       = REPLACE(REPLACE(REPLACE(REPLACE(name,       '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  org        = REPLACE(REPLACE(REPLACE(REPLACE(org,        '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  street     = REPLACE(REPLACE(REPLACE(REPLACE(street,     '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  street2    = REPLACE(REPLACE(REPLACE(REPLACE(street2,    '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  street3    = REPLACE(REPLACE(REPLACE(REPLACE(street3,    '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  city       = REPLACE(REPLACE(REPLACE(REPLACE(city,       '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  province   = REPLACE(REPLACE(REPLACE(REPLACE(province,   '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  postalcode = REPLACE(REPLACE(REPLACE(REPLACE(postalcode, '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  voice      = REPLACE(REPLACE(REPLACE(REPLACE(voice,      '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  fax        = REPLACE(REPLACE(REPLACE(REPLACE(fax,        '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  email      = REPLACE(REPLACE(REPLACE(REPLACE(email,      '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  authinfo   = REPLACE(REPLACE(REPLACE(REPLACE(authinfo,   '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  regcode    = REPLACE(REPLACE(REPLACE(REPLACE(regcode,    '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&'),
+  schoolcode = REPLACE(REPLACE(REPLACE(REPLACE(schoolcode, '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&');
+
+UPDATE domains SET
+  authinfo   = REPLACE(REPLACE(REPLACE(REPLACE(authinfo,   '&lt;', '<'), '&gt;', '>'), '&quot;', '"'), '&amp;', '&');
+
+
+-- ----------------------------------------------------------------------------
 -- PART 4: NEW TABLE - changelog
 --
 -- Unlike reminder, changelog has no equivalent in the dump --
@@ -559,6 +605,13 @@ WHERE TABLE_SCHEMA = DATABASE()
 --           changelog.user_id -> users.id
 --           reminder.domain -> domains.domain
 -- (there is deliberately no accounting table any more -- PART 2 drops it)
+
+-- 6g-bis. No HTML entities left in stored text (expect ZERO rows).
+SELECT handle, name, org
+FROM contacts
+WHERE name LIKE '%&amp;%' OR org LIKE '%&amp;%' OR street LIKE '%&amp;%' OR city LIKE '%&amp;%';
+-- ^ a row here was encoded more than once before the migration ran. Decode it
+--   again by hand after checking what it should read.
 
 -- 6h. DATA coherence, not schema shape: report any domain whose registrant
 --     contact belongs to a different local user than the domain itself.

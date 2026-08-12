@@ -137,10 +137,11 @@ DOMDocument escapes at serialization, so the first thing the swap produced was
 `&amp;amp;`: the double encoding, finally visible. Values are now stored as
 given and escaped once, where it is needed.
 
-That leaves existing rows holding entities, so
-`config/mariadb-schema-upgrade-070000-to-070100.sql` decodes them and
-`SCHEMA_VERSION` moves to `070100`. Ordering matters there and is documented in
-the file: `&amp;` is decoded last, or a literal `&amp;lt;` would turn into `<`.
+That leaves existing rows holding entities, so the 6.7→7.0 migration decodes
+them as part of PART 3. Ordering matters there and is documented in the file:
+`&amp;` is decoded last, or a literal `&amp;lt;` would turn into `<`.
+`SCHEMA_VERSION` stays at `070000` — 7.0 is unreleased, so its migration is
+still being written rather than added to.
 
 `tests/Wire/EscapingTest.php` pins the property that replaced it: whatever a
 caller sets comes back out of the generated document unchanged.
@@ -226,7 +227,16 @@ were stored with. `bin/eppitnic doctor reparse-messages` re-derives both from
 reminder rows, no DNS-sync events for years-old failures. `--dry-run` reports
 what would change.
 
-### 7.3 Registry password rotation can lock the installation out — *medium*
+### 7.3 A database ahead of the code fails confusingly — *low*
+
+`Config::migrate()` loops `while ($current !== SCHEMA_VERSION)`, so a database
+stamped with a *newer* version than the code knows about does not stop — it
+looks for a migration away from that version, finds none, and reports "No
+migration found to bring the schema from version X to Y", which reads like a
+missing file rather than the truth: this checkout is older than the database.
+Worth an explicit comparison and a message saying so.
+
+### 7.4 Registry password rotation can lock the installation out — *medium*
 
 `Helpers::rotateEppPasswordOnReminder()` writes its "attempted" timestamp
 *before* the attempt and prints the new password to the cron log if it cannot
@@ -236,18 +246,18 @@ credential then lives in plaintext. Worth revisiting: write the new password
 to the settings table *before* sending it to the registry, marked pending, and
 reconcile afterwards.
 
-### 7.4 `check()` sentinel return values — *low*
+### 7.5 `check()` sentinel return values — *low*
 
 `Domain::check()` / `Contact::check()` return `array|bool|int` with `-1`/`-2`
 sentinels, so every caller carries the sentinel table in its head. Fold into a
 small result object during Phase 4, when both methods are being touched.
 
-### 7.5 `AbstractObject::$result` is untyped — *low*
+### 7.6 `AbstractObject::$result` is untyped — *low*
 
 A loose `array|null` keyed by string. A small value object typing
 `code`/`headers`/`body` pairs naturally with the Phase 0 transport interface.
 
-### 7.6 Legacy `__SERIALIZED:` storage envelope — *low*
+### 7.7 Legacy `__SERIALIZED:` storage envelope — *low*
 
 `responses`/`msgqueue` rows written by the 6.x codebase are
 `__SERIALIZED:` + base64(serialize($string)); current code writes plain

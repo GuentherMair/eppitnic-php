@@ -9,7 +9,7 @@
 // config/mariadb-schema-upgrade-{old}-to-{new}.sql file when adding a
 // migration; each file bridges exactly one version to the next one in the
 // chain -- Config applies them iteratively, it never jumps versions in one file.
-if ( ! defined('SCHEMA_VERSION')) define('SCHEMA_VERSION', '070100');
+if ( ! defined('SCHEMA_VERSION')) define('SCHEMA_VERSION', '070000');
 
 // generic exit codes (1-9), returned by bin/eppitnic subcommands
 if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
