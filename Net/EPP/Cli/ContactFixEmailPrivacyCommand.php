@@ -81,7 +81,7 @@ final class ContactFixEmailPrivacyCommand extends Command
                     $contact->set('email', 'info@' . $usable[0]);
                 }
 
-                if ((int) $contact->get('changes') === 0) {
+                if ( ! $contact->hasChanges()) {
                     continue;
                 }
 

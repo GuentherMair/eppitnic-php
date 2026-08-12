@@ -247,7 +247,7 @@ final class DomainService
             }
             $domain->addTECH($newTechHandle);
         }
-        if ($domain->get('changes') > 0 && ! $domain->update()) {
+        if ($domain->hasChanges() && ! $domain->update()) {
             return ['ok' => false, 'status' => 400, 'error' => 'admin/tech change failed: ' . $domain->getError()];
         }
 

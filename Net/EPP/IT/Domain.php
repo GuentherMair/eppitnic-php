@@ -8,6 +8,7 @@ use Algo26\IdnaConvert\ToUnicode;
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\Helpers;
+use Net\EPP\ChangeTracking;
 use Net\EPP\LocalStorage;
 use Net\EPP\XmlBuilder;
 use RedBeanPHP\R;
@@ -52,6 +53,7 @@ use RedBeanPHP\R;
 
 class Domain extends AbstractObject
 {
+  use ChangeTracking;
   use LocalStorage;
 
   protected static function storageTable(): string { return 'domains'; }
@@ -59,19 +61,19 @@ class Domain extends AbstractObject
   protected static function storageNoun(): string { return 'domain'; }
 
   /**
-   * The domain's own fields, each with the bit that marks it changed, and
-   * whether it is stored serialized.
+   * The domain's own fields, and whether each is stored serialized.
    *
-   * One list rather than three: the bits were spelled out in the property
-   * comments, again in set(), and a third time in updateDB().
+   * One list rather than several: the field set was spelled out in the
+   * property comments, again in set(), again in updateDB() and once more in
+   * storeDB().
    */
   public const FIELDS = array(
-    'ns'         => array('bit' => 1,  'serialize' => true),
-    'registrant' => array('bit' => 2,  'serialize' => false),
-    'admin'      => array('bit' => 4,  'serialize' => false),
-    'tech'       => array('bit' => 8,  'serialize' => true),
-    'authinfo'   => array('bit' => 16, 'serialize' => false),
-    'dnssec'     => array('bit' => 32, 'serialize' => true),
+    'ns'         => true,
+    'registrant' => false,
+    'admin'      => false,
+    'tech'       => true,
+    'authinfo'   => false,
+    'dnssec'     => true,
   );
 
   /**
@@ -83,7 +85,6 @@ class Domain extends AbstractObject
   protected $user_id;           // use just in case of an updateRegistrant + change of agent
   protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;            // -
-  protected $changes;           // sum
 
   protected $ns;
   protected $registrant;
@@ -151,7 +152,7 @@ class Domain extends AbstractObject
     $this->authinfo          = $this->authinfo();
     $this->dnssec            = array();
     $this->dnssec_initial    = array();
-    $this->changes           = 0;
+    $this->clearChanges();
     $this->max_check         = 5;
     $this->crDate            = date("Y-m-d");
     $this->exDate            = date("Y-m-d", strtotime("+1 year"));
@@ -199,7 +200,7 @@ class Domain extends AbstractObject
     }
 
     if (isset(self::FIELDS[$var]) && ! in_array($var, self::FIELDS_WITH_ADDERS, true)) {
-      $this->changes |= self::FIELDS[$var]['bit'];
+      $this->markChanged($var);
     }
     return $this->$var;
   }
@@ -212,7 +213,7 @@ class Domain extends AbstractObject
    */
   public function remDNSSEC(string $digest): string|false {
     if (isset($this->dnssec_initial[$digest])) {
-      $this->changes |= 32;
+      $this->markChanged('dnssec');
       unset($this->dnssec[$digest]);
       return $digest;
     } else {
@@ -251,7 +252,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    $this->changes |= 32;
+    $this->markChanged('dnssec');
     $this->dnssec[$digest] = array(
       'algorithm'  => $algorithm,
       'digesttype' => $digesttype,
@@ -288,7 +289,7 @@ class Domain extends AbstractObject
   public function remTECH(string $name): string|false {
     if (isset($this->tech[$name])) {
       unset($this->tech[$name]);
-      $this->changes |= 8;
+      $this->markChanged('tech');
       return $name;
     } else {
       return FALSE;
@@ -309,7 +310,7 @@ class Domain extends AbstractObject
     // assign technical contact
     if ( ! isset($this->tech[$name])) {
       $this->tech[$name] = $name;
-      $this->changes |= 8;
+      $this->markChanged('tech');
     }
     return $name;
   }
@@ -325,7 +326,7 @@ class Domain extends AbstractObject
     $name = $this->idn->convert($name);
     if (isset($this->ns[$name])) {
       unset($this->ns[$name]);
-      $this->changes |= 1;
+      $this->markChanged('ns');
       return $name;
     } else {
       return FALSE;
@@ -423,7 +424,7 @@ class Domain extends AbstractObject
     }
 
     // if we get to this point, something has changed
-    $this->changes |= 1;
+    $this->markChanged('ns');
     return $name;
   }
 
@@ -517,7 +518,7 @@ class Domain extends AbstractObject
 
     // query server and return answer (no handling of special return values)
     if ($this->ExecuteQuery("domain-create", $this->domain)) {
-      $this->changes = 0;
+      $this->clearChanges();
       $this->status = array('ok');
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
@@ -553,7 +554,7 @@ class Domain extends AbstractObject
     }
 
     // if authinfo was not given as an argument, but has been set
-    if (($authinfo === null) && ($this->changes & 16)) {
+    if (($authinfo === null) && $this->changed('authinfo')) {
       $authinfo = $this->authinfo;
     }
 
@@ -688,7 +689,7 @@ class Domain extends AbstractObject
       }
 
       // reset changes at the bottom
-      $this->changes = 0;
+      $this->clearChanges();
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
@@ -739,11 +740,11 @@ class Domain extends AbstractObject
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
-    if ($this->changes == 0) {
+    if ( ! $this->hasChanges()) {
       $this->setError("Domain did not change!");
       return FALSE;
     }
-    if (($this->changes & 2) > 0) {
+    if ($this->changed('registrant')) {
       $this->setError("Update the registrant through updateRegistrant()!");
       return FALSE;
     }
@@ -751,7 +752,7 @@ class Domain extends AbstractObject
     $add = array();
     $remove = array();
 
-    if (($this->changes & 1) > 0) {
+    if ($this->changed('ns')) {
       // the registry accepts at most six
       $this->ns = array_slice($this->ns, 0, 6);
 
@@ -781,12 +782,12 @@ class Domain extends AbstractObject
       }
     }
 
-    if (($this->changes & 4) > 0) {
+    if ($this->changed('admin')) {
       $add['admin'] = $this->admin;
       $remove['admin'] = $this->admin_initial;
     }
 
-    if (($this->changes & 8) > 0) {
+    if ($this->changed('tech')) {
       // at most six technical contacts, as with the nameservers
       $this->tech = array_slice($this->tech, 0, 6);
       $add['tech'] = array_diff($this->tech, $this->tech_initial);
@@ -795,7 +796,7 @@ class Domain extends AbstractObject
 
     $dnssecAdd = array();
     $dnssecRemove = array();
-    if (($this->changes & 32) > 0) {
+    if ($this->changed('dnssec')) {
       // the registry accepts at most two DS records
       $this->dnssec = array_slice($this->dnssec, 0, 2, true);
       $dnssecAdd = array_diff_key($this->dnssec, $this->dnssec_initial);
@@ -807,14 +808,14 @@ class Domain extends AbstractObject
       $this->domain,
       $add,
       $remove,
-      array('authinfo' => (($this->changes & 16) > 0) ? $this->authinfo : ''),
+      array('authinfo' => $this->changed('authinfo') ? $this->authinfo : ''),
       $dnssecAdd,
       $dnssecRemove
     );
 
     // query server
     if ($this->ExecuteQuery("domain-update", $this->domain)) {
-      $this->changes = 0;
+      $this->clearChanges();
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
       $this->tech_initial = $this->tech;
@@ -838,7 +839,7 @@ class Domain extends AbstractObject
       $this->setError("Operation not allowed, fetch a domain first!");
       return FALSE;
     }
-    if ((($this->changes & 2) == 0) || (($this->changes & 16) == 0)) {
+    if ( ! $this->changed('registrant') || ! $this->changed('authinfo')) {
       $this->setError("You MUST update the registrant and authinfo variables!");
       return FALSE;
     }
@@ -848,7 +849,7 @@ class Domain extends AbstractObject
     // the registry on this command and belong to update()
     $add = array();
     $remove = array();
-    if (($this->changes & 4) > 0) {
+    if ($this->changed('admin')) {
       $add['admin'] = $this->admin;
       $remove['admin'] = $this->admin_initial;
     }
@@ -944,8 +945,8 @@ class Domain extends AbstractObject
       'status' => serialize($this->status),
       'domain' => $this->domain,
     ];
-    foreach (self::FIELDS as $field => $spec) {
-      $data[$field] = $spec['serialize'] ? serialize($this->$field) : $this->$field;
+    foreach (self::FIELDS as $field => $serialized) {
+      $data[$field] = $serialized ? serialize($this->$field) : $this->$field;
     }
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
@@ -1002,12 +1003,12 @@ class Domain extends AbstractObject
 
     // 'status' carries no change bit -- it is set by the registry rather than
     // by a caller -- but is stored serialized like the rest
-    $serialized = array_keys(array_filter(self::FIELDS, fn($spec) => $spec['serialize']));
+    $serialized = array_keys(array_filter(self::FIELDS));
     $serialized[] = 'status';
     $this->storageHydrate($row, $serialized);
 
     // initialize data
-    $this->changes = 0;
+    $this->clearChanges();
     $this->ns_initial = $this->ns;
     $this->admin_initial = $this->admin;
     $this->tech_initial = $this->tech;
@@ -1021,13 +1022,13 @@ class Domain extends AbstractObject
    * @param string $domain domain to update
    * @param int $user_id user ACL
    * @param bool $isAdmin admin (unrestricted by user_id)
-   * @param int $changes changes bitmask to persist (optional, defaults to
-   *                     $this->changes). Pass this explicitly when update()
-   *                     was already called: it resets $this->changes to 0 on
-   *                     success, before updateDB() ever gets a chance to read it.
+   * @param array|null $changes the fields to persist (defaults to whatever is
+   *                     currently changed). Pass it explicitly when update()
+   *                     has already run: it clears the set once the registry
+   *                     has accepted the change, before updateDB() can read it.
    * @return bool status
    */
-  public function updateDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false, ?int $changes = null): bool {
+  public function updateDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false, ?array $changes = null): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -1038,10 +1039,10 @@ class Domain extends AbstractObject
     }
 
     if ($changes === null) {
-      $changes = $this->changes;
+      $changes = $this->changedFields();
     }
 
-    if ($changes == 0) {
+    if ($changes === array()) {
       $this->setError("Domain did not change!");
       return FALSE;
     }
@@ -1050,13 +1051,13 @@ class Domain extends AbstractObject
       'status'  => serialize($this->status),
       'user_id' => $user_id,
     );
-    foreach (self::FIELDS as $field => $spec) {
-      if (($changes & $spec['bit']) > 0) {
-        $data[$field] = $spec['serialize'] ? serialize($this->$field) : $this->$field;
+    foreach (self::FIELDS as $field => $serialized) {
+      if (in_array($field, $changes, true)) {
+        $data[$field] = $serialized ? serialize($this->$field) : $this->$field;
       }
     }
 
-    if (($changes & self::FIELDS['registrant']['bit']) > 0) {
+    if (in_array('registrant', $changes, true)) {
       // a registrant change moves the domain to that contact's owner. It is
       // the caller's job to have checked they may use it -- see
       // canUseAsRegistrant() in routes/domain.php
@@ -1075,7 +1076,7 @@ class Domain extends AbstractObject
     Helpers::logChanges('domains', $this->storageId($domain), 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update
-    if (($changes & 1) > 0) {
+    if (in_array('ns', $changes, true)) {
       R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'update')", [$domain, 'nameservers changed']);
     }
 
@@ -1098,7 +1099,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
     // if authinfo was not given as an argument, but has been set
-    if (($authinfo === null) && ($this->changes & 16)) {
+    if (($authinfo === null) && $this->changed('authinfo')) {
       $authinfo = $this->authinfo;
     }
 

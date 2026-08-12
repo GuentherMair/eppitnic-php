@@ -402,7 +402,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             }
 
             // update() resets this to 0 on success, so it must be captured beforehand
-            $changes = (int) $domain->get('changes');
+            $changes = $domain->changedFields();
 
             if ( ! $domain->update()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];

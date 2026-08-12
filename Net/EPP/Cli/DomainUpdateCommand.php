@@ -101,12 +101,12 @@ final class DomainUpdateCommand extends Command
                     $domain->set('authinfo', $row['authinfo']);
                 }
 
-                if ((int) $domain->get('changes') === 0) {
+                if ( ! $domain->hasChanges()) {
                     $this->line("{$row['domain']}: already as requested");
                     continue;
                 }
 
-                $changes = (int) $domain->get('changes');
+                $changes = $domain->changedFields();
 
                 if ( ! $domain->update()) {
                     $failures++;

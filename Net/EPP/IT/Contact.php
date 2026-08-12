@@ -6,6 +6,7 @@ use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\XmlBuilder;
 use Net\EPP\Helpers;
+use Net\EPP\ChangeTracking;
 use Net\EPP\LocalStorage;
 use RedBeanPHP\R;
 
@@ -49,6 +50,7 @@ use RedBeanPHP\R;
 
 class Contact extends AbstractObject
 {
+  use ChangeTracking;
   use LocalStorage;
 
   protected static function storageTable(): string { return 'contacts'; }
@@ -56,33 +58,24 @@ class Contact extends AbstractObject
   protected static function storageNoun(): string { return 'contact'; }
 
   /**
-   * The contact's own fields, each with the bit that marks it changed.
+   * The contact's own fields.
    *
-   * One list, because there were three: the property declarations, the switch
-   * in set() that assigned the bits, and the ladder in updateDB() that read
-   * them back. Adding a field meant touching all three, and forgetting one was
-   * silent -- a field that could be set but never persisted, or persisted but
-   * never marked dirty.
+   * One list, because there were four: the property declarations, the switch
+   * in set(), the ladder in updateDB(), and the array in storeDB(). Adding a
+   * field meant touching all of them, and missing one was silent -- a field
+   * that could be set but never persisted, or persisted but never marked
+   * changed.
    */
   public const FIELDS = array(
-    'name'                 => 1,
-    'org'                  => 2,
-    'street'               => 4,
-    'street2'              => 8,
-    'street3'              => 16,
-    'city'                 => 32,
-    'province'             => 64,
-    'postalcode'           => 128,
-    'countrycode'          => 256,
-    'voice'                => 512,
-    'fax'                  => 1024,
-    'email'                => 2048,
-    'authinfo'             => 4096,
-    'consentforpublishing' => 8192,
-    'nationalitycode'      => 16384,
-    'entitytype'           => 32768,
-    'regcode'              => 65536,
-    'schoolcode'           => 131072,
+    'name', 'org', 'street', 'street2', 'street3', 'city', 'province',
+    'postalcode', 'countrycode', 'voice', 'fax', 'email', 'authinfo',
+    'consentforpublishing', 'nationalitycode', 'entitytype', 'regcode',
+    'schoolcode',
+  );
+
+  /** the seven fields that together make up <contact:addr> */
+  private const ADDRESS_FIELDS = array(
+    'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode',
   );
 
   /**
@@ -102,7 +95,6 @@ class Contact extends AbstractObject
   protected $user_id;              // use just in case of an updateRegistrant + change of agent
   protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle;               // -
-  protected $changes;              // sum
 
   protected $name;
   protected $org;
@@ -146,10 +138,10 @@ class Contact extends AbstractObject
     $this->user_id   = 1;
     $this->status    = array();
     $this->handle    = "";
-    $this->changes   = 0;
+    $this->clearChanges();
     $this->max_check = 5;
 
-    foreach (array_keys(self::FIELDS) as $field) {
+    foreach (self::FIELDS as $field) {
       $this->$field = self::FIELD_DEFAULTS[$field] ?? "";
     }
   }
@@ -205,8 +197,8 @@ class Contact extends AbstractObject
 
     // consentforpublishing and entitytype are dispatched above to setters that
     // decide for themselves whether anything changed, so they never reach here
-    if (isset(self::FIELDS[$var])) {
-      $this->changes |= self::FIELDS[$var];
+    if (in_array($var, self::FIELDS, true)) {
+      $this->markChanged($var);
     }
     return $this->$var;
   }
@@ -247,7 +239,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    $this->changes |= 32768;
+    $this->markChanged('entitytype');
     return $this->entitytype = $tmp;
   }
 
@@ -261,7 +253,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    $this->changes |= 8192;
+    $this->markChanged('consentforpublishing');
     return $this->consentforpublishing = 1;
   }
 
@@ -275,7 +267,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    $this->changes |= 8192;
+    $this->markChanged('consentforpublishing');
     return $this->consentforpublishing = 0;
   }
 
@@ -414,7 +406,7 @@ class Contact extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("contact-info", $contact)) {
-      $this->changes = 0;
+      $this->clearChanges();
       $this->status = array();
       $this->handle = $contact;
 
@@ -481,24 +473,25 @@ class Contact extends AbstractObject
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
     }
-    if ($this->changes == 0) {
+    if ( ! $this->hasChanges()) {
       $this->setError("Handle did not change!");
       return FALSE;
     }
 
     // postalinfo
     $postalinfo = array();
-    if (($this->changes & 1) > 0) {
+    if ($this->changed('name')) {
       $postalinfo[] = array('name' => 'name', 'value' => $this->name);
     }
-    if (($this->changes & 2) > 0) {
+    if ($this->changed('org')) {
       $postalinfo[] = array('name' => 'org', 'value' => $this->org);
     }
 
     // address
     $addr = array();
-    if (($this->changes & 508) > 0) {
-      // 4 & 8 & 16 & 32 & 64 & 128 & 256
+    if ($this->changed(...self::ADDRESS_FIELDS)) {
+      // the registry replaces <addr> wholesale, so one changed line means
+      // sending all seven
       $addr[] = array('name' => 'street', 'value' => $this->street);
       $addr[] = array('name' => 'street', 'value' => $this->street2);
       $addr[] = array('name' => 'street', 'value' => $this->street3);
@@ -518,22 +511,22 @@ class Contact extends AbstractObject
     // could not tell apart from a deliberate clear, so simply updating a
     // contact's email also wiped its fax at the registry.
     $contact = array();
-    if (($this->changes & 512) > 0)  $contact[] = array('name' => 'voice', 'value' => $this->voice);
-    if (($this->changes & 1024) > 0) $contact[] = array('name' => 'fax',   'value' => $this->fax);
-    if (($this->changes & 2048) > 0) $contact[] = array('name' => 'email', 'value' => $this->email);
+    if ($this->changed('voice')) $contact[] = array('name' => 'voice',  'value' => $this->voice);
+    if ($this->changed('fax'))   $contact[] = array('name' => 'fax',    'value' => $this->fax);
+    if ($this->changed('email')) $contact[] = array('name' => 'email',  'value' => $this->email);
 
     // registrant information
     $registrant = array();
-    if (($this->changes & 16384) > 0) {
+    if ($this->changed('nationalitycode')) {
       $registrant['nationalityCode'] = $this->nationalitycode;
     }
-    if (($this->changes & 32768) > 0) {
+    if ($this->changed('entitytype')) {
       $registrant['entityType'] = $this->entitytype;
     }
-    if (($this->changes & 65536) > 0) {
+    if ($this->changed('regcode')) {
       $registrant['regCode'] = $this->regcode;
     }
-    if (($this->changes & 131072) > 0) {
+    if ($this->changed('schoolcode')) {
       $registrant['schoolCode'] = $this->schoolcode;
     }
 
@@ -543,8 +536,8 @@ class Contact extends AbstractObject
       $postalinfo,
       $addr,
       $contact,
-      (($this->changes & 4096) > 0) ? $this->authinfo : '',
-      (($this->changes & 8192) > 0) ? (int)$this->consentforpublishing : '',
+      $this->changed('authinfo') ? $this->authinfo : '',
+      $this->changed('consentforpublishing') ? (int)$this->consentforpublishing : '',
       $registrant
     );
 
@@ -592,7 +585,7 @@ class Contact extends AbstractObject
     // query server
     $result = $this->ExecuteQuery("contact-status", $this->handle);
     if ($result) {
-      $this->changes = 0;
+      $this->clearChanges();
     }
     return $result;
   }
@@ -621,7 +614,7 @@ class Contact extends AbstractObject
    */
   public function storeDB(int $user_id = 1): bool {
     $data = ['status' => serialize($this->status)];
-    foreach (array_keys(self::FIELDS) as $field) {
+    foreach (self::FIELDS as $field) {
       $data[$field] = $this->$field;
     }
 
@@ -679,7 +672,7 @@ class Contact extends AbstractObject
     // 'status' is the only serialized column here; it carries no change bit,
     // being set by the registry rather than by a caller
     $this->storageHydrate($row, ['status']);
-    $this->changes = 0;
+    $this->clearChanges();
     return TRUE;
   }
 
@@ -699,7 +692,7 @@ class Contact extends AbstractObject
       $this->setError("Operation not allowed, fetch a handle first!");
       return FALSE;
     }
-    if ($this->changes == 0) {
+    if ( ! $this->hasChanges()) {
       $this->setError("Handle did not change!");
       return FALSE;
     }
@@ -708,8 +701,8 @@ class Contact extends AbstractObject
       'status'  => serialize($this->status),
       'user_id' => $user_id,
     );
-    foreach (self::FIELDS as $field => $bit) {
-      if (($this->changes & $bit) > 0) {
+    foreach (self::FIELDS as $field) {
+      if ($this->changed($field)) {
         $data[$field] = $this->$field;
       }
     }

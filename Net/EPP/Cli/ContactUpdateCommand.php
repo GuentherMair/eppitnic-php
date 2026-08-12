@@ -109,7 +109,7 @@ final class ContactUpdateCommand extends Command
                     $contact->set('consentforpublishing', $publish);
                 }
 
-                if ((int) $contact->get('changes') === 0) {
+                if ( ! $contact->hasChanges()) {
                     $this->line("{$handle}: already as requested");
                     continue;
                 }

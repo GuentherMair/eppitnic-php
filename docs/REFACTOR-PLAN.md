@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–5 complete, plus 7.1 and 7.2. Phase 6 is optional; Phase 7 has open items.
+**Status:** Phases 0–6 complete, plus 7.1 and 7.2. Phase 7 has open items.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -17,7 +17,7 @@ are estimates for our own code (`vendor/` excluded).
 | 3 | `bin/eppitnic`, retire `CLI/` + `examples/` | 5d | −4,700 | **done** |
 | 4 | Smarty → `DOMDocument` | 3–4d | −600 | **done** |
 | 5 | Field maps and persistence | 2–3d | −270 | **done** |
-| 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional, next |
+| 6 | `changes` bitmask → dirty set | 1–2d | −40 | **done** |
 | 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
 
 ---
@@ -194,14 +194,25 @@ behaviour that is easy to lose in a refactor and invisible afterwards:
 - a contact that is still an active domain's registrant is **not**
   deactivated, while an unused one is
 
-## Phase 6 — `changes` bitmask → dirty set *(optional)*
+## Phase 6 — `changes` bitmask → dirty set ✅
 
-Replaces 18 hand-maintained flags with a set of changed field names, and
-removes the `?int $changes` parameter bolted onto `Domain::updateDB()` to work
-around `update()` resetting the mask on success. Only worth doing after
-Phase 5, which is what makes it small.
+`Net\EPP\ChangeTracking` replaces the integer mask with a set of changed field
+names. `markChanged()`, `changed()`, `hasChanges()` and `changedFields()` are
+what the rest of the code says now, instead of `$this->changes & 2048`.
 
----
+The clearest gain is the composite tests. Contact's address block was guarded
+by `$this->changes & 508` -- seven bits ORed together, meaning "any of the
+address fields", explained nowhere. It reads `$this->changed(...self::ADDRESS_FIELDS)`.
+
+`Domain::updateDB()`'s fourth argument is now `?array` rather than `?int`.
+
+### What this did *not* fix
+
+The plan expected it to remove the capture-before-`update()` dance, and it does
+not: `update()` still clears the set once the registry has accepted the change,
+so a caller that then wants to persist the same change locally still has to
+take a copy first. The representation was never the reason for that -- the
+lifetime is. The argument is documented rather than removed.
 
 ## Phase 7 — Issues found along the way
 
