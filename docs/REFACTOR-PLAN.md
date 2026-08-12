@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–4 complete, plus 7.1 and 7.2. Phase 5 is next.
+**Status:** Phases 0–5 complete, plus 7.1 and 7.2. Phase 6 is optional; Phase 7 has open items.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -16,8 +16,8 @@ are estimates for our own code (`vendor/` excluded).
 | 2 | Route boilerplate | 0.5d | −166 | **done** |
 | 3 | `bin/eppitnic`, retire `CLI/` + `examples/` | 5d | −4,700 | **done** |
 | 4 | Smarty → `DOMDocument` | 3–4d | −600 | **done** |
-| 5 | Field maps and persistence | 2–3d | −260 | next |
-| 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional |
+| 5 | Field maps and persistence | 2–3d | −270 | **done** |
+| 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional, next |
 | 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
 
 ---
@@ -154,18 +154,45 @@ check at runtime would repeat work that cannot fail without the tests failing
 first. `--dry-run` prints the request for anyone wanting to validate one by
 hand.
 
-## Phase 5 — Field maps and persistence
+## Phase 5 — Field maps and persistence ✅
 
-1. **One `FIELDS` map per class.** `Contact` lists its 18 fields three times:
-   `initValues()`, the bitmask `switch` in `set()`, and the 18-line ladder in
-   `updateDB()`. One `const FIELDS = ['name' => 1, …]` drives all three.
-2. **Shared persistence.** `storeDB`/`loadDB`/`updateDB`/`listX`/`deleteXDB`/
-   `restoreXDB` are structurally identical across `Domain` and `Contact`
-   (~350 lines → ~150). `Contact::storeDB()`'s upsert semantics and
-   `Domain::storeDB()`'s delete-then-insert differ for documented FK reasons
-   and stay as overridden hooks.
+`Contact::FIELDS` and `Domain::FIELDS` are the single list of each class's own
+fields and their change bits. `initValues()`, `set()`, `storeDB()`,
+`updateDB()` and `loadDB()` all derive from it; before, the same list appeared
+in four or five places and adding a field meant touching all of them.
 
----
+The two sets of exceptions are named rather than left as commented-out switch
+cases: `FIELDS_WITH_SETTERS` and `FIELDS_WITH_ADDERS` are the fields `set()`
+must not mark dirty itself, because each has a setter that decides whether
+anything actually moved.
+
+`Net\EPP\LocalStorage` holds the persistence plumbing both classes repeated:
+the user-scoping clause, turning a SQL failure into `setError()` plus false,
+the row-id lookup for the changelog, and the soft-delete flip.
+
+Deliberately primitives rather than a shared `storeDB()`. The two classes
+really do store differently -- a contact is upserted because
+`domains`.`registrant` is a foreign key onto it, a domain is replaced
+outright, and only a domain queues DNS-sync work -- so one method covering
+both would be a parameter list describing which of the two it was pretending
+to be.
+
+### Verification
+
+Nothing in the offline suite touches the `*DB()` methods, so all of them were
+exercised against the real database inside a transaction, asserting the
+behaviour that is easy to lose in a refactor and invisible afterwards:
+
+- exactly **one** changelog row per operation (the first draft logged twice on
+  an upsert, because the shared update helper logged and so did its caller --
+  the helper now writes and leaves logging to the caller)
+- an upsert does **not** reassign `user_id` or `active`
+- `loadDB` refuses a row belonging to another user
+- serialized `ns`/`tech` survive the round trip
+- `deleteDomainDB`/`restoreDomainDB` queue a `reminder` row; the contact
+  equivalents do not
+- a contact that is still an active domain's registrant is **not**
+  deactivated, while an unused one is
 
 ## Phase 6 — `changes` bitmask → dirty set *(optional)*
 

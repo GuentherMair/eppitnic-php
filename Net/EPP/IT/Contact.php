@@ -6,6 +6,7 @@ use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\XmlBuilder;
 use Net\EPP\Helpers;
+use Net\EPP\LocalStorage;
 use RedBeanPHP\R;
 
 /**
@@ -48,6 +49,12 @@ use RedBeanPHP\R;
 
 class Contact extends AbstractObject
 {
+  use LocalStorage;
+
+  protected static function storageTable(): string { return 'contacts'; }
+  protected static function storageKeyColumn(): string { return 'handle'; }
+  protected static function storageNoun(): string { return 'contact'; }
+
   /**
    * The contact's own fields, each with the bit that marks it changed.
    *
@@ -620,36 +627,26 @@ class Contact extends AbstractObject
 
     $existing = R::getRow("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
 
-    try {
-      if (empty($existing)) {
-        $data['handle'] = $this->handle;
-        $data['user_id'] = $user_id;
+    if (empty($existing)) {
+      $data['handle'] = $this->handle;
+      $data['user_id'] = $user_id;
 
-        $params = [];
-        foreach ($data as $k => $v) {
-          $params[":{$k}"] = $v;
-        }
-        R::exec(
-          "INSERT INTO contacts (" . implode(', ', array_keys($data)) . ") " .
-          "VALUES (" . implode(', ', array_keys($params)) . ")",
-          $params
-        );
-      } else {
-        $set = [];
-        $params = [':handle' => $this->handle];
-        foreach ($data as $k => $v) {
-          $set[] = "{$k} = :{$k}";
-          $params[":{$k}"] = $v;
-        }
-        R::exec("UPDATE contacts SET " . implode(', ', $set) . " WHERE handle = :handle", $params);
+      if ( ! $this->storageInsert($data, $this->handle)) {
+        return FALSE;
       }
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to store contact '{$this->handle}': " . $e->getMessage());
-      return FALSE;
+    } else {
+      // isAdmin: an upsert is not a scoped write. $user_id says who owns a
+      // *new* row, not who is allowed to touch an existing one -- the two
+      // fields left out of $data above are exactly the ones that would move.
+      if ( ! $this->storageUpdate($this->handle, $data, $user_id, true)) {
+        return FALSE;
+      }
     }
 
-    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
-    Helpers::logChanges('contacts', $id, empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id);
+    Helpers::logChanges(
+      'contacts', $this->storageId($this->handle),
+      empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id
+    );
     return TRUE;
   }
 
@@ -673,30 +670,16 @@ class Contact extends AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $sql = "SELECT * FROM contacts WHERE handle = :handle";
-    $params = [':handle' => $contact];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    $tmp = R::getRow($sql, $params);
-    if (empty($tmp)) {
+    $row = $this->storageFind($contact, $user_id, $isAdmin);
+    if ($row === null) {
       $this->setError("Contact '{$contact}' not found.");
       return FALSE;
     }
 
+    // 'status' is the only serialized column here; it carries no change bit,
+    // being set by the registry rather than by a caller
+    $this->storageHydrate($row, ['status']);
     $this->changes = 0;
-    foreach ($tmp as $key => $value) {
-      $key = strtolower($key);
-      // only accept columns that map to a declared property (skips DB-only
-      // bookkeeping columns like 'id' or 'active')
-      if ($key == 'status') {
-        $this->status = empty($value) ? array() : unserialize($value);
-      } else if (property_exists($this, $key)) {
-        $this->$key = $value;
-      }
-    }
     return TRUE;
   }
 
@@ -731,27 +714,11 @@ class Contact extends AbstractObject
       }
     }
 
-    $set = [];
-    $params = [':handle' => $contact];
-    foreach ($data as $k => $v) {
-      $set[] = "{$k} = :{$k}";
-      $params[":{$k}"] = $v;
-    }
-    $sql = "UPDATE contacts SET " . implode(', ', $set) . " WHERE handle = :handle";
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :acl_user_id";
-      $params[':acl_user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to update contact '{$contact}': " . $e->getMessage());
+    if ( ! $this->storageUpdate($contact, $data, $user_id, $isAdmin)) {
       return FALSE;
     }
 
-    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    Helpers::logChanges('contacts', $id, 'update', $data, $user_id);
+    Helpers::logChanges('contacts', $this->storageId($contact), 'update', $data, $user_id);
     return TRUE;
   }
 
@@ -785,26 +752,13 @@ class Contact extends AbstractObject
    * @return bool status
    */
   public function deleteContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
-    $sql = "
-      UPDATE contacts SET active = 0
-      WHERE handle = :handle AND
-        (SELECT COUNT(1) FROM domains WHERE registrant = :handle2 AND active = 1) = 0";
-    $params = [':handle' => $contact, ':handle2' => $contact];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to deactivate contact '{$contact}': " . $e->getMessage());
-      return FALSE;
-    }
-
-    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    Helpers::logChanges('contacts', $id, 'delete', ['handle' => $contact], $user_id);
-    return TRUE;
+    // refuses while the contact is still some active domain's registrant --
+    // the foreign key would reject it anyway, and this says so first
+    return $this->storageSetActive(
+      $contact, 0, $user_id, $isAdmin, 'delete', ['handle' => $contact],
+      ' AND (SELECT COUNT(1) FROM domains WHERE registrant = :registrant AND active = 1) = 0',
+      [':registrant' => $contact]
+    );
   }
 
   /**
@@ -816,24 +770,10 @@ class Contact extends AbstractObject
    * @return bool status
    */
   public function restoreContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
-    $sql = "UPDATE contacts SET active = 1 WHERE handle = :handle";
-    $params = [':handle' => $contact];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to activate contact '{$contact}': " . $e->getMessage());
-      return FALSE;
-    }
-
-    // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
-    $id = (int)R::getCell("SELECT id FROM contacts WHERE handle = ?", [$contact]);
-    Helpers::logChanges('contacts', $id, 'update', ['handle' => $contact, 'active' => 1], $user_id);
-    return TRUE;
+    // logged as 'update': the changelog action enum has no 'restore'
+    return $this->storageSetActive(
+      $contact, 1, $user_id, $isAdmin, 'update', ['handle' => $contact, 'active' => 1]
+    );
   }
 
   /**

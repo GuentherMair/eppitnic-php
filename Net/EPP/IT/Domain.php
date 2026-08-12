@@ -8,6 +8,7 @@ use Algo26\IdnaConvert\ToUnicode;
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\Helpers;
+use Net\EPP\LocalStorage;
 use Net\EPP\XmlBuilder;
 use RedBeanPHP\R;
 
@@ -51,6 +52,12 @@ use RedBeanPHP\R;
 
 class Domain extends AbstractObject
 {
+  use LocalStorage;
+
+  protected static function storageTable(): string { return 'domains'; }
+  protected static function storageKeyColumn(): string { return 'domain'; }
+  protected static function storageNoun(): string { return 'domain'; }
+
   /**
    * The domain's own fields, each with the bit that marks it changed, and
    * whether it is stored serialized.
@@ -943,31 +950,21 @@ class Domain extends AbstractObject
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
 
-    try {
-      // remove existing domain row when storing (re-transfer-in / re-register / re-import),
-      // preserving last_invoice and the current owner
-      $row = R::getRow("SELECT last_invoice, user_id FROM domains WHERE domain = ?", [$this->domain]);
-      if ( ! empty($row)) {
-        $data['last_invoice'] = $row['last_invoice'];
-        $user_id = $row['user_id'];
-        R::exec("DELETE FROM domains WHERE domain = ?", [$this->domain]);
-      }
+    // replaced rather than updated (re-transfer-in / re-register / re-import),
+    // preserving last_invoice and the current owner
+    $row = R::getRow("SELECT last_invoice, user_id FROM domains WHERE domain = ?", [$this->domain]);
+    if ( ! empty($row)) {
+      $data['last_invoice'] = $row['last_invoice'];
+      $user_id = $row['user_id'];
+      R::exec("DELETE FROM domains WHERE domain = ?", [$this->domain]);
+    }
 
-      $data['user_id'] = $user_id;
-      $set = [];
-      $params = [];
-      foreach ($data as $k => $v) {
-        $set[] = $k;
-        $params[":{$k}"] = $v;
-      }
-      R::exec("INSERT INTO domains (" . implode(', ', $set) . ") VALUES (" . implode(', ', array_keys($params)) . ")", $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to store domain '{$this->domain}': " . $e->getMessage());
+    $data['user_id'] = $user_id;
+    if ( ! $this->storageInsert($data, $this->domain)) {
       return FALSE;
     }
 
-    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$this->domain]);
-    Helpers::logChanges('domains', $id, 'create', ['domain' => $this->domain], $user_id);
+    Helpers::logChanges('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
       // DNS-sync queue: pdnsutil_updates.php picks this up to (re)create the zone
@@ -997,34 +994,17 @@ class Domain extends AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $sql = "SELECT * FROM domains WHERE domain = :domain";
-    $params = [':domain' => $domain];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    $tmp = R::getRow($sql, $params);
-    if (empty($tmp)) {
+    $row = $this->storageFind($domain, $user_id, $isAdmin);
+    if ($row === null) {
       $this->setError("Domain '{$domain}' not found.");
       return FALSE;
     }
 
-    // 'status' is not in FIELDS -- it has no change bit, being set by the
-    // registry rather than by a caller -- but it is stored the same way
+    // 'status' carries no change bit -- it is set by the registry rather than
+    // by a caller -- but is stored serialized like the rest
     $serialized = array_keys(array_filter(self::FIELDS, fn($spec) => $spec['serialize']));
     $serialized[] = 'status';
-
-    foreach ($tmp as $key => $value) {
-      $key = strtolower($key);
-      // only accept columns that map to a declared property (skips DB-only
-      // bookkeeping columns like 'id', 'active' and 'last_invoice')
-      if (in_array($key, $serialized, true)) {
-        $this->$key = empty($value) ? array() : unserialize($value);
-      } else if (property_exists($this, $key)) {
-        $this->$key = $value;
-      }
-    }
+    $this->storageHydrate($row, $serialized);
 
     // initialize data
     $this->changes = 0;
@@ -1088,27 +1068,11 @@ class Domain extends AbstractObject
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
 
-    $set = [];
-    $params = [':domain' => $domain];
-    foreach ($data as $k => $v) {
-      $set[] = "{$k} = :{$k}";
-      $params[":{$k}"] = $v;
-    }
-    $sql = "UPDATE domains SET " . implode(', ', $set) . " WHERE domain = :domain";
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :acl_user_id";
-      $params[':acl_user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to update domain '{$domain}': " . $e->getMessage());
+    if ( ! $this->storageUpdate($domain, $data, $user_id, $isAdmin)) {
       return FALSE;
     }
 
-    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    Helpers::logChanges('domains', $id, 'update', $data, $user_id);
+    Helpers::logChanges('domains', $this->storageId($domain), 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update
     if (($changes & 1) > 0) {
@@ -1288,22 +1252,9 @@ class Domain extends AbstractObject
    * @return bool status
    */
   public function deleteDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
-    $sql = "UPDATE domains SET active = 0 WHERE domain = :domain";
-    $params = [':domain' => $domain];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to deactivate domain '{$domain}': " . $e->getMessage());
+    if ( ! $this->storageSetActive($domain, 0, $user_id, $isAdmin, 'delete', ['domain' => $domain])) {
       return FALSE;
     }
-
-    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    Helpers::logChanges('domains', $id, 'delete', ['domain' => $domain], $user_id);
 
     // DNS-sync queue: pdnsutil_updates.php tears the zone down (delay-gated)
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'delete')", [$domain, 'domain deleted']);
@@ -1320,23 +1271,10 @@ class Domain extends AbstractObject
    * @return bool status
    */
   public function restoreDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
-    $sql = "UPDATE domains SET active = 1 WHERE domain = :domain";
-    $params = [':domain' => $domain];
-    if ( ! $isAdmin) {
-      $sql .= " AND user_id = :user_id";
-      $params[':user_id'] = $user_id;
-    }
-
-    try {
-      R::exec($sql, $params);
-    } catch (\RedBeanPHP\RedException\SQL $e) {
-      $this->setError("unable to activate domain '{$domain}': " . $e->getMessage());
+    // logged as 'update': the changelog action enum has no 'restore'
+    if ( ! $this->storageSetActive($domain, 1, $user_id, $isAdmin, 'update', ['domain' => $domain, 'active' => 1])) {
       return FALSE;
     }
-
-    // a restore logs as 'update' -- the changelog.action enum has no 'restore' value
-    $id = (int)R::getCell("SELECT id FROM domains WHERE domain = ?", [$domain]);
-    Helpers::logChanges('domains', $id, 'update', ['domain' => $domain, 'active' => 1], $user_id);
 
     // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come back
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$domain, 'domain restored']);
