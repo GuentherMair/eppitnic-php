@@ -51,18 +51,39 @@ use RedBeanPHP\R;
 
 class Domain extends AbstractObject
 {
-  //         name               // change flag
+  /**
+   * The domain's own fields, each with the bit that marks it changed, and
+   * whether it is stored serialized.
+   *
+   * One list rather than three: the bits were spelled out in the property
+   * comments, again in set(), and a third time in updateDB().
+   */
+  public const FIELDS = array(
+    'ns'         => array('bit' => 1,  'serialize' => true),
+    'registrant' => array('bit' => 2,  'serialize' => false),
+    'admin'      => array('bit' => 4,  'serialize' => false),
+    'tech'       => array('bit' => 8,  'serialize' => true),
+    'authinfo'   => array('bit' => 16, 'serialize' => false),
+    'dnssec'     => array('bit' => 32, 'serialize' => true),
+  );
+
+  /**
+   * Fields set() must not mark dirty itself: a collection is changed through
+   * addNS()/addTECH()/addDNSSEC(), which know whether anything moved.
+   */
+  private const FIELDS_WITH_ADDERS = array('ns', 'tech', 'dnssec');
+
   protected $user_id;           // use just in case of an updateRegistrant + change of agent
   protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;            // -
   protected $changes;           // sum
 
-  protected $ns;                // 1
-  protected $registrant;        // 2
-  protected $admin;             // 4
-  protected $tech;              // 8
-  protected $authinfo;          // 16
-  protected $dnssec;            // 32
+  protected $ns;
+  protected $registrant;
+  protected $admin;
+  protected $tech;
+  protected $authinfo;
+  protected $dnssec;
 
   // domain lifecycle
   protected $crDate;
@@ -170,13 +191,8 @@ class Domain extends AbstractObject
       return FALSE; // value doesn't exist or cannot be set using set($var, $val)!
     }
 
-    switch ($var) {
-      //case "ns":                $this->changes |= 1;   break; // to be handled by addNS
-      case "registrant":        $this->changes |= 2;   break;
-      case "admin":             $this->changes |= 4;   break;
-      //case "tech":              $this->changes |= 8;   break; // to be handled by addTECH
-      case "authinfo":          $this->changes |= 16;  break;
-      //case "dnssec":            $this->changes |= 32;  break; // to be handled by addDNSSEC
+    if (isset(self::FIELDS[$var]) && ! in_array($var, self::FIELDS_WITH_ADDERS, true)) {
+      $this->changes |= self::FIELDS[$var]['bit'];
     }
     return $this->$var;
   }
@@ -918,17 +934,14 @@ class Domain extends AbstractObject
    */
   public function storeDB(int $user_id = 1, bool $notifyDNS = true): bool {
     $data = [
-      'status'     => serialize($this->status),
-      'domain'     => $this->domain,
-      'ns'         => serialize($this->ns),
-      'registrant' => $this->registrant,
-      'admin'      => $this->admin,
-      'tech'       => serialize($this->tech),
-      'authinfo'   => $this->authinfo,
-      'cr_date'    => $this->crDate,
-      'ex_date'    => $this->exDate,
-      'dnssec'     => serialize($this->dnssec),
+      'status' => serialize($this->status),
+      'domain' => $this->domain,
     ];
+    foreach (self::FIELDS as $field => $spec) {
+      $data[$field] = $spec['serialize'] ? serialize($this->$field) : $this->$field;
+    }
+    $data['cr_date'] = $this->crDate;
+    $data['ex_date'] = $this->exDate;
 
     try {
       // remove existing domain row when storing (re-transfer-in / re-register / re-import),
@@ -997,11 +1010,16 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
+    // 'status' is not in FIELDS -- it has no change bit, being set by the
+    // registry rather than by a caller -- but it is stored the same way
+    $serialized = array_keys(array_filter(self::FIELDS, fn($spec) => $spec['serialize']));
+    $serialized[] = 'status';
+
     foreach ($tmp as $key => $value) {
       $key = strtolower($key);
       // only accept columns that map to a declared property (skips DB-only
       // bookkeeping columns like 'id', 'active' and 'last_invoice')
-      if (in_array($key, ['status', 'ns', 'tech', 'dnssec'])) {
+      if (in_array($key, $serialized, true)) {
         $this->$key = empty($value) ? array() : unserialize($value);
       } else if (property_exists($this, $key)) {
         $this->$key = $value;
@@ -1048,22 +1066,25 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    $data['status'] = serialize($this->status);
-    $data['user_id'] = $user_id;
-    if (($changes & 1) > 0) $data['ns'] = serialize($this->ns);
-    if (($changes & 2) > 0) {
-      $data['registrant'] = $this->registrant;
-      // get the new registrant's user_id (agent ID)
-      // btw. it should not be possible to assign a registrant not owned by the current user
-      // (the caller needs to take care of that!)
+    $data = array(
+      'status'  => serialize($this->status),
+      'user_id' => $user_id,
+    );
+    foreach (self::FIELDS as $field => $spec) {
+      if (($changes & $spec['bit']) > 0) {
+        $data[$field] = $spec['serialize'] ? serialize($this->$field) : $this->$field;
+      }
+    }
+
+    if (($changes & self::FIELDS['registrant']['bit']) > 0) {
+      // a registrant change moves the domain to that contact's owner. It is
+      // the caller's job to have checked they may use it -- see
+      // canUseAsRegistrant() in routes/domain.php
       $tmp = new Contact($this->client);
       $tmp->loadDB($this->registrant, $user_id, true);
       $data['user_id'] = $tmp->get('user_id');
     }
-    if (($changes & 4) > 0) $data['admin'] = $this->admin;
-    if (($changes & 8) > 0) $data['tech'] = serialize($this->tech);
-    if (($changes & 16) > 0) $data['authinfo'] = $this->authinfo;
-    if (($changes & 32) > 0) $data['dnssec'] = serialize($this->dnssec);
+
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
 

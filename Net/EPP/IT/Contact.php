@@ -48,30 +48,73 @@ use RedBeanPHP\R;
 
 class Contact extends AbstractObject
 {
-  //         name                  // change flag
+  /**
+   * The contact's own fields, each with the bit that marks it changed.
+   *
+   * One list, because there were three: the property declarations, the switch
+   * in set() that assigned the bits, and the ladder in updateDB() that read
+   * them back. Adding a field meant touching all three, and forgetting one was
+   * silent -- a field that could be set but never persisted, or persisted but
+   * never marked dirty.
+   */
+  public const FIELDS = array(
+    'name'                 => 1,
+    'org'                  => 2,
+    'street'               => 4,
+    'street2'              => 8,
+    'street3'              => 16,
+    'city'                 => 32,
+    'province'             => 64,
+    'postalcode'           => 128,
+    'countrycode'          => 256,
+    'voice'                => 512,
+    'fax'                  => 1024,
+    'email'                => 2048,
+    'authinfo'             => 4096,
+    'consentforpublishing' => 8192,
+    'nationalitycode'      => 16384,
+    'entitytype'           => 32768,
+    'regcode'              => 65536,
+    'schoolcode'           => 131072,
+  );
+
+  /**
+   * Fields whose "unset" value is not the empty string.
+   */
+  private const FIELD_DEFAULTS = array(
+    'consentforpublishing' => 0,
+    'entitytype'           => 0,
+  );
+
+  /**
+   * Fields set() must not mark dirty itself: each has a setter that decides
+   * whether anything actually changed (setConsent(), setEntityType()).
+   */
+  private const FIELDS_WITH_SETTERS = array('consentforpublishing', 'entitytype');
+
   protected $user_id;              // use just in case of an updateRegistrant + change of agent
   protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle;               // -
   protected $changes;              // sum
 
-  protected $name;                 // 1
-  protected $org;                  // 2
-  protected $street;               // 4
-  protected $street2;              // 8
-  protected $street3;              // 16
-  protected $city;                 // 32
-  protected $province;             // 64
-  protected $postalcode;           // 128
-  protected $countrycode;          // 256
-  protected $voice;                // 512
-  protected $fax;                  // 1024
-  protected $email;                // 2048
-  protected $authinfo;             // 4096
-  protected $consentforpublishing; // 8192
-  protected $nationalitycode;      // 16384
-  protected $entitytype;           // 32768
-  protected $regcode;              // 65536
-  protected $schoolcode;           // 131072
+  protected $name;
+  protected $org;
+  protected $street;
+  protected $street2;
+  protected $street3;
+  protected $city;
+  protected $province;
+  protected $postalcode;
+  protected $countrycode;
+  protected $voice;
+  protected $fax;
+  protected $email;
+  protected $authinfo;
+  protected $consentforpublishing;
+  protected $nationalitycode;
+  protected $entitytype;
+  protected $regcode;
+  protected $schoolcode;
 
   protected $max_check;
 
@@ -93,29 +136,15 @@ class Contact extends AbstractObject
    * initialize values
    */
   protected function initValues(): void {
-    $this->user_id              = 1;
-    $this->status               = array();
-    $this->handle               = "";
-    $this->changes              = 0;
-    $this->name                 = "";
-    $this->org                  = "";
-    $this->street               = "";
-    $this->street2              = "";
-    $this->street3              = "";
-    $this->city                 = "";
-    $this->province             = "";
-    $this->postalcode           = "";
-    $this->countrycode          = "";
-    $this->voice                = "";
-    $this->fax                  = "";
-    $this->email                = "";
-    $this->authinfo             = "";
-    $this->consentforpublishing = 0;
-    $this->nationalitycode      = "";
-    $this->entitytype           = 0;
-    $this->regcode              = "";
-    $this->schoolcode           = "";
-    $this->max_check            = 5;
+    $this->user_id   = 1;
+    $this->status    = array();
+    $this->handle    = "";
+    $this->changes   = 0;
+    $this->max_check = 5;
+
+    foreach (array_keys(self::FIELDS) as $field) {
+      $this->$field = self::FIELD_DEFAULTS[$field] ?? "";
+    }
   }
 
   /**
@@ -167,25 +196,10 @@ class Contact extends AbstractObject
       return FALSE; // value doesn't exist!
     }
 
-    switch ($var) {
-      case "name":                 $this->changes |= 1;      break;
-      case "org":                  $this->changes |= 2;      break;
-      case "street":               $this->changes |= 4;      break;
-      case "street2":              $this->changes |= 8;      break;
-      case "street3":              $this->changes |= 16;     break;
-      case "city":                 $this->changes |= 32;     break;
-      case "province":             $this->changes |= 64;     break;
-      case "postalcode":           $this->changes |= 128;    break;
-      case "countrycode":          $this->changes |= 256;    break;
-      case "voice":                $this->changes |= 512;    break;
-      case "fax":                  $this->changes |= 1024;   break;
-      case "email":                $this->changes |= 2048;   break;
-      case "authinfo":             $this->changes |= 4096;   break;
-      // case "consentforpublishing": $this->changes |= 8192;   break; // handled by setConsent() / unsetConsent()
-      case "nationalitycode":      $this->changes |= 16384;  break;
-      // case "entitytype":           $this->changes |= 32768;  break; // handled by setEntityType()
-      case "regcode":              $this->changes |= 65536;  break;
-      case "schoolcode":           $this->changes |= 131072; break;
+    // consentforpublishing and entitytype are dispatched above to setters that
+    // decide for themselves whether anything changed, so they never reach here
+    if (isset(self::FIELDS[$var])) {
+      $this->changes |= self::FIELDS[$var];
     }
     return $this->$var;
   }
@@ -599,27 +613,10 @@ class Contact extends AbstractObject
    * @return bool status
    */
   public function storeDB(int $user_id = 1): bool {
-    $data = [
-      'status'               => serialize($this->status),
-      'name'                 => $this->name,
-      'org'                  => $this->org,
-      'street'               => $this->street,
-      'street2'              => $this->street2,
-      'street3'              => $this->street3,
-      'city'                 => $this->city,
-      'province'             => $this->province,
-      'postalcode'           => $this->postalcode,
-      'countrycode'          => $this->countrycode,
-      'voice'                => $this->voice,
-      'fax'                  => $this->fax,
-      'email'                => $this->email,
-      'authinfo'             => $this->authinfo,
-      'consentforpublishing' => $this->consentforpublishing,
-      'nationalitycode'      => $this->nationalitycode,
-      'entitytype'           => $this->entitytype,
-      'regcode'              => $this->regcode,
-      'schoolcode'           => $this->schoolcode,
-    ];
+    $data = ['status' => serialize($this->status)];
+    foreach (array_keys(self::FIELDS) as $field) {
+      $data[$field] = $this->$field;
+    }
 
     $existing = R::getRow("SELECT id FROM contacts WHERE handle = ?", [$this->handle]);
 
@@ -724,26 +721,15 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    $data['status'] = serialize($this->status);
-    $data['user_id'] = $user_id;
-    if (($this->changes & 1) > 0) $data['name'] = $this->name;
-    if (($this->changes & 2) > 0) $data['org'] = $this->org;
-    if (($this->changes & 4) > 0) $data['street'] = $this->street;
-    if (($this->changes & 8) > 0) $data['street2'] = $this->street2;
-    if (($this->changes & 16) > 0) $data['street3'] = $this->street3;
-    if (($this->changes & 32) > 0) $data['city'] = $this->city;
-    if (($this->changes & 64) > 0) $data['province'] = $this->province;
-    if (($this->changes & 128) > 0) $data['postalcode'] = $this->postalcode;
-    if (($this->changes & 256) > 0) $data['countrycode'] = $this->countrycode;
-    if (($this->changes & 512) > 0) $data['voice'] = $this->voice;
-    if (($this->changes & 1024) > 0) $data['fax'] = $this->fax;
-    if (($this->changes & 2048) > 0) $data['email'] = $this->email;
-    if (($this->changes & 4096) > 0) $data['authinfo'] = $this->authinfo;
-    if (($this->changes & 8192) > 0) $data['consentforpublishing'] = $this->consentforpublishing;
-    if (($this->changes & 16384) > 0) $data['nationalitycode'] = $this->nationalitycode;
-    if (($this->changes & 32768) > 0) $data['entitytype'] = $this->entitytype;
-    if (($this->changes & 65536) > 0) $data['regcode'] = $this->regcode;
-    if (($this->changes & 131072) > 0) $data['schoolcode'] = $this->schoolcode;
+    $data = array(
+      'status'  => serialize($this->status),
+      'user_id' => $user_id,
+    );
+    foreach (self::FIELDS as $field => $bit) {
+      if (($this->changes & $bit) > 0) {
+        $data[$field] = $this->$field;
+      }
+    }
 
     $set = [];
     $params = [':handle' => $contact];
