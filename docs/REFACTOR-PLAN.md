@@ -243,6 +243,20 @@ by re-parsing the whole live queue (16,485 stored responses carrying a
 
 330 messages recovered, all now carrying their domain.
 
+Followed up by completing the vocabulary: `messages`.`type` now has one value
+per extension element the schemas declare, stated explicitly in
+`Session::POLL_MESSAGE_ELEMENTS`, with branches added for the three declared
+types that had none (`remappedIdnData`, `refundRenewsForBulkTransferMsgData`,
+`wrongNamespaceReminder`). `SessionPollCoverageTest` reads `xsd/` and fails
+when the registry's vocabulary and ours drift apart — including a snapshot of
+every top-level element, so a new message type that does not follow the
+`*MsgData`/`*Reminder` naming convention still gets a human look.
+
+Renaming `unknown` to `other` was considered and **deliberately not done**:
+with every observed message now classified, and the declared set fully
+covered, the collector is close to unreachable, so the rename would be churn
+against an existing column value for no practical gain.
+
 The remaining 5,529 `unknown` are **not** a defect: they carry a `<msgQ>`
 title and nothing else — no extension, no `resData`, no domain anywhere in
 the document (28 distinct fixed strings, e.g. "autoRenewPeriod is expired").

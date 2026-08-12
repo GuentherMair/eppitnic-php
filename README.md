@@ -74,6 +74,129 @@ After you have set everything up, simply try to have a
 look at the `CLI/` and `examples/` folders.
 
 
+# Upgrading from 6.x
+
+Everything a 6.x installation needs, in the order it needs doing. Steps 1–5
+are required; the rest are things that changed under you and are worth
+knowing about.
+
+**Take a full database backup first.** The schema migration rebuilds every
+text column (`CONVERT TO CHARACTER SET`) and re-running it will not undo it.
+Rehearse on a staging copy.
+
+### 1. PHP 8.1+ and Composer
+
+Dependencies are no longer vendored: `composer install` fetches them into
+`vendor/` and generates the autoloader. Every script now needs exactly one
+`require` — `vendor/autoload.php` — and nothing else. The minimum is PHP
+8.1, set by `spomky-labs/otphp` (TOTP/MFA) rather than by this code, which is
+itself 8.0-compatible.
+
+### 2. `config/config.php` for the database credentials
+
+Only the database credentials still live in a file, because they are needed
+to reach the database that holds everything else. Copy
+`config/config.php-template` and fill it in, or just run any CLI script from
+a terminal and let `Config` prompt you and write the file itself.
+
+### 3. `config.xml` → the `settings` table
+
+    php CLI/config-DoMigrate.php          # or -f PATH to point elsewhere
+
+This reads your existing `config.xml` and writes both `config/config.php`
+and the `settings` rows. Afterwards `config.xml` is no longer read by
+anything and can be archived.
+
+Three settings are gone and are silently ignored if present: `debug`,
+`epp.passwordexpirydays` and `epp.passwordexpirynext`. One is new and should
+be left at `0` on an existing installation: `epp.lastPasswordUpdate` (see
+"Registry password rotation" below).
+
+### 4. The schema migration
+
+There is nothing to run by hand. The `settings` table carries a
+`schema_version` row and `Config` applies
+`config/mariadb-schema-upgrade-{from}-to-{to}.sql` one step at a time on the
+next initialization, starting from the assumed legacy baseline `060700` when
+no `settings` table exists yet.
+
+For 6.x that step is `060700-to-070000`, which drops the `tbl_` table
+prefixes and converts everything to `utf8mb4`/`utf8mb4_unicode_ci`. It runs
+its own read-only pre-flight checks first and aborts before touching
+anything if it finds a problem — most usefully, case-insensitive collisions
+in `tbl_domains.domain` that the new collation would turn into duplicate-key
+errors. If it aborts, resolve the collisions and re-run.
+
+One table is deliberately left alone: `handleID` (MyISAM, utf8mb3). It
+belongs to no schema still in use. Confirm whether you need it before
+dropping it yourself.
+
+### 5. Check what was removed before you upgrade
+
+- **The web interface is gone.** The PHP/Smarty/jQuery frontend has been
+  replaced by a JSON/REST API (`public/`, routed via Slim, documented in
+  `API.md`). If you were using the old UI, you need a client for the new API
+  before upgrading, not after.
+- **Invoicing is gone** from the code: the `InvoicingCDR` class and the
+  `/v1/accounting` routes no longer exist, and it will be reimplemented
+  separately. Your data is not gone with it, though the two halves fare
+  differently, so check both:
+  - the `accounting` table is *renamed* (`tbl_accounting` → `accounting`)
+    and left in place with all its rows. Nothing reads it any more. Export
+    it whenever you like and drop it by hand once you are satisfied — the
+    migration will never do that for you.
+  - `users.billing_id` **is** dropped by the migration. If you need the
+    user-to-billing-account mapping, export it **before** migrating; after
+    the fact it is only recoverable from a backup.
+- **WSDL support is gone.**
+- **`Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone.** Persistence
+  talks to RedBeanPHP's `R::` facade directly. Custom storage backends built
+  on those interfaces need rewriting.
+
+### 6. Authentication changed
+
+PHP sessions are out; bearer-token JWTs are in (`firebase/php-jwt`), with
+optional TOTP MFA and long-lived API tokens for scripted access. Passwords
+are hashed with `password_hash()` instead of MD5, so **every existing user
+password is invalid** and must be reset — see "User setup" below.
+
+### 7. Two behaviour changes that can bite quietly
+
+- **`Domain->get('tech')` always returns an array** (keyed handle =>
+  handle). It used to return a bare string when a domain had exactly one
+  technical contact — the common case — so
+  `array_keys((array) $domain->get('tech'))` gave `[0]` rather than the
+  handle. Callers that special-cased the string return should drop that
+  branch.
+- **Domain scoping is uniform.** Every domain route now filters non-admins
+  by the domain's own owner (`domains.user_id`), and pending transfers by
+  whoever requested them (`transfers.user_id`). A domain's registrant must
+  also be a contact the caller owns. If your data has domains whose
+  registrant belongs to a different user than the domain, those two notions
+  have already drifted; `CLI/domain-CheckOwnershipCoherence.php` reports
+  them (see "Ownership coherence").
+
+### 8. After upgrading: re-parse the stored poll messages
+
+Older releases did not recognise the registry's extdom-2.0 poll messages, so
+messages already sitting in your `messages` table may carry `type =
+'unknown'` and an empty `domain` — most of them DNS validation failures and
+warnings, whose domain was dropped. New messages are parsed correctly from
+this release on; existing rows keep whatever they were stored with.
+
+A `doctor reparse-messages` command will re-derive `type` and `domain` for
+those rows from the raw responses in `msgqueue`. **It is not available yet**
+— it arrives with the CLI consolidation (see `docs/REFACTOR-PLAN.md`, Phase
+3). It will only rewrite those two columns and will deliberately fire no
+side effects: no reminder rows and no DNS-sync events for failures that are
+years old.
+
+Nothing depends on this backfill. `PollProcessor` matches only
+`type LIKE '%Transfer'`, which was never affected, so the consequence of
+leaving it undone is a poll-queue view that under-reports historical DNS
+problems.
+
+
 # Web server
 
 The `CLI/` and `examples/` scripts need nothing beyond PHP. The REST API
