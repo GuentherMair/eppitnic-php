@@ -13,3 +13,9 @@
 
 # phpunit
 /.phpunit.cache/
+
+# editor scratch files
+*.swp
+*.swo
+*~
+.DS_Store
