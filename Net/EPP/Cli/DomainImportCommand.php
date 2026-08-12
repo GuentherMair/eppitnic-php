@@ -49,19 +49,21 @@ final class DomainImportCommand extends Command
 
         $failures = 0;
         foreach ($results as $name => $steps) {
-            $ok = $steps['step4_dom_store'] === 'stored';
+            $ok = $steps['domain_stored'] === 'stored';
             if ( ! $ok) {
                 $failures++;
             }
 
             $this->record(
-                sprintf('%-40s domain %s, registrant %s, stored %s/%s',
+                sprintf('%-40s domain %s, registrant %s, contact %s, domain %s',
                     $name,
-                    $steps['step1_domain'],
-                    $steps['step2_registrant'],
-                    $steps['step3_reg_store'],
-                    $steps['step4_dom_store']),
-                ['domain' => $name] + $steps
+                    $steps['domain'],
+                    $steps['registrant'],
+                    $steps['contact_stored'],
+                    $steps['domain_stored']),
+                // 'name' rather than 'domain': within a result, 'domain' is
+                // the outcome of the domain lookup, not which domain it was
+                ['name' => $name] + $steps
             );
         }
 

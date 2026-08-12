@@ -81,6 +81,15 @@ final class DryRunTransport implements Transport
             return $this->availability($request, $m[1]);
         }
 
+        // A <domain:info> is answered with a minimal record, because the
+        // commands that read before they write -- `domain status` -- need the
+        // read to succeed before they generate the request worth previewing.
+        // The values are placeholders; what those commands actually send is
+        // built from the arguments, not from this.
+        if (preg_match('#<domain:info\b#', $request)) {
+            return $this->domainInfo($request);
+        }
+
         // everything else: a bare success, enough for the object layer to
         // carry on and generate any further requests the command makes
         return self::SUCCESS;
@@ -109,6 +118,30 @@ final class DryRunTransport implements Transport
              . "      <{$prefix}:chkData xmlns:{$prefix}=\"{$uri}\">\n"
              . $cds
              . "      </{$prefix}:chkData>\n"
+             . "    </resData>\n"
+             . "    <trID><svTRID>dry-run</svTRID></trID>\n"
+             . "  </response>\n"
+             . "</epp>\n";
+    }
+
+    /**
+     * The least domain:infData that Domain::fetch() accepts.
+     */
+    private function domainInfo(string $request): string {
+        preg_match('#<domain:name[^>]*>([^<]+)</domain:name>#', $request, $m);
+        $name = htmlspecialchars($m[1] ?? 'example.it', ENT_XML1);
+
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
+             . "<epp xmlns=\"urn:ietf:params:xml:ns:epp-1.0\">\n"
+             . "  <response>\n"
+             . "    <result code=\"1000\"><msg lang=\"en\">Dry run: not sent</msg></result>\n"
+             . "    <resData>\n"
+             . "      <domain:infData xmlns:domain=\"urn:ietf:params:xml:ns:domain-1.0\">\n"
+             . "        <domain:name>{$name}</domain:name>\n"
+             . "        <domain:status s=\"ok\"/>\n"
+             . "        <domain:registrant>DRY-RUN-REGISTRANT</domain:registrant>\n"
+             . "        <domain:authInfo><domain:pw>DRY-RUN-AUTHINFO</domain:pw></domain:authInfo>\n"
+             . "      </domain:infData>\n"
              . "    </resData>\n"
              . "    <trID><svTRID>dry-run</svTRID></trID>\n"
              . "  </response>\n"

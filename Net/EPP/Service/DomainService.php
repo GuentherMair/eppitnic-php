@@ -4,6 +4,7 @@ namespace Net\EPP\Service;
 
 use Algo26\IdnaConvert\ToUnicode;
 use Net\EPP\Client;
+use Net\EPP\Helpers;
 use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
 use RedBeanPHP\R;
@@ -90,20 +91,24 @@ final class DomainService
      * @param Client $nic a logged-in client
      * @param string[] $names domains to import
      * @param int $userId the owner for rows that do not exist locally yet
-     * @return array<string, array<string, string>> per domain, the outcome of each step
+     * @return array<string, array{domain: string, registrant: string, contact_stored: string, domain_stored: string}>
+     *         per domain, each step's outcome: 'found'/'not found',
+     *         'stored'/'not stored', or 'skipped' if an earlier step stopped it
      */
     public static function import(Client $nic, array $names, int $userId): array {
         $idnDecoder = new ToUnicode();
         $results = [];
 
         foreach ($names as $name) {
-            // key names are the documented response shape of
-            // POST /v1/domains/import (API.md) -- awkward, but a contract
+            // Each step reports its own outcome, and a step that was never
+            // reached says 'skipped' rather than sharing a value with one that
+            // ran and failed -- so the first non-'skipped' failure is where it
+            // stopped, and why.
             $result = [
-                'step1_domain'     => 'unknown',
-                'step2_registrant' => 'unknown',
-                'step3_reg_store'  => 'unknown',
-                'step4_dom_store'  => 'unknown',
+                'domain'         => 'skipped',
+                'registrant'     => 'skipped',
+                'contact_stored' => 'skipped',
+                'domain_stored'  => 'skipped',
             ];
 
             // IT-NIC does not answer queries for "xn--..." names
@@ -115,38 +120,143 @@ final class DomainService
             $contact = new Contact($nic);
 
             if ( ! $domain->fetch($name)) {
-                $result['step1_domain'] = 'not found';
+                $result['domain'] = 'not found';
                 // the registry does not have it, so neither should we
                 $domain->deleteDomainDB($name, $userId, true);
                 $results[$name] = $result;
                 continue;
             }
-            $result['step1_domain'] = 'found';
+            $result['domain'] = 'found';
 
             if ( ! $contact->fetch($domain->get('registrant'))) {
-                $result['step2_registrant'] = 'not found';
+                $result['registrant'] = 'not found';
                 $results[$name] = $result;
                 continue;
             }
-            $result['step2_registrant'] = 'found';
+            $result['registrant'] = 'found';
 
             // if the registrant already exists locally, keep its current owner
             $registrant = R::getRow("SELECT user_id FROM contacts WHERE handle = ?", [$domain->get('registrant')]);
             $effectiveUserId = empty($registrant) ? $userId : (int) $registrant['user_id'];
 
-            $result['step3_reg_store'] = $contact->storeDB($effectiveUserId) ? 'stored' : 'not stored';
+            $result['contact_stored'] = $contact->storeDB($effectiveUserId) ? 'stored' : 'not stored';
 
             if ($domain->storeDB($effectiveUserId)) {
-                $result['step4_dom_store'] = 'stored';
+                $result['domain_stored'] = 'stored';
                 // whatever transfer request brought it here has completed
                 R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
             } else {
-                $result['step4_dom_store'] = 'not stored';
+                $result['domain_stored'] = 'not stored';
             }
 
             $results[$name] = $result;
         }
 
         return $results;
+    }
+
+    /**
+     * Move a domain to another local user, giving them their own copies of the
+     * contacts it hangs off.
+     *
+     * The two notions of ownership in this schema have to move together:
+     * `domains`.`user_id` says who owns the domain, and the registrant
+     * contact's own `user_id` says who owns the contact. Reassigning only the
+     * first is what lets them drift apart -- which `doctor ownership` then
+     * reports. So the registrant (and the admin contact, if set) are
+     * duplicated under the new owner rather than shared, and the domain is
+     * pointed at the copies.
+     *
+     * Multi-step and not atomic: the contacts are created at the registry
+     * before the domain is changed to use them, so a failure part-way leaves
+     * the new contacts existing but unused. That is recoverable -- rerunning
+     * makes another copy -- where the reverse order would not be.
+     *
+     * @param Client $nic a logged-in client
+     * @param string $name the domain to move
+     * @param int $newOwnerId the local user to move it to
+     * @param bool $persist reassign local ownership too
+     * @return array{ok: bool, domain?: Domain, error?: string, status?: int}
+     */
+    public static function changeOwner(Client $nic, string $name, int $newOwnerId, bool $persist = true): array {
+        $newOwner = R::getRow("SELECT id, techc FROM users WHERE id = ?", [$newOwnerId]);
+        if (empty($newOwner)) {
+            return ['ok' => false, 'status' => 404, 'error' => "User id {$newOwnerId} not found"];
+        }
+
+        $domain = new Domain($nic);
+        if ( ! $domain->fetch($name)) {
+            return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
+        }
+
+        // registrant and admin are always duplicated under the new owner
+        $oldRegistrant = new Contact($nic);
+        if ( ! $oldRegistrant->fetch($domain->get('registrant'))) {
+            return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current registrant: ' . $oldRegistrant->getError()];
+        }
+        $newRegistrantHandle = $oldRegistrant->duplicate($nic, $newOwnerId);
+        if ($newRegistrantHandle === false) {
+            return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate registrant contact: ' . $oldRegistrant->getError()];
+        }
+
+        $newAdminHandle = null;
+        $currentAdmin = $domain->get('admin');
+        if ( ! empty($currentAdmin)) {
+            $oldAdmin = new Contact($nic);
+            if ( ! $oldAdmin->fetch($currentAdmin)) {
+                return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current admin contact: ' . $oldAdmin->getError()];
+            }
+            $newAdminHandle = $oldAdmin->duplicate($nic, $newOwnerId);
+            if ($newAdminHandle === false) {
+                return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate admin contact: ' . $oldAdmin->getError()];
+            }
+        }
+
+        // tech: the new owner's own default tech contact (users.techc) if they
+        // have one on file, otherwise a duplicate of the domain's current one
+        $newTechHandle = null;
+        if ( ! empty($newOwner['techc'])) {
+            $newTechHandle = trim($newOwner['techc']);
+        } else {
+            $currentTech = (array) $domain->get('tech');
+            $firstTech = reset($currentTech);
+            if ( ! empty($firstTech)) {
+                $oldTech = new Contact($nic);
+                if ($oldTech->fetch($firstTech)) {
+                    $newTechHandle = $oldTech->duplicate($nic, $newOwnerId);
+                }
+            }
+        }
+
+        // the registrant change is its own EPP command, requiring authinfo to
+        // change alongside it -- before anything else touches $domain
+        $domain->set('registrant', $newRegistrantHandle);
+        $domain->set('authinfo', $domain->authinfo());
+        if ( ! $domain->updateRegistrant()) {
+            return ['ok' => false, 'status' => 400, 'error' => 'registrant change failed: ' . $domain->getError()];
+        }
+
+        // admin/tech go in a separate generic update(), since
+        // updateRegistrant() ignores everything but registrant/authinfo/admin
+        if ($newAdminHandle !== null) {
+            $domain->set('admin', $newAdminHandle);
+        }
+        if ($newTechHandle !== null) {
+            foreach ((array) $domain->get('tech') as $existingTech) {
+                $domain->remTECH($existingTech);
+            }
+            $domain->addTECH($newTechHandle);
+        }
+        if ($domain->get('changes') > 0 && ! $domain->update()) {
+            return ['ok' => false, 'status' => 400, 'error' => 'admin/tech change failed: ' . $domain->getError()];
+        }
+
+        if ($persist) {
+            R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
+            $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
+            Helpers::logChanges('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
+        }
+
+        return ['ok' => true, 'domain' => $domain];
     }
 }

@@ -134,6 +134,22 @@ final class CreateTransferCommandTest extends EppTestCase
     }
 
     /**
+     * set-owner builds its requests from registry data a dry run cannot read,
+     * so a preview would show invented contents.
+     */
+    public function testSetOwnerRejectsDryRun(): void {
+        $this->expectException(UsageError::class);
+        $this->expectExceptionMessage('does not apply to set-owner');
+        (new \Net\EPP\Cli\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
+    }
+
+    public function testSetOwnerRequiresANewOwner(): void {
+        $this->expectException(UsageError::class);
+        $this->expectExceptionMessage('--new-owner');
+        (new \Net\EPP\Cli\DomainSetOwnerCommand(['example-one.it']))->run();
+    }
+
+    /**
      * Import only writes locally, so there is no request a preview could show
      * -- saying so is better than printing nothing and looking broken.
      */

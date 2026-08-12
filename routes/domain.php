@@ -2,7 +2,6 @@
 
 use Net\EPP\Client;
 use Net\EPP\Helpers;
-use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
 use Net\EPP\Service\DomainService;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -617,89 +616,11 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
     }
     $newOwnerId = (int) $params['user_id'];
 
-    $newOwner = R::getRow("SELECT id, techc FROM users WHERE id = ?", [$newOwnerId]);
-    if (empty($newOwner)) {
-        return Helpers::json($response, ['error' => "User id {$newOwnerId} not found"], 404);
-    }
-
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $newOwnerId, $newOwner) {
-            $domain = new Domain($nic);
-            if ( ! $domain->fetch($name)) {
-                return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
-            }
-
-            // registrant and admin are always duplicated under the new owner
-            $oldRegistrant = new Contact($nic);
-            if ( ! $oldRegistrant->fetch($domain->get('registrant'))) {
-                return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current registrant: ' . $oldRegistrant->getError()];
-            }
-            $newRegistrantHandle = $oldRegistrant->duplicate($nic, $newOwnerId);
-            if ($newRegistrantHandle === false) {
-                return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate registrant contact: ' . $oldRegistrant->getError()];
-            }
-
-            $newAdminHandle = null;
-            $currentAdmin = $domain->get('admin');
-            if ( ! empty($currentAdmin)) {
-                $oldAdmin = new Contact($nic);
-                if ( ! $oldAdmin->fetch($currentAdmin)) {
-                    return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current admin contact: ' . $oldAdmin->getError()];
-                }
-                $newAdminHandle = $oldAdmin->duplicate($nic, $newOwnerId);
-                if ($newAdminHandle === false) {
-                    return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate admin contact: ' . $oldAdmin->getError()];
-                }
-            }
-
-            // tech: use the new owner's own default tech contact (users.techc) if they
-            // have one on file, otherwise duplicate the domain's current tech contact
-            $newTechHandle = null;
-            if ( ! empty($newOwner['techc'])) {
-                $newTechHandle = trim($newOwner['techc']);
-            } else {
-                $currentTech = (array) $domain->get('tech');
-                $firstTech = reset($currentTech);
-                if ( ! empty($firstTech)) {
-                    $oldTech = new Contact($nic);
-                    if ($oldTech->fetch($firstTech)) {
-                        $newTechHandle = $oldTech->duplicate($nic, $newOwnerId);
-                    }
-                }
-            }
-
-            // step 1: registrant change is its own EPP command, requiring authinfo to
-            // change alongside it -- do this before anything else touches $domain
-            $domain->set('registrant', $newRegistrantHandle);
-            $domain->set('authinfo', $domain->authinfo());
-            if ( ! $domain->updateRegistrant()) {
-                return ['ok' => false, 'status' => 400, 'error' => 'registrant change failed: ' . $domain->getError()];
-            }
-
-            // step 2: admin/tech changes -- a separate generic update(), since
-            // updateRegistrant() ignores everything except registrant/authinfo/admin
-            if ($newAdminHandle !== null) {
-                $domain->set('admin', $newAdminHandle);
-            }
-            if ($newTechHandle !== null) {
-                foreach ((array) $domain->get('tech') as $existingTech) {
-                    $domain->remTECH($existingTech);
-                }
-                $domain->addTECH($newTechHandle);
-            }
-            if ($domain->get('changes') > 0) {
-                if ( ! $domain->update()) {
-                    return ['ok' => false, 'status' => 400, 'error' => 'admin/tech change failed: ' . $domain->getError()];
-                }
-            }
-
-            // reassign local ownership
-            R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
-            $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-            Helpers::logChanges('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
-
-            return ['ok' => true, 'domain' => $domain];
-        }, $debug);
+        $result = Helpers::withEppSession(
+            fn($nic) => DomainService::changeOwner($nic, $name, $newOwnerId),
+            $debug
+        );
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }

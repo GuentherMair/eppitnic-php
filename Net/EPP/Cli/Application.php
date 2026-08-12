@@ -28,6 +28,7 @@ final class Application
             'domain create'           => DomainCreateCommand::class,
             'domain import'           => DomainImportCommand::class,
             'domain transfer'         => DomainTransferCommand::class,
+            'domain set-owner'        => DomainSetOwnerCommand::class,
             'domain delete'           => DomainDeleteCommand::class,
             'domain restore'          => DomainRestoreCommand::class,
             'domain status'           => DomainStatusCommand::class,
