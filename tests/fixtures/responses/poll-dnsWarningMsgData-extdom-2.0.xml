@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="142715599">
+      <qDate>2024-11-19T09:19:06.000+01:00</qDate>
+      <msg lang="en">DNS check ended successfully with warning</msg>
+    </msgQ>
+    <extension>
+      <extdom:dnsWarningMsgData>
+        <extdom:chgStatusMsgData>
+          <extdom:name>example-26.it</extdom:name>
+          <extdom:targetStatus>
+            <domain:status s="ok" lang="en"/>
+          </extdom:targetStatus>
+        </extdom:chgStatusMsgData>
+        <extdom:dnsWarningData version="2.0">
+          <extdom:domain>example-26.it</extdom:domain>
+          <extdom:status>WARNING</extdom:status>
+          <extdom:validationId>00000000-0000-4000-8000-000000000000</extdom:validationId>
+          <extdom:validationDate>2024-11-19T09:19:05.407+01:00</extdom:validationDate>
+          <extdom:nameservers>
+            <extdom:nameserver name="example-27.it.">
+              <extdom:address type="IPv6">2001:db8::1</extdom:address>
+              <extdom:address type="IPv4">192.0.2.1</extdom:address>
+            </extdom:nameserver>
+            <extdom:nameserver name="example-28.it.">
+              <extdom:address type="IPv6">2001:db8::1</extdom:address>
+              <extdom:address type="IPv4">192.0.2.1</extdom:address>
+            </extdom:nameserver>
+            <extdom:nameserver name="example-29.it.">
+              <extdom:address type="IPv6">2001:db8::1</extdom:address>
+              <extdom:address type="IPv4">192.0.2.1</extdom:address>
+            </extdom:nameserver>
+          </extdom:nameservers>
+          <extdom:tests>
+            <extdom:test name="NameserversResolvableTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="IPCompareTest" skipped="true"/>
+            <extdom:test name="SOAQueryAnswerTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="SOAMasterCompareTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="IPSoaTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED">
+                <extdom:detail name="2001:db8::1" status="SUCCEEDED"/>
+                <extdom:detail name="192.0.2.1" status="SUCCEEDED"/>
+              </extdom:nameserver>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED">
+                <extdom:detail name="2001:db8::1" status="SUCCEEDED"/>
+                <extdom:detail name="192.0.2.1" status="SUCCEEDED"/>
+              </extdom:nameserver>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED">
+                <extdom:detail name="2001:db8::1" status="SUCCEEDED"/>
+                <extdom:detail name="192.0.2.1" status="SUCCEEDED"/>
+              </extdom:nameserver>
+            </extdom:test>
+            <extdom:test name="NSQueryAnswerTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="NSCompareTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="NSCountTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="MXQueryAnswerTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="MXCompareTest" status="SUCCEEDED">
+              <extdom:nameserver name="example-27.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-28.it." status="SUCCEEDED"/>
+              <extdom:nameserver name="example-29.it." status="SUCCEEDED"/>
+            </extdom:test>
+            <extdom:test name="MXRecordIsPresentTest" status="WARNING">
+              <extdom:nameserver name="example-27.it." status="WARNING">
+                <extdom:detail queryId="13">No MX Records found</extdom:detail>
+              </extdom:nameserver>
+              <extdom:nameserver name="example-28.it." status="WARNING">
+                <extdom:detail queryId="14">No MX Records found</extdom:detail>
+              </extdom:nameserver>
+              <extdom:nameserver name="example-29.it." status="WARNING">
+                <extdom:detail queryId="15">No MX Records found</extdom:detail>
+              </extdom:nameserver>
+            </extdom:test>
+            <extdom:test name="CNAMEHostTest" status="SUCCEEDED">
+              <extdom:detail name="example-28.it." status="SUCCEEDED"/>
+              <extdom:detail name="example-29.it." status="SUCCEEDED"/>
+              <extdom:detail name="example-27.it." status="SUCCEEDED"/>
+            </extdom:test>
+          </extdom:tests>
+          <extdom:queries>
+            <extdom:query id="1">
+              <extdom:queryFor>example-27.it.</extdom:queryFor>
+              <extdom:type>A</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="2">
+              <extdom:queryFor>example-27.it.</extdom:queryFor>
+              <extdom:type>AAAA</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="3">
+              <extdom:queryFor>example-28.it.</extdom:queryFor>
+              <extdom:type>A</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="4">
+              <extdom:queryFor>example-28.it.</extdom:queryFor>
+              <extdom:type>AAAA</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="5">
+              <extdom:queryFor>example-29.it.</extdom:queryFor>
+              <extdom:type>A</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="6">
+              <extdom:queryFor>example-29.it.</extdom:queryFor>
+              <extdom:type>AAAA</extdom:type>
+              <extdom:destination>local resolver</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="7">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-27.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="8">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-28.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="9">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-29.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="10">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>NS</extdom:type>
+              <extdom:destination>example-27.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="11">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>NS</extdom:type>
+              <extdom:destination>example-28.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="12">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>NS</extdom:type>
+              <extdom:destination>example-29.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="13">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>MX</extdom:type>
+              <extdom:destination>example-27.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="14">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>MX</extdom:type>
+              <extdom:destination>example-28.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="15">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>MX</extdom:type>
+              <extdom:destination>example-29.it./[2001:db8::1, 192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="16">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-27.it./[2001:db8::1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="17">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-27.it./[192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="18">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-28.it./[2001:db8::1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="19">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-28.it./[192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="20">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-29.it./[2001:db8::1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+            <extdom:query id="21">
+              <extdom:queryFor>example-30.it.</extdom:queryFor>
+              <extdom:type>SOA</extdom:type>
+              <extdom:destination>example-29.it./[192.0.2.1]</extdom:destination>
+              <extdom:result>[dns transcript removed]</extdom:result>
+            </extdom:query>
+          </extdom:queries>
+        </extdom:dnsWarningData>
+      </extdom:dnsWarningMsgData>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

@@ -13,82 +13,82 @@
         <extdom:responseId>00000000-0000-4000-8000-000000000000</extdom:responseId>
         <extdom:validationDate>2012-03-28T17:14:08+02:00</extdom:validationDate>
         <extdom:report>
-          <extdom:domain name="example-25.it." status="FAILED">
+          <extdom:domain name="example-34.it." status="FAILED">
             <extdom:dnsreport level="debug">[dns transcript removed]</extdom:dnsreport>
             <extdom:dnsreport level="debug">[dns transcript removed]</extdom:dnsreport>
             <extdom:test name="NameserversResolvableTest" status="SUCCEEDED">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="SUCCEEDED"/>
             </extdom:test>
             <extdom:test name="NameserversAnswerTest" status="SUCCEEDED">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="SUCCEEDED"/>
             </extdom:test>
             <extdom:test name="NameserverReturnCodeTest" status="FAILED">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="FAILED">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="FAILED">
                 <extdom:dnsreport>FAILED for ReturnCode 'SERVFAIL'</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="AATest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="NSCompareTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="NSCountTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="CNAMEHostTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED">
-                <extdom:detail name="example-26.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-27.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-28.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-29.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-20.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-30.it." status="SUCCEEDED"/>
-                <extdom:detail name="example-19.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-16.it." status="SUCCEEDED">
+                <extdom:detail name="example-35.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-36.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-37.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-38.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-17.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-39.it." status="SUCCEEDED"/>
+                <extdom:detail name="example-16.it." status="SUCCEEDED"/>
               </extdom:dns>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="IPCompareTest" status="FAILED">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="FAILED">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="FAILED">
                 <extdom:dnsreport>Original Addresses: [IPAddress(address=/192.0.2.1, family=1)]</extdom:dnsreport>
                 <extdom:dnsreport>Resolved Addresses: [IPAddress(address=/192.0.2.1, family=1)]</extdom:dnsreport>
                 <extdom:dnsreport level="debug">[dns transcript removed]</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="MXCompareTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED">
-                <extdom:dnsreport>MX Records List: [example-29.it., example-26.it., example-27.it., example-30.it., example-28.it.]</extdom:dnsreport>
+              <extdom:dns name="example-16.it." status="SUCCEEDED">
+                <extdom:dnsreport>MX Records List: [example-38.it., example-35.it., example-36.it., example-39.it., example-37.it.]</extdom:dnsreport>
               </extdom:dns>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="MXRecordIsPresentTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED"/>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-16.it." status="SUCCEEDED"/>
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>
             <extdom:test name="SOAMasterCompareTest" status="WARNING">
-              <extdom:dns name="example-19.it." status="SUCCEEDED">
-                <extdom:dnsreport>Master nameserver in SOA Record: example-19.it.</extdom:dnsreport>
+              <extdom:dns name="example-16.it." status="SUCCEEDED">
+                <extdom:dnsreport>Master nameserver in SOA Record: example-16.it.</extdom:dnsreport>
               </extdom:dns>
-              <extdom:dns name="example-20.it." status="WARNING">
+              <extdom:dns name="example-17.it." status="WARNING">
                 <extdom:dnsreport>Skip test for 'SERVFAIL' returncode</extdom:dnsreport>
               </extdom:dns>
             </extdom:test>

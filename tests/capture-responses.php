@@ -222,7 +222,7 @@ function scrubElement(\DOMElement $el): void {
             $replacement = str_contains($text, ':') ? '2001:db8::1' : '192.0.2.1';
         } elseif ($local === 'validationId') {
             $replacement = '00000000-0000-4000-8000-000000000000';
-        } elseif (in_array($local, ['id', 'roid', 'registrant', 'contact'], true)) {
+        } elseif (in_array($local, ['id', 'roid', 'registrant', 'contact', 'newRegistrant', 'oldRegistrant'], true)) {
             $replacement = fakeHandle($text);
         } elseif (array_key_exists($local, SCRUB_TEXT) && SCRUB_TEXT[$local] !== null) {
             $replacement = SCRUB_TEXT[$local];
@@ -398,19 +398,58 @@ foreach (R::getAll("SELECT DISTINCT cl_trtype FROM transactions WHERE cl_trtype 
     }
 }
 
-// one poll response per parsed message type -- this is what exercises
-// Session::parsePollReq()'s branches
-foreach (R::getAll("SELECT DISTINCT type FROM messages WHERE type IS NOT NULL") as $row) {
-    $type = $row['type'];
-    $hit = R::getRow("
-        SELECT q.sv_httpdata
-        FROM messages m JOIN msgqueue q ON q.cl_trid = m.cl_trid
-        WHERE m.type = :type AND q.sv_httpdata IS NOT NULL AND q.sv_httpdata <> ''
-        ORDER BY m.id DESC LIMIT 1
-    ", [':type' => $type]);
-    if ( ! empty($hit)) {
-        $captures["poll-{$type}"] = $hit['sv_httpdata'];
+/**
+ * Poll responses, one per *document shape*.
+ *
+ * Deliberately keyed on what the document actually contains -- the qualified
+ * name of the element under <extension>, or the transfer status under
+ * <resData> -- and not on messages.type. messages.type is the output of
+ * Session::parsePollReq(), so keying fixtures on it means the fixture set
+ * inherits whatever that parser gets wrong: every message it fails to
+ * recognise collapses into a single "unknown" bucket, and the shapes it is
+ * failing on become invisible precisely because it is failing on them.
+ *
+ * Keying on the document instead, the same corpus yields a separate fixture
+ * for each real message shape, including the ones the parser does not
+ * currently handle.
+ *
+ * The namespace is part of the key: nic.it kept the element name
+ * dnsErrorMsgData across extdom-1.0 and extdom-2.0 while changing its
+ * structure completely, and both still occur in the queue.
+ */
+$seen = [];
+foreach (R::getAll("SELECT id, cl_trid, sv_httpdata FROM msgqueue WHERE sv_httpdata IS NOT NULL AND sv_httpdata <> '' ORDER BY id DESC") as $row) {
+    $body = unwrap($row['sv_httpdata']);
+    if ($body === null) {
+        continue;
     }
+
+    $dom = new \DOMDocument();
+    if ( ! @$dom->loadXML($body)) {
+        continue;
+    }
+    $xpath = new \DOMXPath($dom);
+    $xpath->registerNamespace('e', 'urn:ietf:params:xml:ns:epp-1.0');
+
+    $key = null;
+    foreach ($xpath->query('/e:epp/e:response/e:extension/*') as $node) {
+        $shortNs = preg_replace('#^.*/#', '', $node->namespaceURI ?? '');
+        $key = 'poll-' . $node->localName . ($shortNs !== '' ? '-' . $shortNs : '');
+        break;
+    }
+    if ($key === null) {
+        // transfer notifications carry no extension; they are resData
+        foreach ($xpath->query('/e:epp/e:response/e:resData/*/*[local-name()="trStatus"]') as $node) {
+            $key = 'poll-transfer-' . $node->textContent;
+            break;
+        }
+    }
+    if ($key === null || isset($seen[$key])) {
+        continue;
+    }
+
+    $seen[$key] = true;
+    $captures[$key] = $row['sv_httpdata'];
 }
 
 // ---------------------------------------------------------------------------

@@ -10,142 +10,142 @@
     </msgQ>
     <extension>
       <extdom:dnsErrorMsgData version="2.0">
-        <extdom:domain>example-18.it</extdom:domain>
+        <extdom:domain>example-15.it</extdom:domain>
         <extdom:status>FAILED</extdom:status>
         <extdom:validationId>00000000-0000-4000-8000-000000000000</extdom:validationId>
         <extdom:validationDate>2026-02-21T17:02:09.864+01:00</extdom:validationDate>
         <extdom:nameservers>
+          <extdom:nameserver name="example-16.it.">
+            <extdom:address type="IPv4">192.0.2.1</extdom:address>
+          </extdom:nameserver>
+          <extdom:nameserver name="example-17.it.">
+            <extdom:address type="IPv4">192.0.2.1</extdom:address>
+          </extdom:nameserver>
+          <extdom:nameserver name="example-18.it.">
+            <extdom:address type="IPv4">192.0.2.1</extdom:address>
+          </extdom:nameserver>
           <extdom:nameserver name="example-19.it.">
-            <extdom:address type="IPv4">192.0.2.1</extdom:address>
-          </extdom:nameserver>
-          <extdom:nameserver name="example-20.it.">
-            <extdom:address type="IPv4">192.0.2.1</extdom:address>
-          </extdom:nameserver>
-          <extdom:nameserver name="example-21.it.">
-            <extdom:address type="IPv4">192.0.2.1</extdom:address>
-          </extdom:nameserver>
-          <extdom:nameserver name="example-22.it.">
             <extdom:address type="IPv4">192.0.2.1</extdom:address>
           </extdom:nameserver>
         </extdom:nameservers>
         <extdom:tests>
           <extdom:test name="NameserversResolvableTest" status="SUCCEEDED">
+            <extdom:nameserver name="example-16.it." status="SUCCEEDED"/>
+            <extdom:nameserver name="example-17.it." status="SUCCEEDED"/>
+            <extdom:nameserver name="example-18.it." status="SUCCEEDED"/>
             <extdom:nameserver name="example-19.it." status="SUCCEEDED"/>
-            <extdom:nameserver name="example-20.it." status="SUCCEEDED"/>
-            <extdom:nameserver name="example-21.it." status="SUCCEEDED"/>
-            <extdom:nameserver name="example-22.it." status="SUCCEEDED"/>
           </extdom:test>
           <extdom:test name="IPCompareTest" skipped="true"/>
           <extdom:test name="SOAQueryAnswerTest" status="FAILED">
-            <extdom:nameserver name="example-19.it." status="FAILED">
+            <extdom:nameserver name="example-16.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="9">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="FAILED">
+            <extdom:nameserver name="example-17.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="10">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="FAILED">
+            <extdom:nameserver name="example-18.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="11">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="FAILED">
+            <extdom:nameserver name="example-19.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="12">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="SOAMasterCompareTest" status="WARNING">
-            <extdom:nameserver name="example-19.it." status="WARNING">
+            <extdom:nameserver name="example-16.it." status="WARNING">
               <extdom:detail queryId="9">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="WARNING">
+            <extdom:nameserver name="example-17.it." status="WARNING">
               <extdom:detail queryId="10">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="WARNING">
+            <extdom:nameserver name="example-18.it." status="WARNING">
               <extdom:detail queryId="11">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="WARNING">
+            <extdom:nameserver name="example-19.it." status="WARNING">
               <extdom:detail queryId="12">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="IPSoaTest" skipped="true"/>
           <extdom:test name="NSQueryAnswerTest" status="FAILED">
-            <extdom:nameserver name="example-19.it." status="FAILED">
+            <extdom:nameserver name="example-16.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="13">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="FAILED">
+            <extdom:nameserver name="example-17.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="14">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="FAILED">
+            <extdom:nameserver name="example-18.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="15">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="FAILED">
+            <extdom:nameserver name="example-19.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="16">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="NSCompareTest" status="WARNING">
-            <extdom:nameserver name="example-19.it." status="WARNING">
+            <extdom:nameserver name="example-16.it." status="WARNING">
               <extdom:detail queryId="13">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="WARNING">
+            <extdom:nameserver name="example-17.it." status="WARNING">
               <extdom:detail queryId="14">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="WARNING">
+            <extdom:nameserver name="example-18.it." status="WARNING">
               <extdom:detail queryId="15">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="WARNING">
+            <extdom:nameserver name="example-19.it." status="WARNING">
               <extdom:detail queryId="16">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="NSCountTest" status="WARNING">
-            <extdom:nameserver name="example-19.it." status="WARNING">
+            <extdom:nameserver name="example-16.it." status="WARNING">
               <extdom:detail queryId="13">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="WARNING">
+            <extdom:nameserver name="example-17.it." status="WARNING">
               <extdom:detail queryId="14">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="WARNING">
+            <extdom:nameserver name="example-18.it." status="WARNING">
               <extdom:detail queryId="15">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="WARNING">
+            <extdom:nameserver name="example-19.it." status="WARNING">
               <extdom:detail queryId="16">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="MXQueryAnswerTest" status="FAILED">
-            <extdom:nameserver name="example-19.it." status="FAILED">
+            <extdom:nameserver name="example-16.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="17">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="FAILED">
+            <extdom:nameserver name="example-17.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="18">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="FAILED">
+            <extdom:nameserver name="example-18.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="19">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="FAILED">
+            <extdom:nameserver name="example-19.it." status="FAILED">
               <extdom:detail status="FAILED" queryId="20">'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="MXCompareTest" status="WARNING">
-            <extdom:nameserver name="example-19.it." status="WARNING">
+            <extdom:nameserver name="example-16.it." status="WARNING">
               <extdom:detail queryId="17">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="WARNING">
+            <extdom:nameserver name="example-17.it." status="WARNING">
               <extdom:detail queryId="18">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="WARNING">
+            <extdom:nameserver name="example-18.it." status="WARNING">
               <extdom:detail queryId="19">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="WARNING">
+            <extdom:nameserver name="example-19.it." status="WARNING">
               <extdom:detail queryId="20">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
           <extdom:test name="MXRecordIsPresentTest" status="WARNING">
-            <extdom:nameserver name="example-19.it." status="WARNING">
+            <extdom:nameserver name="example-16.it." status="WARNING">
               <extdom:detail queryId="17">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-20.it." status="WARNING">
+            <extdom:nameserver name="example-17.it." status="WARNING">
               <extdom:detail queryId="18">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-21.it." status="WARNING">
+            <extdom:nameserver name="example-18.it." status="WARNING">
               <extdom:detail queryId="19">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
-            <extdom:nameserver name="example-22.it." status="WARNING">
+            <extdom:nameserver name="example-19.it." status="WARNING">
               <extdom:detail queryId="20">Test skipped for 'REFUSED' returncode</extdom:detail>
             </extdom:nameserver>
           </extdom:test>
@@ -153,123 +153,123 @@
         </extdom:tests>
         <extdom:queries>
           <extdom:query id="1">
-            <extdom:queryFor>example-19.it.</extdom:queryFor>
+            <extdom:queryFor>example-16.it.</extdom:queryFor>
             <extdom:type>A</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="2">
-            <extdom:queryFor>example-19.it.</extdom:queryFor>
+            <extdom:queryFor>example-16.it.</extdom:queryFor>
             <extdom:type>AAAA</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="3">
-            <extdom:queryFor>example-20.it.</extdom:queryFor>
+            <extdom:queryFor>example-17.it.</extdom:queryFor>
             <extdom:type>A</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="4">
-            <extdom:queryFor>example-20.it.</extdom:queryFor>
+            <extdom:queryFor>example-17.it.</extdom:queryFor>
             <extdom:type>AAAA</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="5">
-            <extdom:queryFor>example-21.it.</extdom:queryFor>
+            <extdom:queryFor>example-18.it.</extdom:queryFor>
             <extdom:type>A</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="6">
-            <extdom:queryFor>example-21.it.</extdom:queryFor>
+            <extdom:queryFor>example-18.it.</extdom:queryFor>
             <extdom:type>AAAA</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="7">
-            <extdom:queryFor>example-22.it.</extdom:queryFor>
+            <extdom:queryFor>example-19.it.</extdom:queryFor>
             <extdom:type>A</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="8">
-            <extdom:queryFor>example-22.it.</extdom:queryFor>
+            <extdom:queryFor>example-19.it.</extdom:queryFor>
             <extdom:type>AAAA</extdom:type>
             <extdom:destination>local resolver</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="9">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>SOA</extdom:type>
-            <extdom:destination>example-19.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-16.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="10">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>SOA</extdom:type>
-            <extdom:destination>example-20.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-17.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="11">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>SOA</extdom:type>
-            <extdom:destination>example-21.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-18.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="12">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>SOA</extdom:type>
-            <extdom:destination>example-22.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-19.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="13">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>NS</extdom:type>
-            <extdom:destination>example-19.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-16.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="14">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>NS</extdom:type>
-            <extdom:destination>example-20.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-17.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="15">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>NS</extdom:type>
-            <extdom:destination>example-21.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-18.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="16">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>NS</extdom:type>
-            <extdom:destination>example-22.it./[192.0.2.1]</extdom:destination>
-            <extdom:result>[dns transcript removed]</extdom:result>
-          </extdom:query>
-          <extdom:query id="17">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
-            <extdom:type>MX</extdom:type>
             <extdom:destination>example-19.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
-          <extdom:query id="18">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+          <extdom:query id="17">
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>MX</extdom:type>
-            <extdom:destination>example-20.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-16.it./[192.0.2.1]</extdom:destination>
+            <extdom:result>[dns transcript removed]</extdom:result>
+          </extdom:query>
+          <extdom:query id="18">
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
+            <extdom:type>MX</extdom:type>
+            <extdom:destination>example-17.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="19">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>MX</extdom:type>
-            <extdom:destination>example-21.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-18.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
           <extdom:query id="20">
-            <extdom:queryFor>example-23.it.</extdom:queryFor>
+            <extdom:queryFor>example-20.it.</extdom:queryFor>
             <extdom:type>MX</extdom:type>
-            <extdom:destination>example-22.it./[192.0.2.1]</extdom:destination>
+            <extdom:destination>example-19.it./[192.0.2.1]</extdom:destination>
             <extdom:result>[dns transcript removed]</extdom:result>
           </extdom:query>
         </extdom:queries>

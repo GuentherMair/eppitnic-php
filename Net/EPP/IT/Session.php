@@ -267,124 +267,204 @@ class Session extends AbstractObject
   }
 
   /**
+   * the <extension> children in a given namespace prefix, if the document has any
+   *
+   * getNamespaces() only reports prefixes the document actually uses, so
+   * $ns['extdom'] is simply absent from a message carrying no extdom content.
+   * Indexing it blind (as every branch below used to) raises an undefined-key
+   * warning on each miss, which is why the old code needed an @ in front of
+   * every single test.
+   *
+   * @param array $ns prefix => namespace URI, from getNamespaces(TRUE)
+   * @param string $prefix the namespace prefix wanted
+   * @return \SimpleXMLElement|null the extension children, or null if absent
+   */
+  protected function pollExtension(array $ns, string $prefix): ?\SimpleXMLElement {
+    if ( ! isset($ns[$prefix]) || ! isset($this->xmlResult->response->extension)) {
+      return null;
+    }
+    $children = $this->xmlResult->response->extension->children($ns[$prefix]);
+    return (count($children) > 0) ? $children : null;
+  }
+
+  /**
+   * summarise a DnsValidatorResult (extdom-2.0): which validation tests ran
+   * and how each came out.
+   *
+   * @param \SimpleXMLElement $result a dnsErrorMsgData / dnsWarningData element
+   * @return string[] "TestName: STATUS" per test
+   */
+  protected function dnsTestOutcomes(\SimpleXMLElement $result): array {
+    $outcomes = array();
+    foreach ($result->tests->test as $test) {
+      $name = (string)$test->attributes()->name;
+      // a skipped test carries @skipped="true" instead of @status
+      $status = isset($test->attributes()->status)
+        ? (string)$test->attributes()->status
+        : (((string)$test->attributes()->skipped === 'true') ? 'SKIPPED' : '');
+      $outcomes[] = $name . ": " . $status;
+    }
+    return $outcomes;
+  }
+
+  /**
    * try to parse message received by poll "req"
+   *
+   * The registry speaks two generations of these messages and the queue holds
+   * both: extdom-1.0 documents going back years, and the extdom-2.0 documents
+   * it sends now. They reuse element names while changing structure entirely
+   * -- dnsErrorMsgData is <report><domain name="..."> in 1.0 and a flat
+   * <domain> element plus <tests> in 2.0 -- so each shape needs its own test.
+   * Recognising only one generation silently drops the other: before both were
+   * handled here, 330 messages in a real queue parsed as 'unknown' with no
+   * domain, which meant PollProcessor and the DNS-sync queue were never told
+   * which zone had failed validation.
    *
    * @return array [message type], [domain], [human readable data]
    */
   protected function parsePollReq(): array {
     $ns = $this->xmlResult->getNamespaces(TRUE);
+    $title = (string)$this->xmlResult->response->msgQ->msg;
+
+    $extepp = $this->pollExtension($ns, 'extepp');
+    $extdom = $this->pollExtension($ns, 'extdom');
 
     // passwdReminder
-    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate)) {
-      $exDate = (string)$this->xmlResult->response->extension->children($ns['extepp'])->passwdReminder->exDate;
+    if ($extepp !== null && isset($extepp->passwdReminder->exDate)) {
       return array(
         'type'   => 'passwdReminder',
         'domain' => '',
-        'data'   => $exDate,
+        'data'   => (string)$extepp->passwdReminder->exDate,
       );
     }
 
     // creditMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit)) {
-      $credit = (string)$this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit;
+    if ($extepp !== null && isset($extepp->creditMsgData->credit)) {
       return array(
         'type'   => 'creditMsgData',
         'domain' => '',
-        'data'   => (string)$this->xmlResult->response->msgQ->msg . " (" . $credit . ")",
+        'data'   => $title . " (" . (string)$extepp->creditMsgData->credit . ")",
       );
     }
 
-    // delayedDebitAndRefundMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->amount)) {
-      $name = (string)$this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->name;
-      $amount = (string)$this->xmlResult->response->extension->children($ns['extepp'])->delayedDebitAndRefundMsgData->amount;
+    // delayedDebitAndRefundMsgData. Declared in extdom-2.0, not extepp -- this
+    // used to be looked for under extepp only, so every one of them fell
+    // through to 'unknown' and the domain being debited was discarded.
+    foreach (array($extdom, $extepp) as $extension) {
+      if ($extension !== null && isset($extension->delayedDebitAndRefundMsgData->amount)) {
+        $data = $extension->delayedDebitAndRefundMsgData;
+        return array(
+          'type'   => 'delayedDebitAndRefundMsgData',
+          'domain' => $this->stripTrailingDots((string)$data->name),
+          'data'   => $title . " (" . (string)$data->name . " / " . (string)$data->amount . ")",
+        );
+      }
+    }
+
+    // dnsWarningMsgData (extdom-2.0). Deliberately tested before
+    // chgStatusMsgData: a warning *contains* a chgStatusMsgData, so checking
+    // for the latter first would classify every warning as a status change and
+    // throw the validation results away.
+    if ($extdom !== null && isset($extdom->dnsWarningMsgData->dnsWarningData)) {
+      $warning = $extdom->dnsWarningMsgData->dnsWarningData;
+      $outcomes = $this->dnsTestOutcomes($warning);
       return array(
-        'type'   => 'delayedDebitAndRefundMsgData',
-        'domain' => '',
-        'data'   => (string)$this->xmlResult->response->msgQ->msg . " (" . $name . " / " . $amount . ")",
+        'type'   => 'dnsWarningMsgData',
+        'domain' => $this->stripTrailingDots((string)$warning->domain),
+        'data'   => $title . " (" . implode(", ", $outcomes) . ")",
       );
     }
 
-    // simpleMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name)) {
-      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->simpleMsgData->name;
-      $title = (string)$this->xmlResult->response->msgQ->msg;
+    // dnsErrorMsgData, extdom-2.0 shape: <domain> as an element, tests under <tests>
+    if ($extdom !== null && isset($extdom->dnsErrorMsgData->domain)) {
+      $error = $extdom->dnsErrorMsgData;
+      $outcomes = $this->dnsTestOutcomes($error);
+      return array(
+        'type'   => 'dnsErrorMsgData',
+        'domain' => $this->stripTrailingDots((string)$error->domain),
+        'data'   => $title . " (" . implode(", ", $outcomes) . ")",
+      );
+    }
+
+    // dnsErrorMsgData, extdom-1.0 shape: <report><domain name="..."><test .../>
+    if ($extdom !== null && isset($extdom->dnsErrorMsgData->report->domain)) {
+      $report = $extdom->dnsErrorMsgData->report->domain;
+      $outcomes = array();
+      foreach ($report->test as $test) {
+        $outcomes[] = (string)$test->attributes()->name . ": " . (string)$test->attributes()->status;
+      }
+      return array(
+        'type'   => 'dnsErrorMsgData',
+        'domain' => $this->stripTrailingDots((string)$report->attributes()->name),
+        'data'   => $title . " (" . implode(", ", $outcomes) . ")",
+      );
+    }
+
+    // simpleMsgData -- <name> is unbounded in extdom-2.0, but a message row
+    // holds one domain, so the first is what we key on
+    if ($extdom !== null && isset($extdom->simpleMsgData->name)) {
       return array(
         'type'   => 'simpleMsgData',
-        'domain' => $this->stripTrailingDots($domain),
+        'domain' => $this->stripTrailingDots((string)$extdom->simpleMsgData->name),
         'data'   => $title,
       );
     }
 
-    // dnsErrorMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain)) {
-      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->attributes()->name;
-      $title = (string)$this->xmlResult->response->msgQ->msg;
-      $msg = array();
-      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dnsErrorMsgData->report->domain->test as $child) {
-        $msg[] = $child->attributes()->name . ": " . $child->attributes()->status;
-      }
-      return array(
-        'type'   => 'dnsErrorMsgData',
-        'domain' => $this->stripTrailingDots($domain),
-        'data'   => $title . " (" . implode(", ", $msg) . ")",
-      );
-    }
-
     // chgStatusMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name)) {
-      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->name;
-      $title = (string)$this->xmlResult->response->msgQ->msg;
-      $msg = array();
-      if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus)) {
-        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['domain'])->status as $child) {
-          $msg[] = $child->attributes()->s;
+    if ($extdom !== null && isset($extdom->chgStatusMsgData->name)) {
+      $change = $extdom->chgStatusMsgData;
+      $states = array();
+      if (isset($change->targetStatus)) {
+        // the target status is expressed with domain:status and rgp:rgpStatus
+        // elements, so both namespaces have to be present to read them
+        if (isset($ns['domain'])) {
+          foreach ($change->targetStatus->children($ns['domain'])->status as $child) {
+            $states[] = (string)$child->attributes()->s;
+          }
         }
-        foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->chgStatusMsgData->targetStatus->children($ns['rgp'])->rgpStatus as $child) {
-          $msg[] = $child->attributes()->s;
+        if (isset($ns['rgp'])) {
+          foreach ($change->targetStatus->children($ns['rgp'])->rgpStatus as $child) {
+            $states[] = (string)$child->attributes()->s;
+          }
         }
       }
       return array(
         'type'   => 'chgStatusMsgData',
-        'domain' => $this->stripTrailingDots($domain),
-        'data'   => $title . " (" . implode(", ", $msg) . ")",
+        'domain' => $this->stripTrailingDots((string)$change->name),
+        'data'   => $title . " (" . implode(", ", $states) . ")",
       );
     }
 
     // dlgMsgData
-    if (@is_object($this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name)) {
-      $domain = (string)$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->name;
-      $title = (string)$this->xmlResult->response->msgQ->msg;
-      $msg = array();
-      foreach (@$this->xmlResult->response->extension->children($ns['extdom'])->dlgMsgData->ns as $child) {
-        $msg[] = (string)$child;
+    if ($extdom !== null && isset($extdom->dlgMsgData->name)) {
+      $delegation = $extdom->dlgMsgData;
+      $nameservers = array();
+      foreach ($delegation->ns as $child) {
+        $nameservers[] = (string)$child;
       }
       return array(
         'type'   => 'dlgMsgData',
-        'domain' => $this->stripTrailingDots($domain),
-        'data'   => $title . " (" . implode(", ", $msg) . ")",
+        'domain' => $this->stripTrailingDots((string)$delegation->name),
+        'data'   => $title . " (" . implode(", ", $nameservers) . ")",
       );
     }
 
     // domain transfers
-    if (@is_object($this->xmlResult->response->resData->children($ns['domain'])->trnData->name)) {
-      $domain = (string)$this->xmlResult->response->resData->children($ns['domain'])->trnData->name;
-      $type = $this->xmlResult->response->resData->children($ns['domain'])->trnData->trStatus . "Transfer";
-      $title = (string)$this->xmlResult->response->msgQ->msg . ": from " .
-        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID .
-        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->acDate . ") to " .
-        @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID .
-        " (" . @$this->xmlResult->response->resData->children($ns['domain'])->trnData->reDate . ")";
+    if (isset($ns['domain'], $this->xmlResult->response->resData)
+        && isset($this->xmlResult->response->resData->children($ns['domain'])->trnData->name)) {
+      $transfer = $this->xmlResult->response->resData->children($ns['domain'])->trnData;
       // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers.
       // Both are cast to string here: they are bound straight into the messages
       // INSERT by poll(), and a SimpleXMLElement only survives PDO binding via
       // its __toString(), which is an accident waiting to change.
       return array(
-        'type'   => (string)$type,
-        'domain' => $this->stripTrailingDots($domain),
-        'data'   => $title,
-        'acID'   => (string)@$this->xmlResult->response->resData->children($ns['domain'])->trnData->acID,
-        'reID'   => (string)@$this->xmlResult->response->resData->children($ns['domain'])->trnData->reID,
+        'type'   => (string)$transfer->trStatus . "Transfer",
+        'domain' => $this->stripTrailingDots((string)$transfer->name),
+        'data'   => $title . ": from " . (string)$transfer->acID .
+                    " (" . (string)$transfer->acDate . ") to " . (string)$transfer->reID .
+                    " (" . (string)$transfer->reDate . ")",
+        'acID'   => (string)$transfer->acID,
+        'reID'   => (string)$transfer->reID,
       );
     }
 

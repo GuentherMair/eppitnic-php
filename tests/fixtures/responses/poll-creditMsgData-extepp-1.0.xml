@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="15855402">
+      <qDate>2012-06-26T07:00:07+02:00</qDate>
+      <msg lang="en">Credit is under the threshold set by the registrar</msg>
+    </msgQ>
+    <extension>
+      <extepp:creditMsgData xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extepp-1.0 extepp-1.0.xsd">
+        <extepp:credit>1234.56</extepp:credit>
+      </extepp:creditMsgData>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

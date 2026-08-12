@@ -105,57 +105,101 @@ final class ResponseParsingTest extends EppTestCase
     }
 
     /**
-     * Poll messages, by registry message type. These drive
-     * Session::parsePollReq(), whose branches are the least covered and most
-     * shape-sensitive code in the project.
+     * Poll messages, one per document shape actually seen in the queue.
      *
-     * @return array<string, array{0: string, 1: string}> fixture => expected parsed type
+     * Both the extdom-1.0 and extdom-2.0 variants are listed on purpose:
+     * nic.it reused element names across the two versions while changing their
+     * structure, and the queue still holds both. A parser that handles only
+     * the shape currently being sent silently drops years of history; one that
+     * handles only the historical shape silently drops everything new.
+     *
+     * @return array<string, array{0: string, 1: string, 2: bool}>
+     *         fixture => [fixture, expected type, carries a domain]
      */
     public static function pollFixtures(): array {
         return [
-            'chgStatusMsgData'       => ['poll-chgStatusMsgData', 'chgStatusMsgData'],
-            'simpleMsgData'          => ['poll-simpleMsgData', 'simpleMsgData'],
-            'passwdReminder'         => ['poll-passwdReminder', 'passwdReminder'],
-            'creditMsgData'          => ['poll-creditMsgData', 'creditMsgData'],
-            'pendingTransfer'        => ['poll-pendingTransfer', 'pendingTransfer'],
-            'clientApprovedTransfer' => ['poll-clientApprovedTransfer', 'clientApproved'],
-            'serverApprovedTransfer' => ['poll-serverApprovedTransfer', 'serverApproved'],
+            'chgStatus 1.0'      => ['poll-chgStatusMsgData-extdom-1.0', 'chgStatusMsgData', true],
+            'chgStatus 2.0'      => ['poll-chgStatusMsgData-extdom-2.0', 'chgStatusMsgData', true],
+            'simpleMsg 1.0'      => ['poll-simpleMsgData-extdom-1.0', 'simpleMsgData', true],
+            'simpleMsg 2.0'      => ['poll-simpleMsgData-extdom-2.0', 'simpleMsgData', true],
+            'dnsError 1.0'       => ['poll-dnsErrorMsgData-extdom-1.0', 'dnsErrorMsgData', true],
+            'dnsError 2.0'       => ['poll-dnsErrorMsgData-extdom-2.0', 'dnsErrorMsgData', true],
+            'dnsWarning 2.0'     => ['poll-dnsWarningMsgData-extdom-2.0', 'dnsWarningMsgData', true],
+            'delayedDebit 2.0'   => ['poll-delayedDebitAndRefundMsgData-extdom-2.0', 'delayedDebitAndRefundMsgData', true],
+            'passwdReminder 1.0' => ['poll-passwdReminder-extepp-1.0', 'passwdReminder', false],
+            'passwdReminder 2.0' => ['poll-passwdReminder-extepp-2.0', 'passwdReminder', false],
+            'credit 1.0'         => ['poll-creditMsgData-extepp-1.0', 'creditMsgData', false],
+            'credit 2.0'         => ['poll-creditMsgData-extepp-2.0', 'creditMsgData', false],
+            'trade 1.0'          => ['poll-trade-extdom-1.0', 'Transfer', true],
+            'trade 2.0'          => ['poll-trade-extdom-2.0', 'Transfer', true],
+            'transfer pending'   => ['poll-transfer-pending', 'pendingTransfer', true],
+            'transfer client'    => ['poll-transfer-clientApproved', 'clientApprovedTransfer', true],
+            'transfer server'    => ['poll-transfer-serverApproved', 'serverApprovedTransfer', true],
         ];
     }
 
-    #[DataProvider('pollFixtures')]
-    public function testPollMessageIsClassified(string $fixture, string $expectedType): void {
+    private function parsePoll(string $fixture): array {
         $this->transport->queue(self::fixture($fixture));
 
         $session = new Session($this->nic);
         $session->poll(false, 'req');
 
-        $parsed = (new \ReflectionMethod(Session::class, 'parsePollReq'))->invoke($session);
+        return (new \ReflectionMethod(Session::class, 'parsePollReq'))->invoke($session);
+    }
+
+    #[DataProvider('pollFixtures')]
+    public function testPollMessageIsClassified(string $fixture, string $expectedType, bool $hasDomain): void {
+        $parsed = $this->parsePoll($fixture);
 
         $this->assertStringContainsString(
             $expectedType,
             $parsed['type'],
-            "poll message classified as '{$parsed['type']}'"
+            "'{$fixture}' was classified as '{$parsed['type']}'"
         );
     }
 
     /**
-     * A message about a specific domain must carry that domain through: the
-     * DNS-sync queue and PollProcessor act on it, and a message parsed without
-     * one is a message nothing can act on.
+     * A message about a specific domain must carry that domain through.
+     *
+     * This is the assertion that matters operationally rather than
+     * cosmetically: PollProcessor, the DNS-sync queue and the reminders view
+     * all key off messages.domain, so a message parsed without one is a
+     * message nothing downstream can act on. A DNS failure that arrives as
+     * "unknown, domain ''" is a DNS failure nobody is told about.
      */
     #[DataProvider('pollFixtures')]
-    public function testDomainScopedPollMessagesCarryTheirDomain(string $fixture, string $expectedType): void {
-        if (in_array($expectedType, ['passwdReminder', 'creditMsgData'], true)) {
-            $this->markTestSkipped("{$expectedType} is not about a domain");
+    public function testDomainScopedPollMessagesCarryTheirDomain(string $fixture, string $expectedType, bool $hasDomain): void {
+        if ( ! $hasDomain) {
+            $this->markTestSkipped("{$expectedType} is not about a particular domain");
         }
 
-        $this->transport->queue(self::fixture($fixture));
-
-        $session = new Session($this->nic);
-        $session->poll(false, 'req');
-        $parsed = (new \ReflectionMethod(Session::class, 'parsePollReq'))->invoke($session);
+        $parsed = $this->parsePoll($fixture);
 
         $this->assertNotSame('', $parsed['domain'], "'{$fixture}' lost the domain it refers to");
+        $this->assertStringEndsNotWith('.', $parsed['domain'], 'trailing dot not stripped');
+    }
+
+    /**
+     * Every poll message must carry a non-empty human-readable summary --
+     * it is what an operator reads in the poll-queue view.
+     */
+    #[DataProvider('pollFixtures')]
+    public function testPollMessagesCarryASummary(string $fixture, string $expectedType, bool $hasDomain): void {
+        $this->assertNotSame('', trim((string) $this->parsePoll($fixture)['data']), "'{$fixture}' produced no summary");
+    }
+
+    /**
+     * The DNS check results are the reason 7.2 mattered: the per-test
+     * outcomes are what tells an operator *why* a zone failed validation.
+     */
+    public function testDnsErrorSummaryIncludesFailedTests(): void {
+        foreach (['poll-dnsErrorMsgData-extdom-1.0', 'poll-dnsErrorMsgData-extdom-2.0'] as $fixture) {
+            $parsed = $this->parsePoll($fixture);
+            $this->assertMatchesRegularExpression(
+                '/\b(FAILED|SUCCEEDED|WARNING)\b/',
+                $parsed['data'],
+                "'{$fixture}' summary carries no test outcomes: {$parsed['data']}"
+            );
+        }
     }
 }

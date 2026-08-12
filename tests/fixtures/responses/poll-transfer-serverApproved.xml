@@ -4,18 +4,18 @@
     <result code="1301">
       <msg lang="en">Command completed successfully; ack to dequeue</msg>
     </result>
-    <msgQ count="1" id="150598467">
-      <qDate>2025-08-04T10:47:13.000+02:00</qDate>
-      <msg lang="en">Domain and trade transfer has been example-17.it should therefore remove the records contained on your nameservers for such domain name.</msg>
+    <msgQ count="1" id="155039125">
+      <qDate>2026-01-13T00:54:14.000+01:00</qDate>
+      <msg lang="en">Domain transfer is expired: transfer has been example-22.it should therefore remove the records contained on your nameservers for such domain name.</msg>
     </msgQ>
     <resData>
       <domain:trnData>
-        <domain:name>example-24.it</domain:name>
-        <domain:trStatus>clientApproved</domain:trStatus>
+        <domain:name>example-21.it</domain:name>
+        <domain:trStatus>serverApproved</domain:trStatus>
         <domain:reID>TEST-REG</domain:reID>
-        <domain:reDate>2025-08-04T10:38:07.000+02:00</domain:reDate>
+        <domain:reDate>2026-01-12T08:52:55.000+01:00</domain:reDate>
         <domain:acID>OTHER-REG</domain:acID>
-        <domain:acDate>2025-08-04T10:47:12.541+02:00</domain:acDate>
+        <domain:acDate>2026-01-13T00:54:14.324+01:00</domain:acDate>
       </domain:trnData>
     </resData>
     <trID>

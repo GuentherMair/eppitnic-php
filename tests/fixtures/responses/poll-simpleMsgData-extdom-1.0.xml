@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:ietf:params:xml:ns:epp-1.0 epp-1.0.xsd">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="12753044">
+      <qDate>2012-03-05T06:16:00+01:00</qDate>
+      <msg lang="en">Domain has been deleted</msg>
+    </msgQ>
+    <extension>
+      <extdom:simpleMsgData xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-1.0" xsi:schemaLocation="http://www.nic.it/ITNIC-EPP/extdom-1.0 extdom-1.0.xsd">
+        <extdom:name>example-40.it</extdom:name>
+      </extdom:simpleMsgData>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>

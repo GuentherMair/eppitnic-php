@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<epp xmlns="urn:ietf:params:xml:ns:epp-1.0" xmlns:domain="urn:ietf:params:xml:ns:domain-1.0" xmlns:contact="urn:ietf:params:xml:ns:contact-1.0" xmlns:rgp="urn:ietf:params:xml:ns:rgp-1.0" xmlns:extcon="http://www.nic.it/ITNIC-EPP/extcon-1.0" xmlns:extdom="http://www.nic.it/ITNIC-EPP/extdom-2.0" xmlns:extepp="http://www.nic.it/ITNIC-EPP/extepp-2.0">
+  <response>
+    <result code="1301">
+      <msg lang="en">Command completed successfully; ack to dequeue</msg>
+    </result>
+    <msgQ count="1" id="137119347">
+      <qDate>2024-05-09T14:51:15.000+02:00</qDate>
+      <msg lang="en">Debit renew for restoring expired domain in pendingDelete/redemptionPeriod</msg>
+    </msgQ>
+    <extension>
+      <extdom:delayedDebitAndRefundMsgData>
+        <extdom:name>example-31.it</extdom:name>
+        <extdom:amount>4.026</extdom:amount>
+      </extdom:delayedDebitAndRefundMsgData>
+    </extension>
+    <trID>
+      <clTRID>TEST-0000000000-00000</clTRID>
+      <svTRID>TEST-SVTRID</svTRID>
+    </trID>
+  </response>
+</epp>
