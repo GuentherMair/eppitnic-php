@@ -4,6 +4,7 @@ namespace Net\EPP\Tests\Wire;
 
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;
+use Net\EPP\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -20,75 +21,6 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 final class SchemaValidationTest extends EppTestCase
 {
-    /**
-     * realpath()'d, deliberately: the registry schemas import each other by
-     * relative location, and libxml keys its "already imported" bookkeeping on
-     * the literal URI. Handing it '…/tests/Wire/../../xsd/epp-1.0.xsd' while
-     * contact-1.0.xsd imports '…/xsd/epp-1.0.xsd' makes it treat one schema as
-     * two, and it then drops one of them with a warning that buries the real
-     * validation errors.
-     */
-    private static function xsdDir(): string {
-        return realpath(__DIR__ . '/../../xsd');
-    }
-
-    /**
-     * Namespaces a request may use, mapped to the schema file that defines
-     * them. A null value means "known to be used by this codebase, but no
-     * schema has been provided" -- see testSchemaSetIsComplete().
-     *
-     * Exactly one file per namespace. domain-1.0 and rgp-1.0 are deliberately
-     * reached through nic.it's own domain-itnic.xsd / rgp-itnic.xsd, which
-     * <include> the IETF originals and add the global <domain:status> and
-     * <rgp:rgpStatus> element declarations the registry's poll messages put
-     * directly inside <extdom:targetStatus> (see Session::parsePollReq()).
-     * Importing both the wrapper and the file it includes would make libxml
-     * treat one namespace as two and silently drop a schema.
-     *
-     * extdom-1.0.xsd and extepp-1.0.xsd are present in xsd/ but intentionally
-     * absent here: the code and the live registry both speak the 2.0 versions.
-     */
-    private const SCHEMAS = [
-        'urn:ietf:params:xml:ns:epp-1.0'              => 'epp-1.0.xsd',
-        'urn:ietf:params:xml:ns:eppcom-1.0'           => 'eppcom-1.0.xsd',
-        'urn:ietf:params:xml:ns:domain-1.0'           => 'domain-itnic.xsd',
-        'urn:ietf:params:xml:ns:contact-1.0'          => 'contact-1.0.xsd',
-        'urn:ietf:params:xml:ns:host-1.0'             => 'host-1.0.xsd',
-        'urn:ietf:params:xml:ns:rgp-1.0'              => 'rgp-itnic.xsd',
-        'urn:ietf:params:xml:ns:secDNS-1.1'           => 'secDNS-1.1.xsd',
-        'http://www.nic.it/ITNIC-EPP/extcon-1.0'      => 'extcon-1.0.xsd',
-        'http://www.nic.it/ITNIC-EPP/extdom-2.0'      => 'extdom-2.0.xsd',
-        'http://www.nic.it/ITNIC-EPP/extepp-2.0'      => 'extepp-2.0.xsd',
-        'http://www.nic.it/ITNIC-EPP/extsecDNS-1.0'   => 'extsecDNS-1.0.xsd',
-        'http://www.nic.it/ITNIC-EPP/extgovcon-1.0'   => 'extgovcon-1.0.xsd',
-        'http://www.nic.it/ITNIC-EPP/extgovdom-1.0'   => 'extgovdom-1.0.xsd',
-    ];
-
-    /**
-     * An XSD whose only job is to pull every available schema into one
-     * validation context, so a document mixing epp-1.0 with domain-1.0 and
-     * extcon-1.0 can be validated in a single pass.
-     */
-    private static function catalogSchema(): string {
-        $imports = '';
-        foreach (self::SCHEMAS as $ns => $file) {
-            if ($file === null) {
-                continue;
-            }
-            $path = self::xsdDir() . '/' . $file;
-            $imports .= sprintf(
-                '  <xs:import namespace="%s" schemaLocation="%s"/>' . "\n",
-                htmlspecialchars($ns, ENT_XML1),
-                htmlspecialchars('file://' . $path, ENT_XML1)
-            );
-        }
-
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-             . "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n"
-             . $imports
-             . "</xs:schema>\n";
-    }
-
     /**
      * Compile the catalog on its own and report what libxml made of it.
      *
@@ -108,7 +40,7 @@ final class SchemaValidationTest extends EppTestCase
         }
 
         $file = tempnam(sys_get_temp_dir(), 'eppitnic-catalog-') . '.xsd';
-        file_put_contents($file, self::catalogSchema());
+        file_put_contents($file, RegistrySchemas::catalog());
 
         $previous = libxml_use_internal_errors(true);
         libxml_clear_errors();
@@ -164,10 +96,10 @@ final class SchemaValidationTest extends EppTestCase
             if ($ns === 'http://www.w3.org/2001/XMLSchema-instance') {
                 continue;
             }
-            if ( ! array_key_exists($ns, self::SCHEMAS)) {
+            if ( ! array_key_exists($ns, RegistrySchemas::SCHEMAS)) {
                 $this->fail("'{$name}' uses namespace '{$ns}', which this test does not know about at all");
             }
-            if (self::SCHEMAS[$ns] === null) {
+            if (RegistrySchemas::SCHEMAS[$ns] === null) {
                 $unsatisfied[] = $ns;
             }
         }
@@ -183,7 +115,7 @@ final class SchemaValidationTest extends EppTestCase
 
         $dom = new \DOMDocument();
         $dom->loadXML($xml);
-        $valid = $dom->schemaValidateSource(self::catalogSchema());
+        $valid = $dom->schemaValidateSource(RegistrySchemas::catalog());
         $errors = array_map(
             fn($e) => trim($e->message) . ' (line ' . $e->line . ')',
             libxml_get_errors()
@@ -218,7 +150,7 @@ final class SchemaValidationTest extends EppTestCase
      * verifies before the registry rejects it.
      */
     public function testSchemaSetIsComplete(): void {
-        $missing = array_keys(array_filter(self::SCHEMAS, fn($f) => $f === null));
+        $missing = array_keys(array_filter(RegistrySchemas::SCHEMAS, fn($f) => $f === null));
 
         $this->assertSame(
             [],

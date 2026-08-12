@@ -45,6 +45,41 @@ use RedBeanPHP\R;
 
 class Session extends AbstractObject
 {
+  /**
+   * The poll-message vocabulary: every extension element the registry can put
+   * in a poll response, and which parsePollReq() therefore has a branch for.
+   * These are the values that end up in `messages`.`type`.
+   *
+   * The names are the registry's own element names, deliberately, rather than
+   * anything of our own invention: they are declared, versioned and documented
+   * upstream in xsd/extdom-2.0.xsd and xsd/extepp-2.0.xsd, so a name here
+   * cannot drift from what the registry means by it.
+   *
+   * This list is not decoration -- SessionPollCoverageTest reads the schemas
+   * and fails if the registry declares a message type that is missing from it.
+   * When that happens, add the branch and the entry together; do not just add
+   * the entry.
+   *
+   * Transfer notifications are not here: they arrive in <resData> rather than
+   * <extension> and are typed '<trStatus>Transfer' after the registry's own
+   * transfer status, which PollProcessor matches with LIKE '%Transfer'.
+   */
+  public const POLL_MESSAGE_ELEMENTS = array(
+    // extdom -- object-scoped notifications
+    'chgStatusMsgData',
+    'delayedDebitAndRefundMsgData',
+    'dlgMsgData',
+    'dnsErrorMsgData',
+    'dnsWarningMsgData',
+    'refundRenewsForBulkTransferMsgData',
+    'remappedIdnData',
+    'simpleMsgData',
+    // extepp -- account-scoped notifications
+    'creditMsgData',
+    'passwdReminder',
+    'wrongNamespaceReminder',
+  );
+
   protected $credit = null;
   protected $messages = null;
   protected $msgID = null;
@@ -347,6 +382,21 @@ class Session extends AbstractObject
       );
     }
 
+    // wrongNamespaceReminder -- the registry warning that we are still sending
+    // an outdated extension namespace. Account-scoped, no domain: it is about
+    // this client's protocol usage, not about any one object.
+    if ($extepp !== null && isset($extepp->wrongNamespaceReminder)) {
+      $namespaces = array();
+      foreach ($extepp->wrongNamespaceReminder->wrongNamespaceInfo as $info) {
+        $namespaces[] = (string)$info->wrongNamespace . " -> " . (string)$info->rightNamespace;
+      }
+      return array(
+        'type'   => 'wrongNamespaceReminder',
+        'domain' => '',
+        'data'   => $title . (empty($namespaces) ? "" : " (" . implode(", ", $namespaces) . ")"),
+      );
+    }
+
     // delayedDebitAndRefundMsgData. Declared in extdom-2.0, not extepp -- this
     // used to be looked for under extepp only, so every one of them fell
     // through to 'unknown' and the domain being debited was discarded.
@@ -359,6 +409,33 @@ class Session extends AbstractObject
           'data'   => $title . " (" . (string)$data->name . " / " . (string)$data->amount . ")",
         );
       }
+    }
+
+    // refundRenewsForBulkTransferMsgData -- a bulk operation covering many
+    // domains at once, so there is deliberately no single domain to record;
+    // the bulkTransferId is what ties it back to the operation.
+    if ($extdom !== null && isset($extdom->refundRenewsForBulkTransferMsgData->bulkTransferId)) {
+      $refund = $extdom->refundRenewsForBulkTransferMsgData;
+      return array(
+        'type'   => 'refundRenewsForBulkTransferMsgData',
+        'domain' => '',
+        'data'   => $title . " (" . (string)$refund->domainsNum . " domains / " .
+                    (string)$refund->amount . " / bulk transfer " . (string)$refund->bulkTransferId . ")",
+      );
+    }
+
+    // remappedIdnData -- the registry created a *different* IDN from the one
+    // requested. The created name is the one that now exists, so that is what
+    // goes in the domain column; without this the local record would name a
+    // domain the registry does not have.
+    if ($extdom !== null && isset($extdom->remappedIdnData->idnCreated)) {
+      $remap = $extdom->remappedIdnData;
+      return array(
+        'type'   => 'remappedIdnData',
+        'domain' => $this->stripTrailingDots((string)$remap->idnCreated),
+        'data'   => $title . " (requested " . (string)$remap->idnRequested .
+                    ", created " . (string)$remap->idnCreated . ")",
+      );
     }
 
     // dnsWarningMsgData (extdom-2.0). Deliberately tested before
