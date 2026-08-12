@@ -3,6 +3,7 @@
 namespace Net\EPP\Cli;
 
 use Net\EPP\Client;
+use Net\EPP\Config;
 use Net\EPP\Helpers;
 use Net\EPP\IT\Session;
 
@@ -37,6 +38,9 @@ abstract class Command
 
     /** set only by useClient(), for tests */
     private ?Client $client = null;
+
+    /** where warn() writes; swapped by the test suite to keep its output clean */
+    private $errorStream = null;
 
     // ---------------------------------------------------------------
     // what a subcommand declares about itself
@@ -183,8 +187,19 @@ abstract class Command
     }
 
     // ---------------------------------------------------------------
-    // registry session
+    // database / registry session
     // ---------------------------------------------------------------
+
+    /**
+     * Ensure the database is connected and migrated.
+     *
+     * Only needed by commands that read or write locally without opening a
+     * registry session: everything else gets the connection as a side effect
+     * of Client's constructor reading its settings.
+     */
+    protected function database(): void {
+        Config::init();
+    }
 
     /**
      * Run $fn against a logged-in registry session.
@@ -231,7 +246,16 @@ abstract class Command
      * not swallowed by an output buffer along with stdout.
      */
     protected function warn(string $text): void {
-        fwrite(STDERR, $text . "\n");
+        fwrite($this->errorStream ?? STDERR, $text . "\n");
+    }
+
+    /**
+     * Send warnings somewhere other than STDERR. Test suite only.
+     *
+     * @param resource $stream
+     */
+    public function useErrorStream($stream): void {
+        $this->errorStream = $stream;
     }
 
     /**

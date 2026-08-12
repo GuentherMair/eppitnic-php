@@ -35,6 +35,7 @@ final class DomainCommandTest extends EppTestCase
 
         $this->nic->setTransport($transport);
         $command->useClient($this->nic);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
 
         ob_start();
         $fn();

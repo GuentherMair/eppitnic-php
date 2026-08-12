@@ -22,8 +22,16 @@ final class Application
      */
     public static function commands(): array {
         return [
-            'domain info'  => DomainInfoCommand::class,
-            'domain check' => DomainCheckCommand::class,
+            'domain info'             => DomainInfoCommand::class,
+            'domain check'            => DomainCheckCommand::class,
+            'domain export'           => DomainExportCommand::class,
+            'contact info'            => ContactInfoCommand::class,
+            'contact check'           => ContactCheckCommand::class,
+            'session hello'           => SessionHelloCommand::class,
+            'session credit'          => SessionCreditCommand::class,
+            'poll list'               => PollListCommand::class,
+            'doctor ownership'        => DoctorOwnershipCommand::class,
+            'doctor inactive-domains' => DoctorInactiveDomainsCommand::class,
         ];
     }
 
