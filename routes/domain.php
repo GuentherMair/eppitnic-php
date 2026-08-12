@@ -4,6 +4,7 @@ use Net\EPP\Client;
 use Net\EPP\Helpers;
 use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
+use Net\EPP\Service\DomainService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -316,35 +317,10 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($params, $user_id) {
-            $domain = new Domain($nic);
-            $available = $domain->check($params['domain']);
-
-            $domain->set('domain', $params['domain']);
-            $domain->set('registrant', $params['registrant']);
-            if ( ! empty($params['admin'])) $domain->set('admin', $params['admin']);
-            foreach ((array) ($params['tech'] ?? []) as $tech) $domain->addTECH($tech);
-            foreach ((array) ($params['ns'] ?? []) as $ns) $domain->addNS($ns['name'] ?? $ns, $ns['ip'] ?? null);
-            $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
-
-            if ($available === TRUE) {
-                if ( ! $domain->create()) {
-                    return ['ok' => false, 'error' => $domain->getError()];
-                }
-            } else if ($available === FALSE) {
-                if ( ! $domain->transfer($params['domain'], $domain->get('authinfo'))) {
-                    return ['ok' => false, 'error' => $domain->getError()];
-                }
-            } else {
-                return ['ok' => false, 'error' => $domain->getError()];
-            }
-
-            // a fresh registration is a DNS-sync 'create' event; a requested transfer-in
-            // is NOT -- that only becomes real once PollProcessor sees it complete
-            $domain->storeDB($user_id, $available === TRUE);
-
-            return ['ok' => true, 'domain' => $domain];
-        }, $debug);
+        $result = Helpers::withEppSession(
+            fn($nic) => DomainService::createOrTransfer($nic, $params, $user_id),
+            $debug
+        );
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -366,54 +342,10 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
     }
 
     try {
-        $results = Helpers::withEppSession(function ($nic) use ($names, $user_id) {
-            $domain = new Domain($nic);
-            $contact = new Contact($nic);
-            $idnDecoder = new \Algo26\IdnaConvert\ToUnicode();
-
-            $results = [];
-            foreach ($names as $name) {
-                $result = [
-                    'step1_domain'     => 'unknown',
-                    'step2_registrant' => 'unknown',
-                    'step3_reg_store'  => 'unknown',
-                    'step4_dom_store'  => 'unknown',
-                ];
-
-                // IT-NIC does not respond to queries for "xn--..." domain names!
-                $name = $idnDecoder->convert(strtolower($name));
-
-                if ( ! $domain->fetch($name)) {
-                    $result['step1_domain'] = 'not found';
-                    $domain->deleteDomainDB($name, $user_id, true);
-                    $results[$name] = $result;
-                    continue;
-                }
-                $result['step1_domain'] = 'found';
-
-                if ( ! $contact->fetch($domain->get('registrant'))) {
-                    $result['step2_registrant'] = 'not found';
-                    $results[$name] = $result;
-                    continue;
-                }
-                $result['step2_registrant'] = 'found';
-
-                // if the registrant already exists locally, keep its current owner
-                $registrant = R::getRow("SELECT user_id FROM contacts WHERE handle = ?", [$domain->get('registrant')]);
-                $effectiveUserID = empty($registrant) ? $user_id : (int) $registrant['user_id'];
-                $result['step3_reg_store'] = $contact->storeDB($effectiveUserID) ? 'stored' : 'not stored';
-
-                if ($domain->storeDB($effectiveUserID)) {
-                    $result['step4_dom_store'] = 'stored';
-                    R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
-                } else {
-                    $result['step4_dom_store'] = 'not stored';
-                }
-
-                $results[$name] = $result;
-            }
-            return $results;
-        }, $debug);
+        $results = Helpers::withEppSession(
+            fn($nic) => DomainService::import($nic, $names, $user_id),
+            $debug
+        );
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }

@@ -433,7 +433,21 @@ class Domain extends AbstractObject
     // query server
     if ($this->ExecuteQuery("domain-check", implode(";", $domain))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
+
+      // as in fetch(): a success code is not a promise of a payload. Here it
+      // mattered more -- count() on the missing chkData is a TypeError, so an
+      // unexpected response killed the process outright
+      if ( ! isset($ns['domain'], $this->xmlResult->response->resData)) {
+        $this->setError("The registry accepted the check but returned no data.");
+        return -1;
+      }
+
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
+      if ( ! isset($tmp->chkData->cd)) {
+        $this->setError("The registry returned no availability data.");
+        return -1;
+      }
+
       if (count($tmp->chkData->cd) == 1) {
         if ($tmp->chkData->cd->name->attributes()->avail == "true") {
           return TRUE;

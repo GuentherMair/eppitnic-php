@@ -67,10 +67,52 @@ final class DryRunTransport implements Transport
         $request = (string) $postFields;
         $this->requests[] = $request;
 
-        // hello is answered with a greeting; everything else with a bare
-        // success, which is enough for the object layer to carry on and
-        // generate any further requests the command makes
-        return str_contains($request, '<hello') ? self::GREETING : self::SUCCESS;
+        if (str_contains($request, '<hello')) {
+            return self::GREETING;
+        }
+
+        // A <check> has to be answered with an actual availability, because
+        // the caller branches on it: create-or-transfer picks its command from
+        // the answer, so a bare success would leave it unable to choose and
+        // the preview would show nothing at all. Every name is reported
+        // available, which previews the create branch; a transfer preview is
+        // what `domain transfer request --dry-run` is for.
+        if (preg_match('#<(domain|contact):check\b#', $request, $m)) {
+            return $this->availability($request, $m[1]);
+        }
+
+        // everything else: a bare success, enough for the object layer to
+        // carry on and generate any further requests the command makes
+        return self::SUCCESS;
+    }
+
+    /**
+     * A chkData answer reporting every name in the request as available.
+     */
+    private function availability(string $request, string $prefix): string {
+        $element = $prefix === 'domain' ? 'name' : 'id';
+        preg_match_all("#<{$prefix}:{$element}>([^<]+)</{$prefix}:{$element}>#", $request, $matches);
+
+        $cds = '';
+        foreach ($matches[1] ?? [] as $value) {
+            $cds .= "      <{$prefix}:cd><{$prefix}:{$element} avail=\"true\">"
+                  . htmlspecialchars($value, ENT_XML1)
+                  . "</{$prefix}:{$element}></{$prefix}:cd>\n";
+        }
+
+        $uri = "urn:ietf:params:xml:ns:{$prefix}-1.0";
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n"
+             . "<epp xmlns=\"urn:ietf:params:xml:ns:epp-1.0\">\n"
+             . "  <response>\n"
+             . "    <result code=\"1000\"><msg lang=\"en\">Dry run: not sent</msg></result>\n"
+             . "    <resData>\n"
+             . "      <{$prefix}:chkData xmlns:{$prefix}=\"{$uri}\">\n"
+             . $cds
+             . "      </{$prefix}:chkData>\n"
+             . "    </resData>\n"
+             . "    <trID><svTRID>dry-run</svTRID></trID>\n"
+             . "  </response>\n"
+             . "</epp>\n";
     }
 
     public function getHttpStatus(): int {
