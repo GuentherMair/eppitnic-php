@@ -11,6 +11,13 @@
 4. either a MariaDB/MySQL or another database
 
 
+# ** Warning **
+
+This installation is a breaking change. It will remove the accounting table
+from an existing installation in case of upgrade. Please read the Upgrading
+section for more details!
+
+
 # Installation
 
 Run `composer install` to fetch the third-party dependencies into `vendor/`
@@ -142,23 +149,6 @@ older parser. New messages are parsed correctly from this release on. A
 `doctor reparse-messages` command will re-derive `type`/`domain` for the old
 rows from `msgqueue`; it is **not available yet** and arrives with the CLI
 consolidation (`docs/REFACTOR-PLAN.md`, Phase 3). Nothing depends on it.
-
-If you upgraded before this release, the migration will not run again, so two
-things need doing by hand:
-
-- drop the `accounting` table, which an earlier version of the migration
-  renamed rather than dropped (export anything you need first)
-- add the two ownership foreign keys, which an earlier version assumed were
-  already present:
-
-      ALTER TABLE contacts ADD CONSTRAINT FOREIGN KEY (user_id)
-        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE;
-      ALTER TABLE domains  ADD CONSTRAINT FOREIGN KEY (user_id)
-        REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE;
-
-  Both fail if any row points at a user that no longer exists; find those with
-  `SELECT * FROM contacts c LEFT JOIN users u ON u.id = c.user_id WHERE u.id IS NULL`
-  (and the same for `domains`) before running them.
 
 
 # Web server

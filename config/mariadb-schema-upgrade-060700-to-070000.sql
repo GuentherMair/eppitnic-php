@@ -186,17 +186,13 @@ ALTER TABLE tbl_transfers DROP FOREIGN KEY tbl_transfers_ibfk_1;
 -- ############################################################################
 -- DESTRUCTIVE: tbl_accounting is DROPPED, with every row in it.
 --
--- Invoicing has been taken out of this codebase entirely and will be
--- reimplemented elsewhere, so no target schema has an accounting table and
--- nothing reads one. Keeping it renamed-but-unread was worse than either
--- option: silently carrying customer billing history in a table no code
--- maintains, that no backup policy is written for, and that nobody would
--- think to check.
+-- Invoicing has been taken out of this codebase and will be reimplemented
+-- elsewhere: no target schema has an accounting table and nothing reads one.
 --
 -- EXPORT IT FIRST IF YOU STILL WANT IT. There is no way back from here short
--- of the backup this script's header already told you to take.
+-- of the backup this script's header told you to take.
 --
--- Dropping the table also removes tbl_accounting_ibfk_1, which had to go
+-- Dropping the table also removes tbl_accounting_ibfk_1, which has to go
 -- regardless: users.billingID is dropped in PART 3, and MariaDB refuses to
 -- rebuild a TEXT column that a foreign key references (error 1833).
 -- ############################################################################
@@ -252,11 +248,9 @@ ALTER TABLE tbl_messages
 ALTER TABLE messages
   DROP COLUMN archived;
 
--- tbl_reminder already exists live with real data (AUTO_INCREMENT 70 in the
--- dump), so it gets the same rename + convert treatment as the original 8
--- tables rather than a fresh CREATE TABLE (which would build an empty table
--- under the new name and strand every existing row under the old one).
--- tbl_accounting got no such treatment: it was dropped in full above.
+-- tbl_reminder holds real data, so it is renamed + converted like the other
+-- tables rather than created fresh, which would strand every existing row
+-- under the old name.
 ALTER TABLE tbl_reminder
   RENAME TO reminder,
   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -289,10 +283,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- renamed column -- they do not need to be, and must not be, redeclared here.
 -- ----------------------------------------------------------------------------
 
--- `billingID` is dropped rather than renamed: invoicing has been taken out of
--- this codebase entirely (it will be reimplemented elsewhere), so nothing reads
--- a billing identifier any more. Safe now that PART 2 already dropped
--- tbl_accounting outright, and with it the FK that referenced this column.
+-- `billingID` is dropped, not renamed: nothing reads a billing identifier any
+-- more. PART 2 already dropped tbl_accounting and with it the FK on this column.
 ALTER TABLE users
   DROP COLUMN `billingID`,
   CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
@@ -364,27 +356,16 @@ ALTER TABLE reminder
   ADD KEY `action` (`action`),
   ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Restore the two ownership FKs the target schema declares
--- (config/mariadb-schema.sql): contacts.user_id -> users.id and
--- domains.user_id -> users.id.
+-- The two ownership FKs the target schema declares (contacts.user_id and
+-- domains.user_id -> users.id). A 6.7 dump may or may not carry them, so
+-- each is added only if absent.
 --
--- These were assumed to survive the migration untouched, on the grounds that
--- CONVERT TO CHARACTER SET never rewrites a BIGINT column and so cannot trip
--- error 1833. That reasoning is sound but the premise was not: a real 6.7
--- production dump turns out not to have had them in the first place, so a
--- migrated database ended up with four of the six foreign keys a
--- from-scratch 7.0 install gets. Two databases both calling themselves 7.0
--- while disagreeing about referential integrity is exactly the drift this
--- script exists to remove.
+-- The check is on the column pair, not a constraint name: an existing one
+-- carries whatever name InnoDB generated, so IF NOT EXISTS on a name chosen
+-- here would miss it and add a second, redundant constraint.
 --
--- Added conditionally, keyed on the column pair rather than on a constraint
--- name: a dump that *does* have them carries them under whatever name InnoDB
--- generated (and renaming a table renames its constraints along with it), so
--- an IF NOT EXISTS on a name we choose here would miss them and create a
--- second, redundant constraint.
---
--- Orphan rows are pre-flight checked in PART 1, so these should apply
--- cleanly under FOREIGN_KEY_CHECKS=1.
+-- Orphan rows are pre-flight checked in PART 1, so these apply cleanly under
+-- FOREIGN_KEY_CHECKS=1.
 SET @fk_contacts_user := (
   SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND COLUMN_NAME = 'user_id'

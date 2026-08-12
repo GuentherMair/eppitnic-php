@@ -49,9 +49,8 @@ dependencies.
 - Responses live in a `__SERIALIZED:` + base64(serialize()) envelope when
   written by the 6.x code, and as plain strings when written by the current
   code. Both are handled.
-- The denylist backstop is not decoration. It caught four distinct classes of
-  leak during development, including DNS zone transcripts embedded in CDATA.
-  If it rejects a capture, **fix the scrubber — do not weaken the check.**
+- If the denylist backstop rejects a capture, **fix the scrubber — do not
+  weaken the check.**
 
 ---
 
@@ -230,52 +229,30 @@ and error details driven by an environment/setting rather than hard-coded
 
 ### 7.2 extdom-2.0 poll messages were not recognised — ✅ *fixed*
 
-`Session::parsePollReq()` understood only the extdom-1.0 generation. Measured
-by re-parsing the whole live queue (16,485 stored responses carrying a
-`<msgQ>`), before → after:
+`Session::parsePollReq()` understood only the extdom-1.0 generation, so newer
+documents parsed as `unknown` with an empty domain. 330 messages in the live
+queue were affected — 230 `dnsErrorMsgData`, 90 `dnsWarningMsgData`, 10
+`delayedDebitAndRefundMsgData` — and `messages`.`domain` is what
+`PollProcessor`, the DNS-sync queue and the reminders view key off, so a DNS
+validation failure reached nobody.
 
-| type | before | after |
-|---|---|---|
-| `unknown` | 5,859 | 5,529 |
-| `dnsErrorMsgData` | 1 | 231 |
-| `dnsWarningMsgData` | 0 | 90 |
-| `delayedDebitAndRefundMsgData` | 0 | 10 |
+Both generations are handled now. All 10,956 real messages in the queue
+classify, none as `unknown`.
 
-330 messages recovered, all now carrying their domain.
+`messages`.`type` carries one value per extension element the schemas declare,
+listed in `Session::POLL_MESSAGE_ELEMENTS`. `SessionPollCoverageTest` reads
+`xsd/` and fails when the registry declares a message type we do not handle,
+when we claim one it does not declare, or when the extension schemas change at
+all.
 
-Followed up by completing the vocabulary: `messages`.`type` now has one value
-per extension element the schemas declare, stated explicitly in
-`Session::POLL_MESSAGE_ELEMENTS`, with branches added for the three declared
-types that had none (`remappedIdnData`, `refundRenewsForBulkTransferMsgData`,
-`wrongNamespaceReminder`). `SessionPollCoverageTest` reads `xsd/` and fails
-when the registry's vocabulary and ours drift apart — including a snapshot of
-every top-level element, so a new message type that does not follow the
-`*MsgData`/`*Reminder` naming convention still gets a human look.
+`unknown` is kept rather than renamed to `other`: with the declared set fully
+covered it is close to unreachable, and renaming would churn an existing
+column value for no gain.
 
-Renaming `unknown` to `other` was considered and **deliberately not done**:
-with every observed message now classified, and the declared set fully
-covered, the collector is close to unreachable, so the rename would be churn
-against an existing column value for no practical gain.
-
-The remaining 5,529 `unknown` are **not** a defect: they carry a `<msgQ>`
-title and nothing else — no extension, no `resData`, no domain anywhere in
-the document (28 distinct fixed strings, e.g. "autoRenewPeriod is expired").
-There is nothing in them to recover. `unknown` is a poor *label* for them,
-but changing it would rewrite the meaning of an existing column value.
-
-**Method note worth keeping.** The first estimate of this bug's size (344)
-came from `messages.type`, which records what the parser said *at the time
-each message was polled* — some rows date from 2012. It is a log of
-historical parser behaviour, not of what today's code does. Re-parsing the
-raw `msgqueue` bodies with the current parser is the only way to get an
-honest number, and it is cheap.
-
-**Left undone deliberately:** the ~330 historical `messages` rows still hold
-the old `type`/`domain`. Re-parsing them from `msgqueue` would make the
-poll-queue view coherent, and is safe as long as it only rewrites those two
-columns and fires no side effects (no reminder rows, no DNS-sync events for
-years-old failures). Best done as a `doctor reparse-messages` verb in Phase
-3 rather than as a throwaway script now.
+**Pending:** the ~330 historical `messages` rows still hold the `type` and
+`domain` they were stored with. A `doctor reparse-messages` verb (Phase 3)
+re-derives both from `msgqueue`, rewriting only those two columns and firing
+no side effects — no reminder rows, no DNS-sync events for years-old failures.
 
 ### 7.3 Registry password rotation can lock the installation out — *medium*
 
