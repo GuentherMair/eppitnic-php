@@ -131,7 +131,31 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
 
-    SELECT 'PRE-FLIGHT OK: no collisions, no oversized/NULL reminder data, no orphaned reminder domains.' AS result;
+    -- tbl_contacts.userID / tbl_domains.userID: PART 3 restores the FKs to
+    -- users.id that the target schema declares (config/mariadb-schema.sql).
+    -- A dump whose rows point at a user that no longer exists would make
+    -- those ADD CONSTRAINTs fail.
+    SELECT COUNT(*) INTO cnt
+    FROM tbl_contacts c
+    LEFT JOIN tbl_users u ON u.id = c.userID
+    WHERE u.id IS NULL;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_contacts has ', cnt,
+                          ' row(s) whose userID has no match in tbl_users. Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    SELECT COUNT(*) INTO cnt
+    FROM tbl_domains d
+    LEFT JOIN tbl_users u ON u.id = d.userID
+    WHERE u.id IS NULL;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_domains has ', cnt,
+                          ' row(s) whose userID has no match in tbl_users. Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
+
+    SELECT 'PRE-FLIGHT OK: no collisions, no oversized/NULL reminder data, no orphaned reminder domains or user references.' AS result;
 END$$
 
 DELIMITER ;
@@ -339,6 +363,45 @@ ALTER TABLE reminder
   ADD KEY `domain` (`domain`),
   ADD KEY `action` (`action`),
   ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Restore the two ownership FKs the target schema declares
+-- (config/mariadb-schema.sql): contacts.user_id -> users.id and
+-- domains.user_id -> users.id.
+--
+-- These were assumed to survive the migration untouched, on the grounds that
+-- CONVERT TO CHARACTER SET never rewrites a BIGINT column and so cannot trip
+-- error 1833. That reasoning is sound but the premise was not: a real 6.7
+-- production dump turns out not to have had them in the first place, so a
+-- migrated database ended up with four of the six foreign keys a
+-- from-scratch 7.0 install gets. Two databases both calling themselves 7.0
+-- while disagreeing about referential integrity is exactly the drift this
+-- script exists to remove.
+--
+-- Added conditionally, keyed on the column pair rather than on a constraint
+-- name: a dump that *does* have them carries them under whatever name InnoDB
+-- generated (and renaming a table renames its constraints along with it), so
+-- an IF NOT EXISTS on a name we choose here would miss them and create a
+-- second, redundant constraint.
+--
+-- Orphan rows are pre-flight checked in PART 1, so these should apply
+-- cleanly under FOREIGN_KEY_CHECKS=1.
+SET @fk_contacts_user := (
+  SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND COLUMN_NAME = 'user_id'
+    AND REFERENCED_TABLE_NAME = 'users' AND REFERENCED_COLUMN_NAME = 'id');
+SET @sql := IF(@fk_contacts_user = 0,
+  'ALTER TABLE contacts ADD CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE',
+  'DO 0');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @fk_domains_user := (
+  SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'domains' AND COLUMN_NAME = 'user_id'
+    AND REFERENCED_TABLE_NAME = 'users' AND REFERENCED_COLUMN_NAME = 'id');
+SET @sql := IF(@fk_domains_user = 0,
+  'ALTER TABLE domains ADD CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE',
+  'DO 0');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 
 -- ----------------------------------------------------------------------------
