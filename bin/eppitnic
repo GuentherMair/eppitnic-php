@@ -1,0 +1,28 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * eppitnic command line interface.
+ *
+ * All the work is in Net\EPP\Cli; this file is only the entry point, so that
+ * dispatch and every subcommand stay testable without spawning a process.
+ */
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "eppitnic must be run from the command line.\n");
+    exit(1);
+}
+
+require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+use Net\EPP\Cli\Application;
+
+try {
+    exit((new Application())->run($argv));
+} catch (\RuntimeException $e) {
+    // Config throws these for a missing config/config.php or an unreachable
+    // database -- a setup problem, and one worth stating plainly rather than
+    // as a stack trace
+    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+    exit(CONFIG_ERROR);
+}

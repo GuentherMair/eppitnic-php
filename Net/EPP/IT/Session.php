@@ -138,11 +138,17 @@ class Session extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery($which, "")) {
-      // see if we got the expected information
-      if (is_object($this->xmlResult->response->extension)) {
-        $ns = $this->xmlResult->getNamespaces(TRUE);
-        $tmp = $this->xmlResult->response->extension->children($ns['extepp']);
-        $this->credit = (float)$tmp->creditMsgData->credit;
+      // The registry reports the remaining credit as an extepp extension on
+      // login and logout. is_object() on its own is not a test for presence:
+      // SimpleXML answers a missing child with an empty element, so this used
+      // to walk into children($ns['extepp']) whether or not the document had
+      // any extepp content -- and index a namespace key that was not there.
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      if (isset($ns['extepp'], $this->xmlResult->response->extension)) {
+        $credit = $this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit;
+        if (isset($credit)) {
+          $this->credit = (float)$credit;
+        }
       }
       return TRUE;
     } else {

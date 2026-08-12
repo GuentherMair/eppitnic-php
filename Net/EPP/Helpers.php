@@ -159,11 +159,14 @@ final class Helpers
      * @param bool $debug turn on EPP diagnostics for everything built from this
      *                    session -- see AbstractObject::$debug. Set from the
      *                    caller's `users`.`debug` column, via actor()['debug'].
+     * @param Client|null $client use this client instead of building one. Only
+     *                    the test suite passes it, to substitute the transport;
+     *                    production always wants a fresh connect-per-request.
      * @return mixed whatever $fn returns
      * @throws \RuntimeException if hello() or login() fails
      */
-    public static function withEppSession(callable $fn, bool $debug = false): mixed {
-        $nic = new Client();
+    public static function withEppSession(callable $fn, bool $debug = false, ?Client $client = null): mixed {
+        $nic = $client ?? new Client();
         // set before anything is constructed from it: AbstractObject copies
         // this at construction, so a later change would not reach the objects
         $nic->debug = $debug;

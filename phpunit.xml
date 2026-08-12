@@ -17,6 +17,9 @@
         <testsuite name="http">
             <directory>tests/Http</directory>
         </testsuite>
+        <testsuite name="cli">
+            <directory>tests/Cli</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

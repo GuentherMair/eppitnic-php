@@ -1,0 +1,118 @@
+<?php
+
+namespace Net\EPP\Cli;
+
+use Net\EPP\IT\Domain;
+
+/**
+ * Everything the registry knows about a domain.
+ *
+ * Replaces CLI/domain.php's read path (and its domain-GetInformation /
+ * domain-GetAuthInfo symlinks), plus examples 011, 012, 022 and 030.
+ */
+final class DomainInfoCommand extends Command
+{
+    public function describe(): string {
+        return 'show registry information for domains';
+    }
+
+    public function arguments(): string {
+        return '<domain>...';
+    }
+
+    public function options(): array {
+        return [
+            'file='     => 'read domain names from this file, one per line',
+            'authinfo=' => 'authinfo code, for a domain sponsored by another registrar',
+            'contacts=' => "also fetch linked contacts: all, registrant, admin or tech",
+            'store'     => 'write what was fetched to the local database',
+        ];
+    }
+
+    public function run(): int {
+        $names = $this->names();
+        if ($names === []) {
+            throw new UsageError('give at least one domain name, or --file=PATH');
+        }
+
+        $contacts = (string) $this->option('contacts', '');
+        if ($contacts !== '' && ! in_array($contacts, ['all', 'registrant', 'admin', 'tech'], true)) {
+            throw new UsageError("--contacts must be one of: all, registrant, admin, tech");
+        }
+
+        $authinfo = (string) $this->option('authinfo', '');
+        $store = $this->hasOption('store');
+        $userId = $this->userId();
+
+        $failures = 0;
+
+        $this->withSession(function ($nic) use ($names, $authinfo, $contacts, $store, $userId, &$failures) {
+            foreach ($names as $name) {
+                // a fresh object per domain: fetch() re-initialises, but
+                // reusing one across names has bitten this codebase before
+                $domain = new Domain($nic);
+
+                if ( ! $domain->fetch($name, $authinfo ?: null, $contacts)) {
+                    $failures++;
+                    $this->warn("{$name}: " . ($domain->getError() ?: 'not found'));
+                    continue;
+                }
+
+                $record = [
+                    'domain'     => $domain->get('domain'),
+                    'registrant' => $domain->get('registrant'),
+                    'admin'      => $domain->get('admin'),
+                    'tech'       => array_keys((array) $domain->get('tech')),
+                    'ns'         => array_keys((array) $domain->get('ns')),
+                    'status'     => $domain->get('status'),
+                    'authinfo'   => $domain->get('authinfo'),
+                    'cr_date'    => $domain->get('crDate'),
+                    'ex_date'    => $domain->get('exDate'),
+                    'dnssec'     => $domain->get('dnssec'),
+                ];
+                if ($contacts !== '') {
+                    $record['contacts'] = $domain->get('infcontacts');
+                }
+
+                $this->record($this->format($record), $record);
+
+                if ($store) {
+                    if ($domain->storeDB($userId)) {
+                        $this->line('  stored locally');
+                    } else {
+                        $failures++;
+                        $this->warn("{$name}: not stored (" . $domain->getError() . ')');
+                    }
+                }
+            }
+        });
+
+        return $failures > 0 ? DOMAIN_FETCH_FAILED : 0;
+    }
+
+    /**
+     * @param array $d the record built above
+     * @return string the human-readable rendering
+     */
+    private function format(array $d): string {
+        $out = $d['domain'] . "\n";
+        $out .= sprintf("  %-12s %s\n", 'registrant', $d['registrant']);
+        $out .= sprintf("  %-12s %s\n", 'admin', $d['admin'] !== '' ? $d['admin'] : '-');
+        foreach ($d['tech'] as $tech) {
+            $out .= sprintf("  %-12s %s\n", 'tech', $tech);
+        }
+        foreach ($d['ns'] as $ns) {
+            $out .= sprintf("  %-12s %s\n", 'ns', $ns);
+        }
+        $out .= sprintf("  %-12s %s\n", 'status', implode(', ', (array) $d['status']));
+        $out .= sprintf("  %-12s %s\n", 'created', $d['cr_date']);
+        $out .= sprintf("  %-12s %s\n", 'expires', $d['ex_date']);
+        $out .= sprintf("  %-12s %s", 'authinfo', $d['authinfo']);
+
+        foreach ((array) $d['dnssec'] as $digest => $key) {
+            $out .= sprintf("\n  %-12s keytag %s, alg %s, digest %s",
+                'dnssec', $key['keytag'], $key['algorithm'], $digest);
+        }
+        return $out;
+    }
+}
