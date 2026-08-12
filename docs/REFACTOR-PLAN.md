@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–2 complete, plus 7.2. Phase 3 is next.
+**Status:** Phases 0–2 complete, plus 7.1 and 7.2. Phase 3 is next.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ are estimates for our own code (`vendor/` excluded).
 | 4 | Smarty → `DOMDocument` | 3–4d | −500 | |
 | 5 | Field maps and persistence | 2–3d | −260 | |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional |
-| 7 | Issues found along the way | ongoing | | 7.2 done; 7.1 next |
+| 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
 
 ---
 
@@ -210,22 +210,23 @@ Phase 5, which is what makes it small.
 Things discovered while doing the above that are real but out of scope where
 they were found. Not busywork: each is a defect with a known reproduction.
 
-### 7.1 Auth failures return HTML, not JSON — *high*
+### 7.1 Auth failures return HTML, not JSON — ✅ *fixed*
 
-`Helpers::registerMiddleware()` calls
-`$app->addErrorMiddleware(true, true, true)`. A thrown
-`HttpUnauthorizedException` therefore renders as a full HTML page with a
-stack trace, from a JSON API. Two problems in one:
+Slim's stock error handler rendered an HTML page carrying the exception
+message, file, line and stack trace. Two problems from a JSON API: every
+client of `/v1/*` had to special-case a content type it never asked for, and
+an unauthenticated request was enough to get the server's file paths and call
+stack back.
 
-- **Contract:** every client of `/v1/*` gets `text/html` on 401/403/404 and
-  has to special-case it. Confirmed by dispatching unauthenticated requests
-  against every protected route.
-- **Disclosure:** `displayErrorDetails` is on, so responses carry file paths,
-  line numbers and a full stack trace. That is a production information leak.
+`Helpers::registerMiddleware()` now installs a JSON error handler — an
+`HttpException` keeps the status the route intended, anything else is a 500
+whose message is replaced with a generic one. Error details are off unless
+`EPPITNIC_DEBUG` is set, read from the environment rather than `settings`
+because an unreachable database is exactly when the handler runs.
 
-Fix: a custom error handler rendering `{"error": ...}` with the right status,
-and error details driven by an environment/setting rather than hard-coded
-`true`.
+`tests/Http/ErrorResponseTest` dispatches real requests through the same
+middleware stack `public/index.php` builds, and asserts JSON, the right
+status, no internals in the body, and that CORS headers survive on errors.
 
 ### 7.2 extdom-2.0 poll messages were not recognised — ✅ *fixed*
 

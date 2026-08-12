@@ -14,6 +14,9 @@
         <testsuite name="wire">
             <directory>tests/Wire</directory>
         </testsuite>
+        <testsuite name="http">
+            <directory>tests/Http</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

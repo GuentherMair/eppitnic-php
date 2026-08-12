@@ -14,6 +14,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\RequestHandlerInterface as RequestHandler;
 use RedBeanPHP\R;
 use Slim\App;
+use Slim\Exception\HttpException;
 use Slim\Exception\HttpForbiddenException;
 use Slim\Exception\HttpUnauthorizedException;
 
@@ -498,7 +499,41 @@ final class Helpers
 
         // Add the ErrorMiddleware before the CORS middleware
         // to ensure error responses contain all CORS headers.
-        $app->addErrorMiddleware(true, true, true);
+        //
+        // Slim's own handler renders a full HTML page, which is the wrong
+        // content type for every route in this application, so the default
+        // handler is replaced below with one that answers in JSON.
+        //
+        // Error details are off unless EPPITNIC_DEBUG is set: with them on,
+        // Slim puts the exception message, file, line and full stack trace in
+        // the response body, and an unauthenticated request is enough to get
+        // one. Read from the environment rather than from `settings` on
+        // purpose -- an unreachable database is exactly when this handler runs
+        // and exactly when Config::get() cannot answer.
+        $displayErrorDetails = filter_var(getenv('EPPITNIC_DEBUG') ?: 'false', FILTER_VALIDATE_BOOL);
+
+        $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
+        $errorMiddleware->setDefaultErrorHandler(
+            function (Request $request, \Throwable $exception, bool $displayErrorDetails) use ($app): Response {
+                // an HttpException carries the status the route intended
+                // (401/403/404/405); anything else escaped a handler and is a 500
+                $status = ($exception instanceof HttpException) ? $exception->getCode() : 500;
+
+                $body = ['error' => $exception->getMessage()];
+                if ($displayErrorDetails) {
+                    $body['exception'] = get_class($exception);
+                    $body['file'] = $exception->getFile();
+                    $body['line'] = $exception->getLine();
+                    $body['trace'] = $exception->getTraceAsString();
+                } elseif ($status === 500) {
+                    // never leak an internal failure's message to a client;
+                    // logErrors is on, so the real one is in the server log
+                    $body['error'] = 'Internal server error';
+                }
+
+                return self::json($app->getResponseFactory()->createResponse(), $body, $status);
+            }
+        );
 
         // This CORS middleware will append the response header
         // Access-Control-Allow-Methods with all allowed methods

@@ -184,6 +184,14 @@ already routes everything to one script:
 php -S localhost:8080 -t public public/index.php
 ```
 
+Errors are returned as JSON with the matching status code. Set
+`EPPITNIC_DEBUG=true` in the web server's environment to add the exception
+class, file, line and stack trace to error responses, and to have 500s carry
+their real message instead of a generic one. **Leave it unset in production**
+— it exposes server internals to anyone who can trigger an error, which
+includes anyone who can send an unauthenticated request. Errors are written to
+the PHP error log either way.
+
 Finally, Smarty compiles the EPP templates into `smarty/compile/` and caches
 into `smarty/cache/`. Both are part of the repository, but they must be
 **writable by the user the web server runs as** (`www-data`, `php-fpm`, …).
