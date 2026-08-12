@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–2 complete. Phase 3 is next.
+**Status:** Phases 0–2 complete, plus 7.2. Phase 3 is next.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ are estimates for our own code (`vendor/` excluded).
 | 4 | Smarty → `DOMDocument` | 3–4d | −500 | |
 | 5 | Field maps and persistence | 2–3d | −260 | |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional |
-| 7 | Issues found along the way | ongoing | | open items |
+| 7 | Issues found along the way | ongoing | | 7.2 done; 7.1 next |
 
 ---
 
@@ -38,9 +38,11 @@ dependencies.
 - **Schema validation** of every request against `xsd/`, with the schema
   catalog compiled separately from the documents so a broken schema set
   reports as one failure instead of masquerading as 29 invalid requests.
-- **29 response captures** (`tests/fixtures/responses/`) taken from real
+- **37 response captures** (`tests/fixtures/responses/`) taken from real
   production traffic by `tests/capture-responses.php` and anonymised, plus
-  `ResponseParsingTest` running the real parsers over them.
+  `ResponseParsingTest` running the real parsers over them. Poll fixtures are
+  keyed on the document's own shape (extension element + namespace), never on
+  `messages.type` — see the method note under 7.2.
 
 ### Notes for whoever runs the capture tool again
 
@@ -126,7 +128,7 @@ Every current file has a home; nothing is dropped silently.
 | `session hello\|credit\|change-password` | ex. 001, 018 |
 | `user create` | `user-DoSetup` |
 | `config migrate` | `config-DoMigrate` |
-| `doctor ownership\|inactive-domains` | `CheckOwnershipCoherence`, `GetLocallyInactiveDomains` |
+| `doctor ownership\|inactive-domains\|reparse-messages` | `CheckOwnershipCoherence`, `GetLocallyInactiveDomains`, plus the 7.2 backfill |
 
 52 files → ~18 subcommands in 8 groups.
 
@@ -226,29 +228,40 @@ Fix: a custom error handler rendering `{"error": ...}` with the right status,
 and error details driven by an environment/setting rather than hard-coded
 `true`.
 
-### 7.2 `dnsErrorMsgData` poll messages are not recognised — *high*
+### 7.2 extdom-2.0 poll messages were not recognised — ✅ *fixed*
 
-`Session::parsePollReq()` matches the **extdom-1.0** shape
-(`dnsErrorMsgData->report->domain[@name]`). The registry now sends
-**extdom-2.0**, which is structurally different: `<extdom:domain>` is an
-element with text, there is no `<report>`, and the per-test detail lives
-under `<extdom:tests>`.
+`Session::parsePollReq()` understood only the extdom-1.0 generation. Measured
+by re-parsing the whole live queue (16,485 stored responses carrying a
+`<msgQ>`), before → after:
 
-Measured in the live database: of 344 messages classified `unknown`,
+| type | before | after |
+|---|---|---|
+| `unknown` | 5,859 | 5,529 |
+| `dnsErrorMsgData` | 1 | 231 |
+| `dnsWarningMsgData` | 0 | 90 |
+| `delayedDebitAndRefundMsgData` | 0 | 10 |
 
-- **230** are `extdom:dnsErrorMsgData`
-- **90** are `extdom:dnsWarningMsgData` (a type the parser has no branch for)
-- 14 are `extepp:creditMsgData` and 10 `extepp:delayedDebitAndRefundMsgData`
-  that also failed to match and need investigating
+330 messages recovered, all now carrying their domain.
 
-Consequence: `parsePollReq()` returns `domain => ''` for all of them, so the
-`messages` row records no domain, and nothing downstream — `PollProcessor`,
-the DNS-sync queue, the reminders view — can act on a DNS failure. This is a
-silent functional gap, not a cosmetic one.
+The remaining 5,529 `unknown` are **not** a defect: they carry a `<msgQ>`
+title and nothing else — no extension, no `resData`, no domain anywhere in
+the document (28 distinct fixed strings, e.g. "autoRenewPeriod is expired").
+There is nothing in them to recover. `unknown` is a poor *label* for them,
+but changing it would rewrite the meaning of an existing column value.
 
-Fixtures for the fix already exist: `tests/fixtures/responses/poll-unknown.xml`
-(a 2.0-shaped DNS error) and `poll-dnsErrorMsgData.xml` (the 1.0 shape, to
-keep working).
+**Method note worth keeping.** The first estimate of this bug's size (344)
+came from `messages.type`, which records what the parser said *at the time
+each message was polled* — some rows date from 2012. It is a log of
+historical parser behaviour, not of what today's code does. Re-parsing the
+raw `msgqueue` bodies with the current parser is the only way to get an
+honest number, and it is cheap.
+
+**Left undone deliberately:** the ~330 historical `messages` rows still hold
+the old `type`/`domain`. Re-parsing them from `msgqueue` would make the
+poll-queue view coherent, and is safe as long as it only rewrites those two
+columns and fires no side effects (no reminder rows, no DNS-sync events for
+years-old failures). Best done as a `doctor reparse-messages` verb in Phase
+3 rather than as a throwaway script now.
 
 ### 7.3 Registry password rotation can lock the installation out — *medium*
 
