@@ -10,8 +10,7 @@ use Net\EPP\IT\Session;
  *
  * Deliberately does not log in: this is the command to run when something is
  * wrong and the question is whether the problem is the connection, the
- * credentials, or something further in. Replaces
- * examples/001-LOW-LEVEL-login-logout.php.
+ * credentials, or something further in.
  */
 final class SessionHelloCommand extends Command
 {

@@ -21,8 +21,8 @@ section for more details!
 # Installation
 
 Run `composer install` to fetch the third-party dependencies into `vendor/`
-and generate the class autoloader (`vendor/autoload.php`) — every script in
-`CLI/`/`examples/` needs only that one `require`, nothing else.
+and generate the class autoloader (`vendor/autoload.php`) — `bin/eppitnic`
+needs only that one `require`, nothing else.
 
 A database is required for storing/persisting communication with the
 server (and, as of this version, all configuration except DB credentials
@@ -35,11 +35,11 @@ Configuration is split in two:
    thing that has to live in a file, since it's needed to even connect to
    the database everything else is read from. Either copy
    `config/config.php-template` to `config/config.php` and fill it in by
-   hand, or just run any CLI script (e.g. `php CLI/user-DoSetup.php ...`)
-   from an interactive terminal: if `config/config.php` is missing,
-   `Config` (`Net/EPP/Config.php`) notices, prompts you for the database
+   hand, or just run any `bin/eppitnic` command from an interactive
+   terminal: if `config/config.php` is missing, `Config`
+   (`Net/EPP/Config.php`) notices, prompts you for the database
    type/host/name/charset/user/password right there, and writes the file
-   itself. Running the same script non-interactively (cron, CI, piped
+   itself. Running the same command non-interactively (cron, CI, piped
    input) with no `config/config.php` in place fails with a clear error
    instead of hanging on a prompt nobody can answer.
 2. Everything else lives in the `settings` table, pre-populated with
@@ -58,9 +58,8 @@ Configuration is split in two:
    rotation" below). Leave it at `0` on a fresh install.
 
 If you're upgrading an existing 6.x deployment from its `config.xml`
-instead of starting fresh, `CLI/config-DoMigrate.php` does both steps for
-you: `php CLI/config-DoMigrate.php` (reads `config.xml` from the repo root
-by default, or `-f PATH` to point elsewhere).
+instead of starting fresh, `bin/eppitnic config migrate` does both steps for
+you (it reads `config.xml` from the repo root by default, or `--file=PATH`).
 
 The schema itself is versioned: the `settings` table carries a
 `schema_version` row, zero-padded `MMmmrr` (major/minor/release, e.g.
@@ -77,8 +76,8 @@ naming convention. To add a future migration: drop a new
 `config/mariadb-schema-upgrade-{current}-to-{next}.sql` file and bump
 `SCHEMA_VERSION` to match — nothing else needs to change.
 
-After you have set everything up, simply try to have a
-look at the `CLI/` and `examples/` folders.
+After you have set everything up, run `bin/eppitnic` to see what it can do,
+and `docs/COOKBOOK.md` for using the library directly from PHP.
 
 
 # Upgrading from 6.x
@@ -101,16 +100,16 @@ Both are destroyed by the migration and are only recoverable from a backup:
 1. `composer install` — dependencies are no longer vendored, and PHP 8.1+ is
    required.
 2. Create `config/config.php` from `config/config.php-template` for the
-   database credentials, or just run any CLI script from a terminal and let it
-   prompt you.
-3. `php CLI/config-DoMigrate.php` — converts `config.xml` into
+   database credentials, or run any `bin/eppitnic` command from a terminal and
+   let it prompt you.
+3. `bin/eppitnic config migrate` — converts `config.xml` into
    `config/config.php` plus the `settings` table. Afterwards `config.xml` is
    read by nothing and can be archived.
 4. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()`, and
    the old hashes cannot be converted, so no existing login works until it is
    reset (see "User setup").
 5. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
-   is gone, replaced by JSON/REST (`public/`, documented in `API.md`) with
+   is gone, replaced by JSON/REST (`public/`, documented in `docs/API.md`) with
    JWT bearer tokens instead of PHP sessions.
 
 ### What happens automatically
@@ -136,7 +135,7 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 - Domain routes scope non-admins by `domains.user_id`, pending transfers by
   `transfers.user_id`, and a domain's registrant must be a contact the caller
   owns. Pre-existing data where those disagree is reported by
-  `CLI/domain-CheckOwnershipCoherence.php` (see "Ownership coherence").
+  `bin/eppitnic doctor ownership` (see "Ownership coherence").
 - `Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone; persistence uses
   RedBeanPHP's `R::` facade directly. Custom storage backends need rewriting.
 - WSDL support is gone.
@@ -144,20 +143,26 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 ### Afterwards
 
 Messages stored before this release may carry `type = 'unknown'` and an empty
-`domain`, mostly DNS validation failures. New messages are parsed correctly. A
-`doctor reparse-messages` command will re-derive both columns from `msgqueue`;
-it is **not available yet** (`docs/REFACTOR-PLAN.md`, Phase 3). Nothing depends
-on it.
+`domain`, mostly DNS validation failures. New messages are parsed correctly;
+for the old rows:
+
+```
+bin/eppitnic doctor reparse-messages --dry-run   # report what would change
+bin/eppitnic doctor reparse-messages             # rewrite type/domain
+```
+
+It rewrites those two columns and nothing else — no reminder rows, no DNS-sync
+events for failures that are years old. Nothing depends on it.
 
 
 # Web server
 
-The `CLI/` and `examples/` scripts need nothing beyond PHP. The REST API
-(documented in `API.md`) additionally needs a web server, configured two ways:
+`bin/eppitnic` needs nothing beyond PHP. The REST API (documented in
+`docs/API.md`) additionally needs a web server, configured two ways:
 
 1. **The document root must be `public/`, and only `public/`.** Everything
    else in the checkout has to stay outside the served tree —
-   `config/config.php` holds the database credentials, and `CLI/`,
+   `config/config.php` holds the database credentials, and `bin/`,
    `cronjobs/` and `vendor/` have no reason to be reachable over HTTP.
 2. **Anything that is not a real file must be routed to
    `public/index.php`.** Slim is a front controller: `/v1/domains` exists
@@ -204,10 +209,10 @@ templates land in a shared world-writable directory.
 
 Every route that creates a user (`POST /v1/users`) requires an admin token
 to call it, so the very first admin account can't be created over the API —
-use `CLI/user-DoSetup.php` directly against the database instead:
+use `bin/eppitnic` directly against the database instead:
 
 ```
-php CLI/user-DoSetup.php -m user -u admin -p 'a-strong-password' -A
+bin/eppitnic user create admin --password='a-strong-password' --admin
 ```
 
 The same script can also issue a fixed, non-expiring (or time-limited) API
@@ -215,7 +220,7 @@ token for scripted/headless access, as an alternative to logging in for a
 short-lived JWT:
 
 ```
-php CLI/user-DoSetup.php -m token -u admin -x 0
+bin/eppitnic user token admin
 ```
 
 `-x` takes a validity period in days, counted from now (e.g. `-x 365` for a
@@ -238,7 +243,7 @@ by simply re-saving it (its owner isn't allowed to name that contact, and the
 contact's owner isn't allowed to touch the domain).
 
 ```
-php CLI/domain-CheckOwnershipCoherence.php
+bin/eppitnic doctor ownership
 ```
 
 lists any such domain, plus any pending transfer-in request that would create

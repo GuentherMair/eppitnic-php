@@ -10,8 +10,7 @@ use Net\EPP\IT\Session;
 /**
  * Base for every `bin/eppitnic` subcommand.
  *
- * Carries the parts every one of the old CLI/ and examples/ scripts wrote out
- * by hand: option parsing, the hello/login/logout dance, reading domain or
+ * Carries the parts every subcommand would otherwise repeat: option parsing, the hello/login/logout dance, reading domain or
  * contact lists from a file or the command line, and the difference between
  * "printed for a human" and "printed for a pipe".
  *
@@ -388,9 +387,12 @@ abstract class Command
      * @param array $record the same thing as data
      */
     protected function record(string $text, array $record): void {
-        // a dry run has not done anything, so it must not report having done
-        // it -- the requests printed at the end are its entire output
-        if ($this->isDryRun()) {
+        // A dry run against the registry has not done anything, so it must
+        // not report having done it -- the requests printed at the end are its
+        // entire output. Keyed on a faked session rather than on the option,
+        // because a local-only command may use --dry-run to mean "show me what
+        // you would change", and that output is the whole point of running it.
+        if ($this->dryRun !== null) {
             return;
         }
 

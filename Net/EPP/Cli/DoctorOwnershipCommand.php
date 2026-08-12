@@ -14,8 +14,6 @@ use RedBeanPHP\R;
  * a registrant change reassigns the domain to the contact's owner -- so a
  * disagreement means a domain that answers to one user in the listings and
  * another in the renewals view.
- *
- * Replaces CLI/domain-CheckOwnershipCoherence.php.
  */
 final class DoctorOwnershipCommand extends Command
 {

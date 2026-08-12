@@ -10,10 +10,8 @@ use RedBeanPHP\R;
  * Domains from the local database or from the registry, as CSV (the default),
  * JSON Lines or one JSON document.
  *
- * Replaces CLI/domain-ExportLocalToCsv.php (--source=local, the default) and
- * CLI/domain-ExportDetailsToCsv.php (--source=registry), which produced the
- * same shape of file from different places and each wrote out the CSV quoting
- * by hand.
+ * Both sources produce the same columns, so a consumer does not have to care
+ * which one an export came from.
  */
 final class DomainExportCommand extends Command
 {

@@ -6,9 +6,6 @@ use Net\EPP\IT\Domain;
 
 /**
  * Availability of one or more domains at the registry.
- *
- * Replaces examples/025-check-domain-bulk.php and the check step the old
- * CLI/domain.php performed before every fetch.
  */
 final class DomainCheckCommand extends Command
 {

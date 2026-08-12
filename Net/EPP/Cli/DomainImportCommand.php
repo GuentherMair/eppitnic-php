@@ -10,8 +10,6 @@ use Net\EPP\Service\DomainService;
  * Reconciliation, not registration: nothing is created at the registry, and a
  * name the registry does not have is deactivated locally. Shares its steps
  * with POST /v1/domains/import through DomainService.
- *
- * Replaces CLI/domain-DoImport.php.
  */
 final class DomainImportCommand extends Command
 {

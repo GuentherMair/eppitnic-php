@@ -12,9 +12,6 @@ use RedBeanPHP\R;
  *   approve  agree to somebody else's claim on a domain we hold
  *   reject   refuse it
  *   cancel   withdraw a request we made ourselves
- *
- * Replaces CLI/domain-DoTransfer.php, CLI/domain-DoApproveTransfer.php and
- * examples 019, 020 and 021.
  */
 final class DomainTransferCommand extends Command
 {

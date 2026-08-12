@@ -8,10 +8,6 @@ use Net\EPP\IT\Domain;
 
 /**
  * Recover domains from the registry's redemption period.
- *
- * Replaces examples/016-restore-domain.php. This is the one command that does
- * not talk to the ordinary endpoint: nic.it serves restores from a separate
- * host, configured as the `epp` setting's `server_deleted`.
  */
 final class DomainRestoreCommand extends Command
 {

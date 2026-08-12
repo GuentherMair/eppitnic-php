@@ -11,7 +11,7 @@
 // chain -- Config applies them iteratively, it never jumps versions in one file.
 if ( ! defined('SCHEMA_VERSION')) define('SCHEMA_VERSION', '070000');
 
-// generic script exit codes (1-9), for use by CLI scripts / examples
+// generic exit codes (1-9), returned by bin/eppitnic subcommands
 if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
 if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input file/CSV unreadable
 if ( ! defined('INVALID_INPUT'))     define('INVALID_INPUT', 3);      // eg. no valid .it domain given
@@ -19,14 +19,14 @@ if ( ! defined('CONFIG_ERROR'))      define('CONFIG_ERROR', 4);       // config/
 if ( ! defined('OUTPUT_ERROR'))      define('OUTPUT_ERROR', 5);       // unable to write an output file
 if ( ! defined('DATA_INCONSISTENT')) define('DATA_INCONSISTENT', 6);  // a check script ran fine but found bad data
 
-// session script exit codes (10-19), for use by CLI scripts / examples
+// session exit codes (10-19)
 if ( ! defined('HELLO_FAILED'))           define('HELLO_FAILED', 10);
 if ( ! defined('LOGIN_FAILED'))           define('LOGIN_FAILED', 11);
 if ( ! defined('LOGOUT_FAILED'))          define('LOGOUT_FAILED', 12);
 if ( ! defined('POLL_FAILED'))            define('POLL_FAILED', 13);
 if ( ! defined('CHANGE_PASSWORD_FAILED')) define('CHANGE_PASSWORD_FAILED', 14);
 
-// domain script exit codes (20-29), for use by CLI scripts / examples
+// domain exit codes (20-29)
 if ( ! defined('DOMAIN_CREATE_FAILED'))   define('DOMAIN_CREATE_FAILED', 20);
 if ( ! defined('DOMAIN_FETCH_FAILED'))    define('DOMAIN_FETCH_FAILED', 21);
 if ( ! defined('DOMAIN_UPDATE_FAILED'))   define('DOMAIN_UPDATE_FAILED', 22);
@@ -38,7 +38,7 @@ if ( ! defined('DOMAIN_TRANSFER_FAILED')) define('DOMAIN_TRANSFER_FAILED', 27);
 if ( ! defined('DOMAIN_EXPORT_FAILED'))   define('DOMAIN_EXPORT_FAILED', 28);
 if ( ! defined('DOMAIN_IMPORT_FAILED'))   define('DOMAIN_IMPORT_FAILED', 29);
 
-// contact script exit codes (30-39), for use by CLI scripts / examples
+// contact exit codes (30-39)
 if ( ! defined('CONTACT_CREATE_FAILED')) define('CONTACT_CREATE_FAILED', 30);
 if ( ! defined('CONTACT_FETCH_FAILED'))  define('CONTACT_FETCH_FAILED', 31);
 if ( ! defined('CONTACT_UPDATE_FAILED')) define('CONTACT_UPDATE_FAILED', 32);

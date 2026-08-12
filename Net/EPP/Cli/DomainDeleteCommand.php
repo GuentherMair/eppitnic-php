@@ -6,8 +6,6 @@ use Net\EPP\IT\Domain;
 
 /**
  * Delete domains at the registry, and deactivate them locally.
- *
- * Replaces CLI/domain-DoDelete.php and examples/013.
  */
 final class DomainDeleteCommand extends Command
 {

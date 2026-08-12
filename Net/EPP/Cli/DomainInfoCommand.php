@@ -6,9 +6,6 @@ use Net\EPP\IT\Domain;
 
 /**
  * Everything the registry knows about a domain.
- *
- * Replaces CLI/domain.php's read path (and its domain-GetInformation /
- * domain-GetAuthInfo symlinks), plus examples 011, 012, 022 and 030.
  */
 final class DomainInfoCommand extends Command
 {

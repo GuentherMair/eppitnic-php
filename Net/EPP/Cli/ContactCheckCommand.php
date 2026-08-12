@@ -6,9 +6,6 @@ use Net\EPP\IT\Contact;
 
 /**
  * Whether contact handles are free at the registry.
- *
- * Replaces examples/003-lookup-handle.php and
- * examples/024-check-contact-bulk.php.
  */
 final class ContactCheckCommand extends Command
 {

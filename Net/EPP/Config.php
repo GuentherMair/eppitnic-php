@@ -29,7 +29,7 @@ use RedBeanPHP\R;
  * that touches `R::` directly -- not through a Net\EPP object, whose
  * constructor already goes through Config::get() -- must trigger this class
  * first, even if it doesn't need any particular setting value: call
- * Config::init() (see CLI/user-DoSetup.php for an example).
+ * Config::init().
  *
  * If config/config.php doesn't exist yet, connect() (via loadConfig())
  * either walks the user through creating it interactively -- when attached
@@ -144,7 +144,7 @@ final class Config
         // instance() first -- ensures connect()/migrate() have already run
         // (and so the `settings` table actually exists) before writing to it
         // directly. Matters when set() is the very first Config call in a
-        // process, e.g. CLI/config-DoMigrate.php seeding a freshly-migrated schema.
+        // process, e.g. `eppitnic config migrate` seeding a freshly-migrated schema.
         $instance = self::instance();
         R::exec('REPLACE INTO settings (`key`, `value`) VALUES (?, ?)', [$key, json_encode($value)]);
         $instance->settings[$key] = $value;

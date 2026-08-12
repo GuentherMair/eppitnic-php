@@ -10,7 +10,6 @@ use RedBeanPHP\R;
  *
  * A local soft-delete (`domains`.`active` = 0) is not a registry deletion, so
  * these are domains still being paid for that nothing here shows any more.
- * Replaces CLI/domain-GetLocallyInactiveDomains.php.
  */
 final class DoctorInactiveDomainsCommand extends Command
 {

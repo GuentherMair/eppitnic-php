@@ -6,8 +6,6 @@ use Net\EPP\IT\Contact;
 
 /**
  * Everything the registry holds about a contact.
- *
- * Replaces CLI/contact-GetInformation.php and examples 005 and 029.
  */
 final class ContactInfoCommand extends Command
 {

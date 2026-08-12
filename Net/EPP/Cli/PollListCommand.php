@@ -7,8 +7,7 @@ use RedBeanPHP\R;
 /**
  * The poll messages already drained into the local database.
  *
- * Reads only -- nothing here touches the registry queue. Replaces
- * examples/028-db-poll-messages.php, which print_r()'d the whole table.
+ * Reads only -- nothing here touches the registry queue.
  */
 final class PollListCommand extends Command
 {

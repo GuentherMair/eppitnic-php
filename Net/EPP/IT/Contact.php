@@ -81,7 +81,7 @@ class Contact extends AbstractObject
    *
    * @param Client $client client class
    */
-  function __construct(Client &$client) {
+  function __construct(Client $client) {
     parent::__construct($client);
 
     $this->authinfo = $this->authinfo();

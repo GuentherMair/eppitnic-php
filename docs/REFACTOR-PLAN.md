@@ -7,15 +7,15 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–2 complete, plus 7.1 and 7.2. Phase 3 is next.
+**Status:** Phases 0–3 complete, plus 7.1 and 7.2. Phase 4 is next.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
 | 0 | Safety net | 1d | +2,000 (tests) | **done** |
 | 1 | Dead code and weak randomness | 0.5d | −473 | **done** |
 | 2 | Route boilerplate | 0.5d | −166 | **done** |
-| 3 | `bin/eppitnic`, retire `CLI/` + `examples/` | 5d | −3,800 | next |
-| 4 | Smarty → `DOMDocument` | 3–4d | −500 | |
+| 3 | `bin/eppitnic`, retire `CLI/` + `examples/` | 5d | −4,700 | **done** |
+| 4 | Smarty → `DOMDocument` | 3–4d | −500 | next |
 | 5 | Field maps and persistence | 2–3d | −260 | |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional |
 | 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
@@ -84,78 +84,34 @@ with `json()` in place each catch body is one line, and a `[result,
 
 ---
 
-## Phase 3 — `bin/eppitnic`, retiring `CLI/` and `examples/`
+## Phase 3 — `bin/eppitnic`, retiring `CLI/` and `examples/` ✅
 
-Done before the XML rework deliberately: it removes 4,600 lines from the
-surface Phase 4 must not break, and provides a driver for exercising every
-EPP command by hand against pubtest while the generator is swapped.
+52 scripts (5,689 lines) replaced by 28 subcommands in `Net/EPP/Cli`, plus
+`docs/COOKBOOK.md` for using the library directly. `routes/domain.php` is 943
+→ 718 lines, because three flows it owned moved to `Net\EPP\Service\DomainService`
+and are now shared with the CLI rather than copied.
 
-### Structure
+### Conventions worth keeping
 
-```
-bin/eppitnic                 # entry point, dispatch + global flags
-Net/EPP/Cli/Command.php      # base: option parsing, --help, exit codes, output
-Net/EPP/Cli/*Command.php     # one per verb group
-```
+- **Options are parsed by hand, not with `getopt()`**, which reads `$argv`
+  itself and cannot tell an unknown switch from a positional argument — so a
+  mistyped option used to be ignored and the command ran with the wrong inputs.
+- **`--json` is one document, `--jsonl` one object per line.** `domain export`
+  defaults to `--csv` and accepts all three, producing the same columns either
+  way.
+- **`--dry-run` prints the EPP request and sends nothing**, answering the
+  session locally so it needs neither credentials nor connectivity. It previews
+  a request built from *arguments* faithfully. Commands whose requests are
+  built from *registry data* — `set-owner`, `import`, `poll drain` — decline it
+  rather than show invented contents.
+- **Anything irreversible asks first**, with `--yes` to skip. With no terminal
+  to ask at the answer is no, rather than a prompt that hangs a cron job.
 
-Global flags: `--verbose` (the `debug = LOG_DEBUG` every script sets by
-hand), `--dry-run`, `--json`, `--user=ID`. Session setup goes through the
-existing `Helpers::withEppSession()`, which already does hello/login/logout
-with proper teardown — adopting it deletes the hand-rolled block from all 45
-scripts that carry one.
+### Behaviour that changed
 
-### Verb map
-
-Every current file has a home; nothing is dropped silently.
-
-| Verb | Absorbs |
-|---|---|
-| `domain info <name…>` | `domain.php` + `GetInformation`/`GetAuthInfo` symlinks, ex. 011, 012 (`--contacts=all`), 022, 030 (`--store`) |
-| `domain check <name…>` | ex. 025 (`--file=` for bulk) |
-| `domain create` | `domain-DoCreate`, ex. 008, 009, 010 (`--retries=N`) |
-| `domain update` | `domain.php` + `SetAdminC`/`SetAuthInfo`/`SetNameServer`/`SetTechC` symlinks, `SetNameServerPerDomain` (`--file=`), `ComplexContactUpdates`, `SyncTechC`, ex. 014 |
-| `domain set-registrant` | `domain-SetRegistrant`, `SetEmailAllRegistrants`, ex. 015 |
-| `domain status add\|rem` | ex. 017 |
-| `domain delete` / `restore` | `domain-DoDelete`, ex. 013, 016 |
-| `domain transfer request\|approve\|reject\|cancel` | `domain-DoTransfer`, `DoApproveTransfer`, ex. 019–021 |
-| `domain import` | `domain-DoImport` |
-| `domain export --source=local\|registry` | `ExportLocalToCsv`, `ExportDetailsToCsv` |
-| `contact info\|check\|create\|update\|delete` | four `contact-*` scripts, ex. 003–007, 023, 029 |
-| `contact prune-duplicates` | `contact-DoDeleteDupplicates` (`--prefix=DUP`) |
-| `contact fix-email-privacy` | `contact-FixEmailPrivacy` |
-| `poll once\|drain\|list` | `session-GetMessages`, ex. 026–028 |
-| `session hello\|credit\|change-password` | ex. 001, 018 |
-| `user create` | `user-DoSetup` |
-| `config migrate` | `config-DoMigrate` |
-| `doctor ownership\|inactive-domains\|reparse-messages` | `CheckOwnershipCoherence`, `GetLocallyInactiveDomains`, plus the 7.2 backfill |
-
-52 files → ~18 subcommands in 8 groups.
-
-### Shared logic
-
-Three flows exist in both a route closure and a CLI script and have already
-diverged: **import** (`routes/domain.php` vs `CLI/domain-DoImport.php`),
-**create-or-transfer**, and **owner change** (~100 lines of business logic in
-a closure). Extract exactly those into `Net/EPP/Service/DomainService.php`
-**on demand, as the CLI needs them** — not as a speculative up-front service
-layer. Leave every other route alone.
-
-### Docs
-
-- `docs/COOKBOOK.md` — 8–10 instructive snippets extracted from `examples/`
-  before it is deleted, so the library remains documented for third-party
-  consumers (this package *is* a library; `examples/` was its only API
-  documentation).
-- Move `API.md` into `docs/`.
-
-### Verification
-
-Port one verb group at a time. For each, run the old script and the new
-subcommand side by side against pubtest and diff the output. Delete the old
-file only once its replacement is proven; keep `CLI/` on disk until the last
-verb lands.
-
----
+`CLI/domain.php` exited 0 after a failed fetch; `domain info` exits
+`DOMAIN_FETCH_FAILED`. Anything scripted around the old exit codes needs
+checking.
 
 ## Phase 4 — Smarty → `DOMDocument`
 
@@ -250,10 +206,11 @@ all.
 covered it is close to unreachable, and renaming would churn an existing
 column value for no gain.
 
-**Pending:** the ~330 historical `messages` rows still hold the `type` and
-`domain` they were stored with. A `doctor reparse-messages` verb (Phase 3)
-re-derives both from `msgqueue`, rewriting only those two columns and firing
-no side effects — no reminder rows, no DNS-sync events for years-old failures.
+The ~330 historical `messages` rows still hold the `type` and `domain` they
+were stored with. `bin/eppitnic doctor reparse-messages` re-derives both from
+`msgqueue`, rewriting only those two columns and firing no side effects — no
+reminder rows, no DNS-sync events for years-old failures. `--dry-run` reports
+what would change.
 
 ### 7.3 Registry password rotation can lock the installation out — *medium*
 

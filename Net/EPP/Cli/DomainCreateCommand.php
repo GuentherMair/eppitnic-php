@@ -11,8 +11,6 @@ use Net\EPP\Service\DomainService;
  * the domain is checked first, and a name somebody else holds becomes a
  * transfer request rather than an error. Shares that decision with
  * POST /v1/domains through DomainService.
- *
- * Replaces CLI/domain-DoCreate.php and examples 008, 009 and 010.
  */
 final class DomainCreateCommand extends Command
 {
@@ -88,8 +86,8 @@ final class DomainCreateCommand extends Command
      *
      * A --file may carry bare names, which take the contacts and nameservers
      * from the options, or ';'-separated rows giving their own -- the two
-     * forms CLI/domain-DoCreate.php accepted, kept because a bulk registration
-     * with per-domain nameservers has no other reasonable shape.
+     * own -- a bulk registration with per-domain nameservers has no other
+     * reasonable shape.
      *
      * @return array<int, array<string, mixed>>
      */

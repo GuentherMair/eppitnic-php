@@ -6,8 +6,6 @@ use Net\EPP\IT\Domain;
 
 /**
  * Add or remove a client-side status on domains.
- *
- * Replaces examples/017-update-domain-status.php.
  */
 final class DomainStatusCommand extends Command
 {

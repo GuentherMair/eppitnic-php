@@ -81,7 +81,7 @@ abstract class AbstractObject
    *
    * @param Client $client client class
    */
-  public function __construct(Client &$client) {
+  public function __construct(Client $client) {
     $this->client  = $client;
     $this->debug   = $client->debug;
   }
