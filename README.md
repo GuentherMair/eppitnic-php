@@ -143,12 +143,11 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 
 ### Afterwards
 
-Messages already in your `messages` table may carry `type = 'unknown'` and an
-empty `domain` — mostly DNS validation failures whose domain was dropped by an
-older parser. New messages are parsed correctly from this release on. A
-`doctor reparse-messages` command will re-derive `type`/`domain` for the old
-rows from `msgqueue`; it is **not available yet** and arrives with the CLI
-consolidation (`docs/REFACTOR-PLAN.md`, Phase 3). Nothing depends on it.
+Messages stored before this release may carry `type = 'unknown'` and an empty
+`domain`, mostly DNS validation failures. New messages are parsed correctly. A
+`doctor reparse-messages` command will re-derive both columns from `msgqueue`;
+it is **not available yet** (`docs/REFACTOR-PLAN.md`, Phase 3). Nothing depends
+on it.
 
 
 # Web server
