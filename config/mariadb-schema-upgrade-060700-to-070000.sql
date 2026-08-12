@@ -439,8 +439,8 @@ ALTER TABLE users
   ADD COLUMN `totp_secret_pending` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `totp_secret`,
   ADD COLUMN `max_token_age` INT AFTER `totp_secret_pending`,
   ADD COLUMN `max_idle_time` INT AFTER `max_token_age`,
-  ADD COLUMN `debug_level` TINYINT AFTER `max_idle_time`,
-  ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug_level`,
+  ADD COLUMN `debug` TINYINT DEFAULT 0 AFTER `max_idle_time`,
+  ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug`,
   ADD COLUMN `api_token_expires` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `api_token`,
   ADD UNIQUE KEY (`api_token`);
 
@@ -535,7 +535,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'users'
 ORDER BY ORDINAL_POSITION;
 -- ^ expect password as varchar(255), followed by active, admin, totp_secret,
---   totp_secret_pending, max_token_age, max_idle_time, debug_level,
+--   totp_secret_pending, max_token_age, max_idle_time, debug,
 --   api_token, api_token_expires (in that order after techc), and no `dns`.
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the

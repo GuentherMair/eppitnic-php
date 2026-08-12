@@ -115,7 +115,7 @@ class Session extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server (will return false)
-    $this->ExecuteQuery("session-hello", "", ($this->debug >= LOG_DEBUG));
+    $this->ExecuteQuery("session-hello", "");
 
     // this is the only query with no result code
     if ((substr($this->result['code'], 0, 1) == "2") && (is_object($this->xmlResult->greeting))) {
@@ -137,7 +137,7 @@ class Session extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ($this->ExecuteQuery($which, "", ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery($which, "")) {
       // see if we got the expected information
       if (is_object($this->xmlResult->response->extension)) {
         $ns = $this->xmlResult->getNamespaces(TRUE);
@@ -244,7 +244,7 @@ class Session extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    $qrs = $this->ExecuteQuery("session-poll", "poll", ($this->debug >= LOG_DEBUG));
+    $qrs = $this->ExecuteQuery("session-poll", "poll");
 
     // look at message counter
     if (is_object($this->xmlResult->response->msgQ[0])) {

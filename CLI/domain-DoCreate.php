@@ -105,7 +105,7 @@ unset($d);
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -136,7 +136,7 @@ foreach ($domains as $entry) {
 
   // re-create domain object
   $domain = new Domain($nic);
-  //$domain->debug = LOG_DEBUG;
+  //$domain->debug = true;
 
   // lookup domain
   switch ($domain->check($name)) {

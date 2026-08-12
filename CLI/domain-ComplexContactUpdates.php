@@ -42,7 +42,7 @@ if ( ( ! isset($options['d']) && ! isset($options['f'])) || // no domain
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // retrieve and test command line options
 if (isset($options['f']) && ! is_readable($options['f'])) {

@@ -78,7 +78,7 @@ echo "Login OK.\n";
 for ($i = 0; $i < count($domains); $i++) {
   // re-create domain object
   $domain = new Domain($nic);
-  //$domain->debug = LOG_DEBUG;
+  //$domain->debug = true;
 
   $name = $domains[$i];
   $authinfo = $authinfos[$i];

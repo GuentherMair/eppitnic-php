@@ -37,7 +37,7 @@ if (count($domains) < 1) {
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // send "hello"
 // send "hello"
@@ -57,7 +57,7 @@ echo "Login OK.\n";
 
 foreach ($domains as $name) {
   $domain = new Domain($nic);
-  //$domain->debug = LOG_DEBUG;
+  //$domain->debug = true;
 
   // lookup domain
   switch ($domain->check($name)) {

@@ -283,7 +283,7 @@ class Contact extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ($this->ExecuteQuery("contact-check", implode(";", $contact), ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("contact-check", implode(";", $contact))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['contact']);
       if (count($tmp->chkData->cd) == 1) {
@@ -352,7 +352,7 @@ class Contact extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
-    $response = $this->ExecuteQuery("contact-create", $this->handle, ($this->debug >= LOG_DEBUG));
+    $response = $this->ExecuteQuery("contact-create", $this->handle);
     if ($response) {
       $this->status = array('ok');
       return $response;
@@ -386,7 +386,7 @@ class Contact extends AbstractObject
     $this->initValues();
 
     // query server
-    if ($this->ExecuteQuery("contact-info", $contact, ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("contact-info", $contact)) {
       $this->changes = 0;
       $this->status = array();
       $this->handle = $contact;
@@ -445,7 +445,7 @@ class Contact extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("contact-delete", $contact, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("contact-delete", $contact);
   }
 
   /**
@@ -531,7 +531,7 @@ class Contact extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("contact-update", $this->handle, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("contact-update", $this->handle);
   }
 
   /**
@@ -578,7 +578,7 @@ class Contact extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    $result = $this->ExecuteQuery("contact-status", $this->handle, ($this->debug >= LOG_DEBUG));
+    $result = $this->ExecuteQuery("contact-status", $this->handle);
     if ($result) {
       $this->changes = 0;
     }

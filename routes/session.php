@@ -39,12 +39,12 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
 });
 
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtVerify($request);
+    ['debug' => $debug] = Helpers::actor($request);
 
     try {
         $credit = Helpers::withEppSession(function ($nic, $session) {
             return $session->showCredit();
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }

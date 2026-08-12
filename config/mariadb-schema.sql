@@ -12,7 +12,7 @@ CREATE TABLE `users` (
   `totp_secret_pending`   varchar(64),
   `max_token_age`         int,
   `max_idle_time`         int,
-  `debug_level`           tinyint,
+  `debug`                 tinyint    DEFAULT 0,
   `api_token`             varchar(64),
   `api_token_expires`     bigint unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),

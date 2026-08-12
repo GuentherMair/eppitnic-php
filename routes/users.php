@@ -28,7 +28,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     }
 
     $user = R::getAll("SELECT
-        id, admin, username, password, totp_secret, debug_level,
+        id, admin, username, password, totp_secret, debug,
         max_token_age, max_idle_time
     FROM users WHERE username = :username AND active = 1", [
         ':username' => $username,
@@ -65,7 +65,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         'has_totp'      => $hasTotp,
         'needs_totp'    => $needsTotp,
         'totp_verified' => $hasTotp,
-        'debug_level'    => $user[0]['debug_level'],
+        'debug'         => (bool) $user[0]['debug'],
         'max_token_age'   => $user[0]['max_token_age'],
         'max_idle_time'   => $user[0]['max_idle_time'],
     ]));
@@ -75,7 +75,7 @@ $app->get('/v1/users', function (Request $request, Response $response, array $ar
     $user_id = Helpers::jwtUserID($request);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level,
+        id, active, admin, username, max_token_age, max_idle_time, debug,
         totp_secret IS NOT NULL AS has_totp
     FROM users");
     return Helpers::json($response, [
@@ -87,7 +87,7 @@ $app->get('/v1/users/{id}', function (Request $request, Response $response, arra
     $user_id = Helpers::jwtUserID($request);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level,
+        id, active, admin, username, max_token_age, max_idle_time, debug,
         totp_secret IS NOT NULL AS has_totp
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
@@ -124,7 +124,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, 'PASSWORD_CHANGED' AS password, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, 'PASSWORD_CHANGED' AS password, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -169,7 +169,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
         'admin'          => (int) ($params['admin'] ?? $current['admin']),
         'max_token_age'  => $params['max_token_age'] ?? $current['max_token_age'],
         'max_idle_time'  => $params['max_idle_time'] ?? $current['max_idle_time'],
-        'debug_level'    => $params['debug_level'] ?? $current['debug_level'],
+        'debug'          => (int) ($params['debug'] ?? $current['debug']),
     ];
     // the password column is only touched when a new one was actually supplied
     if ( ! empty($params['password'])) {
@@ -186,7 +186,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
 
     $users = R::getAll("SELECT
         id, active, admin, username, email, max_operations,
-        max_token_age, max_idle_time, debug_level
+        max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -216,10 +216,10 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     R::exec("
         INSERT INTO users (
             description, username, password, email,
-            max_operations, active, admin, max_token_age, max_idle_time, debug_level
+            max_operations, active, admin, max_token_age, max_idle_time, debug
         ) VALUES (
             :description, :username, :password, :email,
-            :max_operations, :active, :admin, :max_token_age, :max_idle_time, :debug_level
+            :max_operations, :active, :admin, :max_token_age, :max_idle_time, :debug
         )
     ", [
         ':description'    => $params['description'] ?? null,
@@ -232,13 +232,13 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':admin'          => (int) ($params['admin'] ?? 0),
         ':max_token_age'  => $params['max_token_age'] ?? null,
         ':max_idle_time'  => $params['max_idle_time'] ?? null,
-        ':debug_level'    => $params['debug_level'] ?? null,
+        ':debug'          => (int) ($params['debug'] ?? 0),
     ]);
 
     $id = R::getInsertID();
     $users = R::getAll("SELECT
         id, active, admin, username, email, max_operations,
-        max_token_age, max_idle_time, debug_level
+        max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
@@ -256,7 +256,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -326,7 +326,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -351,7 +351,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug_level
+        id, active, admin, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);

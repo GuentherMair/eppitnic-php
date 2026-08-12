@@ -54,7 +54,17 @@ abstract class AbstractObject
 {
   protected $client;
 
-  public    $debug = LOG_WARNING;
+  /**
+   * Diagnostics for this object: include the full EPP request and response in
+   * getError(), and persist every command to `transactions`/`responses`.
+   *
+   * Off by default. Note what it costs when on: a row per command, holding the
+   * raw XML -- registrant names, addresses and authinfo codes included.
+   *
+   * Set per user by the `users`.`debug` column, carried here from the Client
+   * the object was constructed with (see Client::$debug).
+   */
+  public bool $debug = false;
 
   public    $xmlQuery;  // xml query string
   public    $result;    // HTTP response string
@@ -73,6 +83,7 @@ abstract class AbstractObject
    */
   public function __construct(Client &$client) {
     $this->client  = $client;
+    $this->debug   = $client->debug;
   }
 
   /**
@@ -194,7 +205,7 @@ abstract class AbstractObject
       }
     }
 
-    if ($this->debug == LOG_DEBUG) {
+    if ($this->debug) {
       // $result/$xmlQuery are only populated once ExecuteQuery() has run --
       // getError() is reachable before that (any setError() on a missing
       // precondition), so neither can be dereferenced unguarded here
@@ -219,12 +230,12 @@ abstract class AbstractObject
    *
    * @param string $clTRType client transaction type
    * @param string $clTRObject client transaction object
-   * @param bool $store store transaction and response
    * @return bool status
    */
-  protected function ExecuteQuery(string $clTRType, string $clTRObject, bool $store = TRUE): bool {
-    // store request
-    if ($store) {
+  protected function ExecuteQuery(string $clTRType, string $clTRObject): bool {
+    // store request -- only under $debug; see the property's own note on what
+    // ends up in these tables
+    if ($this->debug) {
       R::exec("
         INSERT INTO transactions (cl_trid, cl_trtype, cl_trobject, cl_trdata)
         VALUES (:cl_trid, :cl_trtype, :cl_trobject, :cl_trdata)
@@ -276,7 +287,7 @@ abstract class AbstractObject
     $this->svTRID = (isset($this->xmlResult->response->trID->svTRID) && is_object($this->xmlResult->response->trID->svTRID)) ? (string)$this->xmlResult->response->trID->svTRID : "";
 
     // store response
-    if ($store) {
+    if ($this->debug) {
       R::exec("
         INSERT INTO responses (cl_trid, sv_trid, sv_code, status, sv_httpcode, sv_httpheaders, sv_httpdata, extvaluereasoncode, extvaluereason)
         VALUES (:cl_trid, :sv_trid, :sv_code, :status, :sv_httpcode, :sv_httpheaders, :sv_httpdata, :extvaluereasoncode, :extvaluereason)

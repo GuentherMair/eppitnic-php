@@ -250,7 +250,7 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
 });
 
 $app->get('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
 
     // the registry is authoritative -- its answer is returned as-is, never
@@ -261,7 +261,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
         $domain = Helpers::withEppSession(function ($nic) use ($name) {
             $domain = new Domain($nic);
             return $domain->fetch($name) ? $domain : null;
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         // registry unreachable -- indistinguishable from "not found" as far as
         // this route is concerned, both fall through to the local fallback
@@ -286,7 +286,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
 });
 
 $app->post('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Helpers::requireFields($params, ['domain', 'registrant']) ?? Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
@@ -344,7 +344,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
             $domain->storeDB($user_id, $available === TRUE);
 
             return ['ok' => true, 'domain' => $domain];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -357,7 +357,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtUserID($request);
+    ['id' => $user_id, 'debug' => $debug] = Helpers::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     $names = array_unique(array_filter(array_map('trim', (array) ($params['domains'] ?? []))));
@@ -413,7 +413,7 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
                 $results[$name] = $result;
             }
             return $results;
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -422,7 +422,7 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
 });
 
 $app->patch('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -479,7 +479,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             $domain->updateDB($name, $user_id, $isAdmin, $changes);
 
             return ['ok' => true, 'domain' => $domain];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -492,7 +492,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -527,7 +527,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             }
             $domain->updateDB($name, $user_id, $isAdmin);
             return ['ok' => true, 'domain' => $domain];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -540,7 +540,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -562,7 +562,7 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
             return ['ok' => true, 'domain' => $domain];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -587,7 +587,7 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getQueryParams();
     $mode = $params['mode'] ?? 'now';
@@ -634,7 +634,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             }
             $domain->deleteDomainDB($name, $user_id, $isAdmin);
             return ['ok' => true];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -647,7 +647,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
 
     if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
@@ -662,7 +662,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
             }
             $domain->restoreDomainDB($name, $user_id, $isAdmin);
             return ['ok' => true];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -676,6 +676,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {
     Helpers::jwtRequireAdmin($request);
+    ['debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -766,7 +767,7 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
             Helpers::logChanges('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
 
             return ['ok' => true, 'domain' => $domain];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -779,7 +780,7 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
 });
 
 $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -811,7 +812,7 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
                 ':dns'        => serialize((array) ($params['ns'] ?? [])),
             ]);
             return ['ok' => true];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -825,7 +826,7 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
 
 foreach (['approve', 'reject', 'cancel'] as $transferAction) {
     $app->post("/v1/domains/{name}/transfer/{$transferAction}", function (Request $request, Response $response, array $args) use ($transferAction): Response {
-        ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+        ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
         $name = $args['name'];
         $params = $request->getParsedBody() ?? [];
         $authinfo = $params['authinfo'] ?? '';
@@ -849,7 +850,7 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
                     R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
                 }
                 return ['ok' => true];
-            });
+            }, $debug);
         } catch (\RuntimeException $e) {
             return Helpers::json($response, ['error' => $e->getMessage()], 502);
         }

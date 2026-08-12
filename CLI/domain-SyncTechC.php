@@ -44,7 +44,7 @@ $contacts = array_slice(explode(":", $options['c']), 0, 6);
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -64,7 +64,7 @@ echo "Login OK.\n";
 foreach ($domains as $name) {
   // recreate domain object
   $domain = new Domain($nic);
-  //$domain->debug = LOG_DEBUG;
+  //$domain->debug = true;
 
   // load domain object
   if ( ! $domain->fetch($name)) {

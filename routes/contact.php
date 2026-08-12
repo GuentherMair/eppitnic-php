@@ -66,7 +66,7 @@ $app->get('/v1/contacts', function (Request $request, Response $response, array 
 });
 
 $app->get('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $handle = $args['handle'];
 
     if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
@@ -81,7 +81,7 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
         $contact = Helpers::withEppSession(function ($nic) use ($handle) {
             $contact = new Contact($nic);
             return $contact->fetch($handle) ? $contact : null;
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         // registry unreachable -- indistinguishable from "not found" as far as
         // this route is concerned, both fall through to the local fallback
@@ -108,7 +108,7 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtUserID($request);
+    ['id' => $user_id, 'debug' => $debug] = Helpers::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Helpers::requireFields($params, ['name']) ?? Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
@@ -138,7 +138,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             }
             $contact->storeDB($user_id);
             return ['ok' => true, 'contact' => $contact];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -151,7 +151,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $handle = $args['handle'];
     $params = $request->getParsedBody() ?? [];
 
@@ -181,7 +181,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
             }
             $contact->updateDB($handle, $user_id, $isAdmin);
             return ['ok' => true, 'contact' => $contact];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }
@@ -194,7 +194,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
     $handle = $args['handle'];
 
     try {
@@ -205,7 +205,7 @@ $app->delete('/v1/contacts/{handle}', function (Request $request, Response $resp
             }
             $contact->deleteContactDB($handle, $user_id, $isAdmin);
             return ['ok' => true];
-        });
+        }, $debug);
     } catch (\RuntimeException $e) {
         return Helpers::json($response, ['error' => $e->getMessage()], 502);
     }

@@ -8,7 +8,7 @@ require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // retrieve and test command line options
 $options = getopt("d:f:r:a:o:t:c:i:");

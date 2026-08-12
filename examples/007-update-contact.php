@@ -8,9 +8,9 @@ require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 $nic = new Client();
 $session = new Session($nic);
-$session->debug = LOG_DEBUG;
+$session->debug = true;
 $contact = new Contact($nic);
-$contact->debug = LOG_DEBUG;
+$contact->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -58,7 +58,7 @@ switch ($contact->check($name)) {
 
       echo "Creating new object...";
       $contact = new Contact($nic);
-      $contact->debug = LOG_DEBUG;
+      $contact->debug = true;
       echo " done.\n";
 
       echo "Fetching object data from EPP server:\n";
@@ -106,7 +106,7 @@ switch ($contact->check($name)) {
 
         echo "Creating new object...";
         $contact = new Contact($nic);
-        $contact->debug = LOG_DEBUG;
+        $contact->debug = true;
         echo " done.\n";
 
         echo "Fetching updated object data from EPP server:\n";

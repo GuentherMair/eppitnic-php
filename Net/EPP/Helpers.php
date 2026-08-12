@@ -99,7 +99,7 @@ final class Helpers
      * way to reach the same thing.
      *
      * @param Request $request the incoming HTTP request
-     * @return array{id: int, isAdmin: bool}
+     * @return array{id: int, isAdmin: bool, debug: bool}
      * @throws HttpUnauthorizedException if the request carries no usable credential
      */
     public static function actor(Request $request): array {
@@ -107,6 +107,7 @@ final class Helpers
         return [
             'id'      => (int) $decoded->data->id,
             'isAdmin' => (int) $decoded->data->admin === 1,
+            'debug'   => ! empty($decoded->data->debug),
         ];
     }
 
@@ -155,11 +156,18 @@ final class Helpers
      * actually need a live registry round-trip.
      *
      * @param callable $fn function(Client $nic, Session $session)
+     * @param bool $debug turn on EPP diagnostics for everything built from this
+     *                    session -- see AbstractObject::$debug. Set from the
+     *                    caller's `users`.`debug` column, via actor()['debug'].
      * @return mixed whatever $fn returns
      * @throws \RuntimeException if hello() or login() fails
      */
-    public static function withEppSession(callable $fn): mixed {
+    public static function withEppSession(callable $fn, bool $debug = false): mixed {
         $nic = new Client();
+        // set before anything is constructed from it: AbstractObject copies
+        // this at construction, so a later change would not reach the objects
+        $nic->debug = $debug;
+
         $session = new Session($nic);
 
         if ( ! $session->hello()) {

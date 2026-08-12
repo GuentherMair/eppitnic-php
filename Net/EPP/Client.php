@@ -59,6 +59,17 @@ class Client extends Smarty
 {
   public $EPPCfg;
 
+  /**
+   * Diagnostics for every EPP object built from this client.
+   *
+   * AbstractObject copies this into its own $debug at construction, so setting
+   * it here once -- from the `users`.`debug` column, via
+   * Helpers::withEppSession() -- covers the Session, Domain and Contact
+   * objects a request goes on to create, rather than each caller having to
+   * remember. See AbstractObject::$debug for what it turns on.
+   */
+  public bool $debug = false;
+
   private $clTRID;
   private $headers = array('content-type' => 'text/xml; charset=UTF-8');
 

@@ -8,9 +8,9 @@ require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 $nic = new Client();
 $session = new Session($nic);
-$session->debug = LOG_DEBUG;
+$session->debug = true;
 $contact = new Contact($nic);
-$contact->debug = LOG_DEBUG;
+$contact->debug = true;
 
 $handle = "GM0005";
 $regcode = "12345678910";
@@ -33,7 +33,7 @@ echo "Login OK.\n";
 // create empty contact object
 echo "Creating new object...";
 $contact = new Contact($nic);
-$contact->debug = LOG_DEBUG;
+$contact->debug = true;
 echo " done.\n";
 
 // updateing object
@@ -52,7 +52,7 @@ if ($contact->update()) {
 
   echo "Creating new object...";
   $contact = new Contact($nic);
-  $contact->debug = LOG_DEBUG;
+  $contact->debug = true;
   echo " done.\n";                     
 
   // retrieve some information from server

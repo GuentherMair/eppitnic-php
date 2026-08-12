@@ -21,7 +21,7 @@ if (($handle = fopen($argv[1], "r")) === FALSE) {
 
 $nic = new Client();
 $session = new Session($nic);
-//$session->debug = LOG_DEBUG;
+//$session->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {
@@ -45,7 +45,7 @@ while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
 
   // recreate domain object
   $domain = new Domain($nic);
-  //$domain->debug = LOG_DEBUG;
+  //$domain->debug = true;
 
   // load domain object
   if ( ! $domain->fetch($name)) {

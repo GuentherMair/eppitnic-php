@@ -9,11 +9,11 @@ require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 $nic = new Client();
 $session = new Session($nic);
-$session->debug = LOG_DEBUG;
+$session->debug = true;
 $contact = new Contact($nic);
-$contact->debug = LOG_DEBUG;
+$contact->debug = true;
 $domain = new Domain($nic);
-$domain->debug = LOG_DEBUG;
+$domain->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {

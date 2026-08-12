@@ -36,7 +36,7 @@ foreach ($domain_list as $name => $values)
 
 foreach ($contact_list as $name => $values) {
   $contact = new Contact($nic);
-  //$contact->debug = LOG_DEBUG;
+  //$contact->debug = true;
   if ($contact->fetch($name)) {
     $contact->set('consentforpublishing', FALSE);
     if (in_array($contact->get('email'), array('', 'n.a.'))) {

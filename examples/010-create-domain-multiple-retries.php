@@ -19,9 +19,9 @@ $usleep_between = 500000; // between retries sleep 0.5 seconds (500000 microseco
 
 $nic = new Client();
 $session = new Session($nic);
-$session->debug = LOG_DEBUG;
+$session->debug = true;
 $domain = new Domain($nic);
-$domain->debug = LOG_DEBUG;
+$domain->debug = true;
 
 // send "hello"
 if ( ! $session->hello()) {

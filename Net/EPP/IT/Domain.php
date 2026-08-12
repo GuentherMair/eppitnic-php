@@ -431,7 +431,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ($this->ExecuteQuery("domain-check", implode(";", $domain), ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("domain-check", implode(";", $domain))) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
       if (count($tmp->chkData->cd) == 1) {
@@ -482,7 +482,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server and return answer (no handling of special return values)
-    if ($this->ExecuteQuery("domain-create", $this->domain, ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("domain-create", $this->domain)) {
       $this->changes = 0;
       $this->status = array('ok');
       $this->ns_initial = $this->ns;
@@ -535,7 +535,7 @@ class Domain extends AbstractObject
     $this->initValues();
 
     // query server
-    if ($this->ExecuteQuery("domain-info", $domain, ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("domain-info", $domain)) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
 
@@ -687,7 +687,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("domain-delete", $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-delete", $domain);
   }
 
   /**
@@ -821,7 +821,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ($this->ExecuteQuery("domain-update", $this->domain, ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("domain-update", $this->domain)) {
       $this->changes = 0;
       $this->ns_initial = $this->ns;
       $this->admin_initial = $this->admin;
@@ -878,7 +878,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("domain-update", $this->domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-update", $this->domain);
   }
 
   /**
@@ -928,7 +928,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("domain-status", $this->domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-status", $this->domain);
   }
 
   /**
@@ -953,7 +953,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("domain-restore", $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-restore", $domain);
   }
 
   /**
@@ -1176,7 +1176,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    if ($this->ExecuteQuery("domain-transfer-query", $domain, ($this->debug >= LOG_DEBUG))) {
+    if ($this->ExecuteQuery("domain-transfer-query", $domain)) {
       $ns = $this->xmlResult->getNamespaces(TRUE);
       $tmp = $this->xmlResult->response->resData->children($ns['domain']);
       if (@is_object($tmp->trnData->trStatus[0])) {
@@ -1236,7 +1236,7 @@ class Domain extends AbstractObject
     $this->client->clearAllAssign();
 
     // query server
-    return $this->ExecuteQuery("domain-transfer-".$operation, $domain, ($this->debug >= LOG_DEBUG));
+    return $this->ExecuteQuery("domain-transfer-".$operation, $domain);
   }
 
   /**

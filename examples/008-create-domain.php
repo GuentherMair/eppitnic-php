@@ -9,9 +9,9 @@ require_once dirname(__FILE__).'/../vendor/autoload.php';
 
 $nic = new Client();
 $session = new Session($nic);
-$session->debug = LOG_DEBUG;
+$session->debug = true;
 $domain = new Domain($nic);
-$domain->debug = LOG_DEBUG;
+$domain->debug = true;
 
 /*
  * we will require 3 contacts at least for this script!
@@ -20,7 +20,7 @@ function check_or_create($handle, $registrant = FALSE) {
   global $nic;
 
   $contact = new Contact($nic);
-  $contact->debug = LOG_DEBUG;
+  $contact->debug = true;
 
   if ($contact->check($handle) === TRUE)
     return TRUE;
