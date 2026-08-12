@@ -3,13 +3,6 @@
 /vendor/
 /config/config.php
 
-# Smarty's working directories are tracked (Net/EPP/Client.php defaults to them
-# and falls back to the system temp dir when they are missing), but everything
-# Smarty writes into them is generated output.
-/smarty/compile/*
-/smarty/cache/*
-!/smarty/compile/.gitkeep
-!/smarty/cache/.gitkeep
 
 # phpunit
 /.phpunit.cache/

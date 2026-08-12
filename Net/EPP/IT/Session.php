@@ -3,6 +3,7 @@
 namespace Net\EPP\IT;
 
 use Net\EPP\AbstractObject;
+use Net\EPP\XmlBuilder;
 use RedBeanPHP\R;
 
 /**
@@ -110,9 +111,7 @@ class Session extends AbstractObject
    * @return bool status
    */
   public function hello(): bool {
-    // fill xml template
-    $this->xmlQuery = $this->client->fetch("session-hello");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::hello();
 
     // query server (will return false)
     $this->ExecuteQuery("session-hello", "");
@@ -132,10 +131,6 @@ class Session extends AbstractObject
    * @return bool status
    */
   private function loginout(string $which): bool {
-    // fetch template
-    $this->xmlQuery = $this->client->fetch($which);
-    $this->client->clearAllAssign();
-
     // query server
     if ($this->ExecuteQuery($which, "")) {
       // The registry reports the remaining credit as an extepp extension on
@@ -163,12 +158,13 @@ class Session extends AbstractObject
    * @return bool status
    */
   public function login(string $newPW = ""): bool {
-    // fill xml template
-    $this->client->assign('username', $this->client->EPPCfg->username);
-    $this->client->assign('password', $this->client->EPPCfg->password);
-    $this->client->assign('lang', $this->client->EPPCfg->lang);
-    $this->client->assign('newPW', $newPW);
-    $this->client->assign('dnssec', @isset($this->client->EPPCfg->dnssec->active) ? (int)$this->client->EPPCfg->dnssec->active : 0);
+    $this->xmlQuery = XmlBuilder::login(
+      (string)$this->client->EPPCfg->username,
+      (string)$this->client->EPPCfg->password,
+      (string)$this->client->EPPCfg->lang,
+      $newPW,
+      isset($this->client->EPPCfg->dnssec->active) && (int)$this->client->EPPCfg->dnssec->active === 1
+    );
 
     return $this->loginout("session-login");
   }
@@ -188,8 +184,7 @@ class Session extends AbstractObject
    * @return bool status
    */
   public function logout(): bool {
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
+    $this->xmlQuery = XmlBuilder::logout($this->client->set_clTRID());
 
     return $this->loginout("session-logout");
   }
@@ -240,14 +235,7 @@ class Session extends AbstractObject
         break;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('type', $type);
-    if ( ! empty($msgID)) $this->client->assign('msgID', $msgID);
-
-    // fetch template
-    $this->xmlQuery = $this->client->fetch("session-poll");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::poll($this->client->set_clTRID(), $type, empty($msgID) ? null : (int)$msgID);
 
     // query server
     $qrs = $this->ExecuteQuery("session-poll", "poll");

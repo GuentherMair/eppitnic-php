@@ -162,7 +162,7 @@ CREATE TABLE `settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO `settings` (`key`, `value`) VALUES
-  ('schema_version', '"070000"'),
+  ('schema_version', '"070100"'),
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
@@ -175,7 +175,6 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- 24 hours. 0 means "never attempted".
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
-  ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
   ('cookie_dir', 'null'),

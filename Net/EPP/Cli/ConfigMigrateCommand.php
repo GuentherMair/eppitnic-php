@@ -111,13 +111,6 @@ final class ConfigMigrateCommand extends Command
             'algorithm'  => (int) self::xmlStr($xml->dnssec->algorithm),
             'digesttype' => (int) self::xmlStr($xml->dnssec->digesttype),
           ],
-          'smarty' => [
-            'use_sub_dirs' => self::xmlStr($xml->smarty->use_sub_dirs) !== '' ? (bool) self::xmlStr($xml->smarty->use_sub_dirs) : null,
-            'template_dir' => self::xmlStr($xml->smarty->template_dir) !== '' ? self::xmlStr($xml->smarty->template_dir) : null,
-            'config_dir'   => self::xmlStr($xml->smarty->config_dir)   !== '' ? self::xmlStr($xml->smarty->config_dir)   : null,
-            'compile_dir'  => self::xmlStr($xml->smarty->compile_dir)  !== '' ? self::xmlStr($xml->smarty->compile_dir)  : null,
-            'cache_dir'    => self::xmlStr($xml->smarty->cache_dir)    !== '' ? self::xmlStr($xml->smarty->cache_dir)    : null,
-          ],
           // config.xml's DEBUG flag is not carried over -- nothing ever read the
           // resulting 'debug' setting. Per-object verbosity is the $debug property on
           // Net\EPP objects (users.debug), and debugfile below is what turns on cURL

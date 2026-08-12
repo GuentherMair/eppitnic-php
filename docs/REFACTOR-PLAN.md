@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–3 complete, plus 7.1 and 7.2. Phase 4 is next.
+**Status:** Phases 0–4 complete, plus 7.1 and 7.2. Phase 5 is next.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -15,8 +15,8 @@ are estimates for our own code (`vendor/` excluded).
 | 1 | Dead code and weak randomness | 0.5d | −473 | **done** |
 | 2 | Route boilerplate | 0.5d | −166 | **done** |
 | 3 | `bin/eppitnic`, retire `CLI/` + `examples/` | 5d | −4,700 | **done** |
-| 4 | Smarty → `DOMDocument` | 3–4d | −500 | next |
-| 5 | Field maps and persistence | 2–3d | −260 | |
+| 4 | Smarty → `DOMDocument` | 3–4d | −600 | **done** |
+| 5 | Field maps and persistence | 2–3d | −260 | next |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | optional |
 | 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
 
@@ -113,31 +113,45 @@ and are now shared with the CLI rather than copied.
 `DOMAIN_FETCH_FAILED`. Anything scripted around the old exit codes needs
 checking.
 
-## Phase 4 — Smarty → `DOMDocument`
+## Phase 4 — Smarty → `DOMDocument` ✅
 
-1. **Stop inheriting.** `Client extends Smarty` → no parent. Removes
-   `_ensureWritableDir()`, the `clearAllAssign()` override, and the four
-   `smarty->*_dir` config resolutions.
-2. **Add `Net/EPP/XmlBuilder.php`** — `epp()`, `command()`, `extension()`,
-   `clTRID()` primitives over `DOMDocument`, one small method per command.
-   The `assign('tech_add_num', 0)` padding in `Domain::update()` and
-   `updateRegistrant()`, and `Contact::update()`'s name/value marshalling,
-   have no analogue in a builder and simply disappear.
-3. **Fix the escaping inversion.** Values are HTML-escaped in `set()`, so
-   escaped data is stored and returned by `get()`, while templates emit
-   `{$var}` raw; `Contact::duplicate()` has to `html_entity_decode()` to
-   compensate. DOM escapes once, at serialization.
-   **Requires a data migration:** existing rows hold HTML-escaped values
-   (`Müller &amp; Co`). Ship a one-shot fixer and bump `SCHEMA_VERSION`.
-4. **Delete** `templates/`, `smarty/`, the `smarty` settings key and its
-   migration block, the `.gitignore` stanza, and `smarty/smarty` from
-   `composer.json`.
-5. **Wire XSD validation into `--verbose`/debug mode**, not the hot path.
+`Net\EPP\XmlBuilder` builds every request with DOMDocument, one method per
+command. `Client` no longer extends anything; `templates/`, `smarty/`, the
+`smarty` settings key and the `smarty/smarty` dependency are gone.
 
-Verified by the Phase 0 request snapshots plus one live pubtest round per
-command.
+The 29 request snapshots are byte-identical afterwards, which is what the
+phase was measured against. One fixture moved, and only in attribute order --
+that is now normalised away, since attribute order carries no meaning in XML
+and a snapshot failing on it is a snapshot that stops being read.
 
----
+### The escaping fix, and why it was forced
+
+`Contact::set()` and `Domain::set()` ran every value through
+`htmlspecialchars()` before storing it, and the templates emitted the result
+raw. For `&` that produced correct-looking XML by coincidence -- HTML and XML
+spell that entity the same way -- while the database filled with entities that
+every reader had to undo, and `Contact::duplicate()` needed an explicit
+`html_entity_decode()` to avoid compounding them on each copy.
+
+DOMDocument escapes at serialization, so the first thing the swap produced was
+`&amp;amp;`: the double encoding, finally visible. Values are now stored as
+given and escaped once, where it is needed.
+
+That leaves existing rows holding entities, so
+`config/mariadb-schema-upgrade-070000-to-070100.sql` decodes them and
+`SCHEMA_VERSION` moves to `070100`. Ordering matters there and is documented in
+the file: `&amp;` is decoded last, or a literal `&amp;lt;` would turn into `<`.
+
+`tests/Wire/EscapingTest.php` pins the property that replaced it: whatever a
+caller sets comes back out of the generated document unchanged.
+
+### Not done
+
+XSD validation in `--verbose` was in the plan and is not here. The suite
+already validates all 29 requests against `xsd/` on every run, so a per-request
+check at runtime would repeat work that cannot fail without the tests failing
+first. `--dry-run` prints the request for anyone wanting to validate one by
+hand.
 
 ## Phase 5 — Field maps and persistence
 

@@ -4,6 +4,7 @@ namespace Net\EPP\IT;
 
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
+use Net\EPP\XmlBuilder;
 use Net\EPP\Helpers;
 use RedBeanPHP\R;
 
@@ -143,10 +144,12 @@ class Contact extends AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // in PHP 5.2.3 the 4th parameter "double_encode" was added.
-    // Cast first: route handlers forward decoded JSON straight in here, and a
-    // JSON null would otherwise hit the deprecated null-to-string coercion.
-    $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
+    // Stored as given. Escaping happens once, where it is needed: XmlBuilder
+    // escapes at serialization, and PDO parameters need none. Escaping here
+    // instead meant the database held HTML entities -- an organisation really
+    // named 'Rossi &amp; Figli' -- which every consumer then had to undo, and
+    // which is wrong for XML anyway.
+    $val = (string)$val;
 
     if ($var == "entitytype") {
       return $this->setEntityType($val);
@@ -276,11 +279,10 @@ class Contact extends AbstractObject
       return -2;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('ids', array_slice($contact, 0, $this->max_check));
-    $this->xmlQuery = $this->client->fetch("contact-check");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactCheck(
+      $this->client->set_clTRID(),
+      array_slice($contact, 0, $this->max_check)
+    );
 
     // query server
     if ($this->ExecuteQuery("contact-check", implode(";", $contact))) {
@@ -339,29 +341,25 @@ class Contact extends AbstractObject
    * @return bool status
    */
   public function create(): bool {
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $this->handle);
-    $this->client->assign('name', $this->name);
-    $this->client->assign('org', $this->org);
-    $this->client->assign('street', $this->street);
-    $this->client->assign('street2', $this->street2);
-    $this->client->assign('street3', $this->street3);
-    $this->client->assign('city', $this->city);
-    $this->client->assign('sp', $this->province);
-    $this->client->assign('pc', $this->postalcode);
-    $this->client->assign('cc', $this->countrycode);
-    $this->client->assign('voice', $this->voice);
-    $this->client->assign('fax', $this->fax);
-    $this->client->assign('email', $this->email);
-    $this->client->assign('authinfo', $this->authinfo);
-    $this->client->assign('consentForPublishing', $this->consentforpublishing);
-    $this->client->assign('nationalityCode', $this->nationalitycode);
-    $this->client->assign('entityType', $this->entitytype);
-    $this->client->assign('regCode', $this->regcode);
-    $this->client->assign('schoolCode', $this->schoolcode);
-    $this->xmlQuery = $this->client->fetch("contact-create");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactCreate($this->client->set_clTRID(), [
+      'id'                   => $this->handle,
+      'name'                 => $this->name,
+      'org'                  => $this->org,
+      'street'               => [$this->street, $this->street2, $this->street3],
+      'city'                 => $this->city,
+      'sp'                   => $this->province,
+      'pc'                   => $this->postalcode,
+      'cc'                   => $this->countrycode,
+      'voice'                => $this->voice,
+      'fax'                  => $this->fax,
+      'email'                => $this->email,
+      'authinfo'             => $this->authinfo,
+      'consentForPublishing' => $this->consentforpublishing,
+      'nationalityCode'      => $this->nationalitycode,
+      'entityType'           => $this->entitytype,
+      'regCode'              => $this->regcode,
+      'schoolCode'           => $this->schoolcode,
+    ]);
 
     // query server and return answer (no handling of special return values)
     $response = $this->ExecuteQuery("contact-create", $this->handle);
@@ -388,11 +386,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $contact);
-    $this->xmlQuery = $this->client->fetch("contact-info");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactInfo($this->client->set_clTRID(), $contact);
 
     // re-initialize object data
     $this->initValues();
@@ -450,11 +444,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $contact);
-    $this->xmlQuery = $this->client->fetch("contact-delete");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactDelete($this->client->set_clTRID(), $contact);
 
     // query server
     return $this->ExecuteQuery("contact-delete", $contact);
@@ -526,21 +516,16 @@ class Contact extends AbstractObject
       $registrant['schoolCode'] = $this->schoolcode;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $this->handle);
-
-    $this->client->assign('postalinfo', empty($postalinfo) ? array() : $postalinfo);
-    $this->client->assign('addr', empty($addr) ? array() : $addr);
-    // always an array, never '' -- the template counts it, and a string would
-    // make the "did anything change?" test in the template silently true
-    $this->client->assign('contact', $contact);
-    $this->client->assign('registrant', empty($registrant) ? '' : $registrant);
-    $this->client->assign('authinfo', (($this->changes & 4096) > 0) ? $this->authinfo : '');
-    $this->client->assign('consentForPublishing', (($this->changes & 8192) > 0) ? $this->consentforpublishing : '');
-
-    $this->xmlQuery = $this->client->fetch("contact-update");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactUpdate(
+      $this->client->set_clTRID(),
+      $this->handle,
+      $postalinfo,
+      $addr,
+      $contact,
+      (($this->changes & 4096) > 0) ? $this->authinfo : '',
+      (($this->changes & 8192) > 0) ? (int)$this->consentforpublishing : '',
+      $registrant
+    );
 
     // query server
     return $this->ExecuteQuery("contact-update", $this->handle);
@@ -581,13 +566,7 @@ class Contact extends AbstractObject
         break;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('id', $this->handle);
-    $this->client->assign('adddel', $adddel);
-    $this->client->assign('state', $state);
-    $this->xmlQuery = $this->client->fetch("contact-status");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::contactStatus($this->client->set_clTRID(), $this->handle, $adddel, $state);
 
     // query server
     $result = $this->ExecuteQuery("contact-status", $this->handle);

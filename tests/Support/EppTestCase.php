@@ -38,7 +38,6 @@ abstract class EppTestCase extends TestCase
         'debugfile'       => '',
         'cookie_dir'      => null,
         'dnssec'          => ['active' => 1, 'algorithm' => 10, 'digesttype' => 2],
-        'smarty'          => ['use_sub_dirs' => null, 'template_dir' => null, 'config_dir' => null, 'compile_dir' => null, 'cache_dir' => null],
     ];
 
     protected function setUp(): void {
@@ -79,6 +78,30 @@ abstract class EppTestCase extends TestCase
         if ( ! @$dom->loadXML($xml)) {
             return trim($xml); // malformed: let the caller's assertion report it
         }
+
+        // Attribute order carries no meaning in XML, and the registry does not
+        // see it, so a snapshot that depends on it fails for cosmetic reasons
+        // -- which is how it stops being read.
+        self::sortAttributes($dom->documentElement);
+
         return trim($dom->saveXML());
+    }
+
+    private static function sortAttributes(\DOMElement $element): void {
+        $attributes = [];
+        foreach (iterator_to_array($element->attributes) as $attribute) {
+            $attributes[$attribute->nodeName] = $attribute->nodeValue;
+            $element->removeAttributeNode($attribute);
+        }
+        ksort($attributes);
+        foreach ($attributes as $name => $value) {
+            $element->setAttribute($name, $value);
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                self::sortAttributes($child);
+            }
+        }
     }
 }

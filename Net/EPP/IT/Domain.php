@@ -8,6 +8,7 @@ use Algo26\IdnaConvert\ToUnicode;
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\Helpers;
+use Net\EPP\XmlBuilder;
 use RedBeanPHP\R;
 
 /**
@@ -152,12 +153,12 @@ class Domain extends AbstractObject
         $this->setError("set('{$var}', ...) takes a single value; use add" . strtoupper($var) . "() per entry.");
         return FALSE;
       }
-      $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
+      $val = (string)$val;
       return ($var == "ns") ? $this->addNS($val) : $this->addTECH($val);
     }
 
-    // in PHP 5.2.3 the 4th parameter "double_encode" was added
-    $val = htmlspecialchars((string)$val, ENT_COMPAT, 'UTF-8', false);
+    // stored as given -- see the note in Contact::set()
+    $val = (string)$val;
 
     if (isset($this->$var)) {
       if ($this->$var == $val) {
@@ -424,11 +425,10 @@ class Domain extends AbstractObject
       return -2;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domains', array_slice($domain, 0, $this->max_check));
-    $this->xmlQuery = $this->client->fetch("domain-check");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainCheck(
+      $this->client->set_clTRID(),
+      array_slice($domain, 0, $this->max_check)
+    );
 
     // query server
     if ($this->ExecuteQuery("domain-check", implode(";", $domain))) {
@@ -481,19 +481,16 @@ class Domain extends AbstractObject
    * @return bool status
    */
   public function create(): bool {
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $this->domain);
-    $this->client->assign('nameservers', $this->ns);
-    $this->client->assign('registrant', $this->registrant);
-    $this->client->assign('admin', $this->admin);
-    $this->client->assign('tech', $this->tech);
-    $this->client->assign('authinfo', $this->authinfo);
-    if ($this->dnssec_status == 1 && count($this->dnssec) > 0) {
-      $this->client->assign('dnssec', $this->dnssec);
-    }
-    $this->xmlQuery = $this->client->fetch("domain-create");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainCreate(
+      $this->client->set_clTRID(),
+      $this->domain,
+      $this->ns,
+      $this->registrant,
+      $this->admin,
+      $this->tech,
+      $this->authinfo,
+      ($this->dnssec_status == 1) ? $this->dnssec : array()
+    );
 
     // query server and return answer (no handling of special return values)
     if ($this->ExecuteQuery("domain-create", $this->domain)) {
@@ -537,13 +534,12 @@ class Domain extends AbstractObject
       $authinfo = $this->authinfo;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $domain);
-    $this->client->assign('infContacts', $infContacts);
-    $this->client->assign('authinfo', empty($authinfo) ? '' : $authinfo);
-    $this->xmlQuery = $this->client->fetch("domain-info");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainInfo(
+      $this->client->set_clTRID(),
+      $domain,
+      empty($authinfo) ? '' : $authinfo,
+      $infContacts
+    );
 
     // re-initialize object data
     $this->initValues();
@@ -704,11 +700,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $domain);
-    $this->xmlQuery = $this->client->fetch("domain-delete");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainDelete($this->client->set_clTRID(), $domain);
 
     // query server
     return $this->ExecuteQuery("domain-delete", $domain);
@@ -733,116 +725,69 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $this->domain);
-    if (($this->changes & 1) > 0) {
+    $add = array();
+    $remove = array();
 
-      // limit to a maximum of 6 ns
+    if (($this->changes & 1) > 0) {
+      // the registry accepts at most six
       $this->ns = array_slice($this->ns, 0, 6);
 
-      // strip everything down to a 1-dimensional array (names including ip's)
-      $tmpA = array();
-      $tmpB = array();
-      foreach ($this->ns as $name => $values) {
-        $tmp = $name;
-        if (isset($this->ns[$name]['ip'])) {
-          foreach ($this->ns[$name]['ip'] as $i => $addr) {
-            $tmp .= ";" . $addr['address'];
+      // Compare on name+addresses, not name alone: re-pointing a glued
+      // nameserver at a new address is a removal and an addition, and
+      // comparing names would see no change at all.
+      $signature = function (array $set): array {
+        $out = array();
+        foreach ($set as $name => $values) {
+          $key = $name;
+          foreach ($values['ip'] ?? array() as $addr) {
+            $key .= ";" . $addr['address'];
           }
+          $out[$key] = $name;
         }
-        $tmpA[] = $tmp;
-      }
-      foreach ($this->ns_initial as $name => $values) {
-        $tmp = $name;
-        if (isset($this->ns_initial[$name]['ip'])) {
-          foreach ($this->ns_initial[$name]['ip'] as $i => $addr) {
-            $tmp .= ";" . $addr['address'];
-          }
-        }
-        $tmpB[] = $tmp;
-      }
+        return $out;
+      };
 
-      // which to add
-      $diffAB = array_diff($tmpA, $tmpB);
-      $tmp = array();
-      foreach ($diffAB as $name) {
-        $key = explode(';', $name);
-        $tmp[$key[0]] = $this->ns[$key[0]];
-      }
-      $this->client->assign('nameservers_add_num', count($tmp));
-      $this->client->assign('nameservers_add', $tmp);
+      $now = $signature($this->ns);
+      $before = $signature($this->ns_initial);
 
-      // which to remove
-      $diffBA = array_diff($tmpB, $tmpA);
-      $tmp = array();
-      foreach ($diffBA as $name) {
-        $key = explode(';', $name);
-        $tmp[$key[0]] = $this->ns_initial[$key[0]];
+      foreach (array_diff_key($now, $before) as $name) {
+        $add['ns'][$name] = $this->ns[$name];
       }
-      $this->client->assign('nameservers_rem_num', count($tmp));
-      $this->client->assign('nameservers_rem', $tmp);
-    } else {
-      $this->client->assign('nameservers_add_num', 0);
-      $this->client->assign('nameservers_add', array());
-      $this->client->assign('nameservers_rem_num', 0);
-      $this->client->assign('nameservers_rem', array());
+      foreach (array_diff_key($before, $now) as $name) {
+        $remove['ns'][$name] = $this->ns_initial[$name];
+      }
     }
+
     if (($this->changes & 4) > 0) {
-      $this->client->assign('admin_add', $this->admin);
-      $this->client->assign('admin_rem', $this->admin_initial);
-    } else {
-      $this->client->assign('admin_add', '');
-      $this->client->assign('admin_rem', '');
+      $add['admin'] = $this->admin;
+      $remove['admin'] = $this->admin_initial;
     }
+
     if (($this->changes & 8) > 0) {
-      // limit to a maximum of 6 techc's
+      // at most six technical contacts, as with the nameservers
       $this->tech = array_slice($this->tech, 0, 6);
-      // which to add
-      $tmp = array_diff($this->tech, $this->tech_initial);
-      $this->client->assign('tech_add_num', count($tmp));
-      $this->client->assign('tech_add', $tmp);
-      // which to remove
-      $tmp = array_diff($this->tech_initial, $this->tech);
-      $this->client->assign('tech_rem_num', count($tmp));
-      $this->client->assign('tech_rem', $tmp);
-    } else {
-      $this->client->assign('tech_add_num', 0);
-      $this->client->assign('tech_add', array());
-      $this->client->assign('tech_rem_num', 0);
-      $this->client->assign('tech_rem', array());
+      $add['tech'] = array_diff($this->tech, $this->tech_initial);
+      $remove['tech'] = array_diff($this->tech_initial, $this->tech);
     }
+
+    $dnssecAdd = array();
+    $dnssecRemove = array();
     if (($this->changes & 32) > 0) {
-      // limit to a maximum of 2 dnssec records
+      // the registry accepts at most two DS records
       $this->dnssec = array_slice($this->dnssec, 0, 2, true);
-      // which to add
-      $tmp = array();
-      foreach ($this->dnssec as $digest => $keyinfo) {
-        if ( ! isset($this->dnssec_initial[$digest])) {
-          $tmp[$digest] = $keyinfo;
-        }
-      }
-      $this->client->assign('dnssec_add_num', count($tmp));
-      $this->client->assign('dnssec_add', $tmp);
-      // which to remove
-      $tmp = array();
-      foreach ($this->dnssec_initial as $digest => $keyinfo) {
-        if ( ! isset($this->dnssec[$digest])) {
-          $tmp[$digest] = $keyinfo;
-        }
-      }
-      $this->client->assign('dnssec_rem_num', count($tmp));
-      $this->client->assign('dnssec_rem', $tmp);
-    } else {
-      $this->client->assign('dnssec_add_num', 0);
-      $this->client->assign('dnssec_add', array());
-      $this->client->assign('dnssec_rem_num', 0);
-      $this->client->assign('dnssec_rem', array());
+      $dnssecAdd = array_diff_key($this->dnssec, $this->dnssec_initial);
+      $dnssecRemove = array_diff_key($this->dnssec_initial, $this->dnssec);
     }
-    $this->client->assign('registrant', '');
-    $this->client->assign('authinfo', (($this->changes & 16) > 0) ? $this->authinfo : '');
-    $this->xmlQuery = $this->client->fetch("domain-update");
-    $this->client->clearAllAssign();
+
+    $this->xmlQuery = XmlBuilder::domainUpdate(
+      $this->client->set_clTRID(),
+      $this->domain,
+      $add,
+      $remove,
+      array('authinfo' => (($this->changes & 16) > 0) ? $this->authinfo : ''),
+      $dnssecAdd,
+      $dnssecRemove
+    );
 
     // query server
     if ($this->ExecuteQuery("domain-update", $this->domain)) {
@@ -875,31 +820,23 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $this->domain);
-    $this->client->assign('registrant', $this->registrant);
-    $this->client->assign('authinfo', $this->authinfo);
+    // updateRegistrant() carries only the registrant, its authinfo and the
+    // admin contact; nameserver and technical-contact changes are ignored by
+    // the registry on this command and belong to update()
+    $add = array();
+    $remove = array();
     if (($this->changes & 4) > 0) {
-      $this->client->assign('admin_add', $this->admin);
-      $this->client->assign('admin_rem', $this->admin_initial);
-    } else {
-      $this->client->assign('admin_add', '');
-      $this->client->assign('admin_rem', '');
+      $add['admin'] = $this->admin;
+      $remove['admin'] = $this->admin_initial;
     }
 
-    $this->client->assign('tech_add_num', 0);
-    $this->client->assign('tech_add', array());
-    $this->client->assign('tech_rem_num', 0);
-    $this->client->assign('tech_rem', array());
-
-    $this->client->assign('nameservers_add_num', 0);
-    $this->client->assign('nameservers_add', array());
-    $this->client->assign('nameservers_rem_num', 0);
-    $this->client->assign('nameservers_rem', array());
-
-    $this->xmlQuery = $this->client->fetch("domain-update");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainUpdate(
+      $this->client->set_clTRID(),
+      $this->domain,
+      $add,
+      $remove,
+      array('registrant' => $this->registrant, 'authinfo' => $this->authinfo)
+    );
 
     // query server
     return $this->ExecuteQuery("domain-update", $this->domain);
@@ -943,13 +880,7 @@ class Domain extends AbstractObject
         break;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $this->domain);
-    $this->client->assign('adddel', $adddel);
-    $this->client->assign('state', $state);
-    $this->xmlQuery = $this->client->fetch("domain-status");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainStatus($this->client->set_clTRID(), $this->domain, $adddel, $state);
 
     // query server
     return $this->ExecuteQuery("domain-status", $this->domain);
@@ -970,11 +901,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $domain);
-    $this->xmlQuery = $this->client->fetch("domain-restore");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainRestore($this->client->set_clTRID(), $domain);
 
     // query server
     return $this->ExecuteQuery("domain-restore", $domain);
@@ -1190,14 +1117,11 @@ class Domain extends AbstractObject
       $authinfo = $this->authinfo;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('domain', $domain);
-    if ( ! empty($authinfo)) {
-      $this->client->assign('authinfo', $authinfo);
-    }
-    $this->xmlQuery = $this->client->fetch("domain-transfer-query");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainTransferQuery(
+      $this->client->set_clTRID(),
+      $domain,
+      empty($authinfo) ? '' : $authinfo
+    );
 
     // query server
     if ($this->ExecuteQuery("domain-transfer-query", $domain)) {
@@ -1243,21 +1167,14 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // fill xml template
-    $this->client->assign('clTRID', $this->client->set_clTRID());
-    $this->client->assign('operation', $operation);
-    $this->client->assign('domain', $domain);
-    $this->client->assign('authinfo', $authinfo);
-    if ( ! empty($newregistrant)) {
-      $this->client->assign('newregistrant', $newregistrant);
-    }
-    if (empty($newauthinfo)) {
-      $this->client->assign('newauthinfo', $this->authinfo());
-    } else {
-      $this->client->assign('newauthinfo', $newauthinfo);
-    }
-    $this->xmlQuery = $this->client->fetch("domain-transfer");
-    $this->client->clearAllAssign();
+    $this->xmlQuery = XmlBuilder::domainTransfer(
+      $this->client->set_clTRID(),
+      $domain,
+      $authinfo,
+      $operation,
+      $newregistrant,
+      empty($newauthinfo) ? $this->authinfo() : $newauthinfo
+    );
 
     // query server
     return $this->ExecuteQuery("domain-transfer-".$operation, $domain);

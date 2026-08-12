@@ -2,7 +2,6 @@
 
 namespace Net\EPP;
 
-use Smarty\Smarty;
 
 /**
  * A simple class handling the EPP communication through cURL.
@@ -43,19 +42,11 @@ use Smarty\Smarty;
  */
 
 /**
- * Smarty and other third-party dependencies are managed through Composer.
+ * Third-party dependencies are managed through Composer.
  */
 require_once dirname(__FILE__).'/../../vendor/autoload.php';
 
-/**
- * This class extends Smarty (a templating system) so we
- * can easily use variable-assignments directly with this
- * derived class, ie.
- *
- *   $nic = new Client();
- *   $nic->assign('username', $nic->EPPCfg->username);
- */
-class Client extends Smarty
+class Client
 {
   public $EPPCfg;
 
@@ -81,8 +72,7 @@ class Client extends Smarty
    * Class constructor
    *
    *  - read configuration from the `settings` DB table (via Config::get())
-   *  - initialize smarty parent class and settings
-   *  - initialize HTTP Client
+   *  - initialize the HTTP client
    *
    * @param string $serverOverride optional server URL to use instead of epp.server (eg.
    *                    nic.it's "-deleted" endpoint for restoring domains)
@@ -103,37 +93,13 @@ class Client extends Smarty
       'debugfile'       => Config::get('debugfile'),
       'cookie_dir'      => Config::get('cookie_dir'),
       'dnssec'          => (object)Config::get('dnssec'),
-      'smarty'          => (object)Config::get('smarty'),
     ];
 
     // setup default time zone
     date_default_timezone_set($this->EPPCfg->timezone ?: "Europe/Rome");
 
-    // call Smarty class constructor
-    parent::__construct();
-
-    // resolve smarty settings from config (or conventional defaults)
-    $use_sub_dirs = (@empty($this->EPPCfg->smarty->use_sub_dirs)) ? FALSE                                                : $this->EPPCfg->smarty->use_sub_dirs; // safe-mode restriction
-    $template_dir = (@empty($this->EPPCfg->smarty->template_dir)) ? realpath(dirname(__FILE__).'/../../templates/')      : $this->EPPCfg->smarty->template_dir;
-    $config_dir   = (@empty($this->EPPCfg->smarty->config_dir))   ? realpath(dirname(__FILE__).'/../../smarty/config/')  : $this->EPPCfg->smarty->config_dir;
-    $compile_dir  = (@empty($this->EPPCfg->smarty->compile_dir))  ? realpath(dirname(__FILE__).'/../../smarty/compile/') : $this->EPPCfg->smarty->compile_dir;
-    $cache_dir    = (@empty($this->EPPCfg->smarty->cache_dir))    ? realpath(dirname(__FILE__).'/../../smarty/cache/')   : $this->EPPCfg->smarty->cache_dir;
-
     // configure temporary folder for storing curl's cookies
     $this->curl_cookie_dir = (@empty($this->EPPCfg->cookie_dir)) ? '/tmp' : $this->EPPCfg->cookie_dir;
-
-    // smarty minimum precaution: verify write access *before* handing the
-    // folders to smarty (otherwise we could easily run into a hard to debug
-    // dead end). template_dir/config_dir are read-only for our usage, so only
-    // the folders smarty actually writes into need this.
-    $compile_dir = $this->_ensureWritableDir($compile_dir);
-    $cache_dir   = $this->_ensureWritableDir($cache_dir);
-
-    $this->setUseSubDirs($use_sub_dirs);
-    $this->setTemplateDir($template_dir);
-    $this->setConfigDir($config_dir);
-    $this->setCompileDir($compile_dir);
-    $this->setCacheDir($cache_dir);
 
     // initialize httpClient
     $this->httpClient = new Curl($this->EPPCfg->server, '', '', $this->curl_cookie_dir);
@@ -168,13 +134,6 @@ class Client extends Smarty
   }
 
   /**
-   * smarty version wrapper
-   */
-  public function clearAllAssign(): static {
-    return parent::clearAllAssign();
-  }
-
-  /**
    * replace the HTTP transport configured by the constructor
    *
    * Exists for the test suite, which substitutes a Transport returning canned
@@ -186,27 +145,6 @@ class Client extends Smarty
    */
   public function setTransport(Transport $transport): void {
     $this->httpClient = $transport;
-  }
-
-  /**
-   * make sure a directory is writable, falling back to the system temp
-   * folder if it is not
-   *
-   * @param string $dir directory to verify
-   * @return string the given directory, or a writable fallback
-   */
-  private function _ensureWritableDir(string $dir): string {
-    if (is_writeable($dir)) {
-      return $dir;
-    }
-
-    $fallback = sys_get_temp_dir();
-    if ( ! is_writeable($fallback)) {
-      exit("[".__FILE__." @ ".__LINE__."] Neither '".$dir."' nor the system temp folder '".$fallback."' are writeable. Solve problem before trying to continue.\n");
-    }
-
-    trigger_error("The folder '".$dir."' was not writable and a failback to '".$fallback."' is currently active. Grant write permissions to the correct folder!", E_USER_NOTICE);
-    return $fallback;
   }
 
   /**

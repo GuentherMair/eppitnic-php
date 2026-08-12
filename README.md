@@ -49,7 +49,7 @@ Configuration is split in two:
    are filled in for you: `jwt_psk` is silently auto-generated, and the
    rest are prompted for — same as `config/config.php` above, the first
    time `Config` runs from an interactive terminal and finds them still at
-   their placeholder. Everything else (`epp.server`, DNSSEC, Smarty, …) can
+   their placeholder. Everything else (`epp.server`, DNSSEC, …) can
    be left at its default or adjusted later with `Config::set()`.
 
    One setting is maintained by the software rather than by you:
@@ -142,6 +142,11 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 
 ### Afterwards
 
+Text stored before 7.1 holds HTML entities -- an organisation named
+`Rossi & Figli` reads `Rossi &amp; Figli` -- because values used to be escaped
+on the way in. The `070000-to-070100` migration decodes them; it runs
+automatically like every other step, and reports what it changed.
+
 Messages stored before this release may carry `type = 'unknown'` and an empty
 `domain`, mostly DNS validation failures. New messages are parsed correctly;
 for the old rows:
@@ -196,13 +201,6 @@ their real message instead of a generic one. **Leave it unset in production**
 — it exposes server internals to anyone who can trigger an error, which
 includes anyone who can send an unauthenticated request. Errors are written to
 the PHP error log either way.
-
-Finally, Smarty compiles the EPP templates into `smarty/compile/` and caches
-into `smarty/cache/`. Both are part of the repository, but they must be
-**writable by the user the web server runs as** (`www-data`, `php-fpm`, …).
-If they are not, `Net/EPP/Client.php` falls back to the system temp directory
-and emits a notice on every request — workable, but it means compiled
-templates land in a shared world-writable directory.
 
 
 # User setup
@@ -285,9 +283,7 @@ output somewhere you can read it (the suggested crontab line redirects it to
 
 # ToDo's
 
-1. replace Smarty templates with XML builder
-2. verify XML through XSDs
-3. Implement a client-daemon with session keep-alive functionality. Btw. this
+1. Implement a client-daemon with session keep-alive functionality. Btw. this
    is not necessary to pass the accreditation test (simply don't log out), but
    would be rather important if the library was to be used by registrars with
    a very high registration rate.

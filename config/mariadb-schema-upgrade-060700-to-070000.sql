@@ -648,7 +648,6 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- 24 hours. 0 means "never attempted".
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
-  ('smarty', '{"use_sub_dirs":null,"template_dir":null,"config_dir":null,"compile_dir":null,"cache_dir":null}'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
   ('cookie_dir', 'null'),

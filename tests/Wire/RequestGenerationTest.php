@@ -9,11 +9,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * Snapshot test over every EPP request the codebase generates.
  *
- * This is the safety net the XML-layer rewrite (Smarty -> DOMDocument) is
- * measured against: the generator may be replaced wholesale as long as these
- * bytes do not move. It is deliberately a *snapshot* rather than a set of
- * hand-written expectations -- hand-written expectations for 26 requests would
- * themselves be the thing most likely to contain the mistake.
+ * The generator may be replaced wholesale as long as these bytes do not move.
+ * Deliberately a snapshot rather than a set of hand-written expectations:
+ * hand-written expectations for 29 requests would themselves be the thing most
+ * likely to contain the mistake.
  *
  * To (re)generate the fixtures after an intentional change:
  *
