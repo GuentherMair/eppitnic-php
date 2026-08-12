@@ -76,125 +76,76 @@ look at the `CLI/` and `examples/` folders.
 
 # Upgrading from 6.x
 
-Everything a 6.x installation needs, in the order it needs doing. Steps 1–5
-are required; the rest are things that changed under you and are worth
-knowing about.
+**Back up the database first.** The migration drops two things for good and
+rebuilds every text column; re-running it will not undo either. Rehearse on a
+staging copy.
 
-**Take a full database backup first.** The schema migration rebuilds every
-text column (`CONVERT TO CHARACTER SET`) and re-running it will not undo it.
-Rehearse on a staging copy.
+### Before you migrate: export what you want to keep
 
-### 1. PHP 8.1+ and Composer
+Both are destroyed by the migration and are only recoverable from a backup:
 
-Dependencies are no longer vendored: `composer install` fetches them into
-`vendor/` and generates the autoloader. Every script now needs exactly one
-`require` — `vendor/autoload.php` — and nothing else. The minimum is PHP
-8.1, set by `spomky-labs/otphp` (TOTP/MFA) rather than by this code, which is
-itself 8.0-compatible.
+- the **`accounting` table**, dropped in full — invoicing has left this
+  codebase and will be reimplemented elsewhere
+- **`users.billing_id`**, dropped — export it if you need the
+  user-to-billing-account mapping
 
-### 2. `config/config.php` for the database credentials
+### What you need to do
 
-Only the database credentials still live in a file, because they are needed
-to reach the database that holds everything else. Copy
-`config/config.php-template` and fill it in, or just run any CLI script from
-a terminal and let `Config` prompt you and write the file itself.
+1. `composer install` — dependencies are no longer vendored, and PHP 8.1+ is
+   required.
+2. Create `config/config.php` from `config/config.php-template` for the
+   database credentials, or just run any CLI script from a terminal and let it
+   prompt you.
+3. `php CLI/config-DoMigrate.php` — converts `config.xml` into
+   `config/config.php` plus the `settings` table. Afterwards `config.xml` is
+   read by nothing and can be archived.
+4. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()`, and
+   the old hashes cannot be converted, so no existing login works until it is
+   reset (see "User setup").
+5. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
+   is gone, replaced by JSON/REST (`public/`, documented in `API.md`) with
+   JWT bearer tokens instead of PHP sessions.
 
-### 3. `config.xml` → the `settings` table
+### What happens automatically
 
-    php CLI/config-DoMigrate.php          # or -f PATH to point elsewhere
+The schema migrates itself on the next initialization: `Config` compares the
+`settings` table's `schema_version` against `SCHEMA_VERSION` and applies the
+`config/mariadb-schema-upgrade-*.sql` steps in order. For 6.x that means
+dropping the `tbl_` prefixes and converting everything to `utf8mb4`.
 
-This reads your existing `config.xml` and writes both `config/config.php`
-and the `settings` rows. Afterwards `config.xml` is no longer read by
-anything and can be archived.
+It runs read-only pre-flight checks first and aborts without touching anything
+if it finds a problem — in practice, domain names that differ only in case and
+would collide under the new collation. Resolve those and re-run.
 
-Three settings are gone and are silently ignored if present: `debug`,
-`epp.passwordexpirydays` and `epp.passwordexpirynext`. One is new and should
-be left at `0` on an existing installation: `epp.lastPasswordUpdate` (see
-"Registry password rotation" below).
+`handleID` (MyISAM, utf8mb3) is deliberately left alone; it belongs to no
+schema still in use. Drop it yourself once you have confirmed you do not need it.
 
-### 4. The schema migration
+### Breaking changes to check your code against
 
-There is nothing to run by hand. The `settings` table carries a
-`schema_version` row and `Config` applies
-`config/mariadb-schema-upgrade-{from}-to-{to}.sql` one step at a time on the
-next initialization, starting from the assumed legacy baseline `060700` when
-no `settings` table exists yet.
+- `Domain->get('tech')` always returns an array now (keyed handle => handle).
+  It used to return a bare string for a single technical contact, so
+  `array_keys((array) $domain->get('tech'))` gave `[0]` instead of the handle.
+  Drop any branch that special-cased the string.
+- Domain routes scope non-admins by `domains.user_id`, pending transfers by
+  `transfers.user_id`, and a domain's registrant must be a contact the caller
+  owns. Pre-existing data where those disagree is reported by
+  `CLI/domain-CheckOwnershipCoherence.php` (see "Ownership coherence").
+- `Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone; persistence uses
+  RedBeanPHP's `R::` facade directly. Custom storage backends need rewriting.
+- WSDL support is gone.
 
-For 6.x that step is `060700-to-070000`, which drops the `tbl_` table
-prefixes and converts everything to `utf8mb4`/`utf8mb4_unicode_ci`. It runs
-its own read-only pre-flight checks first and aborts before touching
-anything if it finds a problem — most usefully, case-insensitive collisions
-in `tbl_domains.domain` that the new collation would turn into duplicate-key
-errors. If it aborts, resolve the collisions and re-run.
+### Afterwards
 
-One table is deliberately left alone: `handleID` (MyISAM, utf8mb3). It
-belongs to no schema still in use. Confirm whether you need it before
-dropping it yourself.
+Messages already in your `messages` table may carry `type = 'unknown'` and an
+empty `domain` — mostly DNS validation failures whose domain was dropped by an
+older parser. New messages are parsed correctly from this release on. A
+`doctor reparse-messages` command will re-derive `type`/`domain` for the old
+rows from `msgqueue`; it is **not available yet** and arrives with the CLI
+consolidation (`docs/REFACTOR-PLAN.md`, Phase 3). Nothing depends on it.
 
-### 5. Check what was removed before you upgrade
-
-- **The web interface is gone.** The PHP/Smarty/jQuery frontend has been
-  replaced by a JSON/REST API (`public/`, routed via Slim, documented in
-  `API.md`). If you were using the old UI, you need a client for the new API
-  before upgrading, not after.
-- **Invoicing is gone** from the code: the `InvoicingCDR` class and the
-  `/v1/accounting` routes no longer exist, and it will be reimplemented
-  separately. Your data is not gone with it, though the two halves fare
-  differently, so check both:
-  - the `accounting` table is *renamed* (`tbl_accounting` → `accounting`)
-    and left in place with all its rows. Nothing reads it any more. Export
-    it whenever you like and drop it by hand once you are satisfied — the
-    migration will never do that for you.
-  - `users.billing_id` **is** dropped by the migration. If you need the
-    user-to-billing-account mapping, export it **before** migrating; after
-    the fact it is only recoverable from a backup.
-- **WSDL support is gone.**
-- **`Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone.** Persistence
-  talks to RedBeanPHP's `R::` facade directly. Custom storage backends built
-  on those interfaces need rewriting.
-
-### 6. Authentication changed
-
-PHP sessions are out; bearer-token JWTs are in (`firebase/php-jwt`), with
-optional TOTP MFA and long-lived API tokens for scripted access. Passwords
-are hashed with `password_hash()` instead of MD5, so **every existing user
-password is invalid** and must be reset — see "User setup" below.
-
-### 7. Two behaviour changes that can bite quietly
-
-- **`Domain->get('tech')` always returns an array** (keyed handle =>
-  handle). It used to return a bare string when a domain had exactly one
-  technical contact — the common case — so
-  `array_keys((array) $domain->get('tech'))` gave `[0]` rather than the
-  handle. Callers that special-cased the string return should drop that
-  branch.
-- **Domain scoping is uniform.** Every domain route now filters non-admins
-  by the domain's own owner (`domains.user_id`), and pending transfers by
-  whoever requested them (`transfers.user_id`). A domain's registrant must
-  also be a contact the caller owns. If your data has domains whose
-  registrant belongs to a different user than the domain, those two notions
-  have already drifted; `CLI/domain-CheckOwnershipCoherence.php` reports
-  them (see "Ownership coherence").
-
-### 8. After upgrading: re-parse the stored poll messages
-
-Older releases did not recognise the registry's extdom-2.0 poll messages, so
-messages already sitting in your `messages` table may carry `type =
-'unknown'` and an empty `domain` — most of them DNS validation failures and
-warnings, whose domain was dropped. New messages are parsed correctly from
-this release on; existing rows keep whatever they were stored with.
-
-A `doctor reparse-messages` command will re-derive `type` and `domain` for
-those rows from the raw responses in `msgqueue`. **It is not available yet**
-— it arrives with the CLI consolidation (see `docs/REFACTOR-PLAN.md`, Phase
-3). It will only rewrite those two columns and will deliberately fire no
-side effects: no reminder rows and no DNS-sync events for failures that are
-years old.
-
-Nothing depends on this backfill. `PollProcessor` matches only
-`type LIKE '%Transfer'`, which was never affected, so the consequence of
-leaving it undone is a poll-queue view that under-reports historical DNS
-problems.
+If you upgraded before this release, you may have an `accounting` table that
+was renamed rather than dropped. The migration will not run again, so drop it
+by hand once you have exported anything you need.
 
 
 # Web server

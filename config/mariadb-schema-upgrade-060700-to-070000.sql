@@ -5,6 +5,9 @@
 -- IMPORTANT:
 --   * Take a full backup before running this. CONVERT TO CHARACTER SET
 --     rebuilds every text column and is not reversible by re-running.
+--   * THIS SCRIPT DESTROYS DATA, deliberately, in two places: tbl_accounting
+--     is dropped in full (PART 2) and users.billingID is dropped (PART 3).
+--     Invoicing has left this codebase; export both first if you want them.
 --   * Run this via a non-interactive client that stops on the first error,
 --     e.g.:  mysql -u USER -p DBNAME < migrate_rename_charset.sql
 --     (this is the default `mysql` CLI behaviour; do NOT pass --force)
@@ -150,15 +153,30 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- change such a column in place (error 1833: "Cannot change column ...: used
 -- in a foreign key constraint") regardless of FOREIGN_KEY_CHECKS, so the
 -- constraint has to be removed first, not just have validation disabled.
---   * tbl_accounting_ibfk_1 is dropped for good -- billing_id is being
---     decoupled from users entirely (see PART 3: users.billingID is DROPped,
---     not renamed).
 --   * tbl_domains_ibfk_2 and tbl_transfers_ibfk_1 are recreated further down,
 --     once contacts.handle has its new charset -- the relationship itself
 --     isn't changing, only the physical column's charset underneath it.
-ALTER TABLE tbl_accounting DROP FOREIGN KEY tbl_accounting_ibfk_1;
 ALTER TABLE tbl_domains DROP FOREIGN KEY tbl_domains_ibfk_2;
 ALTER TABLE tbl_transfers DROP FOREIGN KEY tbl_transfers_ibfk_1;
+
+-- ############################################################################
+-- DESTRUCTIVE: tbl_accounting is DROPPED, with every row in it.
+--
+-- Invoicing has been taken out of this codebase entirely and will be
+-- reimplemented elsewhere, so no target schema has an accounting table and
+-- nothing reads one. Keeping it renamed-but-unread was worse than either
+-- option: silently carrying customer billing history in a table no code
+-- maintains, that no backup policy is written for, and that nobody would
+-- think to check.
+--
+-- EXPORT IT FIRST IF YOU STILL WANT IT. There is no way back from here short
+-- of the backup this script's header already told you to take.
+--
+-- Dropping the table also removes tbl_accounting_ibfk_1, which had to go
+-- regardless: users.billingID is dropped in PART 3, and MariaDB refuses to
+-- rebuild a TEXT column that a foreign key references (error 1833).
+-- ############################################################################
+DROP TABLE IF EXISTS tbl_accounting;
 
 -- tbl_contacts_ibfk_1 (contacts.userID -> users.id) and tbl_domains_ibfk_1
 -- (domains.userID -> users.id) are deliberately left alone: both sides are
@@ -210,15 +228,11 @@ ALTER TABLE tbl_messages
 ALTER TABLE messages
   DROP COLUMN archived;
 
--- tbl_accounting and tbl_reminder both already exist live with real data
--- (AUTO_INCREMENT 593 and 70 respectively in the dump) -- they get the same
--- rename + convert treatment as the original 8 tables, not a fresh
--- CREATE TABLE (a fresh CREATE TABLE would build an empty table under the
--- new name and strand every existing row under the old one).
-ALTER TABLE tbl_accounting
-  RENAME TO accounting,
-  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
+-- tbl_reminder already exists live with real data (AUTO_INCREMENT 70 in the
+-- dump), so it gets the same rename + convert treatment as the original 8
+-- tables rather than a fresh CREATE TABLE (which would build an empty table
+-- under the new name and strand every existing row under the old one).
+-- tbl_accounting got no such treatment: it was dropped in full above.
 ALTER TABLE tbl_reminder
   RENAME TO reminder,
   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -241,7 +255,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 --
 -- Renames columns from the original camelCase names to the corrected
 -- lower_snake_case names, per the target schema supplied, and brings
--- accounting/reminder the rest of the way to their target shape.
+-- reminder the rest of the way to its target shape.
 --
 -- CHANGE COLUMN requires the full column definition, not just the new name,
 -- so each clause restates the existing type/nullability/default. Text
@@ -253,19 +267,11 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- `billingID` is dropped rather than renamed: invoicing has been taken out of
 -- this codebase entirely (it will be reimplemented elsewhere), so nothing reads
--- a billing identifier any more. Safe now that PART 2 already dropped the
--- FK from (the former) tbl_accounting.
+-- a billing identifier any more. Safe now that PART 2 already dropped
+-- tbl_accounting outright, and with it the FK that referenced this column.
 ALTER TABLE users
   DROP COLUMN `billingID`,
   CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
-
--- `billingID` here is renamed, not dropped, unlike users.billingID above:
--- this is a historical record of what was billed, and it stays -- it simply
--- no longer has a FK back to users now that billing/invoicing lives outside
--- this codebase (that FK was dropped for good in PART 2).
-ALTER TABLE accounting
-  CHANGE COLUMN `billingID` `billing_id` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  RENAME INDEX `billingID` TO `billing_id`;
 
 ALTER TABLE transactions
   CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
@@ -338,7 +344,7 @@ ALTER TABLE reminder
 -- ----------------------------------------------------------------------------
 -- PART 4: NEW TABLE - changelog
 --
--- Unlike accounting/reminder, changelog has no equivalent in the dump --
+-- Unlike reminder, changelog has no equivalent in the dump --
 -- there is no tbl_changelog -- so this genuinely is a fresh CREATE TABLE.
 -- Depends on `users` existing under its final name (created in Part 2), so
 -- this must run after Part 2. Not dependent on Part 3's column renames.
@@ -410,14 +416,14 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'accounting','reminder','changelog');
+                        'reminder','changelog');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'accounting','reminder')
+                      'reminder')
   AND CHARACTER_SET_NAME IS NOT NULL
   AND (CHARACTER_SET_NAME <> 'utf8mb4' OR COLLATION_NAME <> 'utf8mb4_unicode_ci');
 -- ^ this query should return ZERO rows. Any row returned means a column
@@ -446,7 +452,7 @@ FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'accounting','reminder')
+                      'reminder')
   AND BINARY COLUMN_NAME REGEXP '[A-Z]';
 -- ^ this query should return ZERO rows (no upper-case characters left in
 --   any column name across these 10 tables).
@@ -501,15 +507,14 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'accounting','reminder','changelog');
+                      'reminder','changelog');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
 --           changelog.user_id -> users.id
 --           reminder.domain -> domains.domain
--- (accounting should NOT appear here at all -- its FK to users was dropped
--- for good in PART 2, by design)
+-- (there is deliberately no accounting table any more -- PART 2 drops it)
 
 -- 6h. DATA coherence, not schema shape: report any domain whose registrant
 --     contact belongs to a different local user than the domain itself.
