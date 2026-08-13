@@ -310,17 +310,17 @@ final class Helpers
      * <login> command itself, so the rotation has to *be* the login, not
      * something done inside a session that has already logged in.
      *
-     * @param string|null $newPassword the new credential; null generates one.
-     *                    16 hex characters from the CSPRNG -- EPP's pwType caps
-     *                    this credential at 16, so that is both a good length
-     *                    and the only one available.
+     * @param string|null $newPassword the new credential; null generates one
+     *                    with PasswordService, at EPP's 16-character ceiling
+     *                    for pwType. A caller-supplied one is sent as given --
+     *                    the registry is the authority on what it will accept.
      * @param bool $stampAttempt also record the attempt time, which the
      *             once-per-24h rotation limit reads
      * @return array{ok: bool, error: string, stage: string} stage is 'persist'
      *         (nothing was sent), 'connect', 'registry', or '' on success
      */
     public static function changeEppPassword(?string $newPassword = null, bool $stampAttempt = false): array {
-        $newPassword ??= bin2hex(random_bytes(8));
+        $newPassword ??= PasswordService::forRegistry();
 
         // A failure here is the harmless one: nothing has been sent, so the
         // registry still holds the password this installation still has.
