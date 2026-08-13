@@ -4,6 +4,7 @@ namespace Net\EPP\Cli;
 
 use Net\EPP\Client;
 use Net\EPP\IT\Session;
+use Net\EPP\StoredPayload;
 use RedBeanPHP\R;
 
 /**
@@ -58,7 +59,7 @@ final class DoctorReparseMessagesCommand extends Command
         $unreadable = 0;
 
         foreach ($rows as $row) {
-            $body = self::unwrap((string) $row['sv_httpdata']);
+            $body = StoredPayload::decode((string) $row['sv_httpdata']);
             if ($body === null) {
                 $unreadable++;
                 continue;
@@ -102,22 +103,5 @@ final class DoctorReparseMessagesCommand extends Command
         }
 
         return 0;
-    }
-
-    /**
-     * Stored responses come in two shapes: the 6.x code wrapped them in
-     * "__SERIALIZED:" + base64(serialize($string)), the current one writes the
-     * string as it is. A production database holds both.
-     */
-    private static function unwrap(string $stored): ?string {
-        if ( ! str_starts_with($stored, '__SERIALIZED:')) {
-            return $stored;
-        }
-        $decoded = base64_decode(substr($stored, strlen('__SERIALIZED:')), true);
-        if ($decoded === false) {
-            return null;
-        }
-        $value = @unserialize($decoded);
-        return is_string($value) ? $value : null;
     }
 }
