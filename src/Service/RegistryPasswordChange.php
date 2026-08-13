@@ -8,15 +8,19 @@ use Eppitnic\Epp\Session;
 use RedBeanPHP\R;
 
 /**
- * The shared EPP registry credential: rotating it, and recovering when a
- * rotation does not finish.
+ * Changing the shared EPP registry credential, and recovering when a change
+ * does not finish.
+ *
+ * Not to be confused with PasswordService, which is where a new password comes
+ * from. This is what carries one to the registry and keeps the two copies --
+ * the registry's account and the `epp` setting -- in step.
  *
  * @category    Net
- * @package     Eppitnic\Service\RegistryPassword
+ * @package     Eppitnic\Service\RegistryPasswordChange
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
-final class RegistryPassword
+final class RegistryPasswordChange
 {
     /**
      * How to build a Client for the password rotation.

@@ -4,12 +4,12 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Config;
-use Eppitnic\Service\RegistryPassword;
+use Eppitnic\Service\RegistryPasswordChange;
 
 /**
  * Settle a password rotation that did not finish.
  *
- * RegistryPassword::rotateOnReminder() writes its candidate password to the
+ * RegistryPasswordChange::rotateOnReminder() writes its candidate password to the
  * `epp` setting before sending it to the registry, so a run that dies in
  * between leaves both the old and the new password on disk with no record of
  * which one the registry accepted. The cron job resolves that itself on its
@@ -34,7 +34,7 @@ final class DoctorEppPasswordCommand extends Command
             return 0;
         }
 
-        foreach (RegistryPassword::reconcile() as $line) {
+        foreach (RegistryPasswordChange::reconcile() as $line) {
             $this->line($line);
         }
 

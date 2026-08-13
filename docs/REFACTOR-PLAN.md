@@ -300,13 +300,13 @@ new password left this installation holding a credential the registry no longer
 had — recovered by printing the password to the cron log, which is a worse
 place for it than the database.
 
-`Helpers::changeEppPassword()` now records the candidate as `pendingPassword`
+`RegistryPasswordChange::change()` now records the candidate as `pendingPassword`
 *before* sending it, and promotes it once the registry accepts. Both callers
 use it — the reminder-driven rotation and `POST /v1/session/change-password`,
 which had the same ordering.
 
 An interrupted change leaves both passwords on disk, and
-`Helpers::reconcilePendingPassword()` settles it by asking the registry which
+`RegistryPasswordChange::reconcile()` settles it by asking the registry which
 one it accepts: the candidate first, since trying the old one first and having
 it refused would discard a candidate that may be live. Neither working is left
 alone — that is an account problem, not a rotation problem, and discarding the
@@ -385,7 +385,7 @@ level collected whatever was too big for it.
 Done in three commits, each with the suite green:
 
 **8.1 Helpers, split.** Into `Api\Json`, `Api\Auth`, `Api\Middleware`,
-`Api\ClientIp`, `Service\EppSession`, `Service\RegistryPassword`,
+`Api\ClientIp`, `Service\EppSession`, `Service\RegistryPasswordChange`,
 `Persistence\Changelog`, `Support\Validate` and `Support\Csv`. Methods lost
 the prefixes that only disambiguated inside one class — `jwtRequireAdmin()` is
 `Auth::requireAdmin()`. `jumpBOM()` and `BOM` went too; nothing called them.

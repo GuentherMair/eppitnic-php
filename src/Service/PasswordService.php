@@ -5,6 +5,8 @@ namespace Eppitnic\Service;
 /**
  * Generates passwords from a mixed character set.
  *
+ * Generation only. Setting the registry's password is RegistryPasswordChange.
+ *
  * The registry credential used to be `bin2hex(random_bytes(8))`. That is a
  * perfectly good 64 bits, but it spends 16 characters saying it -- hex carries
  * 4 bits per character where the sets below carry close to 6, and EPP caps

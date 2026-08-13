@@ -4,7 +4,7 @@ use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Config;
 use Eppitnic\Service\EppSession;
-use Eppitnic\Service\RegistryPassword;
+use Eppitnic\Service\RegistryPasswordChange;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -95,10 +95,10 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
     $params = $request->getParsedBody() ?? [];
 
     // this is the shared EPP registry credential, not a per-user login password
-    // (that's PUT /v1/changepassword/{id}). RegistryPassword::change() owns
+    // (that's PUT /v1/changepassword/{id}). RegistryPasswordChange::change() owns
     // the ordering that makes an interrupted change recoverable, and generates
     // the password when the caller does not supply one.
-    $outcome = RegistryPassword::change($params['password'] ?? null);
+    $outcome = RegistryPasswordChange::change($params['password'] ?? null);
 
     if ( ! $outcome['ok']) {
         $status = match ($outcome['stage']) {

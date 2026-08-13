@@ -5,7 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\PollProcessor;
-use Eppitnic\Service\RegistryPassword;
+use Eppitnic\Service\RegistryPasswordChange;
 
 /**
  * The scheduled registry run: drain the poll queue, reconcile transfer state
@@ -72,7 +72,7 @@ final class PollProcessCommand extends Command
             $this->line('password rotation skipped (--no-rotate)');
             return 0;
         }
-        foreach (RegistryPassword::rotateOnReminder() as $line) {
+        foreach (RegistryPasswordChange::rotateOnReminder() as $line) {
             $this->line($line);
         }
 
