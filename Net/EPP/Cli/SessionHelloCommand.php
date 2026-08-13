@@ -25,7 +25,7 @@ final class SessionHelloCommand extends Command
 
         if ( ! $session->hello()) {
             $this->warn('No greeting from ' . $nic->EPPCfg->server
-                . ' (HTTP ' . ($session->result['code'] ?? '-') . ')');
+                . ' (HTTP ' . ($session->result?->code ?? '-') . ')');
             return HELLO_FAILED;
         }
 

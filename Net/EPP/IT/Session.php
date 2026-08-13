@@ -117,7 +117,7 @@ class Session extends AbstractObject
     $this->ExecuteQuery("session-hello", "");
 
     // this is the only query with no result code
-    if ((substr((string)($this->result['code'] ?? ''), 0, 1) == "2")
+    if ((substr((string)($this->result?->code ?? ''), 0, 1) == "2")
         && $this->xmlResult instanceof \SimpleXMLElement
         && isset($this->xmlResult->greeting)) {
       return TRUE;
@@ -275,9 +275,9 @@ class Session extends AbstractObject
         ':sv_trid'        => $this->svTRID,
         ':sv_code'        => $this->svCode,
         ':status'         => 0,
-        ':sv_httpcode'    => $this->result['code'],
-        ':sv_httpheaders' => $this->result['headers'],
-        ':sv_httpdata'    => $this->result['body'],
+        ':sv_httpcode'    => $this->result?->code,
+        ':sv_httpheaders' => $this->result?->headers,
+        ':sv_httpdata'    => $this->result?->body,
       ]);
     }
 

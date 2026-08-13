@@ -64,7 +64,6 @@ class Client
   private $clTRID;
   private $headers = array('content-type' => 'text/xml; charset=UTF-8');
 
-  protected $cURLresponse;
   protected $httpClient;
   protected $curl_cookie_dir;
 
@@ -184,15 +183,15 @@ class Client
   /**
    * send a request to the EPP server
    *
-   * @return array the  response: (int) code, (array) headers, (string) body
+   * @return HttpResponse the exchange -- body, status, headers, transport error
    */
-  public function sendRequest(string $data): array {
-    $this->cURLresponse['body'] = $this->httpClient->query($data);
-    $this->cURLresponse['code'] = $this->httpClient->getHttpStatus();
-    $this->cURLresponse['headers'] = $this->httpClient->getHttpHeaders();
-    $this->cURLresponse['error'] = $this->httpClient->getHttpError();
-
-    return $this->cURLresponse;
+  public function sendRequest(string $data): HttpResponse {
+    return new HttpResponse(
+      $this->httpClient->query($data),
+      $this->httpClient->getHttpStatus(),
+      $this->httpClient->getHttpHeaders(),
+      $this->httpClient->getHttpError()
+    );
   }
 
   /**

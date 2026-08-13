@@ -67,7 +67,7 @@ abstract class AbstractObject
   public bool $debug = false;
 
   public    $xmlQuery;  // xml query string
-  public    $result;    // HTTP response string
+  public    ?HttpResponse $result = null;   // the last exchange with the registry
   public    $xmlResult; // parsed reponse (SimpleXMLElement may be incomplete)
 
   public    $svCode;
@@ -219,7 +219,7 @@ abstract class AbstractObject
              "\n".
              "Response received from server:\n".
              "------------------------------\n".
-             ($this->result['body'] ?? "[no response was received]")."\n";
+             ($this->result?->body ?: "[no response was received]")."\n";
     }
 
     return $msg;
@@ -296,7 +296,7 @@ abstract class AbstractObject
 
     // send request + parse response
     $this->result = $this->client->sendRequest($this->xmlQuery);
-    $this->xmlResult = $this->client->parseResponse($this->result['body']);
+    $this->xmlResult = $this->client->parseResponse($this->result->body);
 
     // An unparseable answer must not reach the object parsers. SimpleXML
     // answers a missing child with an empty element, so without this every
@@ -367,9 +367,9 @@ abstract class AbstractObject
       ':sv_trid'            => $this->svTRID,
       ':sv_code'            => $this->svCode,
       ':status'             => 0,
-      ':sv_httpcode'        => $this->result['code'],
-      ':sv_httpheaders'     => $this->result['headers'],
-      ':sv_httpdata'        => $this->result['body'],
+      ':sv_httpcode'        => $this->result?->code,
+      ':sv_httpheaders'     => $this->result?->headers,
+      ':sv_httpdata'        => $this->result?->body,
       ':extvaluereasoncode' => $this->extValueReasonCode,
       ':extvaluereason'     => $this->extValueReason,
     ]);
