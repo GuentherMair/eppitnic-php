@@ -188,6 +188,33 @@ final class Helpers
     }
 
     /**
+     * How to build a Client for the password rotation.
+     *
+     * A seam, not a configuration point: the rotation's interesting behaviour
+     * is what it does when the registry answers unexpectedly, and production
+     * cannot be made to answer unexpectedly on request. Only the test suite
+     * sets this; production leaves it null and gets a fresh Client per call,
+     * which is what the rotation needs anyway -- it makes up to three separate
+     * logins, and a Client carries one session's state.
+     *
+     * @var callable():Client|null
+     */
+    private static $eppClientFactory = null;
+
+    /**
+     * Test-suite only. Pass null to restore the production behaviour.
+     *
+     * @param callable():Client|null $factory
+     */
+    public static function useEppClientFactory(?callable $factory): void {
+        self::$eppClientFactory = $factory;
+    }
+
+    private static function newEppClient(): Client {
+        return self::$eppClientFactory !== null ? (self::$eppClientFactory)() : new Client();
+    }
+
+    /**
      * Act on any unacknowledged `passwdReminder` poll message by rotating the
      * shared EPP registry password.
      *
@@ -201,28 +228,48 @@ final class Helpers
      * has to *be* the login, not something done inside an existing session.
      * Call it after any withEppSession() work has finished and logged out.
      *
+     * The candidate password is written to the `epp` setting as
+     * `pendingPassword` *before* it is sent to the registry, and promoted to
+     * `password` once the registry has accepted it. The dangerous window is
+     * between those two -- the registry has changed the credential and this
+     * installation has not recorded it -- and writing first makes that window
+     * survivable: the value is already on disk, so reconcilePendingPassword()
+     * can work out which of the two the registry now holds. Nothing has to be
+     * recovered from a log, and no credential is written to one.
+     *
      * At most one rotation is attempted per 24 hours, tracked by the `epp`
-     * setting's `lastPasswordUpdate` (a unix timestamp). The stamp is written
-     * *before* the attempt, deliberately: if a rotation half-succeeds -- the
-     * registry accepts the new password but the response is lost -- retrying
-     * minutes later with yet another password would make things worse, and the
-     * registry re-sends its reminder well before the credential actually
-     * expires, so waiting a day is safe.
+     * setting's `lastPasswordUpdate` (a unix timestamp), also stamped before
+     * the attempt: the registry re-sends its reminder well before the
+     * credential actually expires, so a day's wait costs nothing, while
+     * retrying minutes later with yet another password would leave a second
+     * unreconciled candidate behind.
      *
      * @return array human-readable log lines, in the same style as PollProcessor
      */
     public static function rotateEppPasswordOnReminder(): array {
         $log = [];
 
+        // an unresolved candidate from a previous run has to be settled before
+        // a new one is made, or the second would overwrite the first and lose
+        // the only record of what the registry might be holding
+        $epp = Config::get('epp');
+        if ( ! empty($epp['pendingPassword'])) {
+            $log = array_merge($log, self::reconcilePendingPassword());
+            $epp = Config::get('epp');
+            if ( ! empty($epp['pendingPassword'])) {
+                $log[] = "  candidate password still unresolved -- not starting another rotation";
+                return $log;
+            }
+        }
+
         $reminders = R::getAll(
             "SELECT id, data FROM messages WHERE type = 'passwdReminder' AND archived_time IS NULL ORDER BY id ASC"
         );
         if (empty($reminders)) {
-            return ["no outstanding passwdReminder messages"];
+            return array_merge($log, ["no outstanding passwdReminder messages"]);
         }
         $log[] = count($reminders) . " passwdReminder message(s) outstanding (registry reports expiry '" . $reminders[0]['data'] . "')";
 
-        $epp = Config::get('epp');
         $last = (int) ($epp['lastPasswordUpdate'] ?? 0);
         $age = time() - $last;
         if ($last > 0 && $age < 86400) {
@@ -230,39 +277,12 @@ final class Helpers
             return $log;
         }
 
-        // 16 hex characters: cryptographically random, and the same character
-        // class the registry already accepts for this credential
-        $newPassword = bin2hex(random_bytes(8));
-
-        // mark the attempt before making it -- see the note above
-        $epp['lastPasswordUpdate'] = time();
-        Config::set('epp', $epp);
-
-        $nic = new Client();
-        $session = new Session($nic);
-
-        if ( ! $session->hello()) {
-            $log[] = "  FAILED: registry connection unavailable -- messages left unacknowledged, will retry after 24h";
-            return $log;
-        }
-        if ($session->login($newPassword) === FALSE) {
-            $log[] = "  FAILED: registry rejected the password change (" . $session->getError() . ")";
-            $log[] = "  messages left unacknowledged, will retry after 24h";
-            return $log;
-        }
-        $session->logout();
-
-        // The registry has already accepted the new password at this point, so a
-        // failure to persist it locally locks this installation out of EPP
-        // entirely. Print the password: an operator reading the cron log is the
-        // only remaining way to recover it.
-        try {
-            $epp['password'] = $newPassword;
-            Config::set('epp', $epp);
-        } catch (\Throwable $e) {
-            $log[] = "  CRITICAL: the registry password was changed to '{$newPassword}' but storing it";
-            $log[] = "  locally FAILED (" . $e->getMessage() . "). Set the 'epp' setting's password to that";
-            $log[] = "  value by hand NOW -- EPP access is broken until you do.";
+        $outcome = self::changeEppPassword(null, true);
+        if ( ! $outcome['ok']) {
+            $log[] = "  FAILED: " . $outcome['error'];
+            $log[] = $outcome['stage'] === 'persist'
+                ? "  nothing was sent to the registry -- EPP access is unaffected"
+                : "  messages left unacknowledged, will retry after 24h";
             return $log;
         }
 
@@ -272,6 +292,158 @@ final class Helpers
 
         $log[] = "  registry password rotated and stored, " . count($reminders) . " message(s) acknowledged";
         return $log;
+    }
+
+    /**
+     * Change the shared EPP registry password, recording the candidate before
+     * sending it.
+     *
+     * The order is the substance of this method. The credential lives in two
+     * places -- the registry's account and this installation's `epp` setting --
+     * and a change has to move both. Whichever moves second defines the failure
+     * that is survivable: send first and a crash leaves the registry holding a
+     * password nobody here knows, which is a lockout; write first and a crash
+     * leaves a candidate on disk that the registry may or may not have taken,
+     * which reconcilePendingPassword() can settle by asking.
+     *
+     * This cannot go through withEppSession(): the change is carried by the EPP
+     * <login> command itself, so the rotation has to *be* the login, not
+     * something done inside a session that has already logged in.
+     *
+     * @param string|null $newPassword the new credential; null generates one.
+     *                    16 hex characters from the CSPRNG -- EPP's pwType caps
+     *                    this credential at 16, so that is both a good length
+     *                    and the only one available.
+     * @param bool $stampAttempt also record the attempt time, which the
+     *             once-per-24h rotation limit reads
+     * @return array{ok: bool, error: string, stage: string} stage is 'persist'
+     *         (nothing was sent), 'connect', 'registry', or '' on success
+     */
+    public static function changeEppPassword(?string $newPassword = null, bool $stampAttempt = false): array {
+        $newPassword ??= bin2hex(random_bytes(8));
+
+        // A failure here is the harmless one: nothing has been sent, so the
+        // registry still holds the password this installation still has.
+        try {
+            $epp = Config::get('epp');
+            $epp['pendingPassword'] = $newPassword;
+            if ($stampAttempt) {
+                $epp['lastPasswordUpdate'] = time();
+            }
+            Config::set('epp', $epp);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'stage' => 'persist',
+                    'error' => 'could not record the new password locally (' . $e->getMessage() . ')'];
+        }
+
+        $session = new Session(self::newEppClient());
+
+        if ( ! $session->hello()) {
+            self::clearPendingPassword();
+            return ['ok' => false, 'stage' => 'connect', 'error' => 'registry connection unavailable'];
+        }
+        if ($session->login($newPassword) === FALSE) {
+            $error = $session->getError();
+            self::clearPendingPassword();
+            return ['ok' => false, 'stage' => 'registry',
+                    'error' => 'registry rejected the password change (' . $error . ')'];
+        }
+        $session->logout();
+
+        self::promotePendingPassword();
+
+        return ['ok' => true, 'stage' => '', 'error' => ''];
+    }
+
+    /**
+     * Work out which password the registry is holding, after a rotation that
+     * did not finish.
+     *
+     * Reached when `pendingPassword` is still set at the start of a run, which
+     * means the previous attempt died between sending the change and recording
+     * the outcome -- the process was killed, the database went away, the
+     * response was lost. Either password could be the live one, and the only
+     * authority on which is the registry, so this asks it: log in with the
+     * candidate, and if that is refused, with the stored one.
+     *
+     * @return array log lines
+     */
+    public static function reconcilePendingPassword(): array {
+        $epp = Config::get('epp');
+        $pending = $epp['pendingPassword'] ?? '';
+        if ($pending === '') {
+            return [];
+        }
+
+        $log = ["an unfinished password rotation was found -- asking the registry which password is live"];
+
+        if (self::eppPasswordWorks($pending)) {
+            self::promotePendingPassword();
+            $log[] = "  the registry accepted the new password: promoted, rotation complete";
+            return $log;
+        }
+
+        if (self::eppPasswordWorks((string) ($epp['password'] ?? ''))) {
+            self::clearPendingPassword();
+            $log[] = "  the registry still holds the old password: the change never landed, candidate discarded";
+            return $log;
+        }
+
+        // Neither works. That is not this function's doing -- a rotation that
+        // half-succeeded would leave one of the two working -- so it is some
+        // other problem (the account is locked, the endpoint is down, the IP
+        // is not authorised). Keep the candidate: discarding it here would
+        // throw away a password that may well be the live one.
+        $log[] = "  CRITICAL: the registry accepted neither password. The candidate is kept in the";
+        $log[] = "  'epp' setting as 'pendingPassword'; check the account status with the registry";
+        $log[] = "  before running again.";
+        return $log;
+    }
+
+    /**
+     * Whether the registry accepts $password for this account.
+     *
+     * A plain login and logout -- the credential is being tested, not changed.
+     */
+    private static function eppPasswordWorks(string $password): bool {
+        if ($password === '') {
+            return false;
+        }
+
+        $nic = self::newEppClient();
+        $nic->EPPCfg->password = $password;
+        $session = new Session($nic);
+
+        if ( ! $session->hello() || $session->login() === FALSE) {
+            return false;
+        }
+        $session->logout();
+        return true;
+    }
+
+    /**
+     * Make the candidate the password of record.
+     */
+    private static function promotePendingPassword(): void {
+        $epp = Config::get('epp');
+        if (empty($epp['pendingPassword'])) {
+            return;
+        }
+        $epp['password'] = $epp['pendingPassword'];
+        unset($epp['pendingPassword']);
+        Config::set('epp', $epp);
+    }
+
+    /**
+     * Drop the candidate, the registry having refused it.
+     */
+    private static function clearPendingPassword(): void {
+        $epp = Config::get('epp');
+        if ( ! array_key_exists('pendingPassword', $epp)) {
+            return;
+        }
+        unset($epp['pendingPassword']);
+        Config::set('epp', $epp);
     }
 
     // -----------------------------------------------------------------

@@ -17,7 +17,7 @@ final class FakeTransport implements Transport
     /** @var string[] every request body passed to query(), in order */
     public array $requests = [];
 
-    /** @var array<int, array{body: string, status: int, headers: string}> */
+    /** @var array<int, array{body: string|\Closure, status: int, headers: string}> */
     private array $responses = [];
 
     private int $status = 200;
@@ -32,6 +32,20 @@ final class FakeTransport implements Transport
      */
     public function queue(string $body, int $status = 200): self {
         $this->responses[] = ['body' => $body, 'status' => $status, 'headers' => $this->headers];
+        return $this;
+    }
+
+    /**
+     * queue a response computed from the request that asks for it.
+     *
+     * For the cases where the answer genuinely depends on what was sent -- a
+     * registry accepting one password and refusing another -- which a fixed
+     * queue cannot express.
+     *
+     * @param \Closure(string): string $responder given the request body, returns the response body
+     */
+    public function queueCallback(\Closure $responder, int $status = 200): self {
+        $this->responses[] = ['body' => $responder, 'status' => $status, 'headers' => $this->headers];
         return $this;
     }
 
@@ -67,7 +81,10 @@ final class FakeTransport implements Transport
 
         $this->status = $response['status'];
         $this->headers = $response['headers'];
-        return $response['body'];
+
+        return $response['body'] instanceof \Closure
+            ? ($response['body'])((string) $postFields)
+            : $response['body'];
     }
 
     public function getHttpStatus(): int {

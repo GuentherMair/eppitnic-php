@@ -1,9 +1,7 @@
 <?php
 
-use Net\EPP\Client;
 use Net\EPP\Config;
 use Net\EPP\Helpers;
-use Net\EPP\IT\Session;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -34,6 +32,11 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
     // never the password itself -- this only reports whether one is configured,
     // which is what a UI needs to tell "not set up yet" from "set up"
     $public['password_set'] = ($epp['password'] ?? '') !== '';
+
+    // a rotation that did not finish: the registry may be holding a credential
+    // this installation has not adopted. `eppitnic doctor epp-password` settles
+    // it; the candidate itself stays out of the response.
+    $public['rotation_pending'] = ($epp['pendingPassword'] ?? '') !== '';
 
     return Helpers::json($response, ['epp' => $public]);
 });
@@ -87,36 +90,20 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
     Helpers::jwtRequireAdmin($request);
     $params = $request->getParsedBody() ?? [];
-    // 16 hex characters from the CSPRNG -- identical to what
-    // Helpers::rotateEppPasswordOnReminder() generates for the same credential.
-    // This used to be substr(md5(rand()), 0, 8): eight characters carrying at
-    // most rand()'s ~31 bits, protecting the shared registry account. Note 16
-    // is also the ceiling -- EPP's pwType caps this credential at 16
-    // characters, and the registry rejects anything longer outright.
-    $newPassword = $params['password'] ?? bin2hex(random_bytes(8));
 
     // this is the shared EPP registry credential, not a per-user login password
-    // (that's PUT /v1/changepassword/{id}) -- can't go through Helpers::withEppSession()
-    // here since its normal login() would already run before we get a chance
-    // to make *our* login the one that changes the password
-    $nic = new Client();
-    $session = new Session($nic);
+    // (that's PUT /v1/changepassword/{id}). Helpers::changeEppPassword() owns
+    // the ordering that makes an interrupted change recoverable, and generates
+    // the password when the caller does not supply one.
+    $outcome = Helpers::changeEppPassword($params['password'] ?? null);
 
-    if ( ! $session->hello()) {
-        return Helpers::json($response, ['error' => 'EPP session unavailable: connection failed'], 502);
-    }
-    if ($session->login($newPassword) === FALSE) {
-        return Helpers::json($response, ['error' => $session->getError()], 400);
-    }
-    $session->logout();
-
-    // persist locally -- the registry password just changed, the 'epp' setting must follow
-    try {
-        $epp = Config::get('epp');
-        $epp['password'] = $newPassword;
-        Config::set('epp', $epp);
-    } catch (\Throwable $e) {
-        return Helpers::json($response, ['error' => 'registry password changed but could not persist to settings: ' . $e->getMessage() . ' -- update it manually'], 500);
+    if ( ! $outcome['ok']) {
+        $status = match ($outcome['stage']) {
+            'connect'  => 502,
+            'registry' => 400,
+            default    => 500,
+        };
+        return Helpers::json($response, ['error' => $outcome['error']], $status);
     }
 
     return Helpers::json($response, ['changed' => true]);

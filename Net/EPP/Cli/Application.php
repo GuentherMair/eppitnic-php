@@ -47,6 +47,7 @@ final class Application
             'doctor ownership'        => DoctorOwnershipCommand::class,
             'doctor inactive-domains' => DoctorInactiveDomainsCommand::class,
             'doctor reparse-messages' => DoctorReparseMessagesCommand::class,
+            'doctor epp-password'     => DoctorEppPasswordCommand::class,
             'user create'             => UserCreateCommand::class,
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,
