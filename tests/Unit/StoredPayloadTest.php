@@ -62,9 +62,59 @@ final class StoredPayloadTest extends TestCase
             'not base64'            => ['__SERIALIZED:!!!!not base64!!!!'],
             'base64 of nothing'     => ['__SERIALIZED:'],
             'base64 of non-serialized' => ['__SERIALIZED:' . base64_encode('plain text')],
-            'serialized non-string' => ['__SERIALIZED:' . base64_encode(serialize(['an', 'array']))],
+            'serialized scalar'     => ['__SERIALIZED:' . base64_encode(serialize(42))],
             'truncated'             => [substr('__SERIALIZED:' . base64_encode(serialize(self::XML)), 0, 30)],
         ];
+    }
+
+    /**
+     * `sv_httpheaders` was wrapped as an array, not a string: 6.x kept the
+     * response headers as a field => value map where current code stores the
+     * raw block. Rejecting those as "not a string" left every one of the 532
+     * such rows in the live database undecodable.
+     */
+    public function testAHeaderMapBecomesARawHeaderBlock(): void {
+        $stored = '__SERIALIZED:' . base64_encode(serialize([
+            'date'         => 'Thu, 28 Oct 2010 06:48:25 GMT',
+            'content-type' => 'text/xml;charset=UTF-8',
+            'connection'   => 'close',
+        ]));
+
+        $this->assertSame(
+            "date: Thu, 28 Oct 2010 06:48:25 GMT\r\n"
+            . "content-type: text/xml;charset=UTF-8\r\n"
+            . "connection: close\r\n",
+            StoredPayload::decode($stored)
+        );
+    }
+
+    /**
+     * A repeated field arrived as more than one line and goes back as more
+     * than one line.
+     */
+    public function testARepeatedFieldKeepsItsLines(): void {
+        $stored = '__SERIALIZED:' . base64_encode(serialize([
+            'set-cookie' => ['a=1; path=/', 'b=2; path=/'],
+        ]));
+
+        $this->assertSame(
+            "set-cookie: a=1; path=/\r\nset-cookie: b=2; path=/\r\n",
+            StoredPayload::decode($stored)
+        );
+    }
+
+    public function testAnEmptyHeaderMapIsAnEmptyBlock(): void {
+        $this->assertSame('', StoredPayload::decode('__SERIALIZED:' . base64_encode(serialize([]))));
+    }
+
+    /**
+     * A field holding something no header line can carry is not silently
+     * flattened -- the row is reported undecodable and left as it is.
+     */
+    public function testANonScalarFieldIsNotRendered(): void {
+        $stored = '__SERIALIZED:' . base64_encode(serialize(['weird' => new \stdClass()]));
+
+        $this->assertNull(StoredPayload::decode($stored));
     }
 
     public function testIsWrappedIdentifiesTheGeneration(): void {

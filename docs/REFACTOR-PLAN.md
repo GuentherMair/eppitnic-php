@@ -362,4 +362,13 @@ since a damaged envelope is still the only copy of whatever it holds.
 Six columns, not the one that was noticed first: `transactions`.`cl_trdata`,
 `responses`.`sv_httpdata` / `sv_httpheaders` / `extvaluereason`, and
 `msgqueue`.`sv_httpdata` / `sv_httpheaders`. In the live database four of them
-hold enveloped rows — 22,485 in total.
+held enveloped rows — 22,485 in total.
+
+The envelope holds one of two things, which the first cleanup run found the
+hard way: a body is a serialized *string*, but `sv_httpheaders` is a serialized
+*array*, the response headers as a field => value map, where current code
+stores the raw block the server sent. Rejecting anything not a string left all
+532 such rows undecodable. `decode()` now renders the map as a header block —
+no status line, because 6.x kept only the fields and inventing one would be
+making up what the server said, and field names keep the lower case they were
+captured in.
