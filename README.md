@@ -188,7 +188,7 @@ decoded are reported and left alone.
 
 1. **The document root must be `public/`, and only `public/`.** Everything
    else in the checkout has to stay outside the served tree —
-   `config/config.php` holds the database credentials, and `bin/`
+   `config/config.php` holds the database credentials, and `bin/`, `src/`
    and `vendor/` have no reason to be reachable over HTTP.
 2. **Anything that is not a real file must be routed to
    `public/index.php`.** Slim is a front controller: `/v1/domains` exists

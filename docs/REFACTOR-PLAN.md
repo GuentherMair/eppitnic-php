@@ -372,3 +372,43 @@ stores the raw block the server sent. Rejecting anything not a string left all
 no status line, because 6.x kept only the fields and inventing one would be
 making up what the server said, and field names keep the lower case they were
 captured in.
+
+
+## Phase 8 — file tree
+
+`Net/EPP/`'s top level had become the place things went when they had nowhere
+else: the protocol classes, three value types, two traits, `Config`, and an
+896-line `Helpers`. `Helpers` was the cause rather than a symptom — it was the
+class everything imported, so anything that did not fit went there, and the top
+level collected whatever was too big for it.
+
+Done in three commits, each with the suite green:
+
+**8.1 Helpers, split.** Into `Api\Json`, `Api\Auth`, `Api\Middleware`,
+`Api\ClientIp`, `Service\EppSession`, `Service\RegistryPassword`,
+`Persistence\Changelog`, `Support\Validate` and `Support\Csv`. Methods lost
+the prefixes that only disambiguated inside one class — `jwtRequireAdmin()` is
+`Auth::requireAdmin()`. `jumpBOM()` and `BOM` went too; nothing called them.
+
+`Api\Json` rather than `Api\Response` because every route file already imports
+PSR-7's `ResponseInterface` under that name.
+
+**8.2 Grouped by kind.** `Epp/` for what speaks the protocol,
+`Epp/Transport/` for the interface and its three implementations (including the
+dry-run one that was in `Cli/`), `Persistence/`, `Service/`, `Api/`, `Cli/` with
+its 32 verbs in `Cli/Command/`, `Support/`.
+
+`IT/` is gone. It promised a country axis that does not exist — extdom, extcon
+and extepp are baked into `Session` and `Domain`. `PollProcessor` left it for
+`Service/`, being an orchestrator rather than a protocol object.
+
+Two vestigial requires went with the move: `Client` required composer's
+autoloader and `AbstractObject` required `constants.php`, both by counting
+`../..` hops. A class inside a composer-autoloaded package cannot need to load
+composer. Remaining path arithmetic goes through `EPPITNIC_ROOT`.
+
+**8.3 `src/` and `Eppitnic\`.** Two directories carried one meaning, and the
+namespace said "Net" because PEAR did. `routes/` became `src/Api/Routes/`,
+inside the tree rather than reached by `../routes` from `public/index.php`;
+the files still register closures rather than declare classes, so they are
+still required, but from `EPPITNIC_ROOT` and in one loop.
