@@ -226,6 +226,53 @@ abstract class AbstractObject
   }
 
   /**
+   * The object-specific part of a response, if the answer actually carries one.
+   *
+   * Every parser needs the same three things to be true before it can read a
+   * <resData>: the document parsed, it has a <resData>, and the namespace the
+   * caller is asking about is declared in it. Chaining into it without
+   * checking is what produced six separate faults in this codebase, because
+   * SimpleXML answers each missing step with an empty element rather than
+   * null, so the failure only surfaces as warnings much further down.
+   *
+   * @param string $prefix the namespace prefix wanted, e.g. 'domain'
+   * @return \SimpleXMLElement|null the children in that namespace, or null
+   */
+  protected function responseData(string $prefix): ?\SimpleXMLElement {
+    if ( ! $this->xmlResult instanceof \SimpleXMLElement || ! isset($this->xmlResult->response->resData)) {
+      return null;
+    }
+
+    $ns = $this->xmlResult->getNamespaces(TRUE);
+    if ( ! isset($ns[$prefix])) {
+      return null;
+    }
+
+    $children = $this->xmlResult->response->resData->children($ns[$prefix]);
+    return (count($children) > 0) ? $children : null;
+  }
+
+  /**
+   * The same, for <extension> rather than <resData>.
+   *
+   * @param string $prefix the namespace prefix wanted, e.g. 'extcon'
+   * @return \SimpleXMLElement|null the children in that namespace, or null
+   */
+  protected function responseExtension(string $prefix): ?\SimpleXMLElement {
+    if ( ! $this->xmlResult instanceof \SimpleXMLElement || ! isset($this->xmlResult->response->extension)) {
+      return null;
+    }
+
+    $ns = $this->xmlResult->getNamespaces(TRUE);
+    if ( ! isset($ns[$prefix])) {
+      return null;
+    }
+
+    $children = $this->xmlResult->response->extension->children($ns[$prefix]);
+    return (count($children) > 0) ? $children : null;
+  }
+
+  /**
    * execute ever returning queries to the server
    *
    * @param string $clTRType client transaction type
@@ -251,10 +298,20 @@ abstract class AbstractObject
     $this->result = $this->client->sendRequest($this->xmlQuery);
     $this->xmlResult = $this->client->parseResponse($this->result['body']);
 
+    // An unparseable answer must not reach the object parsers. SimpleXML
+    // answers a missing child with an empty element, so without this every
+    // one of them walks a chain of nothing and reports warnings and nulls
+    // instead of a failure.
+    if ( ! $this->xmlResult instanceof \SimpleXMLElement) {
+      $this->setError("The registry's answer could not be parsed as XML.");
+      $this->storeResponse();
+      return FALSE;
+    }
+
     // look for a server response code
-    if (is_object($this->xmlResult->response->result)) {
+    if (isset($this->xmlResult->response->result)) {
       // look for a server message
-      $this->svMsg = (is_object($this->xmlResult->response->result->msg)) ? (string)$this->xmlResult->response->result->msg : "";
+      $this->svMsg = isset($this->xmlResult->response->result->msg) ? (string)$this->xmlResult->response->result->msg : "";
 
       // look for a server message code
       $this->svCode = (string)$this->xmlResult->response->result['code'];
@@ -269,8 +326,8 @@ abstract class AbstractObject
       }
 
       // look for an extended server error message and code
-      if (is_object($this->xmlResult->response->result->extValue->reason)) {
-        $ns = $this->xmlResult->getNamespaces(TRUE);
+      $ns = $this->xmlResult->getNamespaces(TRUE);
+      if (isset($this->xmlResult->response->result->extValue->reason, $ns['extepp'])) {
         $tmp = $this->xmlResult->response->result->extValue->value->children($ns['extepp']);
         $this->extValueReasonCode = (string)$tmp->reasonCode;
         $this->extValueReason = (string)$this->xmlResult->response->result->extValue->reason;
@@ -284,26 +341,37 @@ abstract class AbstractObject
     }
 
     // look for a server transaction ID
-    $this->svTRID = (isset($this->xmlResult->response->trID->svTRID) && is_object($this->xmlResult->response->trID->svTRID)) ? (string)$this->xmlResult->response->trID->svTRID : "";
+    $this->svTRID = isset($this->xmlResult->response->trID->svTRID) ? (string)$this->xmlResult->response->trID->svTRID : "";
 
     // store response
-    if ($this->debug) {
-      R::exec("
-        INSERT INTO responses (cl_trid, sv_trid, sv_code, status, sv_httpcode, sv_httpheaders, sv_httpdata, extvaluereasoncode, extvaluereason)
-        VALUES (:cl_trid, :sv_trid, :sv_code, :status, :sv_httpcode, :sv_httpheaders, :sv_httpdata, :extvaluereasoncode, :extvaluereason)
-      ", [
-        ':cl_trid'            => $this->client->get_clTRID(),
-        ':sv_trid'            => $this->svTRID,
-        ':sv_code'            => $this->svCode,
-        ':status'             => 0,
-        ':sv_httpcode'        => $this->result['code'],
-        ':sv_httpheaders'     => $this->result['headers'],
-        ':sv_httpdata'        => $this->result['body'],
-        ':extvaluereasoncode' => $this->extValueReasonCode,
-        ':extvaluereason'     => $this->extValueReason,
-      ]);
-    }
+    $this->storeResponse();
 
     return $return_code;
+  }
+
+  /**
+   * Record the answer, under $debug. Its own method because an unparseable
+   * answer returns early and must still be recorded -- that is exactly the
+   * response somebody turning debug on wants to look at.
+   */
+  private function storeResponse(): void {
+    if ( ! $this->debug) {
+      return;
+    }
+
+    R::exec("
+      INSERT INTO responses (cl_trid, sv_trid, sv_code, status, sv_httpcode, sv_httpheaders, sv_httpdata, extvaluereasoncode, extvaluereason)
+      VALUES (:cl_trid, :sv_trid, :sv_code, :status, :sv_httpcode, :sv_httpheaders, :sv_httpdata, :extvaluereasoncode, :extvaluereason)
+    ", [
+      ':cl_trid'            => $this->client->get_clTRID(),
+      ':sv_trid'            => $this->svTRID,
+      ':sv_code'            => $this->svCode,
+      ':status'             => 0,
+      ':sv_httpcode'        => $this->result['code'],
+      ':sv_httpheaders'     => $this->result['headers'],
+      ':sv_httpdata'        => $this->result['body'],
+      ':extvaluereasoncode' => $this->extValueReasonCode,
+      ':extvaluereason'     => $this->extValueReason,
+    ]);
   }
 }

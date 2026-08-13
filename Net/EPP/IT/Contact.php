@@ -299,17 +299,9 @@ class Contact extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("contact-check", implode(";", $contact))) {
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-
-      // see the note in Domain::check()
-      if ( ! isset($ns['contact'], $this->xmlResult->response->resData)) {
-        $this->setError("The registry accepted the check but returned no data.");
-        return -1;
-      }
-
-      $tmp = $this->xmlResult->response->resData->children($ns['contact']);
-      if ( ! isset($tmp->chkData->cd)) {
-        $this->setError("The registry returned no availability data.");
+      $tmp = $this->responseData('contact');
+      if ($tmp === null || ! isset($tmp->chkData->cd)) {
+        $this->setError("The registry accepted the check but returned no availability data.");
         return -1;
       }
 
@@ -410,8 +402,13 @@ class Contact extends AbstractObject
       $this->status = array();
       $this->handle = $contact;
 
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-      $tmp = $this->xmlResult->response->resData->children($ns['contact']);
+      // the postalInfo, not just the infData: a contact without one is not a
+      // contact, and reading through it would hand back a row of empty strings
+      $tmp = $this->responseData('contact');
+      if ($tmp === null || ! isset($tmp->infData->postalInfo->addr)) {
+        $this->setError("The registry accepted the query but returned no contact data.");
+        return FALSE;
+      }
 
       $this->name =        (string)$tmp->infData->postalInfo->name;
       $this->org =         (string)$tmp->infData->postalInfo->org;
@@ -429,13 +426,16 @@ class Contact extends AbstractObject
         $this->status[] =  (string)$singleState->attributes()->s;
       }
 
-      $tmp = $this->xmlResult->response->extension->children($ns['extcon']);
-
-      $this->set('consentforpublishing', (string)$tmp->infData->consentForPublishing);
-      $this->nationalitycode = (string)$tmp->infData->registrant->nationalityCode;
-      $this->entitytype =         (int)$tmp->infData->registrant->entityType;
-      $this->regcode =         (string)$tmp->infData->registrant->regCode;
-      $this->schoolcode =      (string)$tmp->infData->registrant->schoolCode;
+      // the .it registrant details ride along as an extension; a contact that
+      // is not a registrant has none
+      $extcon = $this->responseExtension('extcon');
+      if ($extcon !== null && isset($extcon->infData)) {
+        $this->set('consentforpublishing', (string)$extcon->infData->consentForPublishing);
+        $this->nationalitycode = (string)($extcon->infData->registrant->nationalityCode ?? '');
+        $this->entitytype =         (int)($extcon->infData->registrant->entityType ?? 0);
+        $this->regcode =         (string)($extcon->infData->registrant->regCode ?? '');
+        $this->schoolcode =      (string)($extcon->infData->registrant->schoolCode ?? '');
+      }
 
       return TRUE;
     } else {

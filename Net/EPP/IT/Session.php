@@ -117,7 +117,9 @@ class Session extends AbstractObject
     $this->ExecuteQuery("session-hello", "");
 
     // this is the only query with no result code
-    if ((substr($this->result['code'], 0, 1) == "2") && (is_object($this->xmlResult->greeting))) {
+    if ((substr((string)($this->result['code'] ?? ''), 0, 1) == "2")
+        && $this->xmlResult instanceof \SimpleXMLElement
+        && isset($this->xmlResult->greeting)) {
       return TRUE;
     } else {
       return FALSE;
@@ -138,12 +140,9 @@ class Session extends AbstractObject
       // SimpleXML answers a missing child with an empty element, so this used
       // to walk into children($ns['extepp']) whether or not the document had
       // any extepp content -- and index a namespace key that was not there.
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-      if (isset($ns['extepp'], $this->xmlResult->response->extension)) {
-        $credit = $this->xmlResult->response->extension->children($ns['extepp'])->creditMsgData->credit;
-        if (isset($credit)) {
-          $this->credit = (float)$credit;
-        }
+      $extepp = $this->responseExtension('extepp');
+      if ($extepp !== null && isset($extepp->creditMsgData->credit)) {
+        $this->credit = (float)$extepp->creditMsgData->credit;
       }
       return TRUE;
     } else {
@@ -241,7 +240,7 @@ class Session extends AbstractObject
     $qrs = $this->ExecuteQuery("session-poll", "poll");
 
     // look at message counter
-    if (is_object($this->xmlResult->response->msgQ[0])) {
+    if ($this->xmlResult instanceof \SimpleXMLElement && isset($this->xmlResult->response->msgQ)) {
       $this->messages = (int)$this->xmlResult->response->msgQ->attributes()->count;
       $this->msgID = (int)$this->xmlResult->response->msgQ->attributes()->id;
       $this->msgTitle = (string)$this->xmlResult->response->msgQ->msg;
@@ -296,27 +295,6 @@ class Session extends AbstractObject
   }
 
   /**
-   * the <extension> children in a given namespace prefix, if the document has any
-   *
-   * getNamespaces() only reports prefixes the document actually uses, so
-   * $ns['extdom'] is simply absent from a message carrying no extdom content.
-   * Indexing it blind (as every branch below used to) raises an undefined-key
-   * warning on each miss, which is why the old code needed an @ in front of
-   * every single test.
-   *
-   * @param array $ns prefix => namespace URI, from getNamespaces(TRUE)
-   * @param string $prefix the namespace prefix wanted
-   * @return \SimpleXMLElement|null the extension children, or null if absent
-   */
-  protected function pollExtension(array $ns, string $prefix): ?\SimpleXMLElement {
-    if ( ! isset($ns[$prefix]) || ! isset($this->xmlResult->response->extension)) {
-      return null;
-    }
-    $children = $this->xmlResult->response->extension->children($ns[$prefix]);
-    return (count($children) > 0) ? $children : null;
-  }
-
-  /**
    * summarise a DnsValidatorResult (extdom-2.0): which validation tests ran
    * and how each came out.
    *
@@ -352,11 +330,10 @@ class Session extends AbstractObject
    * @return array [message type], [domain], [human readable data]
    */
   protected function parsePollReq(): array {
-    $ns = $this->xmlResult->getNamespaces(TRUE);
-    $title = (string)$this->xmlResult->response->msgQ->msg;
+    $title = (string)($this->xmlResult->response->msgQ->msg ?? '');
 
-    $extepp = $this->pollExtension($ns, 'extepp');
-    $extdom = $this->pollExtension($ns, 'extdom');
+    $extepp = $this->responseExtension('extepp');
+    $extdom = $this->responseExtension('extdom');
 
     // passwdReminder
     if ($extepp !== null && isset($extepp->passwdReminder->exDate)) {
@@ -485,6 +462,7 @@ class Session extends AbstractObject
     if ($extdom !== null && isset($extdom->chgStatusMsgData->name)) {
       $change = $extdom->chgStatusMsgData;
       $states = array();
+      $ns = $this->xmlResult->getNamespaces(TRUE);
       if (isset($change->targetStatus)) {
         // the target status is expressed with domain:status and rgp:rgpStatus
         // elements, so both namespaces have to be present to read them
@@ -521,9 +499,9 @@ class Session extends AbstractObject
     }
 
     // domain transfers
-    if (isset($ns['domain'], $this->xmlResult->response->resData)
-        && isset($this->xmlResult->response->resData->children($ns['domain'])->trnData->name)) {
-      $transfer = $this->xmlResult->response->resData->children($ns['domain'])->trnData;
+    $domainData = $this->responseData('domain');
+    if ($domainData !== null && isset($domainData->trnData->name)) {
+      $transfer = $domainData->trnData;
       // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers.
       // Both are cast to string here: they are bound straight into the messages
       // INSERT by poll(), and a SimpleXMLElement only survives PDO binding via
@@ -543,7 +521,7 @@ class Session extends AbstractObject
     return array(
       'type'   => 'unknown',
       'domain' => '',
-      'data'   => (string)$this->xmlResult->response->msgQ->msg,
+      'data'   => $title,
     );
   }
 

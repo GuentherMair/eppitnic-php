@@ -456,19 +456,9 @@ class Domain extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("domain-check", implode(";", $domain))) {
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-
-      // as in fetch(): a success code is not a promise of a payload. Here it
-      // mattered more -- count() on the missing chkData is a TypeError, so an
-      // unexpected response killed the process outright
-      if ( ! isset($ns['domain'], $this->xmlResult->response->resData)) {
-        $this->setError("The registry accepted the check but returned no data.");
-        return -1;
-      }
-
-      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
-      if ( ! isset($tmp->chkData->cd)) {
-        $this->setError("The registry returned no availability data.");
+      $tmp = $this->responseData('domain');
+      if ($tmp === null || ! isset($tmp->chkData->cd)) {
+        $this->setError("The registry accepted the check but returned no availability data.");
         return -1;
       }
 
@@ -570,18 +560,12 @@ class Domain extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("domain-info", $domain)) {
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-
-      // A success code is not a promise that the payload is there. Without
-      // this, a response carrying 1000 and no <resData> walks straight into
-      // reading properties off null -- a wall of warnings rather than a
-      // failure the caller can act on.
-      if ( ! isset($ns['domain'], $this->xmlResult->response->resData)) {
+      $tmp = $this->responseData('domain');
+      if ($tmp === null || ! isset($tmp->infData)) {
         $this->setError("The registry accepted the query but returned no domain data.");
         return FALSE;
       }
-
-      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
+      $ns = $this->xmlResult->getNamespaces(TRUE);
 
       $this->domain = $domain;
       $this->status = array();
@@ -616,16 +600,16 @@ class Domain extends AbstractObject
       }
 
       // if extsecDNS and secDNS are set
-      if (isset($ns['secDNS'])) {
-        $tmp = $this->xmlResult->response->extension->children($ns['secDNS']);
-        foreach ($tmp->infData->dsData as $dsData) {
+      $secDNS = $this->responseExtension('secDNS');
+      if ($secDNS !== null) {
+        foreach ($secDNS->infData->dsData as $dsData) {
           $this->addDNSSEC((int)$dsData->keyTag, (int)$dsData->alg, (int)$dsData->digestType, (string)$dsData->digest);
         }
       }
 
       // if infContactsData is set
-      if (isset($ns['extdom'])) {
-        $tmp = $this->xmlResult->response->extension->children($ns['extdom']);
+      $tmp = $this->responseExtension('extdom');
+      if ($tmp !== null) {
 
         // verify extended states
         if (@is_object($tmp->infData->ownStatus)) {
@@ -1111,17 +1095,20 @@ class Domain extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("domain-transfer-query", $domain)) {
-      $ns = $this->xmlResult->getNamespaces(TRUE);
-      $tmp = $this->xmlResult->response->resData->children($ns['domain']);
-      if (@is_object($tmp->trnData->trStatus[0])) {
-        $this->trStatus = $tmp->trnData->trStatus[0];
-        $this->reID = @$tmp->trnData->reID;
-        $this->acID = @$tmp->trnData->acID;
+      $tmp = $this->responseData('domain');
+      if ($tmp === null || ! isset($tmp->trnData->trStatus)) {
+        $this->setError("The registry accepted the query but returned no transfer data.");
+        return FALSE;
       }
+
+      $this->trStatus = (string)$tmp->trnData->trStatus;
+      $this->reID = (string)($tmp->trnData->reID ?? '');
+      $this->acID = (string)($tmp->trnData->acID ?? '');
       return TRUE;
     } else {
-      if (@is_object($this->xmlResult->response->result->extValue->reason[0]))
-        $this->svMsg = $this->xmlResult->response->result->extValue->reason[0];
+      if (isset($this->xmlResult->response->result->extValue->reason)) {
+        $this->svMsg = (string)$this->xmlResult->response->result->extValue->reason;
+      }
       return FALSE;
     }
   }
