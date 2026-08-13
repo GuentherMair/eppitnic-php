@@ -379,6 +379,17 @@ final class Config
             $current = json_decode($current, true);
         }
 
+        // Migrations only ever run forwards, so a database stamped newer than
+        // this checkout has nowhere to go. Say that, rather than letting the
+        // loop look for a migration away from a version it has never heard of
+        // and report the missing file as if it were the problem.
+        if ((int) $current > (int) SCHEMA_VERSION) {
+            throw new \RuntimeException(
+                "The database schema is version '{$current}', newer than this installation's '" . SCHEMA_VERSION . "'. " .
+                "Update the code to a release that knows this schema -- migrations do not run backwards."
+            );
+        }
+
         while ($current !== SCHEMA_VERSION) {
             $next = self::findMigration($current);
             if ($next === null) {
