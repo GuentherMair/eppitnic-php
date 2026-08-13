@@ -295,25 +295,25 @@ ALTER TABLE transactions
   CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `clTRType` `cl_trtype` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `clTRObject` `cl_trobject` VARCHAR(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  CHANGE COLUMN `clTRData` `cl_trdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CHANGE COLUMN `clTRData` `cl_trdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads';
 
 ALTER TABLE responses
   CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svTRID` `sv_trid` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svEPPCode` `sv_code` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svHTTPCode` `sv_httpcode` SMALLINT UNSIGNED,
-  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
+  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
   CHANGE COLUMN `extValueReasonCode` `extvaluereasoncode` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  CHANGE COLUMN `extValueReason` `extvaluereason` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CHANGE COLUMN `extValueReason` `extvaluereason` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads';
 
 ALTER TABLE msgqueue
   CHANGE COLUMN `clTRID` `cl_trid` VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svTRID` `sv_trid` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svCode` `sv_code` VARCHAR(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   CHANGE COLUMN `svHTTPCode` `sv_httpcode` SMALLINT UNSIGNED,
-  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  CHANGE COLUMN `svHTTPHeaders` `sv_httpheaders` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
+  CHANGE COLUMN `svHTTPData` `sv_httpdata` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads';
 
 ALTER TABLE contacts
   CHANGE COLUMN `userID` `user_id` BIGINT UNSIGNED NOT NULL DEFAULT 1;

@@ -37,7 +37,7 @@ CREATE TABLE `transactions` (
   `cl_trid`               varchar(32),
   `cl_trtype`             varchar(32),
   `cl_trobject`           varchar(256),
-  `cl_trdata`             text
+  `cl_trdata`             text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `responses` (
@@ -47,10 +47,10 @@ CREATE TABLE `responses` (
   `sv_code`               varchar(4),
   `status`                tinyint unsigned,
   `sv_httpcode`           smallint unsigned,
-  `sv_httpheaders`        text,
-  `sv_httpdata`           text,
+  `sv_httpheaders`        text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
+  `sv_httpdata`           text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
   `extvaluereasoncode`    varchar(4),
-  `extvaluereason`        text
+  `extvaluereason`        text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `msgqueue` (
@@ -60,8 +60,8 @@ CREATE TABLE `msgqueue` (
   `sv_code`               varchar(4),
   `status`                tinyint unsigned,
   `sv_httpcode`           smallint unsigned,
-  `sv_httpheaders`        text,
-  `sv_httpdata`           text
+  `sv_httpheaders`        text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads',
+  `sv_httpdata`           text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `contacts` (

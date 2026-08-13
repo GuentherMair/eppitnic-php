@@ -347,8 +347,19 @@ listed as latent, but it is not: `doctor reparse-messages` reads
 `msgqueue`.`sv_httpdata`, and in the live database *every* one of the 21,705
 rows carries the envelope.
 
-Decoding is centralised in `StoredPayload::decode()` rather than normalised in
-a migration: reads work against either generation permanently, where a one-way
-rewrite of 21,705 blob rows buys only a smaller table. A damaged envelope
-returns null rather than an empty string — an empty body reads as "the registry
-said nothing", which is a different and wrong conclusion.
+Decoding is centralised in `StoredPayload::decode()`, so reads work against
+either generation permanently — an installation that never cleans up must keep
+working. A damaged envelope returns null rather than an empty string: an empty
+body reads as "the registry said nothing", which is a different and wrong
+conclusion.
+
+The envelope is deprecated rather than merely tolerated. Nothing writes it, all
+six affected columns carry a schema comment saying so, and
+`eppitnic doctor normalize-payloads` strips it — opt-in, `--dry-run` first,
+batched by id, and rows that cannot be decoded are reported and left alone,
+since a damaged envelope is still the only copy of whatever it holds.
+
+Six columns, not the one that was noticed first: `transactions`.`cl_trdata`,
+`responses`.`sv_httpdata` / `sv_httpheaders` / `extvaluereason`, and
+`msgqueue`.`sv_httpdata` / `sv_httpheaders`. In the live database four of them
+hold enveloped rows — 22,485 in total.

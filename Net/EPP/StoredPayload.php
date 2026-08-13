@@ -3,17 +3,20 @@
 namespace Net\EPP;
 
 /**
- * The two shapes an EPP body can have in `responses` / `msgqueue`.
+ * The two shapes an EPP body can have in `transactions` / `responses` /
+ * `msgqueue`.
  *
  * The 6.x codebase wrapped these columns as `__SERIALIZED:` +
  * base64(serialize($string)) -- a serialized *string*, so the envelope carried
  * no information the column did not already have, at a third again the size.
- * Current code writes the body plainly.
  *
- * Both shapes are therefore in the table at once, and every reader has to cope
- * with both. That knowledge belongs in one place: a reader that forgets gets
- * base64 where it expected XML, which parses as nothing and looks like a
- * corrupt response rather than a decoding mistake.
+ * That envelope is **deprecated**: nothing writes it, the affected columns are
+ * marked in the schema, and `eppitnic doctor normalize-payloads` strips it from
+ * rows that still have it. Reading stays permanent, though -- an installation
+ * that never runs the cleanup must keep working -- so every read goes through
+ * decode() rather than assuming either shape. A reader that assumes gets base64
+ * where it expected XML, which parses as nothing and looks like a corrupt
+ * response rather than a decoding mistake.
  *
  * @category    Net
  * @package     Net\EPP\StoredPayload

@@ -166,6 +166,20 @@ bin/eppitnic doctor reparse-messages             # rewrite type/domain
 It rewrites those two columns and nothing else — no reminder rows, no DNS-sync
 events for failures that are years old. Nothing depends on it.
 
+6.x also stored EPP bodies wrapped as `__SERIALIZED:` + base64(serialize(…)),
+in `transactions`.`cl_trdata`, `responses`.`sv_httpdata` / `sv_httpheaders` /
+`extvaluereason` and `msgqueue`.`sv_httpdata` / `sv_httpheaders`. That envelope
+is deprecated: nothing writes it, and the columns carry a comment saying so.
+Reads handle either shape, so this is optional cleanup:
+
+```
+bin/eppitnic doctor normalize-payloads --dry-run   # count the enveloped rows
+bin/eppitnic doctor normalize-payloads             # rewrite them as plain bodies
+```
+
+One way — the envelope is not recoverable afterwards, and rows that cannot be
+decoded are reported and left alone.
+
 
 # Web server
 
