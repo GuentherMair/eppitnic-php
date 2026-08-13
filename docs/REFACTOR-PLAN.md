@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–6 complete, plus 7.1 and 7.2. Phase 7 has open items.
+**Status:** Phases 0–6 complete, plus 7.1–7.3. Phase 7 has open items.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ are estimates for our own code (`vendor/` excluded).
 | 4 | Smarty → `DOMDocument` | 3–4d | −600 | **done** |
 | 5 | Field maps and persistence | 2–3d | −270 | **done** |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | **done** |
-| 7 | Issues found along the way | ongoing | | 7.1, 7.2 done |
+| 7 | Issues found along the way | ongoing | | 7.1–7.3 done |
 
 ---
 
@@ -265,7 +265,26 @@ were stored with. `bin/eppitnic doctor reparse-messages` re-derives both from
 reminder rows, no DNS-sync events for years-old failures. `--dry-run` reports
 what would change.
 
-### 7.3 A database ahead of the code fails confusingly — *low*
+### 7.3 Parsers walked responses they had not received — ✅ *fixed*
+
+SimpleXML answers a missing child with an empty element, so a chain like
+`->response->resData->children($ns['domain'])->infData->name` returns empty
+strings and raises warnings rather than failing, and `count()` on the result
+is fatal. Six such sites were found one at a time — the poll parser, the login
+credit read, both `fetch()` methods, both `check()` methods.
+
+`AbstractObject` now rejects an unparseable body before any parser runs, and
+`responseData()` / `responseExtension()` give a parser its payload or null.
+Every parser goes through them. `Contact::fetch()` requires the `postalInfo`,
+since a `contact:infData` without one hydrates a row of empty strings, and
+`Domain::transferStatus()` returns strings rather than SimpleXMLElements.
+
+`MalformedResponseTest` drives all 13 parsers with 9 shapes of wrong answer,
+asserting no PHP diagnostic anywhere, never a success for an unusable body,
+and a failure from the parsers that need a payload. A payload-less success
+stays legitimate for `delete`, `logout` and the rest, which answer that way.
+
+### 7.4 A database ahead of the code fails confusingly — *low*
 
 `Config::migrate()` loops `while ($current !== SCHEMA_VERSION)`, so a database
 stamped with a *newer* version than the code knows about does not stop — it
@@ -274,7 +293,7 @@ migration found to bring the schema from version X to Y", which reads like a
 missing file rather than the truth: this checkout is older than the database.
 Worth an explicit comparison and a message saying so.
 
-### 7.4 Registry password rotation can lock the installation out — *medium*
+### 7.5 Registry password rotation can lock the installation out — *medium*
 
 `Helpers::rotateEppPasswordOnReminder()` writes its "attempted" timestamp
 *before* the attempt and prints the new password to the cron log if it cannot
@@ -284,18 +303,18 @@ credential then lives in plaintext. Worth revisiting: write the new password
 to the settings table *before* sending it to the registry, marked pending, and
 reconcile afterwards.
 
-### 7.5 `check()` sentinel return values — *low*
+### 7.6 `check()` sentinel return values — *low*
 
 `Domain::check()` / `Contact::check()` return `array|bool|int` with `-1`/`-2`
 sentinels, so every caller carries the sentinel table in its head. Fold into a
 small result object during Phase 4, when both methods are being touched.
 
-### 7.6 `AbstractObject::$result` is untyped — *low*
+### 7.7 `AbstractObject::$result` is untyped — *low*
 
 A loose `array|null` keyed by string. A small value object typing
 `code`/`headers`/`body` pairs naturally with the Phase 0 transport interface.
 
-### 7.7 Legacy `__SERIALIZED:` storage envelope — *low*
+### 7.8 Legacy `__SERIALIZED:` storage envelope — *low*
 
 `responses`/`msgqueue` rows written by the 6.x codebase are
 `__SERIALIZED:` + base64(serialize($string)); current code writes plain
