@@ -5,6 +5,7 @@ namespace Net\EPP\IT;
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
 use Net\EPP\CheckResult;
+use Net\EPP\Service\PasswordService;
 use Net\EPP\XmlBuilder;
 use Net\EPP\Helpers;
 use Net\EPP\ChangeTracking;
@@ -328,12 +329,25 @@ class Contact extends AbstractObject
    *
    * @param int $maxAttempts max attempts before giving up
    * @return string a 16-character handle, confirmed available at the registry
-   * @throws   \RuntimeException   if no unique handle could be found within $maxAttempts
+   * @throws   \RuntimeException   if the registry could not be asked, or if no
+   *           free handle turned up within $maxAttempts
    */
   public function generateHandle(int $maxAttempts = 5): string {
     for ($i = 0; $i < $maxAttempts; $i++) {
-      $handle = strtoupper(bin2hex(random_bytes(8))); // 16 hex chars
-      if ($this->check($handle)->available() === TRUE) {
+      // hex, not a password charset: a handle is an identifier, not a secret --
+      // it lands in REST paths, CSV exports and a foreign key, and only has to
+      // avoid colliding, which check() below confirms
+      $handle = strtoupper(PasswordService::token(8)); // 16 hex chars
+      $answer = $this->check($handle);
+
+      // A check that never happened is not a taken handle. Retrying it four
+      // more times only produces the same failure, and reporting it as "no
+      // unique handle" sends the reader hunting for a collision that is not
+      // there -- an unauthenticated session says exactly this.
+      if ( ! $answer->answered()) {
+        throw new \RuntimeException("Unable to check handle availability: " . $answer->error());
+      }
+      if ($answer->available() === TRUE) {
         return $handle;
       }
     }

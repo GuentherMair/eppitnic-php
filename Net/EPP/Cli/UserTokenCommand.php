@@ -3,6 +3,7 @@
 namespace Net\EPP\Cli;
 
 use Net\EPP\Helpers;
+use Net\EPP\Service\PasswordService;
 use RedBeanPHP\R;
 
 /**
@@ -52,7 +53,7 @@ final class UserTokenCommand extends Command
 
         // 32 random bytes as an opaque hex token, stored only as a hash, the
         // same as a password: the plaintext is shown here and never again
-        $token = bin2hex(random_bytes(32));
+        $token = PasswordService::token();
 
         R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE id = :id", [
             ':token'   => hash('sha256', $token),

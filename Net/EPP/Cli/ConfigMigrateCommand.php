@@ -3,6 +3,7 @@
 namespace Net\EPP\Cli;
 
 use Net\EPP\Config;
+use Net\EPP\Service\PasswordService;
 
 /**
  * Convert a 6.x config.xml into config/config.php and the `settings` table.
@@ -79,7 +80,7 @@ final class ConfigMigrateCommand extends Command
           ],
           // jwt_psk is a signing secret, not just another placeholder -- generate a
           // real one rather than leaving something that might accidentally go live
-          'jwt_psk' => base64_encode(random_bytes(32)),
+          'jwt_psk' => PasswordService::signingKey(),
           // no config.xml source -- seeded with the same placeholder
           // config/mariadb-schema.sql uses; review and adjust by hand
           'safe_networks'   => ['127.0.0.1/32'],

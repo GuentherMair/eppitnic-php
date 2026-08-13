@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Unit;
 
-use Net\EPP\PasswordService;
+use Net\EPP\Service\PasswordService;
 use PHPUnit\Framework\TestCase;
 
 /**

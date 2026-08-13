@@ -1,6 +1,6 @@
 <?php
 
-namespace Net\EPP;
+namespace Net\EPP\Service;
 
 /**
  * Generates passwords from a mixed character set.
@@ -25,7 +25,7 @@ namespace Net\EPP;
  * look.
  *
  * @category    Net
- * @package     Net\EPP\PasswordService
+ * @package     Net\EPP\Service\PasswordService
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
@@ -127,6 +127,18 @@ final class PasswordService
     }
 
     /**
+     * A domain's authinfo: the credential that authorises a transfer away from
+     * this registrar.
+     *
+     * The one credential here that a person actually copies out and passes on,
+     * which is what the safe set is for. Same `pwType` ceiling as the registry
+     * password, and the registry accepts the same characters in it.
+     */
+    public static function forAuthinfo(): string {
+        return self::forRegistry();
+    }
+
+    /**
      * The EPP credential this codebase generates: the safe set, at the
      * protocol's 16-character ceiling.
      *
@@ -138,6 +150,44 @@ final class PasswordService
      */
     public static function forRegistry(): string {
         return (new self(16, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true))->get();
+    }
+
+    // ---------------------------------------------------------------
+    // credentials that are not passwords
+    //
+    // These are here so that every random credential in the codebase comes
+    // from one place, not because they are passwords. A password is short
+    // because a protocol or a person forces it to be, and the character set is
+    // what buys back the entropy that shortness costs. Nothing below is short,
+    // so none of it needs the character set -- and forcing one on them would
+    // trade real entropy for nothing.
+    // ---------------------------------------------------------------
+
+    /**
+     * A bearer token or other opaque identifier, as hex.
+     *
+     * 32 bytes is 256 bits, which is the point: these are copied and pasted,
+     * never read aloud, so there is nothing to gain from a friendlier alphabet
+     * and a great deal to lose from the shorter length one would imply.
+     *
+     * @param int $bytes how much entropy, before hex doubles the length
+     */
+    public static function token(int $bytes = 32): string {
+        return bin2hex(random_bytes($bytes));
+    }
+
+    /**
+     * A signing key, as base64.
+     *
+     * `jwt_psk` is the HMAC key behind every token this API issues. It is
+     * never displayed and never typed, and its whole job is to be infeasible
+     * to guess, so it gets raw entropy in the most compact encoding rather
+     * than anything shaped for a reader.
+     *
+     * @param int $bytes how much entropy
+     */
+    public static function signingKey(int $bytes = 32): string {
+        return base64_encode(random_bytes($bytes));
     }
 
     private function draw(): string {

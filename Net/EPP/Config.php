@@ -3,6 +3,7 @@
 namespace Net\EPP;
 
 use Hexmode\IOMode\IOMode;
+use Net\EPP\Service\PasswordService;
 use RedBeanPHP\R;
 
 /**
@@ -313,7 +314,7 @@ final class Config
      */
     private function setupSettings(): void {
         if ($this->settings['jwt_psk'] === '') {
-            $this->persistSetting('jwt_psk', base64_encode(random_bytes(32)));
+            $this->persistSetting('jwt_psk', PasswordService::signingKey());
         }
 
         if ( ! self::isInteractive()) {

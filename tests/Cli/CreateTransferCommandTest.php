@@ -6,6 +6,7 @@ use Net\EPP\Cli\DomainCreateCommand;
 use Net\EPP\Cli\DomainImportCommand;
 use Net\EPP\Cli\DomainTransferCommand;
 use Net\EPP\Cli\UsageError;
+use Net\EPP\Service\PasswordService;
 use Net\EPP\Tests\Support\EppTestCase;
 
 /**
@@ -65,7 +66,15 @@ final class CreateTransferCommandTest extends EppTestCase
             '--dry-run', '--registrant=REGI1234REGI5678', 'example-one.it',
         ]));
 
-        $this->assertMatchesRegularExpression('#<domain:pw>[0-9a-f]{16}</domain:pw>#', $output);
+        $this->assertSame(1, preg_match('#<domain:pw>(.*)</domain:pw>#', $output, $m), 'no authinfo was generated');
+
+        // whatever PasswordService draws from, not a shape frozen here: the
+        // assertion is that the authinfo is a 16-character credential the
+        // registry will take, which is what pwType asks for
+        $this->assertSame(16, strlen($m[1]));
+        $this->assertSame('', preg_replace(
+            '/[' . preg_quote(PasswordService::SAFE_CHARSET, '/') . ']/', '', $m[1]
+        ), 'the authinfo used characters outside the safe set');
     }
 
     public function testCreateRequiresARegistrant(): void {

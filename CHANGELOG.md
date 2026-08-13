@@ -41,9 +41,12 @@ merely stored: `eppitnic poll process` rotates the shared EPP password when one
 is outstanding, rate-limited to one attempt per 24 hours by the `epp` setting's
 new `lastPasswordUpdate` timestamp. The new password is recorded locally before
 it is sent, so a run interrupted mid-change can be settled afterwards by asking
-the registry which password it holds. `Net\EPP\PasswordService` generates it
-from a mixed character set rather than hex, which spent 16 characters -- EPP's
-ceiling for the credential -- on 64 bits. The unused `debug`,
+the registry which password it holds. `Net\EPP\Service\PasswordService`
+generates it from a mixed character set rather than hex, which spent 16
+characters -- EPP's ceiling for the credential -- on 64 bits. Domain authinfo
+codes are drawn the same way, and every other random credential (API tokens,
+the JWT signing key, contact handles, transaction ids) now comes from the same
+class, in whichever form its consumer actually needs. The unused `debug`,
 `epp.passwordexpirydays` and `epp.passwordexpirynext` settings, and the unused
 `users.dns` column, have been dropped.
 

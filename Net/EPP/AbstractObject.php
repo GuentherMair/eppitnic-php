@@ -4,6 +4,7 @@ namespace Net\EPP;
 
 require_once dirname(__FILE__).'/../../config/constants.php';
 
+use Net\EPP\Service\PasswordService;
 use RedBeanPHP\R;
 
 /**
@@ -163,19 +164,19 @@ abstract class AbstractObject
    * authinfo generator
    *
    * An authinfo code is the credential that authorises a domain transfer away
-   * from this registrar, so it needs to be unguessable. The previous
-   * implementation -- substr(md5(rand()), 0, 16) -- was not: rand() is seeded
-   * from a small state and is not cryptographically secure, so the md5 hash of
-   * it carries at most the ~31 bits of entropy rand() had to give, no matter
-   * how many hex characters are kept. random_bytes() is the CSPRNG, and eight
-   * of its bytes hex-encode to exactly the 16 characters this returns, with a
-   * full 64 bits behind them. Matches what Contact::generateHandle() and the
-   * registry-password rotation in Helpers already use.
+   * from this registrar, so it needs to be unguessable -- and it is the one
+   * credential here that a person copies off a screen and reads to somebody
+   * else, so it also needs to survive that.
+   *
+   * PasswordService answers both: 16 characters, EPP's `pwType` ceiling, drawn
+   * from a set with no l/I or O/0 to confuse and nothing a shell would eat.
+   * Those 16 characters carry about 95 bits, where the hex this used to return
+   * spent the same 16 on 64.
    *
    * @return string 16-character random authinfo code
    */
   public function authinfo(): string {
-    return bin2hex(random_bytes(8));
+    return PasswordService::forAuthinfo();
   }
 
   /**

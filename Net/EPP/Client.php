@@ -2,6 +2,7 @@
 
 namespace Net\EPP;
 
+use Net\EPP\Service\PasswordService;
 
 /**
  * A simple class handling the EPP communication through cURL.
@@ -161,10 +162,11 @@ class Client
    * @return string a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID(): string {
-    // the random tail only has to keep two transactions started in the same
-    // second apart; random_bytes() rather than rand() so that a restarted
-    // process cannot replay the same sequence of ids
-    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(bin2hex(random_bytes(3)), 0, 5);
+    // The random tail only has to keep two transactions started in the same
+    // second apart, and hex rather than a password alphabet because a clTRID
+    // is an identifier, not a secret: it is a database key, it is quoted back
+    // by the registry, and it is what someone greps a log for.
+    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(PasswordService::token(3), 0, 5);
     if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);
     }
