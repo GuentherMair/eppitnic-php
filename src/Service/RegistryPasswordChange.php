@@ -58,10 +58,10 @@ final class RegistryPasswordChange
      * those messages, but nothing acted on them, so the warning just piled up
      * until the credential expired and every EPP call started failing.
      *
-     * This cannot go through withEppSession(): the new password is carried by
+     * This cannot go through EppSession::run(): the new password is carried by
      * the EPP <login> command itself (Session::login($newPW)), so the rotation
      * has to *be* the login, not something done inside an existing session.
-     * Call it after any withEppSession() work has finished and logged out.
+     * Call it after any EppSession::run() work has finished and logged out.
      *
      * The candidate password is written to the `epp` setting as
      * `pendingPassword` *before* it is sent to the registry, and promoted to
@@ -112,7 +112,7 @@ final class RegistryPasswordChange
             return $log;
         }
 
-        $outcome = self::change(null, true);
+        $outcome = self::apply(null, true);
         if ( ! $outcome['ok']) {
             $log[] = "  FAILED: " . $outcome['error'];
             $log[] = $outcome['stage'] === 'persist'
@@ -141,7 +141,7 @@ final class RegistryPasswordChange
      * leaves a candidate on disk that the registry may or may not have taken,
      * which reconcile() can settle by asking.
      *
-     * This cannot go through withEppSession(): the change is carried by the EPP
+     * This cannot go through EppSession::run(): the change is carried by the EPP
      * <login> command itself, so the rotation has to *be* the login, not
      * something done inside a session that has already logged in.
      *
@@ -154,7 +154,7 @@ final class RegistryPasswordChange
      * @return array{ok: bool, error: string, stage: string} stage is 'persist'
      *         (nothing was sent), 'connect', 'registry', or '' on success
      */
-    public static function change(?string $newPassword = null, bool $stampAttempt = false): array {
+    public static function apply(?string $newPassword = null, bool $stampAttempt = false): array {
         $newPassword ??= PasswordService::forRegistry();
 
         // A failure here is the harmless one: nothing has been sent, so the

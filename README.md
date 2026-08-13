@@ -324,7 +324,8 @@ reminder well before the credential actually expires, so a day's wait costs
 nothing.
 
 The candidate password is written to the `epp` setting as `pendingPassword`
-before it is sent, and promoted once the registry accepts it. A run interrupted
+before it is sent, and promoted once the registry accepts it
+(`Eppitnic\Service\RegistryPasswordChange`). A run interrupted
 in between therefore leaves both passwords on disk, and the next run settles it
 by asking the registry which one it accepts. To settle it immediately:
 

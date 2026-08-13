@@ -300,7 +300,7 @@ new password left this installation holding a credential the registry no longer
 had — recovered by printing the password to the cron log, which is a worse
 place for it than the database.
 
-`RegistryPasswordChange::change()` now records the candidate as `pendingPassword`
+`RegistryPasswordChange::apply()` now records the candidate as `pendingPassword`
 *before* sending it, and promotes it once the registry accepts. Both callers
 use it — the reminder-driven rotation and `POST /v1/session/change-password`,
 which had the same ordering.

@@ -95,10 +95,10 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
     $params = $request->getParsedBody() ?? [];
 
     // this is the shared EPP registry credential, not a per-user login password
-    // (that's PUT /v1/changepassword/{id}). RegistryPasswordChange::change() owns
+    // (that's PUT /v1/changepassword/{id}). RegistryPasswordChange::apply() owns
     // the ordering that makes an interrupted change recoverable, and generates
     // the password when the caller does not supply one.
-    $outcome = RegistryPasswordChange::change($params['password'] ?? null);
+    $outcome = RegistryPasswordChange::apply($params['password'] ?? null);
 
     if ( ! $outcome['ok']) {
         $status = match ($outcome['stage']) {

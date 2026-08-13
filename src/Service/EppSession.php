@@ -18,6 +18,14 @@ use Eppitnic\Epp\Session;
  */
 final class EppSession
 {
+    // Note: there is deliberately no run()-plus-502 wrapper for the routes.
+    // With Json::response() in place each of those catch blocks is a single
+    // line, and the alternative -- returning a [result, ?Response] tuple the
+    // caller has to unpack and test -- hides the control flow rather than
+    // shortening it. One route (GET /v1/domains/{name}) also treats an
+    // unreachable registry as "fall back to the local row" rather than as a
+    // 502, so it could not use such a wrapper anyway.
+
     // -----------------------------------------------------------------
     // EPP session lifecycle
     // -----------------------------------------------------------------

@@ -14,14 +14,6 @@ use RedBeanPHP\R;
  */
 final class Changelog
 {
-    // Note: there is deliberately no withEppSession()-plus-502 wrapper here.
-    // With json() in place each of those catch blocks is a single line, and
-    // the alternative -- returning a [result, ?Response] tuple the caller has
-    // to unpack and test -- hides the control flow rather than shortening it.
-    // One route (GET /v1/domains/{name}) also treats an unreachable registry
-    // as "fall back to the local row" rather than as a 502, so it could not
-    // use such a wrapper anyway.
-
     // -----------------------------------------------------------------
     // changelog
     // -----------------------------------------------------------------
