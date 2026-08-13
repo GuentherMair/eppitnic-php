@@ -168,7 +168,7 @@ which contradicted every other authorization refusal in the API.
 ## Talking to the registry (EPP)
 
 Handlers that need a live round-trip to the .it registry wrap their EPP
-calls in `withEppSession()` (`Net/EPP/Helpers.php`): connect, `hello()`+
+calls in `EppSession::run()` (`Net/EPP/Service/EppSession.php`): connect, `hello()`+
 `login()`, run the callback, always `logout()` — one registry session per
 HTTP request, nothing pooled. If `hello()`/`login()` fails, the route
 returns **502** with `{"error": "EPP session unavailable: ..."}` — this is

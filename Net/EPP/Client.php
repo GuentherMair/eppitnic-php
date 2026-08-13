@@ -2,6 +2,7 @@
 
 namespace Net\EPP;
 
+use Net\EPP\Service\EppSession;
 use Net\EPP\Service\PasswordService;
 
 /**
@@ -56,7 +57,7 @@ class Client
    *
    * AbstractObject copies this into its own $debug at construction, so setting
    * it here once -- from the `users`.`debug` column, via
-   * Helpers::withEppSession() -- covers the Session, Domain and Contact
+   * EppSession::run() -- covers the Session, Domain and Contact
    * objects a request goes on to create, rather than each caller having to
    * remember. See AbstractObject::$debug for what it turns on.
    */

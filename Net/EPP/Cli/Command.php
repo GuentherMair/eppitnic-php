@@ -4,8 +4,8 @@ namespace Net\EPP\Cli;
 
 use Net\EPP\Client;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
 use Net\EPP\IT\Session;
+use Net\EPP\Service\EppSession;
 
 /**
  * Base for every `bin/eppitnic` subcommand.
@@ -16,7 +16,7 @@ use Net\EPP\IT\Session;
  *
  * A subclass declares what it takes (options(), arguments(), describe()) and
  * implements run(). Anything needing a registry session wraps its work in
- * withSession(), which is Helpers::withEppSession() with the CLI's own error
+ * withSession(), which is EppSession::run() with the CLI's own error
  * reporting and exit codes around it.
  *
  * @category    Net
@@ -306,7 +306,7 @@ abstract class Command
         }
 
         try {
-            $result = Helpers::withEppSession($fn, $this->isVerbose(), $client);
+            $result = EppSession::run($fn, $this->isVerbose(), $client);
         } catch (\RuntimeException $e) {
             throw new SessionError($e->getMessage(), 0, $e);
         }
@@ -339,7 +339,7 @@ abstract class Command
 
     /**
      * Substitute the client the command talks to. Test suite only -- see the
-     * note on Helpers::withEppSession()'s third argument.
+     * note on EppSession::run()'s third argument.
      */
     public function useClient(Client $client): void {
         $this->client = $client;

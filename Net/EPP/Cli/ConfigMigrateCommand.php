@@ -87,7 +87,7 @@ final class ConfigMigrateCommand extends Command
           // browser origins only, and deployment-specific -- seeded empty rather than
           // with whatever hostnames happened to be on the author's machine. Requests
           // with no Origin header (curl, cron, API-token clients) are unaffected by
-          // this list; see the CORS middleware in Net/EPP/Helpers.php.
+          // this list; see the CORS middleware in Net/EPP/Api/Middleware.php.
           'allowed_origins' => [],
           'allowed_headers' => ['Authorization', 'Content-Type', 'X-Api-Key', 'Content-Disposition'],
           'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

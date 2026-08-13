@@ -4,7 +4,7 @@ namespace Net\EPP\Tests\Unit;
 
 use Net\EPP\Client;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
+use Net\EPP\Service\RegistryPassword;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;
 use Net\EPP\Tests\Support\FakeTransport;
@@ -53,7 +53,7 @@ final class PasswordRotationTest extends EppTestCase
         Config::loadForTesting(self::SETTINGS);
         $this->seedEpp(['password' => 'old-password']);
 
-        Helpers::useEppClientFactory(function (): Client {
+        RegistryPassword::useClientFactory(function (): Client {
             $client = new Client();
             $transport = new FakeTransport();
             $client->setTransport($transport);
@@ -76,7 +76,7 @@ final class PasswordRotationTest extends EppTestCase
     }
 
     protected function tearDown(): void {
-        Helpers::useEppClientFactory(null);
+        RegistryPassword::useClientFactory(null);
         parent::tearDown();
     }
 
@@ -88,7 +88,7 @@ final class PasswordRotationTest extends EppTestCase
         $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'new-password']);
         $this->livePassword = 'new-password';
 
-        Helpers::reconcilePendingPassword();
+        RegistryPassword::reconcile();
 
         $epp = Config::get('epp');
         $this->assertSame('new-password', $epp['password'], 'the live password was not promoted');
@@ -103,7 +103,7 @@ final class PasswordRotationTest extends EppTestCase
         $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'new-password']);
         $this->livePassword = 'old-password';
 
-        Helpers::reconcilePendingPassword();
+        RegistryPassword::reconcile();
 
         $epp = Config::get('epp');
         $this->assertSame('old-password', $epp['password']);
@@ -119,7 +119,7 @@ final class PasswordRotationTest extends EppTestCase
         $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'new-password']);
         $this->livePassword = 'something-else';
 
-        $log = Helpers::reconcilePendingPassword();
+        $log = RegistryPassword::reconcile();
 
         $epp = Config::get('epp');
         $this->assertSame('new-password', $epp['pendingPassword'], 'the candidate was discarded');
@@ -135,7 +135,7 @@ final class PasswordRotationTest extends EppTestCase
         $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'new-password']);
         $this->livePassword = 'new-password';
 
-        Helpers::reconcilePendingPassword();
+        RegistryPassword::reconcile();
 
         $this->assertSame(['new-password'], $this->attempted, 'the stored password should not have been tried');
     }
@@ -146,7 +146,7 @@ final class PasswordRotationTest extends EppTestCase
     public function testNoCandidateIsANoOp(): void {
         $this->seedEpp(['password' => 'old-password']);
 
-        $this->assertSame([], Helpers::reconcilePendingPassword());
+        $this->assertSame([], RegistryPassword::reconcile());
         $this->assertSame([], $this->attempted, 'the registry was contacted with nothing to reconcile');
     }
 
@@ -159,7 +159,7 @@ final class PasswordRotationTest extends EppTestCase
         $this->seedEpp(['password' => 'old-password']);
 
         $seenAtLogin = null;
-        Helpers::useEppClientFactory(function () use (&$seenAtLogin): Client {
+        RegistryPassword::useClientFactory(function () use (&$seenAtLogin): Client {
             $client = new Client();
             $transport = new FakeTransport();
             $client->setTransport($transport);
@@ -177,7 +177,7 @@ final class PasswordRotationTest extends EppTestCase
 
         R::exec("INSERT INTO messages (type, data, archived_time) VALUES ('passwdReminder', '2026-09-01', NULL)");
 
-        Helpers::rotateEppPasswordOnReminder();
+        RegistryPassword::rotateOnReminder();
 
         $this->assertNotNull($seenAtLogin, 'no candidate was on disk when the change was sent');
         $this->assertSame(Config::get('epp')['password'], $seenAtLogin, 'a different password was sent than was recorded');

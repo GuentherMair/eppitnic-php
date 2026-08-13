@@ -1,7 +1,10 @@
 <?php
 
+use Net\EPP\Api\Auth;
+use Net\EPP\Api\Json;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
+use Net\EPP\Service\EppSession;
+use Net\EPP\Service\RegistryPassword;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -21,7 +24,7 @@ const EPP_PUBLIC_FIELDS = [
 ];
 
 $app->get('/v1/session/epp', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtRequireAdmin($request);
+    Auth::requireAdmin($request);
 
     $epp = Config::get('epp');
 
@@ -38,64 +41,64 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
     // it; the candidate itself stays out of the response.
     $public['rotation_pending'] = ($epp['pendingPassword'] ?? '') !== '';
 
-    return Helpers::json($response, ['epp' => $public]);
+    return Json::response($response, ['epp' => $public]);
 });
 
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
-    ['debug' => $debug] = Helpers::actor($request);
+    ['debug' => $debug] = Auth::actor($request);
 
     try {
-        $credit = Helpers::withEppSession(function ($nic, $session) {
+        $credit = EppSession::run(function ($nic, $session) {
             return $session->showCredit();
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
-    return Helpers::json($response, ['credit' => $credit]);
+    return Json::response($response, ['credit' => $credit]);
 });
 
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtRequireAdmin($request);
+    Auth::requireAdmin($request);
     $params = $request->getQueryParams();
     $activeOnly = ($params['active'] ?? '1') !== '0';
 
     $where = $activeOnly ? 'archived_time IS NULL' : '1 = 1';
     $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC");
 
-    return Helpers::json($response, ['messages' => $messages]);
+    return Json::response($response, ['messages' => $messages]);
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtRequireAdmin($request);
+    Auth::requireAdmin($request);
     $id = (int) $args['id'];
 
     $message = R::getRow("SELECT * FROM messages WHERE id = ?", [$id]);
     if (empty($message)) {
-        return Helpers::json($response, ['error' => "Message id {$id} not found"], 404);
+        return Json::response($response, ['error' => "Message id {$id} not found"], 404);
     }
 
-    return Helpers::json($response, ['message' => $message]);
+    return Json::response($response, ['message' => $message]);
 });
 
 $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtRequireAdmin($request);
+    $user_id = Auth::requireAdmin($request);
     $id = (int) $args['id'];
 
     R::exec("UPDATE messages SET archived_time = NOW(), archived_user_id = ? WHERE id = ?", [$user_id, $id]);
 
-    return Helpers::json($response, ['archived' => true, 'id' => $id]);
+    return Json::response($response, ['archived' => true, 'id' => $id]);
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtRequireAdmin($request);
+    Auth::requireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
     // this is the shared EPP registry credential, not a per-user login password
-    // (that's PUT /v1/changepassword/{id}). Helpers::changeEppPassword() owns
+    // (that's PUT /v1/changepassword/{id}). RegistryPassword::change() owns
     // the ordering that makes an interrupted change recoverable, and generates
     // the password when the caller does not supply one.
-    $outcome = Helpers::changeEppPassword($params['password'] ?? null);
+    $outcome = RegistryPassword::change($params['password'] ?? null);
 
     if ( ! $outcome['ok']) {
         $status = match ($outcome['stage']) {
@@ -103,8 +106,8 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
             'registry' => 400,
             default    => 500,
         };
-        return Helpers::json($response, ['error' => $outcome['error']], $status);
+        return Json::response($response, ['error' => $outcome['error']], $status);
     }
 
-    return Helpers::json($response, ['changed' => true]);
+    return Json::response($response, ['changed' => true]);
 });

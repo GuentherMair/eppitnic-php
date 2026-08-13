@@ -9,7 +9,7 @@ Everything below assumes one require and a configured database:
 require 'vendor/autoload.php';
 
 use Net\EPP\Client;
-use Net\EPP\Helpers;
+use Net\EPP\Service\EppSession;
 use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
 use Net\EPP\IT\Session;
@@ -17,11 +17,11 @@ use Net\EPP\IT\Session;
 
 ## A session
 
-`Helpers::withEppSession()` opens a session, hands you a logged-in client, and
+`EppSession::run()` opens a session, hands you a logged-in client, and
 logs out afterwards — including when your callback throws.
 
 ```php
-$credit = Helpers::withEppSession(function (Client $nic, Session $session) {
+$credit = EppSession::run(function (Client $nic, Session $session) {
     return $session->showCredit();
 });
 ```
@@ -200,7 +200,7 @@ Messages arrive one at a time. Reading one does not remove it — acknowledging
 it does, and that is what reveals the next.
 
 ```php
-Helpers::withEppSession(function (Client $nic, Session $session) {
+EppSession::run(function (Client $nic, Session $session) {
     while ($session->pollMessageCount() > 0) {
         $id = $session->pollID();
 

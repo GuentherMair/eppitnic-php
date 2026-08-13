@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Cli;
 
-use Net\EPP\Helpers;
+use Net\EPP\Persistence\Changelog;
 use Net\EPP\Service\PasswordService;
 use RedBeanPHP\R;
 
@@ -60,7 +60,7 @@ final class UserTokenCommand extends Command
             ':expires' => $expires,
             ':id'      => $user['id'],
         ]);
-        Helpers::logChanges('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
+        Changelog::record('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
 
         $this->record(
             "API token issued for '{$user['username']}' (id {$user['id']})\n"

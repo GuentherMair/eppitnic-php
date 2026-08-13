@@ -3,12 +3,12 @@
 namespace Net\EPP\Cli;
 
 use Net\EPP\Config;
-use Net\EPP\Helpers;
+use Net\EPP\Service\RegistryPassword;
 
 /**
  * Settle a password rotation that did not finish.
  *
- * Helpers::rotateEppPasswordOnReminder() writes its candidate password to the
+ * RegistryPassword::rotateOnReminder() writes its candidate password to the
  * `epp` setting before sending it to the registry, so a run that dies in
  * between leaves both the old and the new password on disk with no record of
  * which one the registry accepted. The cron job resolves that itself on its
@@ -33,7 +33,7 @@ final class DoctorEppPasswordCommand extends Command
             return 0;
         }
 
-        foreach (Helpers::reconcilePendingPassword() as $line) {
+        foreach (RegistryPassword::reconcile() as $line) {
             $this->line($line);
         }
 

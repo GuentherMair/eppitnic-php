@@ -1,16 +1,17 @@
 <?php
 
-use Net\EPP\Helpers;
+use Net\EPP\Api\Auth;
+use Net\EPP\Api\Json;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use phpWhois\Whois;
 
 $app->get('/v1/whois', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtVerify($request);
+    Auth::verify($request);
 
     $domain = trim($request->getQueryParams()['domain'] ?? '');
     if ($domain === '') {
-        return Helpers::json($response, ['error' => "Missing or empty 'domain' parameter"], 400);
+        return Json::response($response, ['error' => "Missing or empty 'domain' parameter"], 400);
     }
 
     try {
@@ -22,8 +23,8 @@ $app->get('/v1/whois', function (Request $request, Response $response, array $ar
             $result['regrinfo']['domain']['status'] = "multiple status fields (see detailed output)";
         }
 
-        return Helpers::json($response, $result);
+        return Json::response($response, $result);
     } catch (\Throwable $e) {
-        return Helpers::json($response, ['error' => 'WHOIS lookup failed: ' . $e->getMessage()], 500);
+        return Json::response($response, ['error' => 'WHOIS lookup failed: ' . $e->getMessage()], 500);
     }
 });

@@ -2,8 +2,8 @@
 
 namespace Net\EPP\Cli;
 
-use Net\EPP\Helpers;
 use Net\EPP\IT\PollProcessor;
+use Net\EPP\Service\RegistryPassword;
 
 /**
  * The scheduled registry run: drain the poll queue, reconcile transfer state
@@ -70,7 +70,7 @@ final class PollProcessCommand extends Command
             $this->line('password rotation skipped (--no-rotate)');
             return 0;
         }
-        foreach (Helpers::rotateEppPasswordOnReminder() as $line) {
+        foreach (RegistryPassword::rotateOnReminder() as $line) {
             $this->line($line);
         }
 

@@ -3,13 +3,13 @@
 namespace Net\EPP\IT;
 
 use Net\EPP\AbstractObject;
-use Net\EPP\Client;
+use Net\EPP\ChangeTracking;
 use Net\EPP\CheckResult;
+use Net\EPP\Client;
+use Net\EPP\LocalStorage;
+use Net\EPP\Persistence\Changelog;
 use Net\EPP\Service\PasswordService;
 use Net\EPP\XmlBuilder;
-use Net\EPP\Helpers;
-use Net\EPP\ChangeTracking;
-use Net\EPP\LocalStorage;
 use RedBeanPHP\R;
 
 /**
@@ -650,7 +650,7 @@ class Contact extends AbstractObject
       }
     }
 
-    Helpers::logChanges(
+    Changelog::record(
       'contacts', $this->storageId($this->handle),
       empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id
     );
@@ -725,7 +725,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    Helpers::logChanges('contacts', $this->storageId($contact), 'update', $data, $user_id);
+    Changelog::record('contacts', $this->storageId($contact), 'update', $data, $user_id);
     return TRUE;
   }
 

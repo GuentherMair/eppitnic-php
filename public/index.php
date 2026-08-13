@@ -1,8 +1,8 @@
 <?php
 
 // Slim
+use Net\EPP\Api\Middleware;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
 use Slim\Factory\AppFactory;
 
 // composer autoloading pulls in every self-contained helper (constants, DB
@@ -22,7 +22,7 @@ setlocale(LC_TIME, $region['lc_time']);
 $app = AppFactory::create();
 
 // body-parsing, trailing-slash normalization, error handling, CORS
-Helpers::registerMiddleware($app);
+Middleware::register($app);
 
 // routes
 require dirname(__FILE__) . '/../routes/root.php';

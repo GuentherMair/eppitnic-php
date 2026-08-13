@@ -1,19 +1,23 @@
 <?php
 
+use Net\EPP\Api\Auth;
+use Net\EPP\Api\ClientIp;
+use Net\EPP\Api\Json;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
+use Net\EPP\Persistence\Changelog;
 use Net\EPP\Service\PasswordService;
+use Net\EPP\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    return Helpers::json($response, Helpers::jwtBuild((array) $decoded->data));
+    $decoded = Auth::verify($request);
+    return Json::response($response, Auth::issueToken((array) $decoded->data));
 });
 
 $app->get('/v1/users/me', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
-    return Helpers::json($response, (array) $decoded->data);
+    $decoded = Auth::verify($request);
+    return Json::response($response, (array) $decoded->data);
 });
 
 $app->post('/v1/users/authenticate', function (Request $request, Response $response, array $args): Response {
@@ -22,10 +26,10 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     $password = $params['password'] ?? '';
 
     if (empty($username)) {
-        return Helpers::json($response, ['error' => 'Please provide a username'], 401);
+        return Json::response($response, ['error' => 'Please provide a username'], 401);
     }
     if (empty($password)) {
-        return Helpers::json($response, ['error' => 'Please provide a password'], 401);
+        return Json::response($response, ['error' => 'Please provide a password'], 401);
     }
 
     $user = R::getAll("SELECT
@@ -36,13 +40,13 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     ]);
 
     if (empty($user) || !password_verify($password, $user[0]['password'])) {
-        return Helpers::json($response, ['error' => 'Wrong username or password'], 401);
+        return Json::response($response, ['error' => 'Wrong username or password'], 401);
     }
 
     $hasTotp   = !empty($user[0]['totp_secret']);
     $onSafeNet = false;
     foreach (Config::get('safe_networks') as $cidr) {
-        if (Helpers::clientIpInCidr($cidr)) {
+        if (ClientIp::inCidr($cidr)) {
             $onSafeNet = true;
             break;
         }
@@ -52,14 +56,14 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     if ($needsTotp) {
         $totpCode = $params['totp'] ?? '';
         if (empty($totpCode)) {
-            return Helpers::json($response, ['error' => 'MFA code required'], 401);
+            return Json::response($response, ['error' => 'MFA code required'], 401);
         }
-        if (!Helpers::totpVerify($user[0]['totp_secret'], $totpCode)) {
-            return Helpers::json($response, ['error' => 'Invalid MFA code'], 401);
+        if (!Auth::totpVerify($user[0]['totp_secret'], $totpCode)) {
+            return Json::response($response, ['error' => 'Invalid MFA code'], 401);
         }
     }
 
-    return Helpers::json($response, Helpers::jwtBuild([
+    return Json::response($response, Auth::issueToken([
         'id'            => $user[0]['id'],
         'admin'         => $user[0]['admin'],
         'username'      => $user[0]['username'],
@@ -73,19 +77,19 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 });
 
 $app->get('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtUserID($request);
+    $user_id = Auth::userId($request);
 
     $users = R::getAll("SELECT
         id, active, admin, username, max_token_age, max_idle_time, debug,
         totp_secret IS NOT NULL AS has_totp
     FROM users");
-    return Helpers::json($response, [
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->get('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtUserID($request);
+    $user_id = Auth::userId($request);
 
     $users = R::getAll("SELECT
         id, active, admin, username, max_token_age, max_idle_time, debug,
@@ -93,26 +97,26 @@ $app->get('/v1/users/{id}', function (Request $request, Response $response, arra
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    return Helpers::json($response, [
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->put('/v1/changepassword/{id}', function (Request $request, Response $response, array $args): Response {
-    $decoded  = Helpers::jwtRequireMfa($request);
+    $decoded  = Auth::requireMfa($request);
     $user_id   = (int) $decoded->data->id;
     $params   = $request->getParsedBody() ?? [];
     $password = $params['password'] ?? '';
 
     if (empty($password)) {
-        return Helpers::json($response, ['error' => 'Please provide a password'], 401);
+        return Json::response($response, ['error' => 'Please provide a password'], 401);
     }
 
     // 403, not 401: the caller is authenticated, they are just not allowed to
     // change this particular user's password. Matches every other authorization
     // refusal in the codebase.
     if (($args['id'] != $decoded->data->id) && ($decoded->data->admin != 1)) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("
@@ -129,14 +133,14 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->put('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtRequireAdmin($request);
+    $user_id = Auth::requireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
     // load the row first: an unknown id is a 404 rather than a silent no-op, and
@@ -145,7 +149,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     // been omit-to-leave-unchanged here)
     $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $args['id']]);
     if (empty($current)) {
-        return Helpers::json($response, ['error' => 'User not found'], 404);
+        return Json::response($response, ['error' => 'User not found'], 404);
     }
 
     // the UNIQUE column is pre-checked (excluding this row) for the same reason
@@ -157,7 +161,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
             ':id'       => $args['id'],
         ]);
         if ($taken > 0) {
-            return Helpers::json($response, ['error' => "username '{$username}' is already taken"], 400);
+            return Json::response($response, ['error' => "username '{$username}' is already taken"], 400);
         }
     }
 
@@ -191,18 +195,18 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Helpers::logChanges('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->post('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtRequireAdmin($request);
+    $user_id = Auth::requireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = Helpers::requireFields($params, ['username', 'password'])) {
-        return Helpers::json($response, ['error' => $err], 400);
+    if ($err = Validate::requireFields($params, ['username', 'password'])) {
+        return Json::response($response, ['error' => $err], 400);
     }
 
     // pre-check the UNIQUE column, so a collision comes back as a 400 with a
@@ -211,7 +215,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':username' => $params['username'],
     ]);
     if ( ! empty($taken)) {
-        return Helpers::json($response, ['error' => "username '{$params['username']}' is already taken"], 400);
+        return Json::response($response, ['error' => "username '{$params['username']}' is already taken"], 400);
     }
 
     R::exec("
@@ -243,14 +247,14 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
-    Helpers::logChanges('users', $id, 'create', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', $id, 'create', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ], 201);
 });
 
 $app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Helpers::jwtRequireAdmin($request);
+    $user_id = Auth::requireAdmin($request);
 
     R::exec("UPDATE users SET active = 0 WHERE id = :id", [
         ':id' => $args['id'],
@@ -261,48 +265,48 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Helpers::logChanges('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
+    $decoded = Auth::verify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $user = R::getAll("SELECT id, username FROM users WHERE id = :id AND active = 1", [
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        return Helpers::json($response, ['error' => 'User not found'], 404);
+        return Json::response($response, ['error' => 'User not found'], 404);
     }
 
-    $totp = Helpers::totpGenerate($user[0]['username']);
+    $totp = Auth::totpGenerate($user[0]['username']);
 
     R::exec("UPDATE users SET totp_secret_pending = :secret WHERE id = :id", [
         ':secret' => $totp['secret'],
         ':id'     => $args['id'],
     ]);
 
-    return Helpers::json($response, [
+    return Json::response($response, [
         'secret' => $totp['secret'],
         'uri'    => $totp['uri'],
     ]);
 });
 
 $app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
+    $decoded = Auth::verify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $params   = $request->getParsedBody() ?? [];
@@ -312,13 +316,13 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        return Helpers::json($response, ['error' => 'User not found'], 404);
+        return Json::response($response, ['error' => 'User not found'], 404);
     }
     if (empty($user[0]['totp_secret_pending'])) {
-        return Helpers::json($response, ['error' => 'No pending TOTP setup found'], 400);
+        return Json::response($response, ['error' => 'No pending TOTP setup found'], 400);
     }
-    if (empty($totpCode) || !Helpers::totpVerify($user[0]['totp_secret_pending'], $totpCode)) {
-        return Helpers::json($response, ['error' => 'Invalid TOTP code'], 401);
+    if (empty($totpCode) || !Auth::totpVerify($user[0]['totp_secret_pending'], $totpCode)) {
+        return Json::response($response, ['error' => 'Invalid TOTP code'], 401);
     }
 
     R::exec("UPDATE users SET totp_secret = totp_secret_pending, totp_secret_pending = NULL WHERE id = :id", [
@@ -331,19 +335,19 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->delete('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtRequireMfa($request);
+    $decoded = Auth::requireMfa($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("UPDATE users SET totp_secret = NULL, totp_secret_pending = NULL WHERE id = :id", [
@@ -356,26 +360,26 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Helpers::logChanges('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
-    return Helpers::json($response, [
+    Changelog::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
+    $decoded = Auth::verify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     $user = R::getAll("SELECT id FROM users WHERE id = :id AND active = 1", [
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
-        return Helpers::json($response, ['error' => 'User not found'], 404);
+        return Json::response($response, ['error' => 'User not found'], 404);
     }
 
     $params = $request->getParsedBody() ?? [];
@@ -391,23 +395,23 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     ]);
 
     $user_id = (int) $decoded->data->id;
-    Helpers::logChanges('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
+    Changelog::record('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
 
     // the plaintext token is only ever shown here, at issue time -- it can't be
     // recovered later since only its hash is stored
-    return Helpers::json($response, [
+    return Json::response($response, [
         'token'   => $token,
         'expires' => $expires,
     ]);
 });
 
 $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = Helpers::jwtVerify($request);
+    $decoded = Auth::verify($request);
     $isAdmin = (int) $decoded->data->admin === 1;
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {
-        return Helpers::json($response, ['error' => 'You are not authorized to perform this operation'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
     R::exec("UPDATE users SET api_token = NULL, api_token_expires = 0 WHERE id = :id", [
@@ -415,7 +419,7 @@ $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $r
     ]);
 
     $user_id = (int) $decoded->data->id;
-    Helpers::logChanges('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
+    Changelog::record('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
 
-    return Helpers::json($response, ['revoked' => true]);
+    return Json::response($response, ['revoked' => true]);
 });

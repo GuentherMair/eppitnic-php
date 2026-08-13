@@ -2,6 +2,7 @@
 
 namespace Net\EPP;
 
+use Net\EPP\Persistence\Changelog;
 use RedBeanPHP\R;
 
 /**
@@ -152,7 +153,7 @@ trait LocalStorage
             return false;
         }
 
-        Helpers::logChanges(static::storageTable(), $this->storageId($key), $logAction, $logData, $userId);
+        Changelog::record(static::storageTable(), $this->storageId($key), $logAction, $logData, $userId);
         return true;
     }
 

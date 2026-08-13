@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Unit;
 
-use Net\EPP\Helpers;
+use Net\EPP\Api\Json;
 use PHPUnit\Framework\TestCase;
 use Slim\Psr7\Factory\ResponseFactory;
 
@@ -11,14 +11,14 @@ use Slim\Psr7\Factory\ResponseFactory;
  * mistake in the whole API at once -- which is exactly why they are worth
  * testing directly, even though each is only a few lines.
  */
-final class HelpersResponseTest extends TestCase
+final class JsonResponseTest extends TestCase
 {
     private function response(): \Psr\Http\Message\ResponseInterface {
         return (new ResponseFactory())->createResponse();
     }
 
     public function testJsonWritesBodyStatusAndContentType(): void {
-        $response = Helpers::json($this->response(), ['domain' => 'example.it'], 201);
+        $response = Json::response($this->response(), ['domain' => 'example.it'], 201);
 
         $this->assertSame(201, $response->getStatusCode());
         $this->assertSame('application/json; charset=utf-8', $response->getHeaderLine('Content-Type'));
@@ -26,7 +26,7 @@ final class HelpersResponseTest extends TestCase
     }
 
     public function testJsonDefaultsTo200(): void {
-        $this->assertSame(200, Helpers::json($this->response(), [])->getStatusCode());
+        $this->assertSame(200, Json::response($this->response(), [])->getStatusCode());
     }
 
     /**
@@ -35,7 +35,7 @@ final class HelpersResponseTest extends TestCase
      * change to json() flags (JSON_FORCE_OBJECT, say) is a deliberate one.
      */
     public function testJsonEncodesEmptyArrayAsArray(): void {
-        $this->assertSame('{"domains":[]}', (string) Helpers::json($this->response(), ['domains' => []])->getBody());
+        $this->assertSame('{"domains":[]}', (string) Json::response($this->response(), ['domains' => []])->getBody());
     }
 
     /**
@@ -44,7 +44,7 @@ final class HelpersResponseTest extends TestCase
      * client sees, not a cosmetic one.
      */
     public function testJsonPreservesUtf8Payloads(): void {
-        $body = (string) Helpers::json($this->response(), ['org' => 'Grüße & Co'])->getBody();
+        $body = (string) Json::response($this->response(), ['org' => 'Grüße & Co'])->getBody();
 
         $this->assertSame(['org' => 'Grüße & Co'], json_decode($body, true));
     }

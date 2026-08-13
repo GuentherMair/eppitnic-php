@@ -2,8 +2,8 @@
 
 namespace Net\EPP\Cli;
 
-use Net\EPP\Helpers;
 use Net\EPP\IT\Domain;
+use Net\EPP\Support\Csv;
 use RedBeanPHP\R;
 
 /**
@@ -108,9 +108,9 @@ final class DomainExportCommand extends Command
                 return $out;
 
             default:
-                $out = Helpers::rowToCSV(array_keys(self::COLUMNS), ';');
+                $out = Csv::row(array_keys(self::COLUMNS), ';');
                 foreach ($records as $record) {
-                    $out .= Helpers::rowToCSV(array_values($record), ';');
+                    $out .= Csv::row(array_values($record), ';');
                 }
                 return $out;
         }

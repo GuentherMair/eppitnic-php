@@ -1,8 +1,11 @@
 <?php
 
+use Net\EPP\Api\Auth;
+use Net\EPP\Api\Json;
 use Net\EPP\Client;
-use Net\EPP\Helpers;
 use Net\EPP\IT\Contact;
+use Net\EPP\Service\EppSession;
+use Net\EPP\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -55,22 +58,22 @@ function canAccessContact(string $handle, int $user_id, bool $isAdmin): bool {
 }
 
 $app->get('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
     $contact = new Contact($nic);
     $contacts = $contact->listContacts($user_id, $isAdmin, ($params['active'] ?? '1') !== '0');
 
-    return Helpers::json($response, ['contacts' => $contacts]);
+    return Json::response($response, ['contacts' => $contacts]);
 });
 
 $app->get('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
 
     if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
-        return Helpers::json($response, ['error' => 'You are not authorized to view this contact'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to view this contact'], 403);
     }
 
     // the registry is authoritative -- its answer is returned as-is, never
@@ -78,7 +81,7 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     // object out, since loadDB() re-initializes before its own lookup and
     // leaves it empty when that lookup misses). Mirrors GET /v1/domains/{name}.
     try {
-        $contact = Helpers::withEppSession(function ($nic) use ($handle) {
+        $contact = EppSession::run(function ($nic) use ($handle) {
             $contact = new Contact($nic);
             return $contact->fetch($handle) ? $contact : null;
         }, $debug);
@@ -89,7 +92,7 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     }
 
     if ($contact !== null) {
-        return Helpers::json($response, ['contact' => contactToArray($contact), 'stale' => false]);
+        return Json::response($response, ['contact' => contactToArray($contact), 'stale' => false]);
     }
 
     // registry lookup failed: serve the last known local state instead, flagged
@@ -101,25 +104,25 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     $nic = new Client();
     $contact = new Contact($nic);
     if ( ! $contact->loadDB($handle, $user_id, true)) {
-        return Helpers::json($response, ['error' => "Contact '{$handle}' not found"], 404);
+        return Json::response($response, ['error' => "Contact '{$handle}' not found"], 404);
     }
 
-    return Helpers::json($response, ['contact' => contactToArray($contact), 'stale' => true]);
+    return Json::response($response, ['contact' => contactToArray($contact), 'stale' => true]);
 });
 
 $app->post('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = Helpers::requireFields($params, ['name']) ?? Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
-        return Helpers::json($response, ['error' => $err], 400);
+    if ($err = Validate::requireFields($params, ['name']) ?? Validate::maxLength($params, Validate::CONTACT_FIELD_MAX_LENGTHS)) {
+        return Json::response($response, ['error' => $err], 400);
     }
-    if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
-        return Helpers::json($response, ['error' => 'email is not a valid address'], 400);
+    if ( ! empty($params['email']) && ! Validate::isEmail($params['email'])) {
+        return Json::response($response, ['error' => 'email is not a valid address'], 400);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($params, $user_id) {
+        $result = EppSession::run(function ($nic) use ($params, $user_id) {
             $contact = new Contact($nic);
             foreach ($params as $key => $value) {
                 if ($key === 'handle') {
@@ -140,33 +143,33 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             return ['ok' => true, 'contact' => $contact];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['contact' => contactToArray($result['contact'])], 201);
+    return Json::response($response, ['contact' => contactToArray($result['contact'])], 201);
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
     $params = $request->getParsedBody() ?? [];
 
     if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
-        return Helpers::json($response, ['error' => 'You are not authorized to update this contact'], 403);
+        return Json::response($response, ['error' => 'You are not authorized to update this contact'], 403);
     }
-    if ($err = Helpers::maxLength($params, Helpers::CONTACT_FIELD_MAX_LENGTHS)) {
-        return Helpers::json($response, ['error' => $err], 400);
+    if ($err = Validate::maxLength($params, Validate::CONTACT_FIELD_MAX_LENGTHS)) {
+        return Json::response($response, ['error' => $err], 400);
     }
-    if ( ! empty($params['email']) && ! Helpers::isValidEmailFormat($params['email'])) {
-        return Helpers::json($response, ['error' => 'email is not a valid address'], 400);
+    if ( ! empty($params['email']) && ! Validate::isEmail($params['email'])) {
+        return Json::response($response, ['error' => 'email is not a valid address'], 400);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($handle, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($handle, $params, $user_id, $isAdmin) {
             $contact = new Contact($nic);
             if ( ! $contact->fetch($handle)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Contact '{$handle}' not found"];
@@ -183,22 +186,22 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
             return ['ok' => true, 'contact' => $contact];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], $result['status']);
+        return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Helpers::json($response, ['contact' => contactToArray($result['contact'])]);
+    return Json::response($response, ['contact' => contactToArray($result['contact'])]);
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($handle, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($handle, $user_id, $isAdmin) {
             $contact = new Contact($nic);
             if ( ! $contact->delete($handle)) {
                 return ['ok' => false, 'error' => $contact->getError()];
@@ -207,12 +210,12 @@ $app->delete('/v1/contacts/{handle}', function (Request $request, Response $resp
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['deleted' => true, 'handle' => $handle]);
+    return Json::response($response, ['deleted' => true, 'handle' => $handle]);
 });

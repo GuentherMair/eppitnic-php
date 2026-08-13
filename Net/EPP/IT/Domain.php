@@ -4,10 +4,10 @@ namespace Net\EPP\IT;
 
 use Algo26\IdnaConvert\ToIdn;
 use Algo26\IdnaConvert\ToUnicode;
+use Net\EPP\Persistence\Changelog;
 
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
-use Net\EPP\Helpers;
 use Net\EPP\ChangeTracking;
 use Net\EPP\LocalStorage;
 use Net\EPP\CheckResult;
@@ -945,7 +945,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    Helpers::logChanges('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
+    Changelog::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
       // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the zone
@@ -1053,7 +1053,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    Helpers::logChanges('domains', $this->storageId($domain), 'update', $data, $user_id);
+    Changelog::record('domains', $this->storageId($domain), 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update
     if (in_array('ns', $changes, true)) {

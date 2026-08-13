@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Cli;
 
-use Net\EPP\Helpers;
+use Net\EPP\Persistence\Changelog;
 use RedBeanPHP\R;
 
 /**
@@ -65,7 +65,7 @@ final class UserCreateCommand extends Command
         $id = (int) R::getInsertID();
         // no authenticated actor exists yet when bootstrapping, so the new user
         // is recorded as its own actor
-        Helpers::logChanges('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
+        Changelog::record('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
 
         $this->record(
             "user '{$username}' created (id {$id}" . ($isAdmin ? ', admin' : '') . ')',

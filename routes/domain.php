@@ -1,9 +1,14 @@
 <?php
 
+use Net\EPP\Api\Auth;
+use Net\EPP\Api\Json;
 use Net\EPP\Client;
-use Net\EPP\Helpers;
 use Net\EPP\IT\Domain;
+use Net\EPP\Persistence\Changelog;
 use Net\EPP\Service\DomainService;
+use Net\EPP\Service\EppSession;
+use Net\EPP\Support\Csv;
+use Net\EPP\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -76,7 +81,7 @@ function domainHeldByAnotherUser(string $domain, int $user_id, bool $isAdmin): b
  * the 403 every ownership check above answers with
  */
 function domainForbidden(Response $response, string $domain): Response {
-    return Helpers::json($response, ['error' => "You are not authorized to modify domain '{$domain}'"], 403);
+    return Json::response($response, ['error' => "You are not authorized to modify domain '{$domain}'"], 403);
 }
 
 /**
@@ -105,7 +110,7 @@ function canUseAsRegistrant(string $handle, int $user_id, bool $isAdmin): bool {
 }
 
 $app->get('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
@@ -118,11 +123,11 @@ $app->get('/v1/domains', function (Request $request, Response $response, array $
         isset($params['age']) ? (int) $params['age'] : 0
     );
 
-    return Helpers::json($response, ['domains' => $domains]);
+    return Json::response($response, ['domains' => $domains]);
 });
 
 $app->get('/v1/domains/expiring', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
 
     // scoped by the DOMAIN's owner, like every other domain route (listDomains(),
@@ -147,11 +152,11 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
             " . implode(' AND ', $where) . "
         ORDER BY d.ex_date ASC", $params);
 
-    return Helpers::json($response, ['domains' => $domains]);
+    return Json::response($response, ['domains' => $domains]);
 });
 
 $app->get('/v1/domains/autocomplete', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $term = $request->getQueryParams()['term'] ?? '';
     $limit = (int) ($request->getQueryParams()['limit'] ?? 10) ?: 10;
 
@@ -167,11 +172,11 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
     $domains = array_merge($domains, $transfersIn);
     sort($domains);
 
-    return Helpers::json($response, ['domains' => array_slice($domains, 0, $limit)]);
+    return Json::response($response, ['domains' => array_slice($domains, 0, $limit)]);
 });
 
 $app->get('/v1/domains/export', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
 
     $where = ['1 = 1'];
     $params = [];
@@ -193,17 +198,17 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
     $titles = ['Active', 'Domain', 'Auth-Info', 'Created', 'Expires', 'Registrant Handle', 'Registrant Org', 'Registrant Name', 'Registrant Email'];
     $fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email'];
 
-    // Helpers::rowToCSV() rather than inlining the quoting a fourth time. It
+    // Csv::row() rather than inlining the quoting a fourth time. It
     // also doubles embedded quotes, which the inline version here did not: an
     // organisation named 'Rossi "Da Bepi" S.r.l.' used to end the field early
     // and shift every following column of that row.
-    $csv = Helpers::rowToCSV($titles, ';');
+    $csv = Csv::row($titles, ';');
     foreach ($records as $record) {
         $row = [];
         foreach ($fields as $field) {
             $row[] = $record[$field];
         }
-        $csv .= Helpers::rowToCSV($row, ';');
+        $csv .= Csv::row($row, ';');
     }
 
     $response->getBody()->write($csv);
@@ -213,7 +218,7 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/domains/transfers', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $registrant = $request->getQueryParams()['registrant'] ?? '';
 
     // scoped by who REQUESTED the transfer (transfers.user_id), which is also
@@ -246,11 +251,11 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
         return $row;
     }, $rows);
 
-    return Helpers::json($response, ['transfers' => $transfers]);
+    return Json::response($response, ['transfers' => $transfers]);
 });
 
 $app->get('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
     // the registry is authoritative -- its answer is returned as-is, never
@@ -258,7 +263,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     // object out, since loadDB() re-initializes before its own lookup and
     // leaves it empty when that lookup misses)
     try {
-        $domain = Helpers::withEppSession(function ($nic) use ($name) {
+        $domain = EppSession::run(function ($nic) use ($name) {
             $domain = new Domain($nic);
             return $domain->fetch($name) ? $domain : null;
         }, $debug);
@@ -269,7 +274,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     }
 
     if ($domain !== null) {
-        return Helpers::json($response, ['domain' => domainToArray($domain), 'stale' => false]);
+        return Json::response($response, ['domain' => domainToArray($domain), 'stale' => false]);
     }
 
     // registry lookup failed: serve the last known local state instead, flagged
@@ -279,24 +284,24 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     $nic = new Client();
     $domain = new Domain($nic);
     if ( ! $domain->loadDB($name, $user_id, $isAdmin)) {
-        return Helpers::json($response, ['error' => "Domain '{$name}' not found"], 404);
+        return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
     }
 
-    return Helpers::json($response, ['domain' => domainToArray($domain), 'stale' => true]);
+    return Json::response($response, ['domain' => domainToArray($domain), 'stale' => true]);
 });
 
 $app->post('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
 
-    if ($err = Helpers::requireFields($params, ['domain', 'registrant']) ?? Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
-        return Helpers::json($response, ['error' => $err], 400);
+    if ($err = Validate::requireFields($params, ['domain', 'registrant']) ?? Validate::maxLength($params, Validate::DOMAIN_FIELD_MAX_LENGTHS)) {
+        return Json::response($response, ['error' => $err], 400);
     }
-    if ( ! Helpers::isValidDomainFormat($params['domain'])) {
-        return Helpers::json($response, ['error' => "'{$params['domain']}' is not a valid .it domain name"], 400);
+    if ( ! Validate::isDomain($params['domain'])) {
+        return Json::response($response, ['error' => "'{$params['domain']}' is not a valid .it domain name"], 400);
     }
     if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
-        return Helpers::json($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
+        return Json::response($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
 
     // quota check -- count today's domain creations against this user's cap,
@@ -310,62 +315,62 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
                 WHERE user_id = ? AND object = 'domains' AND action = 'create' AND DATE(timestamp) = CURDATE()
             ", [$user_id]);
             if ($used >= $maxOps) {
-                return Helpers::json($response, ['error' => 'Daily operation quota exceeded'], 429);
+                return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
             }
         }
     }
 
     try {
-        $result = Helpers::withEppSession(
+        $result = EppSession::run(
             fn($nic) => DomainService::createOrTransfer($nic, $params, $user_id),
             $debug
         );
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['domain' => domainToArray($result['domain'])], 201);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])], 201);
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     $names = array_unique(array_filter(array_map('trim', (array) ($params['domains'] ?? []))));
     if (empty($names)) {
-        return Helpers::json($response, ['error' => 'domains is required (array of domain names)'], 400);
+        return Json::response($response, ['error' => 'domains is required (array of domain names)'], 400);
     }
 
     try {
-        $results = Helpers::withEppSession(
+        $results = EppSession::run(
             fn($nic) => DomainService::import($nic, $names, $user_id),
             $debug
         );
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
-    return Helpers::json($response, ['results' => $results]);
+    return Json::response($response, ['results' => $results]);
 });
 
 $app->patch('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
     if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
         return domainForbidden($response, $name);
     }
-    if ($err = Helpers::maxLength($params, Helpers::DOMAIN_FIELD_MAX_LENGTHS)) {
-        return Helpers::json($response, ['error' => $err], 400);
+    if ($err = Validate::maxLength($params, Validate::DOMAIN_FIELD_MAX_LENGTHS)) {
+        return Json::response($response, ['error' => $err], 400);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $user_id, $isAdmin) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -412,18 +417,18 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             return ['ok' => true, 'domain' => $domain];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], $result['status']);
+        return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -431,18 +436,18 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
         return domainForbidden($response, $name);
     }
     if (empty($params['registrant'])) {
-        return Helpers::json($response, ['error' => 'registrant is required'], 400);
+        return Json::response($response, ['error' => 'registrant is required'], 400);
     }
     // a registrant change also moves the domain's local ownership to that
     // contact's owner (Domain::updateDB()), so this must be a contact the
     // caller owns -- otherwise it is a way to hand your domain to someone else,
     // or to take one out of your own listings by accident
     if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
-        return Helpers::json($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
+        return Json::response($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $user_id, $isAdmin) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -460,18 +465,18 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             return ['ok' => true, 'domain' => $domain];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], $result['status']);
+        return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -479,12 +484,12 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
         return domainForbidden($response, $name);
     }
     if (empty($params['state'])) {
-        return Helpers::json($response, ['error' => 'state is required'], 400);
+        return Json::response($response, ['error' => 'state is required'], 400);
     }
     $action = $params['action'] ?? 'add';
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $action) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $action) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -495,11 +500,11 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
             return ['ok' => true, 'domain' => $domain];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], $result['status']);
+        return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
     // updateStatus() doesn't participate in the changes-bitmask, so it can't
@@ -512,13 +517,13 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     }
     R::exec($sql, $sqlParams);
     $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-    Helpers::logChanges('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
+    Changelog::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
 
-    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getQueryParams();
     $mode = $params['mode'] ?? 'now';
@@ -532,7 +537,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
     if ($mode === 'expiry' || $mode === 'date') {
         $date = $mode === 'date' ? ($params['date'] ?? null) : null;
         if ($mode === 'date' && empty($date)) {
-            return Helpers::json($response, ['error' => 'date is required when mode=date'], 400);
+            return Json::response($response, ['error' => 'date is required when mode=date'], 400);
         }
 
         $row = R::getRow("SELECT id, ex_date FROM domains WHERE domain = :domain" . ($isAdmin ? '' : ' AND user_id = :user_id'), array_filter([
@@ -540,7 +545,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             ':user_id' => $isAdmin ? null : $user_id,
         ], fn($v) => $v !== null));
         if (empty($row)) {
-            return Helpers::json($response, ['error' => "Domain '{$name}' not found"], 404);
+            return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
         }
 
         // no `action` here -- this is a future-dated notice, not a DNS-sync event yet.
@@ -554,11 +559,11 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             ':notice' => 'scheduled deletion',
         ]);
 
-        return Helpers::json($response, ['scheduled' => true, 'domain' => $name, 'date' => $date ?: $row['ex_date']]);
+        return Json::response($response, ['scheduled' => true, 'domain' => $name, 'date' => $date ?: $row['ex_date']]);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $user_id, $isAdmin) {
             $domain = new Domain($nic);
             if ( ! $domain->delete($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
@@ -567,18 +572,18 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['deleted' => true, 'domain' => $name]);
+    return Json::response($response, ['deleted' => true, 'domain' => $name]);
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
     if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
@@ -586,7 +591,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $user_id, $isAdmin) {
             $domain = new Domain($nic);
             if ( ! $domain->restore($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
@@ -595,45 +600,45 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['restored' => true, 'domain' => $name]);
+    return Json::response($response, ['restored' => true, 'domain' => $name]);
 });
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {
-    Helpers::jwtRequireAdmin($request);
-    ['debug' => $debug] = Helpers::actor($request);
+    Auth::requireAdmin($request);
+    ['debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
     if (empty($params['user_id'])) {
-        return Helpers::json($response, ['error' => 'user_id (the new owner) is required'], 400);
+        return Json::response($response, ['error' => 'user_id (the new owner) is required'], 400);
     }
     $newOwnerId = (int) $params['user_id'];
 
     try {
-        $result = Helpers::withEppSession(
+        $result = EppSession::run(
             fn($nic) => DomainService::changeOwner($nic, $name, $newOwnerId),
             $debug
         );
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], $result['status']);
+        return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Helpers::json($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -644,11 +649,11 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
         return domainForbidden($response, $name);
     }
     if (empty($params['authinfo'])) {
-        return Helpers::json($response, ['error' => 'authinfo is required'], 400);
+        return Json::response($response, ['error' => 'authinfo is required'], 400);
     }
 
     try {
-        $result = Helpers::withEppSession(function ($nic) use ($name, $params, $user_id) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $user_id) {
             $domain = new Domain($nic);
             if ( ! $domain->transfer($name, $params['authinfo'])) {
                 return ['ok' => false, 'error' => $domain->getError()];
@@ -667,19 +672,19 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
-        return Helpers::json($response, ['error' => $e->getMessage()], 502);
+        return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
     if ( ! $result['ok']) {
-        return Helpers::json($response, ['error' => $result['error']], 400);
+        return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Helpers::json($response, ['requested' => true, 'domain' => $name], 201);
+    return Json::response($response, ['requested' => true, 'domain' => $name], 201);
 });
 
 foreach (['approve', 'reject', 'cancel'] as $transferAction) {
     $app->post("/v1/domains/{name}/transfer/{$transferAction}", function (Request $request, Response $response, array $args) use ($transferAction): Response {
-        ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Helpers::actor($request);
+        ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
         $name = $args['name'];
         $params = $request->getParsedBody() ?? [];
         $authinfo = $params['authinfo'] ?? '';
@@ -694,7 +699,7 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
         }
 
         try {
-            $result = Helpers::withEppSession(function ($nic) use ($name, $authinfo, $method) {
+            $result = EppSession::run(function ($nic) use ($name, $authinfo, $method) {
                 $domain = new Domain($nic);
                 if ( ! $domain->$method($name, $authinfo)) {
                     return ['ok' => false, 'error' => $domain->getError()];
@@ -705,13 +710,13 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
                 return ['ok' => true];
             }, $debug);
         } catch (\RuntimeException $e) {
-            return Helpers::json($response, ['error' => $e->getMessage()], 502);
+            return Json::response($response, ['error' => $e->getMessage()], 502);
         }
 
         if ( ! $result['ok']) {
-            return Helpers::json($response, ['error' => $result['error']], 400);
+            return Json::response($response, ['error' => $result['error']], 400);
         }
 
-        return Helpers::json($response, [$transferAction => true, 'domain' => $name]);
+        return Json::response($response, [$transferAction => true, 'domain' => $name]);
     });
 }

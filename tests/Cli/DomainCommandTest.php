@@ -2,17 +2,18 @@
 
 namespace Net\EPP\Tests\Cli;
 
+use Net\EPP\Cli\Command;
 use Net\EPP\Cli\DomainCheckCommand;
 use Net\EPP\Cli\DomainInfoCommand;
+use Net\EPP\Service\EppSession;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;
-use Net\EPP\Cli\Command;
 use Net\EPP\Tests\Support\FakeTransport;
 
 /**
  * The two read commands, driven end to end against canned registry responses.
  *
- * The transport is substituted through Helpers::withEppSession()'s own Client,
+ * The transport is substituted through EppSession::run()'s own Client,
  * which the commands build for themselves -- so what is exercised here is the
  * real path from argv to printed output, not a rearrangement of it.
  */

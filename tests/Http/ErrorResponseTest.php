@@ -2,10 +2,10 @@
 
 namespace Net\EPP\Tests\Http;
 
+use Net\EPP\Api\Middleware;
 use Net\EPP\Config;
-use Net\EPP\Helpers;
-use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use Slim\App;
 use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
@@ -48,7 +48,7 @@ final class ErrorResponseTest extends TestCase
         ]);
 
         $app = AppFactory::create();
-        Helpers::registerMiddleware($app);
+        Middleware::register($app);
 
         foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'reminders', 'whois', 'changelog'] as $file) {
             require dirname(__DIR__, 2) . "/routes/{$file}.php";

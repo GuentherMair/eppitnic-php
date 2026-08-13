@@ -4,9 +4,9 @@ namespace Net\EPP\Service;
 
 use Algo26\IdnaConvert\ToUnicode;
 use Net\EPP\Client;
-use Net\EPP\Helpers;
 use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
+use Net\EPP\Persistence\Changelog;
 use RedBeanPHP\R;
 
 /**
@@ -255,7 +255,7 @@ final class DomainService
         if ($persist) {
             R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
             $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-            Helpers::logChanges('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
+            Changelog::record('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
         }
 
         return ['ok' => true, 'domain' => $domain];
