@@ -1,7 +1,7 @@
 # eppitnic REST API
 
 Handoff reference for building the frontend client. This documents what is
-**actually implemented** in `public/index.php` + `routes/*.php` today, not
+**actually implemented** in `public/index.php` + `src/Api/Routes/*.php` today, not
 the original design (`backend-api-plan.md`/`storagedb-disentangle-plan.md`,
 both retired once their work landed — some routes below deviate from that
 original plan; this file is the source of truth).
@@ -143,7 +143,7 @@ which contradicted every other authorization refusal in the API.
   `WHERE user_id = :id` (or ownership join) added to the query, or a 403 if
   the ownership check fails outright.
 - Every domain **write** route checks ownership (`canAccessDomain()`,
-  `routes/domain.php`) *before* opening an EPP session, so a rejected call
+  `src/Api/Routes/domain.php`) *before* opening an EPP session, so a rejected call
   never reaches the registry: 403
   `{"error": "You are not authorized to modify domain '...'"}`. A domain
   belongs to exactly one local user — there is no wider attachment rule like
@@ -152,7 +152,7 @@ which contradicted every other authorization refusal in the API.
   `POST /v1/domains/{name}/transfer` and `.../transfer/cancel` (see their rows
   below).
 - A domain's registrant must be a contact the caller **owns**
-  (`canUseAsRegistrant()`, `routes/domain.php`): `POST /v1/domains` and
+  (`canUseAsRegistrant()`, `src/Api/Routes/domain.php`): `POST /v1/domains` and
   `POST /v1/domains/{name}/registrant` 403 otherwise. This is stricter than
   the read rule below on purpose — being allowed to *see* a contact because it
   hangs off one of your domains is not grounds for making it the registrant of
@@ -160,7 +160,7 @@ which contradicted every other authorization refusal in the API.
   drifting apart, since a registrant change reassigns the domain's local
   ownership to that contact's owner.
 - Contacts have a wider access rule than domains
-  (`canAccessContact()`, `routes/contact.php`): a reseller may `GET`/`PATCH`
+  (`canAccessContact()`, `src/Api/Routes/contact.php`): a reseller may `GET`/`PATCH`
   a contact they don't directly own, as long as it's attached (as
   registrant, admin, or tech) to at least one domain they DO own. Contact
   `DELETE` has no such check — see gotchas.
@@ -168,7 +168,7 @@ which contradicted every other authorization refusal in the API.
 ## Talking to the registry (EPP)
 
 Handlers that need a live round-trip to the .it registry wrap their EPP
-calls in `EppSession::run()` (`Net/EPP/Service/EppSession.php`): connect, `hello()`+
+calls in `EppSession::run()` (`src/Service/EppSession.php`): connect, `hello()`+
 `login()`, run the callback, always `logout()` — one registry session per
 HTTP request, nothing pooled. If `hello()`/`login()` fails, the route
 returns **502** with `{"error": "EPP session unavailable: ..."}` — this is

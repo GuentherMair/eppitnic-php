@@ -1,17 +1,17 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Command;
-use Net\EPP\Cli\Command\ContactCheckCommand;
-use Net\EPP\Cli\Command\ContactInfoCommand;
-use Net\EPP\Cli\Command\DomainExportCommand;
-use Net\EPP\Cli\Command\SessionCreditCommand;
-use Net\EPP\Cli\Command\SessionHelloCommand;
-use Net\EPP\Cli\UsageError;
-use Net\EPP\Tests\Support\CommandCatalog;
-use Net\EPP\Tests\Support\EppTestCase;
-use Net\EPP\Tests\Support\FakeTransport;
+use Eppitnic\Cli\Command;
+use Eppitnic\Cli\Command\ContactCheckCommand;
+use Eppitnic\Cli\Command\ContactInfoCommand;
+use Eppitnic\Cli\Command\DomainExportCommand;
+use Eppitnic\Cli\Command\SessionCreditCommand;
+use Eppitnic\Cli\Command\SessionHelloCommand;
+use Eppitnic\Cli\UsageError;
+use Eppitnic\Tests\Support\CommandCatalog;
+use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeTransport;
 
 /**
  * The registry-backed read commands, driven from argv to printed output.

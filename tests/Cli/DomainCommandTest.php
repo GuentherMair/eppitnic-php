@@ -1,15 +1,15 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Command;
-use Net\EPP\Cli\Command\DomainCheckCommand;
-use Net\EPP\Cli\Command\DomainInfoCommand;
-use Net\EPP\Cli\UsageError;
-use Net\EPP\Service\EppSession;
-use Net\EPP\Tests\Support\CommandCatalog;
-use Net\EPP\Tests\Support\EppTestCase;
-use Net\EPP\Tests\Support\FakeTransport;
+use Eppitnic\Cli\Command;
+use Eppitnic\Cli\Command\DomainCheckCommand;
+use Eppitnic\Cli\Command\DomainInfoCommand;
+use Eppitnic\Cli\UsageError;
+use Eppitnic\Service\EppSession;
+use Eppitnic\Tests\Support\CommandCatalog;
+use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeTransport;
 
 /**
  * The two read commands, driven end to end against canned registry responses.
@@ -118,12 +118,12 @@ final class DomainCommandTest extends EppTestCase
     }
 
     public function testCheckRejectsAnEmptyNameList(): void {
-        $this->expectException(\Net\EPP\Cli\UsageError::class);
+        $this->expectException(\Eppitnic\Cli\UsageError::class);
         (new DomainCheckCommand([]))->run();
     }
 
     public function testInfoRejectsAnInvalidContactsOption(): void {
-        $this->expectException(\Net\EPP\Cli\UsageError::class);
+        $this->expectException(\Eppitnic\Cli\UsageError::class);
         (new DomainInfoCommand(['--contacts=nonsense', 'x.it']))->run();
     }
 }

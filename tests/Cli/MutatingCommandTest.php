@@ -1,11 +1,11 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Command\DomainDeleteCommand;
-use Net\EPP\Cli\Command\DomainStatusCommand;
-use Net\EPP\Cli\UsageError;
-use Net\EPP\Tests\Support\EppTestCase;
+use Eppitnic\Cli\Command\DomainDeleteCommand;
+use Eppitnic\Cli\Command\DomainStatusCommand;
+use Eppitnic\Cli\UsageError;
+use Eppitnic\Tests\Support\EppTestCase;
 
 /**
  * The two mechanisms that only mutating commands have: --dry-run, and the

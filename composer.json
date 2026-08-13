@@ -20,7 +20,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Net\\EPP\\": "Net/EPP/"
+            "Eppitnic\\": "src/"
         },
         "files": [
             "config/constants.php"
@@ -31,7 +31,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Net\\EPP\\Tests\\": "tests/"
+            "Eppitnic\\Tests\\": "tests/"
         }
     },
     "scripts": {

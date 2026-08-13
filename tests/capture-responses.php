@@ -34,7 +34,7 @@
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-use Net\EPP\Config;
+use Eppitnic\Config;
 use RedBeanPHP\R;
 
 $dryRun = in_array('--dry-run', $argv, true);

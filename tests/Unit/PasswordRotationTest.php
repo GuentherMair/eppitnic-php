@@ -1,13 +1,13 @@
 <?php
 
-namespace Net\EPP\Tests\Unit;
+namespace Eppitnic\Tests\Unit;
 
-use Net\EPP\Epp\Client;
-use Net\EPP\Config;
-use Net\EPP\Service\RegistryPassword;
-use Net\EPP\Tests\Support\CommandCatalog;
-use Net\EPP\Tests\Support\EppTestCase;
-use Net\EPP\Tests\Support\FakeTransport;
+use Eppitnic\Epp\Client;
+use Eppitnic\Config;
+use Eppitnic\Service\RegistryPassword;
+use Eppitnic\Tests\Support\CommandCatalog;
+use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeTransport;
 use RedBeanPHP\R;
 
 /**

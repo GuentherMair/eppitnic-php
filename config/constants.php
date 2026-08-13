@@ -7,7 +7,7 @@ if ( ! defined('EPPITNIC_ROOT')) define('EPPITNIC_ROOT', dirname(__DIR__));
 
 // current DB schema version this codebase expects -- compared against the
 // `settings` table's 'schema_version' row by Config's auto-migration step
-// (Net/EPP/Config.php). Zero-padded MMmmrr (2-digit major/minor/release,
+// (src/Config.php). Zero-padded MMmmrr (2-digit major/minor/release,
 // e.g. 7.0.0 -> '070000', 7.1.2 -> '070102') rather than a dotted string --
 // fixed-width so plain string/int comparison sorts correctly (a dotted
 // "7.10" would otherwise sort before "7.2"). Bump this and drop a matching

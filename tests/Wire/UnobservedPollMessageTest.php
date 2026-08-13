@@ -1,10 +1,10 @@
 <?php
 
-namespace Net\EPP\Tests\Wire;
+namespace Eppitnic\Tests\Wire;
 
-use Net\EPP\Epp\Session;
-use Net\EPP\Tests\Support\EppTestCase;
-use Net\EPP\Tests\Support\RegistrySchemas;
+use Eppitnic\Epp\Session;
+use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

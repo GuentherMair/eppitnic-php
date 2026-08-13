@@ -1,13 +1,13 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Command\DomainCreateCommand;
-use Net\EPP\Cli\Command\DomainImportCommand;
-use Net\EPP\Cli\Command\DomainTransferCommand;
-use Net\EPP\Cli\UsageError;
-use Net\EPP\Service\PasswordService;
-use Net\EPP\Tests\Support\EppTestCase;
+use Eppitnic\Cli\Command\DomainCreateCommand;
+use Eppitnic\Cli\Command\DomainImportCommand;
+use Eppitnic\Cli\Command\DomainTransferCommand;
+use Eppitnic\Cli\UsageError;
+use Eppitnic\Service\PasswordService;
+use Eppitnic\Tests\Support\EppTestCase;
 
 /**
  * The verbs that share DomainService with the REST API.
@@ -18,7 +18,7 @@ use Net\EPP\Tests\Support\EppTestCase;
  */
 final class CreateTransferCommandTest extends EppTestCase
 {
-    private function preview(\Net\EPP\Cli\Command $command): string {
+    private function preview(\Eppitnic\Cli\Command $command): string {
         $command->useErrorStream(fopen('php://memory', 'w+'));
 
         ob_start();
@@ -149,13 +149,13 @@ final class CreateTransferCommandTest extends EppTestCase
     public function testSetOwnerRejectsDryRun(): void {
         $this->expectException(UsageError::class);
         $this->expectExceptionMessage('does not apply to set-owner');
-        (new \Net\EPP\Cli\Command\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
+        (new \Eppitnic\Cli\Command\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
     }
 
     public function testSetOwnerRequiresANewOwner(): void {
         $this->expectException(UsageError::class);
         $this->expectExceptionMessage('--new-owner');
-        (new \Net\EPP\Cli\Command\DomainSetOwnerCommand(['example-one.it']))->run();
+        (new \Eppitnic\Cli\Command\DomainSetOwnerCommand(['example-one.it']))->run();
     }
 
     /**

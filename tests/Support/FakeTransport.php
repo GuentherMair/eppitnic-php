@@ -1,8 +1,8 @@
 <?php
 
-namespace Net\EPP\Tests\Support;
+namespace Eppitnic\Tests\Support;
 
-use Net\EPP\Epp\Transport\Transport;
+use Eppitnic\Epp\Transport\Transport;
 
 /**
  * A Transport that never leaves the process: it records every request body it

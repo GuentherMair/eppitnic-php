@@ -1,11 +1,11 @@
 <?php
 
-namespace Net\EPP\Tests\Wire;
+namespace Eppitnic\Tests\Wire;
 
-use Net\EPP\Epp\Contact;
-use Net\EPP\Epp\Domain;
-use Net\EPP\Epp\Session;
-use Net\EPP\Tests\Support\EppTestCase;
+use Eppitnic\Epp\Contact;
+use Eppitnic\Epp\Domain;
+use Eppitnic\Epp\Session;
+use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

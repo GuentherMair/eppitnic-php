@@ -1,8 +1,8 @@
 <?php
 
-namespace Net\EPP\Tests\Wire;
+namespace Eppitnic\Tests\Wire;
 
-use Net\EPP\Epp\Session;
+use Eppitnic\Epp\Session;
 use PHPUnit\Framework\TestCase;
 
 /**

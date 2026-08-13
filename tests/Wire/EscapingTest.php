@@ -1,11 +1,11 @@
 <?php
 
-namespace Net\EPP\Tests\Wire;
+namespace Eppitnic\Tests\Wire;
 
-use Net\EPP\Epp\Contact;
-use Net\EPP\Epp\Domain;
-use Net\EPP\Tests\Support\CommandCatalog;
-use Net\EPP\Tests\Support\EppTestCase;
+use Eppitnic\Epp\Contact;
+use Eppitnic\Epp\Domain;
+use Eppitnic\Tests\Support\CommandCatalog;
+use Eppitnic\Tests\Support\EppTestCase;
 
 /**
  * Values reach the registry as themselves.

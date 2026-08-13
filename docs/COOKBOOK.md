@@ -8,11 +8,11 @@ Everything below assumes one require and a configured database:
 ```php
 require 'vendor/autoload.php';
 
-use Net\EPP\Epp\Client;
-use Net\EPP\Service\EppSession;
-use Net\EPP\Epp\Contact;
-use Net\EPP\Epp\Domain;
-use Net\EPP\Epp\Session;
+use Eppitnic\Epp\Client;
+use Eppitnic\Service\EppSession;
+use Eppitnic\Epp\Contact;
+use Eppitnic\Epp\Domain;
+use Eppitnic\Epp\Session;
 ```
 
 ## A session
@@ -123,7 +123,7 @@ $contact->storeDB($userId);   // optional: keep a local copy
 either registers it or requests its transfer if somebody else holds it.
 
 ```php
-use Net\EPP\Service\DomainService;
+use Eppitnic\Service\DomainService;
 
 $result = DomainService::createOrTransfer($nic, [
     'domain'     => 'example.it',

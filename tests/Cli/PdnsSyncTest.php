@@ -1,10 +1,10 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Command\PdnsSyncCommand;
-use Net\EPP\Config;
-use Net\EPP\Tests\Support\EppTestCase;
+use Eppitnic\Cli\Command\PdnsSyncCommand;
+use Eppitnic\Config;
+use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
 /**

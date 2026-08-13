@@ -1,8 +1,8 @@
 <?php
 
-namespace Net\EPP\Tests\Unit;
+namespace Eppitnic\Tests\Unit;
 
-use Net\EPP\Service\PasswordService;
+use Eppitnic\Service\PasswordService;
 use PHPUnit\Framework\TestCase;
 
 /**

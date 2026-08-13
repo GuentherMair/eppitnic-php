@@ -1,9 +1,9 @@
 <?php
 
-namespace Net\EPP\Tests\Http;
+namespace Eppitnic\Tests\Http;
 
-use Net\EPP\Api\Middleware;
-use Net\EPP\Config;
+use Eppitnic\Api\Middleware;
+use Eppitnic\Config;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Slim\App;
@@ -51,7 +51,7 @@ final class ErrorResponseTest extends TestCase
         Middleware::register($app);
 
         foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'reminders', 'whois', 'changelog'] as $file) {
-            require dirname(__DIR__, 2) . "/routes/{$file}.php";
+            require EPPITNIC_ROOT . "/src/Api/Routes/{$file}.php";
         }
 
         return self::$app = $app;

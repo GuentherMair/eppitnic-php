@@ -1,8 +1,8 @@
 <?php
 
-namespace Net\EPP\Tests\Unit;
+namespace Eppitnic\Tests\Unit;
 
-use Net\EPP\Persistence\StoredPayload;
+use Eppitnic\Persistence\StoredPayload;
 use PHPUnit\Framework\TestCase;
 
 /**

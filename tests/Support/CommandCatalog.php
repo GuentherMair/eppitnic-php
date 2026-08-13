@@ -1,11 +1,11 @@
 <?php
 
-namespace Net\EPP\Tests\Support;
+namespace Eppitnic\Tests\Support;
 
-use Net\EPP\Epp\Client;
-use Net\EPP\Epp\Contact;
-use Net\EPP\Epp\Domain;
-use Net\EPP\Epp\Session;
+use Eppitnic\Epp\Client;
+use Eppitnic\Epp\Contact;
+use Eppitnic\Epp\Domain;
+use Eppitnic\Epp\Session;
 
 /**
  * Every EPP request this codebase can generate, and how to make it generate one.

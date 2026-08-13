@@ -1,9 +1,9 @@
 <?php
 
-namespace Net\EPP\Tests\Support;
+namespace Eppitnic\Tests\Support;
 
-use Net\EPP\Epp\Client;
-use Net\EPP\Config;
+use Eppitnic\Epp\Client;
+use Eppitnic\Config;
 use PHPUnit\Framework\TestCase;
 
 /**

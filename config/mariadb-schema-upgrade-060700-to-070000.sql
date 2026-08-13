@@ -625,7 +625,7 @@ WHERE name LIKE '%&amp;%' OR org LIKE '%&amp;%' OR street LIKE '%&amp;%' OR city
 --         domains.user_id, so a row where the two disagree is visible and
 --         editable to the domain's owner but attributed to somebody else;
 --       * the API refuses to set a registrant the caller does not own
---         (canUseAsRegistrant(), routes/domain.php), so an inherited mismatch
+--         (canUseAsRegistrant(), src/Api/Routes/domain.php), so an inherited mismatch
 --         cannot be repaired by simply re-saving the domain -- its owner is not
 --         allowed to name that contact, and the contact's owner is not allowed
 --         to touch the domain.

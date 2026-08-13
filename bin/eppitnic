@@ -4,7 +4,7 @@
 /**
  * eppitnic command line interface.
  *
- * All the work is in Net\EPP\Cli; this file is only the entry point, so that
+ * All the work is in Eppitnic\Cli; this file is only the entry point, so that
  * dispatch and every subcommand stay testable without spawning a process.
  */
 
@@ -15,7 +15,7 @@ if (PHP_SAPI !== 'cli') {
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-use Net\EPP\Cli\Application;
+use Eppitnic\Cli\Application;
 
 try {
     exit((new Application())->run($argv));

@@ -1,6 +1,6 @@
 <?php
 
-namespace Net\EPP\Tests\Support;
+namespace Eppitnic\Tests\Support;
 
 /**
  * The registry's XML schemas (xsd/), assembled into one validation context.

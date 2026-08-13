@@ -1,12 +1,12 @@
 <?php
 
 // Slim
-use Net\EPP\Api\Middleware;
-use Net\EPP\Config;
+use Eppitnic\Api\Middleware;
+use Eppitnic\Config;
 use Slim\Factory\AppFactory;
 
 // composer autoloading pulls in every self-contained helper (constants, DB
-// connection) via composer.json's `files` list, and Net\EPP\*/Config classes
+// connection) via composer.json's `files` list, and Eppitnic\*/Config classes
 // lazily via PSR-4/classmap -- nothing else needs an explicit require before
 // $app exists.
 require dirname(__FILE__) . '/../vendor/autoload.php';
@@ -25,15 +25,12 @@ $app = AppFactory::create();
 Middleware::register($app);
 
 // routes
-require dirname(__FILE__) . '/../routes/root.php';
-require dirname(__FILE__) . '/../routes/network_check.php';
-require dirname(__FILE__) . '/../routes/users.php';
-require dirname(__FILE__) . '/../routes/session.php';
-require dirname(__FILE__) . '/../routes/contact.php';
-require dirname(__FILE__) . '/../routes/domain.php';
-require dirname(__FILE__) . '/../routes/reminders.php';
-require dirname(__FILE__) . '/../routes/whois.php';
-require dirname(__FILE__) . '/../routes/changelog.php';
+// Route files register closures on $app rather than declaring classes, so
+// they are required rather than autoloaded -- the order is the routing order.
+foreach (['root', 'network_check', 'users', 'session', 'contact',
+          'domain', 'reminders', 'whois', 'changelog'] as $routes) {
+    require EPPITNIC_ROOT . "/src/Api/Routes/{$routes}.php";
+}
 
 // run application
 try {

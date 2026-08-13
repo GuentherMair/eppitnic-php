@@ -23,7 +23,7 @@
     </testsuites>
     <source>
         <include>
-            <directory suffix=".php">Net/EPP</directory>
+            <directory suffix=".php">src</directory>
         </include>
     </source>
 </phpunit>

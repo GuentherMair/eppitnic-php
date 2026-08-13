@@ -1,8 +1,8 @@
 <?php
 
-namespace Net\EPP\Tests\Unit;
+namespace Eppitnic\Tests\Unit;
 
-use Net\EPP\Api\Json;
+use Eppitnic\Api\Json;
 use PHPUnit\Framework\TestCase;
 use Slim\Psr7\Factory\ResponseFactory;
 

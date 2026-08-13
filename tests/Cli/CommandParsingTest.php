@@ -1,10 +1,10 @@
 <?php
 
-namespace Net\EPP\Tests\Cli;
+namespace Eppitnic\Tests\Cli;
 
-use Net\EPP\Cli\Application;
-use Net\EPP\Cli\Command;
-use Net\EPP\Cli\UsageError;
+use Eppitnic\Cli\Application;
+use Eppitnic\Cli\Command;
+use Eppitnic\Cli\UsageError;
 use PHPUnit\Framework\TestCase;
 
 /**
