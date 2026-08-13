@@ -696,7 +696,7 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
   -- lastPasswordUpdate is a unix timestamp, maintained by the passwdReminder
-  -- handler in cronjobs/process-poll-queue.php: it records when an automated
+  -- handler run by `eppitnic poll process`: it records when an automated
   -- registry-password rotation was last attempted, so at most one is tried per
   -- 24 hours. 0 means "never attempted".
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),

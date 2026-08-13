@@ -103,7 +103,7 @@ final class ConfigMigrateCommand extends Command
             // carried over: nothing ever read them. Automated rotation is now driven by
             // the registry's own passwdReminder poll messages, and this timestamp is
             // what rate-limits it to one attempt per 24 hours (see
-            // cronjobs/process-poll-queue.php). 0 means "never attempted".
+            // `eppitnic poll process`). 0 means "never attempted".
             'lastPasswordUpdate' => 0,
           ],
           'dnssec' => [

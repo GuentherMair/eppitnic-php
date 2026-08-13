@@ -45,3 +45,6 @@ if ( ! defined('CONTACT_UPDATE_FAILED')) define('CONTACT_UPDATE_FAILED', 32);
 if ( ! defined('CONTACT_DELETE_FAILED')) define('CONTACT_DELETE_FAILED', 33);
 if ( ! defined('CONTACT_STORE_FAILED'))  define('CONTACT_STORE_FAILED', 34);
 if ( ! defined('CONTACT_CHECK_FAILED'))  define('CONTACT_CHECK_FAILED', 35);
+
+// dns exit codes (40-49)
+if ( ! defined('DNS_SYNC_FAILED'))       define('DNS_SYNC_FAILED', 40);

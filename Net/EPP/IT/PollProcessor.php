@@ -17,9 +17,9 @@ use RedBeanPHP\R;
  * nothing else in Net/EPP/IT/ has (Domain depends on Contact, nothing
  * depends on Session).
  *
- * Login/logout of the EPP session is the caller's responsibility (matching
- * the legacy contract) -- see cronjobs/process-poll-queue.php, which wraps
- * both methods in withEppSession().
+ * Login/logout of the EPP session is the caller's responsibility -- see
+ * Net/EPP/Cli/PollProcessCommand.php, which wraps both methods in one
+ * session.
  *
  * LICENSE:
  *

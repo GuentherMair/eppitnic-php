@@ -948,7 +948,7 @@ class Domain extends AbstractObject
     Helpers::logChanges('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
-      // DNS-sync queue: pdnsutil_updates.php picks this up to (re)create the zone
+      // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the zone
       R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$this->domain, 'domain created']);
     }
 
@@ -1240,7 +1240,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // DNS-sync queue: pdnsutil_updates.php tears the zone down (delay-gated)
+    // DNS-sync queue: `eppitnic pdns sync` tears the zone down (delay-gated)
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'delete')", [$domain, 'domain deleted']);
 
     return TRUE;

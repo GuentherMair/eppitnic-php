@@ -544,7 +544,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
         }
 
         // no `action` here -- this is a future-dated notice, not a DNS-sync event yet.
-        // pdnsutil_updates.php gates 'delete' rows off created_time, not this row's `date`,
+        // `eppitnic pdns sync` gates 'delete' rows off created_time, not this row's `date`,
         // so tagging this action='delete' now would tear down DNS ~12h after the reminder
         // was set instead of on the actual future date. Whatever later executes this
         // scheduled deletion (mode=now) fires its own fresh action='delete' row then.

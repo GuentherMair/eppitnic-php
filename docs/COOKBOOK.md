@@ -210,7 +210,7 @@ Helpers::withEppSession(function (Client $nic, Session $session) {
 });
 ```
 
-`cronjobs/process-poll-queue.php` does this on a schedule and reconciles
+`eppitnic poll process` does this on a schedule and reconciles
 transfer state afterwards; prefer it over rolling your own loop.
 
 ## Errors

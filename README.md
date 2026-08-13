@@ -188,8 +188,8 @@ decoded are reported and left alone.
 
 1. **The document root must be `public/`, and only `public/`.** Everything
    else in the checkout has to stay outside the served tree —
-   `config/config.php` holds the database credentials, and `bin/`,
-   `cronjobs/` and `vendor/` have no reason to be reachable over HTTP.
+   `config/config.php` holds the database credentials, and `bin/`
+   and `vendor/` have no reason to be reachable over HTTP.
 2. **Anything that is not a real file must be routed to
    `public/index.php`.** Slim is a front controller: `/v1/domains` exists
    only as a route inside `index.php`, never as a file on disk, so without
@@ -277,16 +277,40 @@ anything when the migration is applied by hand through the `mysql` client, so
 prefer this script after an automatic migration.
 
 
+# Scheduled jobs
+
+Two things have to happen on a schedule rather than when someone opens the API:
+
+```
+0-59/5  * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
+0-59/15 * * * *  /path/to/bin/eppitnic pdns sync   >> /var/log/eppitnic/pdns-sync.log 2>&1
+```
+
+`poll process` drains the registry's message queue into `messages`, reconciles
+domain transfer state against what it found, then rotates the registry password
+if a reminder asked for it. The three run in that order for a reason — see
+"Registry password rotation" — so they are one verb rather than three crontab
+lines. `--no-rotate` and `--no-transfers` drop a step. It does not prompt: it
+is the scheduled job, and there is nobody to ask.
+
+`pdns sync` applies pending DNS-sync events to a PowerDNS server through
+`pdnsutil`, which must be on the PATH or named by the `pdnsutil_path` setting.
+Only schedule it if PowerDNS is what serves your zones; nothing else depends on
+it. Zone deletions wait out a grace period, `--delay-hours` (12 by default),
+and `--dry-run` prints the exact `pdnsutil` invocations without running any.
+
+Both are ordinary verbs — run either by hand at any time.
+
+
 # Registry password rotation
 
 nic.it warns, through the EPP poll queue, that the account password is
-approaching expiry. Those `passwdReminder` messages are acted on by
-`cronjobs/process-poll-queue.php`: when one is outstanding it generates a new
-password, sets it at the registry (EPP carries a new password in the `<login>`
-command, so the rotation *is* a login), stores it in the `epp` setting, and
-acknowledges the message. Run that cron job — without it the reminders
-accumulate unread until the credential expires and every EPP call starts
-failing.
+approaching expiry. `eppitnic poll process` acts on those `passwdReminder`
+messages: when one is outstanding it generates a new password, sets it at the
+registry (EPP carries a new password in the `<login>` command, so the rotation
+*is* a login), stores it in the `epp` setting, and acknowledges the message.
+Schedule that job — without it the reminders accumulate unread until the
+credential expires and every EPP call starts failing.
 
 At most one rotation is attempted per 24 hours, tracked by
 `epp.lastPasswordUpdate`, stamped before the attempt: the registry re-sends its

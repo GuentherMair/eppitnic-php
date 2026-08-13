@@ -321,7 +321,7 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 ### Reminders
 
 Two distinct concepts share this table: DNS-sync events (`action` set,
-system-internal, fed to `cronjobs/pdnsutil_updates.php`) and human-facing
+system-internal, applied by `eppitnic pdns sync`) and human-facing
 scheduled notices (`action` NULL, e.g. "renew this domain").
 
 | Method & path | Auth | Notes |

@@ -17,7 +17,7 @@ Domain and Session persistence now talk to RedBeanPHP's `R::` facade
 directly, and configuration moved out of `config.xml`: the database
 credentials live in `config/config.php` (the one thing that must be a file,
 since it is needed to reach the database at all) and everything else in the
-`settings` table, read through `Net\EPP\Config`. `CLI/config-DoMigrate.php`
+`settings` table, read through `Net\EPP\Config`. `eppitnic config migrate`
 converts an existing `config.xml` into both. As part of this, DNS-sync
 notifications end up in, and will be waiting to be consumed from, the
 `reminder` queue.
@@ -37,9 +37,11 @@ Relatedly, a domain's registrant must now be a contact the caller owns
 those two notions of ownership able to drift apart in the first place.
 
 The registry's `passwdReminder` poll messages are now acted on rather than
-merely stored: `cronjobs/process-poll-queue.php` rotates the shared EPP
-password when one is outstanding, rate-limited to one attempt per 24 hours by
-the `epp` setting's new `lastPasswordUpdate` timestamp. The unused `debug`,
+merely stored: `eppitnic poll process` rotates the shared EPP password when one
+is outstanding, rate-limited to one attempt per 24 hours by the `epp` setting's
+new `lastPasswordUpdate` timestamp. The new password is recorded locally before
+it is sent, so a run interrupted mid-change can be settled afterwards by asking
+the registry which password it holds. The unused `debug`,
 `epp.passwordexpirydays` and `epp.passwordexpirynext` settings, and the unused
 `users.dns` column, have been dropped.
 
@@ -50,6 +52,11 @@ handled the result uniformly: `array_keys((array) $domain->get('tech'))`
 evaluated to `[0]` instead of the handle, so the REST API reported a tech
 contact of `0` and update diffs computed from it never removed the outgoing
 contact. Callers that special-cased the string return can drop that branch.
+
+Everything runnable now lives behind one entry point, `bin/eppitnic`: the
+`CLI/`, `examples/` and `cronjobs/` folders are gone, absorbed into verbs.
+The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
+see "Scheduled jobs" in the README for crontab lines.
 
 WSDL support has been dropped.
 
