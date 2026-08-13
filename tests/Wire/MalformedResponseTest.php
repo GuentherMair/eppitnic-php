@@ -2,6 +2,7 @@
 
 namespace Net\EPP\Tests\Wire;
 
+use Net\EPP\CheckResult;
 use Net\EPP\IT\Contact;
 use Net\EPP\IT\Domain;
 use Net\EPP\IT\Session;
@@ -205,7 +206,14 @@ final class MalformedResponseTest extends EppTestCase
     public function testUnusableAnswerIsNeverSuccess(callable $call, string $response): void {
         $this->transport->queue($response);
 
-        $this->assertNotTrue($call($this->nic), 'an unusable answer was reported as success');
+        $result = $call($this->nic);
+
+        if ($result instanceof CheckResult) {
+            $this->assertFalse($result->answered(), 'an unusable answer was reported as an availability answer');
+            return;
+        }
+
+        $this->assertNotTrue($result, 'an unusable answer was reported as success');
     }
 
     /**
@@ -218,9 +226,13 @@ final class MalformedResponseTest extends EppTestCase
 
         $result = $call($this->nic);
 
-        $this->assertTrue(
-            $result === false || $result === -1 || $result === -2,
-            'a payload-less answer was accepted: ' . var_export($result, true)
-        );
+        // check() reports through CheckResult, the others through a bare false
+        if ($result instanceof CheckResult) {
+            $this->assertFalse($result->answered(), 'a payload-less answer was accepted as an availability answer');
+            $this->assertNotSame('', $result->error(), 'the failure carries no explanation');
+            return;
+        }
+
+        $this->assertFalse($result, 'a payload-less answer was accepted: ' . var_export($result, true));
     }
 }

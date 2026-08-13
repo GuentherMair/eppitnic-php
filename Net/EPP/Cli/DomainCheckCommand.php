@@ -39,14 +39,16 @@ final class DomainCheckCommand extends Command
             foreach (array_chunk($names, 5) as $batch) {
                 $answer = $domain->check($batch);
 
-                if ( ! is_array($answer)) {
-                    // one name in the batch, or an outright failure
-                    $out[$batch[0]] = ($answer === -1 || $answer === -2)
-                        ? ['available' => null, 'reason' => $domain->getError() ?: 'check failed']
-                        : ['available' => (bool) $answer, 'reason' => $answer ? 'OK' : (string) $domain->svMsg];
+                if ( ! $answer->answered()) {
+                    // the whole batch went unanswered, so every name in it is
+                    // unknown -- not "taken", which is what reading a failure
+                    // as a boolean would have made of it
+                    foreach ($batch as $name) {
+                        $out[$name] = ['available' => null, 'reason' => $answer->error() ?: 'check failed'];
+                    }
                     continue;
                 }
-                foreach ($answer as $name => $result) {
+                foreach ($answer->all() as $name => $result) {
                     $out[$name] = $result;
                 }
             }

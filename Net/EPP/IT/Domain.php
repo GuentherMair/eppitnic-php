@@ -10,6 +10,7 @@ use Net\EPP\Client;
 use Net\EPP\Helpers;
 use Net\EPP\ChangeTracking;
 use Net\EPP\LocalStorage;
+use Net\EPP\CheckResult;
 use Net\EPP\XmlBuilder;
 use RedBeanPHP\R;
 
@@ -429,12 +430,12 @@ class Domain extends AbstractObject
   }
 
   /**
-   * check domain
+   * check whether domains are available for registration
    *
-   * @param string $domain optional domain to check (set domain!)
-   * @return bool status (TRUE = available, FALSE = unavailable, -1 on error)
+   * @param array|string|null $domain one name, several, or null for the one set
+   * @return CheckResult the registry's answer, or a failure -- see CheckResult
    */
-  public function check(array|string|null $domain = null): array|bool|int {
+  public function check(array|string|null $domain = null): CheckResult {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -446,7 +447,7 @@ class Domain extends AbstractObject
     $domain = array_values(array_filter($domain, fn($d) => (string)$d !== ""));
     if (empty($domain)) {
       $this->setError("Operation not allowed, set a domain name first!");
-      return -2;
+      return CheckResult::failure($this->getError());
     }
 
     $this->xmlQuery = XmlBuilder::domainCheck(
@@ -454,39 +455,34 @@ class Domain extends AbstractObject
       array_slice($domain, 0, $this->max_check)
     );
 
-    // query server
-    if ($this->ExecuteQuery("domain-check", implode(";", $domain))) {
-      $tmp = $this->responseData('domain');
-      if ($tmp === null || ! isset($tmp->chkData->cd)) {
-        $this->setError("The registry accepted the check but returned no availability data.");
-        return -1;
-      }
-
-      if (count($tmp->chkData->cd) == 1) {
-        if ($tmp->chkData->cd->name->attributes()->avail == "true") {
-          return TRUE;
-        } else {
-          // override server message with reason
-          $this->svMsg = $tmp->chkData->cd->reason;
-          return FALSE;
-        }
-      } else {
-        $responses = array();
-        for ($i = 0; $i < count($tmp->chkData->cd); $i++) {
-          if ($tmp->chkData->cd[$i]->name->attributes()->avail == "true") {
-            $responses[(string)$tmp->chkData->cd[$i]->name]['available'] = TRUE;
-            $responses[(string)$tmp->chkData->cd[$i]->name]['reason'] = 'OK';
-          } else {
-            $responses[(string)$tmp->chkData->cd[$i]->name]['available'] = FALSE;
-            $responses[(string)$tmp->chkData->cd[$i]->name]['reason'] = (string)$tmp->chkData->cd[$i]->reason;
-          }
-        }
-        return $responses;
-      }
-    } else {
-      // distinguish between errors and boolean states...
-      return -1;
+    if ( ! $this->ExecuteQuery("domain-check", implode(";", $domain))) {
+      return CheckResult::failure($this->getError());
     }
+
+    $tmp = $this->responseData('domain');
+    if ($tmp === null || ! isset($tmp->chkData->cd)) {
+      $this->setError("The registry accepted the check but returned no availability data.");
+      return CheckResult::failure($this->getError());
+    }
+
+    $availability = [];
+    foreach ($tmp->chkData->cd as $cd) {
+      $available = (string)$cd->name->attributes()->avail === "true";
+      $availability[(string)$cd->name] = [
+        'available' => $available,
+        'reason'    => $available ? 'OK' : (string)$cd->reason,
+      ];
+    }
+
+    // kept for callers reading it after a single-name check
+    if (count($availability) === 1) {
+      $only = array_values($availability)[0];
+      if ( ! $only['available']) {
+        $this->svMsg = $only['reason'];
+      }
+    }
+
+    return CheckResult::of($availability);
   }
 
   /**

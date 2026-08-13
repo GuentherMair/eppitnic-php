@@ -43,7 +43,12 @@ final class DomainService
      */
     public static function createOrTransfer(Client $nic, array $params, int $userId, bool $persist = true): array {
         $domain = new Domain($nic);
-        $available = $domain->check($params['domain']);
+        $availability = $domain->check($params['domain']);
+        if ( ! $availability->answered()) {
+            // the availability question was never answered, so neither command
+            // can be chosen -- create() would collide, transfer() would fail
+            return ['ok' => false, 'error' => $availability->error()];
+        }
 
         $domain->set('domain', $params['domain']);
         $domain->set('registrant', $params['registrant']);
@@ -58,20 +63,16 @@ final class DomainService
         }
         $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
 
-        if ($available === true) {
+        if ($availability->available()) {
             if ( ! $domain->create()) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
             $action = 'created';
-        } elseif ($available === false) {
+        } else {
             if ( ! $domain->transfer($params['domain'], $domain->get('authinfo'))) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
             $action = 'transfer-requested';
-        } else {
-            // -1/-2 from check(): the availability question was never answered,
-            // so neither command can be chosen
-            return ['ok' => false, 'error' => $domain->getError()];
         }
 
         if ($persist) {

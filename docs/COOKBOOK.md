@@ -47,12 +47,23 @@ if ($session->hello()) {
 $domain = new Domain($nic);
 
 $answer = $domain->check('example.it');
-// true = available, false = taken, -1/-2 = the question was not answered
+
+if ( ! $answer->answered()) {
+    // the registry never answered the question -- neither available nor taken
+    echo $answer->error(), "\n";
+} elseif ($answer->available()) {
+    echo "free\n";
+} else {
+    echo "taken: ", $answer->reason(), "\n";
+}
 ```
 
-Pass an array for up to five names at once, and you get an array back keyed by
-name, each with `available` and `reason`. Beyond five names, batch them
-yourself — the registry rejects a longer request.
+Pass an array for up to five names at once. `available('example.it')` and
+`reason('example.it')` then take the name, `all()` gives every answer keyed by
+name, and `availableNames()` gives just the free ones. Beyond five names, batch
+them yourself — the registry rejects a longer request.
+
+`Contact::check()` answers the same way, keyed by handle.
 
 ## Reading a domain
 

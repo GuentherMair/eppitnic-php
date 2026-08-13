@@ -32,12 +32,16 @@ final class DoctorInactiveDomainsCommand extends Command
 
             foreach (array_chunk($names, 5) as $batch) {
                 $answer = $domain->check($batch);
-                $availability = is_array($answer) ? $answer : [$batch[0] => ['available' => $answer === true]];
+                if ( ! $answer->answered()) {
+                    // no answer is not the same as "the registry still has it",
+                    // and reporting it as one would be a false accusation
+                    throw new SessionError('availability check failed: ' . $answer->error());
+                }
 
-                foreach ($availability as $name => $result) {
+                foreach ($answer->all() as $name => $result) {
                     // available means the registry does not have it, which is
                     // what a deactivated domain should look like
-                    if ( ! empty($result['available'])) {
+                    if ($result['available']) {
                         continue;
                     }
                     $record = ['domain' => $name, 'status' => []];

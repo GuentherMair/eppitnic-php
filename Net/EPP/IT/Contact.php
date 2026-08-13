@@ -4,6 +4,7 @@ namespace Net\EPP\IT;
 
 use Net\EPP\AbstractObject;
 use Net\EPP\Client;
+use Net\EPP\CheckResult;
 use Net\EPP\XmlBuilder;
 use Net\EPP\Helpers;
 use Net\EPP\ChangeTracking;
@@ -272,12 +273,12 @@ class Contact extends AbstractObject
   }
 
   /**
-   * check contact
+   * check whether contact handles are free to be created
    *
-   * @param string $contact optional contact to check (set handle!)
-   * @return bool status (TRUE = available, FALSE = unavailable, -1 on error)
+   * @param array|string|null $contact one handle, several, or null for the one set
+   * @return CheckResult the registry's answer, or a failure -- see CheckResult
    */
-  public function check(array|string|null $contact = null): array|bool|int {
+  public function check(array|string|null $contact = null): CheckResult {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -289,7 +290,7 @@ class Contact extends AbstractObject
     $contact = array_values(array_filter($contact, fn($c) => (string)$c !== ""));
     if (empty($contact)) {
       $this->setError("Operation not allowed, set a handle!");
-      return -2;
+      return CheckResult::failure($this->getError());
     }
 
     $this->xmlQuery = XmlBuilder::contactCheck(
@@ -297,27 +298,26 @@ class Contact extends AbstractObject
       array_slice($contact, 0, $this->max_check)
     );
 
-    // query server
-    if ($this->ExecuteQuery("contact-check", implode(";", $contact))) {
-      $tmp = $this->responseData('contact');
-      if ($tmp === null || ! isset($tmp->chkData->cd)) {
-        $this->setError("The registry accepted the check but returned no availability data.");
-        return -1;
-      }
-
-      if (count($tmp->chkData->cd) == 1) {
-        return ($tmp->chkData->cd->id->attributes()->avail == "true") ? TRUE : FALSE;
-      } else {
-        $responses = array();
-        for ($i = 0; $i < count($tmp->chkData->cd); $i++) {
-          $responses[(string)$tmp->chkData->cd[$i]->id] = ($tmp->chkData->cd[$i]->id->attributes()->avail == "true") ? TRUE : FALSE;
-        }
-        return $responses;
-      }
-    } else {
-      // distinguish between errors and boolean states...
-      return -1;
+    if ( ! $this->ExecuteQuery("contact-check", implode(";", $contact))) {
+      return CheckResult::failure($this->getError());
     }
+
+    $tmp = $this->responseData('contact');
+    if ($tmp === null || ! isset($tmp->chkData->cd)) {
+      $this->setError("The registry accepted the check but returned no availability data.");
+      return CheckResult::failure($this->getError());
+    }
+
+    $availability = [];
+    foreach ($tmp->chkData->cd as $cd) {
+      $available = (string)$cd->id->attributes()->avail === "true";
+      $availability[(string)$cd->id] = [
+        'available' => $available,
+        'reason'    => $available ? 'OK' : (string)$cd->reason,
+      ];
+    }
+
+    return CheckResult::of($availability);
   }
 
   /**
@@ -333,7 +333,7 @@ class Contact extends AbstractObject
   public function generateHandle(int $maxAttempts = 5): string {
     for ($i = 0; $i < $maxAttempts; $i++) {
       $handle = strtoupper(bin2hex(random_bytes(8))); // 16 hex chars
-      if ($this->check($handle) === TRUE) {
+      if ($this->check($handle)->available() === TRUE) {
         return $handle;
       }
     }

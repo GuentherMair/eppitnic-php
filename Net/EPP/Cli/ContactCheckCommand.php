@@ -37,12 +37,15 @@ final class ContactCheckCommand extends Command
             foreach (array_chunk($handles, 5) as $batch) {
                 $answer = $contact->check($batch);
 
-                if ( ! is_array($answer)) {
-                    $out[$batch[0]] = ($answer === -1 || $answer === -2) ? null : (bool) $answer;
+                if ( ! $answer->answered()) {
+                    // every handle in the batch is unknown, not "taken"
+                    foreach ($batch as $handle) {
+                        $out[$handle] = null;
+                    }
                     continue;
                 }
-                foreach ($answer as $handle => $available) {
-                    $out[$handle] = $available;
+                foreach ($answer->all() as $handle => $result) {
+                    $out[$handle] = $result['available'];
                 }
             }
             return $out;
