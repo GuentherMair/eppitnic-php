@@ -7,7 +7,7 @@ where what it saw was wrong.
 Each phase is independently shippable and leaves `main` working. Line deltas
 are estimates for our own code (`vendor/` excluded).
 
-**Status:** Phases 0–6 complete, plus 7.1–7.3. Phase 7 has open items.
+**Status:** Phases 0–7 complete.
 
 | Phase | What | Effort | Δ lines | Status |
 |---|---|---|---|---|
@@ -18,7 +18,7 @@ are estimates for our own code (`vendor/` excluded).
 | 4 | Smarty → `DOMDocument` | 3–4d | −600 | **done** |
 | 5 | Field maps and persistence | 2–3d | −270 | **done** |
 | 6 | `changes` bitmask → dirty set | 1–2d | −40 | **done** |
-| 7 | Issues found along the way | ongoing | | 7.1–7.3 done |
+| 7 | Issues found along the way | done | | 7.1–7.8 |
 
 ---
 
@@ -284,41 +284,71 @@ asserting no PHP diagnostic anywhere, never a success for an unusable body,
 and a failure from the parsers that need a payload. A payload-less success
 stays legitimate for `delete`, `logout` and the rest, which answer that way.
 
-### 7.4 A database ahead of the code fails confusingly — *low*
+### 7.4 A database ahead of the code fails confusingly — ✅ *fixed*
 
-`Config::migrate()` loops `while ($current !== SCHEMA_VERSION)`, so a database
-stamped with a *newer* version than the code knows about does not stop — it
-looks for a migration away from that version, finds none, and reports "No
-migration found to bring the schema from version X to Y", which reads like a
-missing file rather than the truth: this checkout is older than the database.
-Worth an explicit comparison and a message saying so.
+`Config::migrate()` loops `while ($current !== SCHEMA_VERSION)`, which cannot
+go backwards, so a database stamped newer than the code reported "No migration
+found to bring the schema from version X to Y" — a missing file, apparently,
+rather than the truth. It now compares the two first and says which is ahead.
 
-### 7.5 Registry password rotation can lock the installation out — *medium*
+### 7.5 Registry password rotation could lock the installation out — ✅ *fixed*
 
-`Helpers::rotateEppPasswordOnReminder()` writes its "attempted" timestamp
-*before* the attempt and prints the new password to the cron log if it cannot
-persist it. That is a defensible design, and it is documented — but the
-recovery path is "an operator reads the log", and the log is where the
-credential then lives in plaintext. Worth revisiting: write the new password
-to the settings table *before* sending it to the registry, marked pending, and
-reconcile afterwards.
+The credential lives in two places, the registry's account and the `epp`
+setting, and whichever is written second decides what an interrupted change
+costs. It used to be the local one, so a crash after the registry accepted the
+new password left this installation holding a credential the registry no longer
+had — recovered by printing the password to the cron log, which is a worse
+place for it than the database.
 
-### 7.6 `check()` sentinel return values — *low*
+`Helpers::changeEppPassword()` now records the candidate as `pendingPassword`
+*before* sending it, and promotes it once the registry accepts. Both callers
+use it — the reminder-driven rotation and `POST /v1/session/change-password`,
+which had the same ordering.
 
-`Domain::check()` / `Contact::check()` return `array|bool|int` with `-1`/`-2`
-sentinels, so every caller carries the sentinel table in its head. Fold into a
-small result object during Phase 4, when both methods are being touched.
+An interrupted change leaves both passwords on disk, and
+`Helpers::reconcilePendingPassword()` settles it by asking the registry which
+one it accepts: the candidate first, since trying the old one first and having
+it refused would discard a candidate that may be live. Neither working is left
+alone — that is an account problem, not a rotation problem, and discarding the
+candidate there would throw away the answer. The cron job reconciles before
+each rotation; `eppitnic doctor epp-password` does it on demand, and
+`GET /v1/session/epp` reports `rotation_pending`.
 
-### 7.7 `AbstractObject::$result` is untyped — *low*
+`PasswordRotationTest` drives each outcome against a fake registry that accepts
+one password and refuses the other, including the ordering itself: the
+candidate must be readable from the settings table at the moment the change is
+sent.
 
-A loose `array|null` keyed by string. A small value object typing
-`code`/`headers`/`body` pairs naturally with the Phase 0 transport interface.
+### 7.6 `check()` sentinel return values — ✅ *fixed*
 
-### 7.8 Legacy `__SERIALIZED:` storage envelope — *low*
+`Domain::check()` / `Contact::check()` returned `array|bool|int` with `-1`/`-2`
+for "not answered", so every caller carried the sentinel table in its head —
+and `doctor inactive-domains` got it wrong, reading a failed check as
+`available === false`, i.e. "the registry still holds this domain". That is the
+false report the command exists to avoid.
 
-`responses`/`msgqueue` rows written by the 6.x codebase are
-`__SERIALIZED:` + base64(serialize($string)); current code writes plain
-strings. Nothing in the current codebase reads these columns, so this is
-latent rather than broken — but anything added that does (a "show raw EPP
-dump" view) must handle both. Either normalise the old rows in a migration or
-centralise the decoding.
+Both now return `CheckResult`: `answered()`, `available(?string)`,
+`reason(?string)`, `all()`, `availableNames()`. The two also returned
+differently shaped arrays — `Domain`'s entries had `available`/`reason`,
+`Contact`'s were bare booleans — and now answer identically.
+
+### 7.7 `AbstractObject::$result` is untyped — ✅ *fixed*
+
+A loose `array|null` keyed by four strings, declared `// HTTP response string`,
+which it had not been for some time. `Client::sendRequest()` now returns
+`HttpResponse` (`body`, `code`, `headers`, `error`, plus `ok()`), and `$result`
+is typed `?HttpResponse`.
+
+### 7.8 Legacy `__SERIALIZED:` storage envelope — ✅ *fixed*
+
+`responses`/`msgqueue` rows written by the 6.x codebase are `__SERIALIZED:` +
+base64(serialize($string)); current code writes the body plainly. This was
+listed as latent, but it is not: `doctor reparse-messages` reads
+`msgqueue`.`sv_httpdata`, and in the live database *every* one of the 21,705
+rows carries the envelope.
+
+Decoding is centralised in `StoredPayload::decode()` rather than normalised in
+a migration: reads work against either generation permanently, where a one-way
+rewrite of 21,705 blob rows buys only a smaller table. A damaged envelope
+returns null rather than an empty string — an empty body reads as "the registry
+said nothing", which is a different and wrong conclusion.

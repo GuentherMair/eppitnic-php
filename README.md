@@ -140,6 +140,14 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
   `transfers.user_id`, and a domain's registrant must be a contact the caller
   owns. Pre-existing data where those disagree is reported by
   `bin/eppitnic doctor ownership` (see "Ownership coherence").
+- `Domain->check()` / `Contact->check()` return a `CheckResult` instead of
+  `array|bool|int`. Replace `=== true` with `->available()`, and the `-1`/`-2`
+  sentinels with `->answered()`. `->all()` gives every answer keyed by name;
+  both classes now use the same shape, where `Contact` used to return bare
+  booleans.
+- `Client->sendRequest()` returns an `HttpResponse` instead of an array, so
+  `$object->result` is `?HttpResponse`: `$result['code']` becomes
+  `$result?->code`.
 - `Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone; persistence uses
   RedBeanPHP's `R::` facade directly. Custom storage backends need rewriting.
 - WSDL support is gone.
@@ -267,17 +275,25 @@ accumulate unread until the credential expires and every EPP call starts
 failing.
 
 At most one rotation is attempted per 24 hours, tracked by
-`epp.lastPasswordUpdate`. The timestamp is written *before* the attempt, on
-purpose: if a rotation half-succeeds — the registry accepts the new password
-but the reply is lost — retrying minutes later with yet another password would
-compound the problem, and the registry re-sends its reminder well before the
-credential actually expires.
+`epp.lastPasswordUpdate`, stamped before the attempt: the registry re-sends its
+reminder well before the credential actually expires, so a day's wait costs
+nothing.
 
-The one failure worth watching the logs for is the registry accepting the new
-password while storing it locally fails; that locks this installation out of
-EPP. The job prints the new password to stdout in that case, so keep the cron
-output somewhere you can read it (the suggested crontab line redirects it to
-`/var/log/eppitnic/poll-queue.log`).
+The candidate password is written to the `epp` setting as `pendingPassword`
+before it is sent, and promoted once the registry accepts it. A run interrupted
+in between therefore leaves both passwords on disk, and the next run settles it
+by asking the registry which one it accepts. To settle it immediately:
+
+```
+bin/eppitnic doctor epp-password
+```
+
+`GET /v1/session/epp` reports `rotation_pending` for the same purpose. No
+password is ever written to the log.
+
+If the registry accepts neither, the candidate is kept and the log says so —
+that is an account problem (expired, locked, an unauthorised IP), and the
+credential to keep is whichever the registry will take once it is resolved.
 
 
 # ToDo's
