@@ -2,9 +2,9 @@
 
 namespace Net\EPP\Service;
 
-use Net\EPP\Client;
+use Net\EPP\Epp\Client;
 use Net\EPP\Config;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Session;
 use RedBeanPHP\R;
 
 /**

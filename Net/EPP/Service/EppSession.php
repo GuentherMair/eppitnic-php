@@ -2,8 +2,8 @@
 
 namespace Net\EPP\Service;
 
-use Net\EPP\Client;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Session;
 
 /**
  * Run something against a logged-in registry session, and always log out.

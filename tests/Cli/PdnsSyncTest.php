@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Cli;
 
-use Net\EPP\Cli\PdnsSyncCommand;
+use Net\EPP\Cli\Command\PdnsSyncCommand;
 use Net\EPP\Config;
 use Net\EPP\Tests\Support\EppTestCase;
 use RedBeanPHP\R;

@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Unit;
 
-use Net\EPP\StoredPayload;
+use Net\EPP\Persistence\StoredPayload;
 use PHPUnit\Framework\TestCase;
 
 /**

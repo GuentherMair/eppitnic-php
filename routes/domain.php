@@ -2,8 +2,8 @@
 
 use Net\EPP\Api\Auth;
 use Net\EPP\Api\Json;
-use Net\EPP\Client;
-use Net\EPP\IT\Domain;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Domain;
 use Net\EPP\Persistence\Changelog;
 use Net\EPP\Service\DomainService;
 use Net\EPP\Service\EppSession;

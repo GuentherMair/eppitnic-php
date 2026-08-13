@@ -2,9 +2,9 @@
 
 namespace Net\EPP\Tests\Cli;
 
-use Net\EPP\Cli\DomainCreateCommand;
-use Net\EPP\Cli\DomainImportCommand;
-use Net\EPP\Cli\DomainTransferCommand;
+use Net\EPP\Cli\Command\DomainCreateCommand;
+use Net\EPP\Cli\Command\DomainImportCommand;
+use Net\EPP\Cli\Command\DomainTransferCommand;
 use Net\EPP\Cli\UsageError;
 use Net\EPP\Service\PasswordService;
 use Net\EPP\Tests\Support\EppTestCase;
@@ -149,13 +149,13 @@ final class CreateTransferCommandTest extends EppTestCase
     public function testSetOwnerRejectsDryRun(): void {
         $this->expectException(UsageError::class);
         $this->expectExceptionMessage('does not apply to set-owner');
-        (new \Net\EPP\Cli\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
+        (new \Net\EPP\Cli\Command\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
     }
 
     public function testSetOwnerRequiresANewOwner(): void {
         $this->expectException(UsageError::class);
         $this->expectExceptionMessage('--new-owner');
-        (new \Net\EPP\Cli\DomainSetOwnerCommand(['example-one.it']))->run();
+        (new \Net\EPP\Cli\Command\DomainSetOwnerCommand(['example-one.it']))->run();
     }
 
     /**

@@ -8,11 +8,11 @@ Everything below assumes one require and a configured database:
 ```php
 require 'vendor/autoload.php';
 
-use Net\EPP\Client;
+use Net\EPP\Epp\Client;
 use Net\EPP\Service\EppSession;
-use Net\EPP\IT\Contact;
-use Net\EPP\IT\Domain;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Contact;
+use Net\EPP\Epp\Domain;
+use Net\EPP\Epp\Session;
 ```
 
 ## A session

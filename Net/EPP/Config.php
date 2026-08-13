@@ -211,7 +211,7 @@ final class Config
      *                            process isn't interactive
      */
     private static function loadConfig(): void {
-        self::$configFile ??= dirname(__FILE__) . '/../../config/config.php';
+        self::$configFile ??= EPPITNIC_ROOT . '/config/config.php';
 
         if (is_readable(self::$configFile)) {
             require_once self::$configFile;
@@ -419,7 +419,7 @@ final class Config
      * @return array{0: string, 1: string}|null [file path, target version]
      */
     private static function findMigration(string $from): ?array {
-        $dir = dirname(__FILE__) . '/../../config';
+        $dir = EPPITNIC_ROOT . '/config';
         $prefix = 'mariadb-schema-upgrade-' . $from . '-to-';
 
         $candidates = [];

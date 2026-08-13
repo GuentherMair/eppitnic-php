@@ -2,8 +2,6 @@
 
 namespace Net\EPP\Api;
 
-
-
 /**
  * Who the request came from, as far as it can be told.
  *

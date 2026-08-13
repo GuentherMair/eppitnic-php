@@ -3,8 +3,9 @@
 namespace Net\EPP\Tests\Cli;
 
 use Net\EPP\Cli\Command;
-use Net\EPP\Cli\DomainCheckCommand;
-use Net\EPP\Cli\DomainInfoCommand;
+use Net\EPP\Cli\Command\DomainCheckCommand;
+use Net\EPP\Cli\Command\DomainInfoCommand;
+use Net\EPP\Cli\UsageError;
 use Net\EPP\Service\EppSession;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;

@@ -2,8 +2,6 @@
 
 namespace Net\EPP\Support;
 
-
-
 /**
  * CSV encoding, to the extent this codebase needs it.
  *

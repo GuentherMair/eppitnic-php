@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Cli;
 
-use Net\EPP\Cli\DoctorNormalizePayloadsCommand;
+use Net\EPP\Cli\Command\DoctorNormalizePayloadsCommand;
 use Net\EPP\Config;
 use Net\EPP\Tests\Support\EppTestCase;
 use RedBeanPHP\R;

@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Wire;
 
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Session;
 use Net\EPP\Tests\Support\EppTestCase;
 use Net\EPP\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;

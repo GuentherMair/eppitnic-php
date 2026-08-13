@@ -3,9 +3,9 @@
 namespace Net\EPP\Service;
 
 use Algo26\IdnaConvert\ToUnicode;
-use Net\EPP\Client;
-use Net\EPP\IT\Contact;
-use Net\EPP\IT\Domain;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Contact;
+use Net\EPP\Epp\Domain;
 use Net\EPP\Persistence\Changelog;
 use RedBeanPHP\R;
 

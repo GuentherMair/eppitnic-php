@@ -2,8 +2,8 @@
 
 namespace Net\EPP\Tests\Cli;
 
-use Net\EPP\Cli\DomainDeleteCommand;
-use Net\EPP\Cli\DomainStatusCommand;
+use Net\EPP\Cli\Command\DomainDeleteCommand;
+use Net\EPP\Cli\Command\DomainStatusCommand;
 use Net\EPP\Cli\UsageError;
 use Net\EPP\Tests\Support\EppTestCase;
 

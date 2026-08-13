@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Unit;
 
-use Net\EPP\Client;
+use Net\EPP\Epp\Client;
 use Net\EPP\Config;
 use Net\EPP\Service\RegistryPassword;
 use Net\EPP\Tests\Support\CommandCatalog;

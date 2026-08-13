@@ -2,10 +2,10 @@
 
 namespace Net\EPP\Tests\Support;
 
-use Net\EPP\Client;
-use Net\EPP\IT\Contact;
-use Net\EPP\IT\Domain;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Contact;
+use Net\EPP\Epp\Domain;
+use Net\EPP\Epp\Session;
 
 /**
  * Every EPP request this codebase can generate, and how to make it generate one.

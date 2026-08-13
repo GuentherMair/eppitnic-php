@@ -2,8 +2,6 @@
 
 namespace Net\EPP\Support;
 
-
-
 /**
  * Request-shape checks, run before anything reaches the registry.
  *

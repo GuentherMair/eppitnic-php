@@ -2,8 +2,8 @@
 
 use Net\EPP\Api\Auth;
 use Net\EPP\Api\Json;
-use Net\EPP\Client;
-use Net\EPP\IT\Contact;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Contact;
 use Net\EPP\Service\EppSession;
 use Net\EPP\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;

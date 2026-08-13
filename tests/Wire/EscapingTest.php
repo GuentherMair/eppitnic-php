@@ -2,8 +2,8 @@
 
 namespace Net\EPP\Tests\Wire;
 
-use Net\EPP\IT\Contact;
-use Net\EPP\IT\Domain;
+use Net\EPP\Epp\Contact;
+use Net\EPP\Epp\Domain;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;
 

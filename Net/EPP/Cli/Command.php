@@ -2,9 +2,10 @@
 
 namespace Net\EPP\Cli;
 
-use Net\EPP\Client;
 use Net\EPP\Config;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\Client;
+use Net\EPP\Epp\Session;
+use Net\EPP\Epp\Transport\DryRun;
 use Net\EPP\Service\EppSession;
 
 /**
@@ -42,7 +43,7 @@ abstract class Command
     private $errorStream = null;
 
     /** set while a --dry-run session is in flight */
-    private ?DryRunTransport $dryRun = null;
+    private ?DryRun $dryRun = null;
 
     // ---------------------------------------------------------------
     // what a subcommand declares about itself
@@ -302,7 +303,7 @@ abstract class Command
             // a client of its own, answering locally: nothing reaches the
             // network, so this needs neither credentials nor connectivity
             $client = new Client();
-            $client->setTransport($this->dryRun = new DryRunTransport());
+            $client->setTransport($this->dryRun = new DryRun());
         }
 
         try {

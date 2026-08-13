@@ -3,11 +3,11 @@
 namespace Net\EPP\Tests\Cli;
 
 use Net\EPP\Cli\Command;
-use Net\EPP\Cli\ContactCheckCommand;
-use Net\EPP\Cli\ContactInfoCommand;
-use Net\EPP\Cli\DomainExportCommand;
-use Net\EPP\Cli\SessionCreditCommand;
-use Net\EPP\Cli\SessionHelloCommand;
+use Net\EPP\Cli\Command\ContactCheckCommand;
+use Net\EPP\Cli\Command\ContactInfoCommand;
+use Net\EPP\Cli\Command\DomainExportCommand;
+use Net\EPP\Cli\Command\SessionCreditCommand;
+use Net\EPP\Cli\Command\SessionHelloCommand;
 use Net\EPP\Cli\UsageError;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;

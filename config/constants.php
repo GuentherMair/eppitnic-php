@@ -1,5 +1,10 @@
 <?php
 
+// The checkout's root, so that nothing else has to count '../..' hops from
+// wherever it happens to sit. Every entry point reaches this file through
+// composer's `files` autoload, and this file is always one directory down.
+if ( ! defined('EPPITNIC_ROOT')) define('EPPITNIC_ROOT', dirname(__DIR__));
+
 // current DB schema version this codebase expects -- compared against the
 // `settings` table's 'schema_version' row by Config's auto-migration step
 // (Net/EPP/Config.php). Zero-padded MMmmrr (2-digit major/minor/release,

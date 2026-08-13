@@ -2,6 +2,39 @@
 
 namespace Net\EPP\Cli;
 
+use Net\EPP\Cli\Command\ConfigMigrateCommand;
+use Net\EPP\Cli\Command\ContactCheckCommand;
+use Net\EPP\Cli\Command\ContactCreateCommand;
+use Net\EPP\Cli\Command\ContactDeleteCommand;
+use Net\EPP\Cli\Command\ContactFixEmailPrivacyCommand;
+use Net\EPP\Cli\Command\ContactInfoCommand;
+use Net\EPP\Cli\Command\ContactUpdateCommand;
+use Net\EPP\Cli\Command\DoctorEppPasswordCommand;
+use Net\EPP\Cli\Command\DoctorInactiveDomainsCommand;
+use Net\EPP\Cli\Command\DoctorNormalizePayloadsCommand;
+use Net\EPP\Cli\Command\DoctorOwnershipCommand;
+use Net\EPP\Cli\Command\DoctorReparseMessagesCommand;
+use Net\EPP\Cli\Command\DomainCheckCommand;
+use Net\EPP\Cli\Command\DomainCreateCommand;
+use Net\EPP\Cli\Command\DomainDeleteCommand;
+use Net\EPP\Cli\Command\DomainExportCommand;
+use Net\EPP\Cli\Command\DomainImportCommand;
+use Net\EPP\Cli\Command\DomainInfoCommand;
+use Net\EPP\Cli\Command\DomainRestoreCommand;
+use Net\EPP\Cli\Command\DomainSetOwnerCommand;
+use Net\EPP\Cli\Command\DomainSetRegistrantCommand;
+use Net\EPP\Cli\Command\DomainStatusCommand;
+use Net\EPP\Cli\Command\DomainTransferCommand;
+use Net\EPP\Cli\Command\DomainUpdateCommand;
+use Net\EPP\Cli\Command\PdnsSyncCommand;
+use Net\EPP\Cli\Command\PollDrainCommand;
+use Net\EPP\Cli\Command\PollListCommand;
+use Net\EPP\Cli\Command\PollProcessCommand;
+use Net\EPP\Cli\Command\SessionCreditCommand;
+use Net\EPP\Cli\Command\SessionHelloCommand;
+use Net\EPP\Cli\Command\UserCreateCommand;
+use Net\EPP\Cli\Command\UserTokenCommand;
+
 /**
  * Maps a verb to the class that implements it, and runs it.
  *

@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Support;
 
-use Net\EPP\Transport;
+use Net\EPP\Epp\Transport\Transport;
 
 /**
  * A Transport that never leaves the process: it records every request body it

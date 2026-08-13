@@ -2,10 +2,10 @@
 
 namespace Net\EPP\Tests\Wire;
 
-use Net\EPP\CheckResult;
-use Net\EPP\IT\Contact;
-use Net\EPP\IT\Domain;
-use Net\EPP\IT\Session;
+use Net\EPP\Epp\CheckResult;
+use Net\EPP\Epp\Contact;
+use Net\EPP\Epp\Domain;
+use Net\EPP\Epp\Session;
 use Net\EPP\Tests\Support\CommandCatalog;
 use Net\EPP\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;

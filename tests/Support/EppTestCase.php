@@ -2,7 +2,7 @@
 
 namespace Net\EPP\Tests\Support;
 
-use Net\EPP\Client;
+use Net\EPP\Epp\Client;
 use Net\EPP\Config;
 use PHPUnit\Framework\TestCase;
 
