@@ -504,3 +504,23 @@ exist has nobody to attribute it to, and defaulting it to user 1 would put a
 false entry in the trail. `action` gained `login` and `denied`. And `network` is a column
 of its own rather than a field inside `data`, because the limiter reads it on
 every authentication attempt and an index cannot reach inside JSON.
+
+### Acknowledgement
+
+A log nobody can work through is a log nobody reads. `history` gained
+`acknowledged_time` and `acknowledged_user_id`, `GET /v1/history/security`
+lists what is outstanding, and `POST /v1/history/{id}/acknowledge` marks one
+read.
+
+A timestamp and a user rather than the flag first suggested: for a security
+log, who dismissed an alert matters as much as that somebody did, and NULL
+already means "not yet". It is the idiom `messages`.`archived_time` already
+uses for the same job.
+
+Only `security` rows are meant to be worked through, but the columns live on
+`history` rather than in a table of their own -- as `network` does -- because
+one sparse column pair is cheaper than a join at this size.
+
+The listing is separate from `GET /v1/history/{object}/{object_id}` because a
+failed login at a username that does not exist has no object to be looked up
+under: it would otherwise be reachable only by knowing to ask for object_id 0.

@@ -466,9 +466,19 @@ CREATE TABLE `history` (
   -- cannot reach inside JSON.
   `network`               varchar(64) DEFAULT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
+  -- Who has reviewed this and when; NULL means nobody yet. Only `security`
+  -- rows are meant to be worked through, but the columns live here rather than
+  -- in a table of their own -- as `network` does -- because one sparse column
+  -- pair is cheaper than a join, at this size. A timestamp and a user rather
+  -- than a flag: for a security log, who dismissed an alert matters as much as
+  -- that somebody did. Matches `messages`.`archived_time`.
+  `acknowledged_time`     datetime DEFAULT NULL,
+  `acknowledged_user_id`  bigint unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `object_lookup` (`object`,`object_id`),
   KEY `rate_limit_window` (`network`,`timestamp`),
+  -- what an operator opens: the security rows nobody has looked at yet
+  KEY `outstanding` (`object`,`acknowledged_time`,`timestamp`),
   CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

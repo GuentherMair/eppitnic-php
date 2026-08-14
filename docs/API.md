@@ -370,6 +370,8 @@ scheduled notices (`action` NULL, e.g. "renew this domain").
 
 | Method & path | Auth | Notes |
 |---|---|---|
+| `GET /v1/history/security` | admin | the security log, newest first, with `outstanding` alongside it — how many entries nobody has acknowledged. `?acknowledged=0` is the working view; `?acknowledged=1` shows what has been dealt with; `?limit=n` caps the page at 500. Separate from the per-object lookup below because a failed login at a username that does not exist has no object to be looked up under |
+| `POST /v1/history/{id}/acknowledge` | admin | mark one entry as reviewed. Records `acknowledged_time` and `acknowledged_user_id` rather than a flag — an entry that was dismissed is worth being able to ask about later. Does not alter what the entry says happened. Re-acknowledging re-stamps it, so the last person to look at it is the one on record. `404` for an unknown id |
 | `GET /v1/history/{object}/{object_id}` | user, admin for `security` | what happened to one object, newest first. `object` is one of `users`\|`contacts`\|`domains`\|`security`; `data` is the JSON recorded at that point in time; `action` is `create`\|`update`\|`delete`\|`read`. **`security` is admin-only** — those rows carry client IPs and request headers. The other three are **not scoped at all**: any valid token can read any domain's or contact's history, which is a known gap rather than a decision |
 
 ### WHOIS

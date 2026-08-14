@@ -334,12 +334,19 @@ proxy: every request looks like it came from the proxy, so all clients share
 one bucket and none of them ever matches `safe_networks`. Populated without a
 proxy: nothing changes, because the connecting address will not be in it.
 
-Review what has been blocked with `GET /v1/history/security/{user_id}`, or
-straight from the table:
+Work through them with `GET /v1/history/security?acknowledged=0`, which also
+answers how many are outstanding, and `POST /v1/history/{id}/acknowledge` to
+mark one as read. Acknowledging records who did it and when — for a security
+log, who dismissed an alert matters as much as that somebody did — and changes
+nothing about what the entry says happened.
+
+Or straight from the table:
 
 ```sql
-SELECT timestamp, network, JSON_VALUE(data,'$.event'), JSON_VALUE(data,'$.username')
-FROM history WHERE object = 'security' ORDER BY id DESC LIMIT 20;
+SELECT timestamp, network, action, JSON_VALUE(data,'$.event'), JSON_VALUE(data,'$.username')
+FROM history
+WHERE object = 'security' AND acknowledged_time IS NULL
+ORDER BY id DESC LIMIT 20;
 ```
 
 
