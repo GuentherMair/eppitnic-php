@@ -74,6 +74,7 @@ final class ErrorResponseTest extends TestCase
             'GET /v1/contacts'    => ['GET', '/v1/contacts'],
             'GET /v1/users'       => ['GET', '/v1/users'],
             'GET /v1/poll-queue'  => ['GET', '/v1/poll-queue'],
+            'GET /v1/session/epp/credentials' => ['GET', '/v1/session/epp/credentials'],
             'GET /v1/reminders'   => ['GET', '/v1/reminders'],
             'POST /v1/domains'    => ['POST', '/v1/domains'],
             'DELETE /v1/users/1'  => ['DELETE', '/v1/users/1'],

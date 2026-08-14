@@ -9,31 +9,38 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
-/**
- * the `epp` setting's fields that may be exposed over the API.
- *
- * An allow-list, not a blacklist of secrets: the shared registry password lives
- * in the same setting, and so might whatever secret gets added next. Listing
- * what is safe means a new field defaults to *not* being published, rather than
- * leaking until somebody remembers to exclude it. Add new non-secret fields
- * here deliberately.
- */
-const EPP_PUBLIC_FIELDS = [
-    'server', 'server_deleted', 'port', 'interface',
-    'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
-];
-
 $app->get('/v1/session/epp', function (Request $request, Response $response, array $args): Response {
     Auth::requireAdmin($request);
+
+    /**
+     * the `epp` setting's fields that may be exposed over the API.
+     *
+     * An allow-list, not a blacklist of secrets: the shared registry password
+     * lives in the same setting, and so might whatever secret gets added next.
+     * Listing what is safe means a new field defaults to *not* being published,
+     * rather than leaking until somebody remembers to exclude it. Add new
+     * non-secret fields here deliberately.
+     *
+     * Scoped to this closure rather than a file-level const: route files are
+     * `require`d, not `require_once`d, and redeclaring a constant is a warning
+     * today and an error in PHP 9.
+     */
+    $publicFields = [
+        'server', 'server_deleted', 'port', 'interface',
+        'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
+    ];
 
     $epp = Config::get('epp');
 
     $public = [];
-    foreach (EPP_PUBLIC_FIELDS as $field) {
+    foreach ($publicFields as $field) {
         $public[$field] = $epp[$field] ?? null;
     }
     // never the password itself -- this only reports whether one is configured,
-    // which is what a UI needs to tell "not set up yet" from "set up"
+    // which is what a UI needs to tell "not set up yet" from "set up".
+    // GET /v1/session/epp/credentials returns the credential itself, as its
+    // own request, so that reading it is a deliberate act rather than a
+    // side effect of loading a settings screen.
     $public['password_set'] = ($epp['password'] ?? '') !== '';
 
     // a rotation that did not finish: the registry may be holding a credential
@@ -42,6 +49,56 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
     $public['rotation_pending'] = ($epp['pendingPassword'] ?? '') !== '';
 
     return Json::response($response, ['epp' => $public]);
+});
+
+/**
+ * The registry credential itself, for the operator who has to use it elsewhere
+ * -- nic.it's own web interface, a second tool, a support call.
+ *
+ * Deliberately not part of GET /v1/session/epp. That endpoint is what a
+ * settings screen loads, and a credential that arrives as a side effect of
+ * rendering a page ends up in browser caches, proxy logs and screenshots
+ * belonging to people who never asked for it. Here it takes its own request.
+ *
+ * This exists because the password is rotated automatically: after
+ * `eppitnic poll process` acts on a passwdReminder, nobody knows the current
+ * credential, and reading it out of the settings table by hand is the only
+ * alternative to this.
+ *
+ * Admin only, and Auth::requireAdmin() additionally refuses a token whose
+ * owner has TOTP enabled but has not completed it for this session.
+ */
+$app->get('/v1/session/epp/credentials', function (Request $request, Response $response, array $args): Response {
+    Auth::requireAdmin($request);
+
+    $epp = Config::get('epp');
+    if (($epp['password'] ?? '') === '') {
+        return Json::response($response, ['error' => 'No registry password is configured'], 404);
+    }
+
+    $credentials = [
+        'server'   => $epp['server'] ?? null,
+        'username' => $epp['username'] ?? null,
+        'password' => $epp['password'],
+    ];
+
+    // An unfinished rotation means the registry may hold either of two
+    // passwords, and which one is a question only the registry can answer
+    // (`eppitnic doctor epp-password` asks it). Withholding the candidate here
+    // would leave the operator unable to get in at all in exactly the case
+    // where they most need to.
+    if (($epp['pendingPassword'] ?? '') !== '') {
+        $credentials['pending_password'] = $epp['pendingPassword'];
+        $credentials['note'] = 'A rotation did not finish: the registry holds either password. '
+                             . 'Run `eppitnic doctor epp-password` to settle it.';
+    }
+
+    // Deliberately not written to the changelog: its `object` enum covers
+    // users, contacts and domains, and a credential disclosure is none of
+    // those. Recording it against the reading admin as an 'update' would put
+    // a false entry in the audit trail, which is worse than no entry. Adding
+    // 'settings' to that enum would make this auditable properly.
+    return Json::response($response, ['credentials' => $credentials]);
 });
 
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
