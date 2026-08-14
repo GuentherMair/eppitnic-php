@@ -2,7 +2,7 @@
 
 namespace Eppitnic\Epp;
 
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
@@ -166,7 +166,7 @@ abstract class AbstractObject
    * credential here that a person copies off a screen and reads to somebody
    * else, so it also needs to survive that.
    *
-   * PasswordService answers both: 16 characters, EPP's `pwType` ceiling, drawn
+   * PasswordGenerator answers both: 16 characters, EPP's `pwType` ceiling, drawn
    * from a set with no l/I or O/0 to confuse and nothing a shell would eat.
    * Those 16 characters carry about 95 bits, where the hex this used to return
    * spent the same 16 on 64.
@@ -174,7 +174,7 @@ abstract class AbstractObject
    * @return string 16-character random authinfo code
    */
   public function authinfo(): string {
-    return PasswordService::forAuthinfo();
+    return PasswordGenerator::forAuthinfo();
   }
 
   /**

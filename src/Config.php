@@ -3,7 +3,7 @@
 namespace Eppitnic;
 
 use Hexmode\IOMode\IOMode;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
@@ -307,7 +307,7 @@ final class Config
      */
     private function setupSettings(): void {
         if ($this->settings['jwt_psk'] === '') {
-            $this->persistSetting('jwt_psk', PasswordService::signingKey());
+            $this->persistSetting('jwt_psk', PasswordGenerator::signingKey());
         }
 
         if ( ! self::isInteractive()) {

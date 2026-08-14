@@ -5,7 +5,7 @@ namespace Eppitnic\Epp;
 use Eppitnic\Config;
 use Eppitnic\Epp\Transport\Curl;
 use Eppitnic\Epp\Transport\Transport;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 
 /**
  * A simple class handling the EPP communication through cURL.
@@ -164,7 +164,7 @@ class Client
     // second apart, and hex rather than a password alphabet because a clTRID
     // is an identifier, not a secret: it is a database key, it is quoted back
     // by the registry, and it is what someone greps a log for.
-    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(PasswordService::token(3), 0, 5);
+    $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(PasswordGenerator::token(3), 0, 5);
     if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);
     }

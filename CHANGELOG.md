@@ -41,7 +41,7 @@ merely stored: `eppitnic poll process` rotates the shared EPP password when one
 is outstanding, rate-limited to one attempt per 24 hours by the `epp` setting's
 new `lastPasswordUpdate` timestamp. The new password is recorded locally before
 it is sent, so a run interrupted mid-change can be settled afterwards by asking
-the registry which password it holds. `Net\EPP\Service\PasswordService`
+the registry which password it holds. `Eppitnic\Support\PasswordGenerator`
 generates it from a mixed character set rather than hex, which spent 16
 characters -- EPP's ceiling for the credential -- on 64 bits. Domain authinfo
 codes are drawn the same way, and every other random credential (API tokens,

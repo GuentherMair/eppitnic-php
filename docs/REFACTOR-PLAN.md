@@ -412,3 +412,16 @@ namespace said "Net" because PEAR did. `routes/` became `src/Api/Routes/`,
 inside the tree rather than reached by `../routes` from `public/index.php`;
 the files still register closures rather than declare classes, so they are
 still required, but from `EPPITNIC_ROOT` and in one loop.
+
+**8.4 One cycle, closed.** Mapping the imports between the new layers showed
+`Epp/` importing `Service/` four times while `Service/` imported `Epp/` eleven
+times. Three of the four were the password generator, which `Client`, `Contact`
+and `AbstractObject` need for clTRIDs, handles and authinfo codes — so the
+protocol layer depended on the service layer and back again. It moved to
+`Support/` as `PasswordGenerator`, beside `Validate` and `Csv`: all three are
+dependency-free, and `Epp → Support` points downward. The fourth was a docblock
+mention that had picked up an import it did not need.
+
+`Service/` now means one thing, orchestration, and the graph is strictly
+layered — `Support/` and `Persistence/` depend on nothing, `Epp/` on those,
+`Service/` on `Epp/`, and `Api/` and `Cli/` on everything below.

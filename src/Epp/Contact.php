@@ -5,7 +5,7 @@ namespace Eppitnic\Epp;
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
 use Eppitnic\Persistence\Changelog;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
@@ -333,7 +333,7 @@ class Contact extends AbstractObject
       // hex, not a password charset: a handle is an identifier, not a secret --
       // it lands in REST paths, CSV exports and a foreign key, and only has to
       // avoid colliding, which check() below confirms
-      $handle = strtoupper(PasswordService::token(8)); // 16 hex chars
+      $handle = strtoupper(PasswordGenerator::token(8)); // 16 hex chars
       $answer = $this->check($handle);
 
       // A check that never happened is not a taken handle. Retrying it four

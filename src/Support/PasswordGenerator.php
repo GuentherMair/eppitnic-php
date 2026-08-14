@@ -1,11 +1,14 @@
 <?php
 
-namespace Eppitnic\Service;
+namespace Eppitnic\Support;
 
 /**
  * Generates passwords from a mixed character set.
  *
- * Generation only. Setting the registry's password is RegistryPasswordChange.
+ * Generation only, and no dependencies of its own -- which is why it sits in
+ * Support rather than Service: the protocol layer needs it for authinfo codes
+ * and clTRIDs, and a Service the Epp layer depends on would point the wrong
+ * way. Setting the registry's password is RegistryPasswordChange.
  *
  * The registry credential used to be `bin2hex(random_bytes(8))`. That is a
  * perfectly good 64 bits, but it spends 16 characters saying it -- hex carries
@@ -27,11 +30,11 @@ namespace Eppitnic\Service;
  * look.
  *
  * @category    Net
- * @package     Eppitnic\Service\PasswordService
+ * @package     Eppitnic\Support\PasswordGenerator
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
-final class PasswordService
+final class PasswordGenerator
 {
     /** everything that survives an EPP `token` round trip */
     public const FULL_CHARSET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%!_-';

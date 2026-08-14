@@ -5,7 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Persistence\Changelog;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
@@ -55,7 +55,7 @@ final class UserTokenCommand extends Command
 
         // 32 random bytes as an opaque hex token, stored only as a hash, the
         // same as a password: the plaintext is shown here and never again
-        $token = PasswordService::token();
+        $token = PasswordGenerator::token();
 
         R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE id = :id", [
             ':token'   => hash('sha256', $token),

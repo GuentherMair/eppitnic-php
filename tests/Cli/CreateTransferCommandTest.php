@@ -6,7 +6,7 @@ use Eppitnic\Cli\Command\DomainCreateCommand;
 use Eppitnic\Cli\Command\DomainImportCommand;
 use Eppitnic\Cli\Command\DomainTransferCommand;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
@@ -68,12 +68,12 @@ final class CreateTransferCommandTest extends EppTestCase
 
         $this->assertSame(1, preg_match('#<domain:pw>(.*)</domain:pw>#', $output, $m), 'no authinfo was generated');
 
-        // whatever PasswordService draws from, not a shape frozen here: the
+        // whatever PasswordGenerator draws from, not a shape frozen here: the
         // assertion is that the authinfo is a 16-character credential the
         // registry will take, which is what pwType asks for
         $this->assertSame(16, strlen($m[1]));
         $this->assertSame('', preg_replace(
-            '/[' . preg_quote(PasswordService::SAFE_CHARSET, '/') . ']/', '', $m[1]
+            '/[' . preg_quote(PasswordGenerator::SAFE_CHARSET, '/') . ']/', '', $m[1]
         ), 'the authinfo used characters outside the safe set');
     }
 

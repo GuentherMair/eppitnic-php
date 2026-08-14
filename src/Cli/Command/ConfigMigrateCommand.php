@@ -4,7 +4,7 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Config;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 
 /**
  * Convert a 6.x config.xml into config/config.php and the `settings` table.
@@ -81,7 +81,7 @@ final class ConfigMigrateCommand extends Command
           ],
           // jwt_psk is a signing secret, not just another placeholder -- generate a
           // real one rather than leaving something that might accidentally go live
-          'jwt_psk' => PasswordService::signingKey(),
+          'jwt_psk' => PasswordGenerator::signingKey(),
           // no config.xml source -- seeded with the same placeholder
           // config/mariadb-schema.sql uses; review and adjust by hand
           'safe_networks'   => ['127.0.0.1/32'],

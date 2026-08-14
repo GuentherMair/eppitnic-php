@@ -5,15 +5,16 @@ namespace Eppitnic\Service;
 use Eppitnic\Epp\Client;
 use Eppitnic\Config;
 use Eppitnic\Epp\Session;
+use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
  * Changing the shared EPP registry credential, and recovering when a change
  * does not finish.
  *
- * Not to be confused with PasswordService, which is where a new password comes
- * from. This is what carries one to the registry and keeps the two copies --
- * the registry's account and the `epp` setting -- in step.
+ * PasswordGenerator makes the password; this carries it to the registry and
+ * keeps the two copies -- the registry's account and the `epp` setting -- in
+ * step.
  *
  * @category    Net
  * @package     Eppitnic\Service\RegistryPasswordChange
@@ -146,7 +147,7 @@ final class RegistryPasswordChange
      * something done inside a session that has already logged in.
      *
      * @param string|null $newPassword the new credential; null generates one
-     *                    with PasswordService, at EPP's 16-character ceiling
+     *                    with PasswordGenerator, at EPP's 16-character ceiling
      *                    for pwType. A caller-supplied one is sent as given --
      *                    the registry is the authority on what it will accept.
      * @param bool $stampAttempt also record the attempt time, which the
@@ -155,7 +156,7 @@ final class RegistryPasswordChange
      *         (nothing was sent), 'connect', 'registry', or '' on success
      */
     public static function apply(?string $newPassword = null, bool $stampAttempt = false): array {
-        $newPassword ??= PasswordService::forRegistry();
+        $newPassword ??= PasswordGenerator::forRegistry();
 
         // A failure here is the harmless one: nothing has been sent, so the
         // registry still holds the password this installation still has.

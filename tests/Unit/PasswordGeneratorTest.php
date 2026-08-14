@@ -2,7 +2,7 @@
 
 namespace Eppitnic\Tests\Unit;
 
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -12,24 +12,24 @@ use PHPUnit\Framework\TestCase;
  * unpredictable -- so these assert the properties that hold for every draw,
  * over enough draws that a systematic fault shows up.
  */
-final class PasswordServiceTest extends TestCase
+final class PasswordGeneratorTest extends TestCase
 {
     /** enough draws to catch a class requirement that is only usually met */
     private const DRAWS = 400;
 
     public function testItIsTheRequestedLength(): void {
         foreach ([6, 12, 16, 32] as $length) {
-            $this->assertSame($length, strlen((new PasswordService($length))->get()));
+            $this->assertSame($length, strlen((new PasswordGenerator($length))->get()));
         }
     }
 
     public function testEveryCharacterComesFromTheChosenSet(): void {
-        $generator = new PasswordService(16, true);
+        $generator = new PasswordGenerator(16, true);
 
         for ($i = 0; $i < self::DRAWS; $i++) {
             $this->assertSame(
                 '',
-                trim((string) preg_replace('/[' . preg_quote(PasswordService::SAFE_CHARSET, '/') . ']/', '', $generator->get())),
+                trim((string) preg_replace('/[' . preg_quote(PasswordGenerator::SAFE_CHARSET, '/') . ']/', '', $generator->get())),
                 'a character outside the safe set was drawn'
             );
         }
@@ -41,15 +41,15 @@ final class PasswordServiceTest extends TestCase
      */
     public function testTheSafeSetExcludesTheAmbiguousCharacters(): void {
         foreach (['l', 'I', 'O', '0'] as $ambiguous) {
-            $this->assertStringNotContainsString($ambiguous, PasswordService::SAFE_CHARSET);
+            $this->assertStringNotContainsString($ambiguous, PasswordGenerator::SAFE_CHARSET);
         }
         foreach (['$', '%', '!'] as $awkward) {
-            $this->assertStringNotContainsString($awkward, PasswordService::SAFE_CHARSET);
+            $this->assertStringNotContainsString($awkward, PasswordGenerator::SAFE_CHARSET);
         }
     }
 
     public function testTheRequiredClassesAreAlwaysPresent(): void {
-        $generator = new PasswordService(16, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true);
+        $generator = new PasswordGenerator(16, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true);
 
         for ($i = 0; $i < self::DRAWS; $i++) {
             $password = $generator->get();
@@ -66,7 +66,7 @@ final class PasswordServiceTest extends TestCase
      * "no digits" would be unsatisfiable rather than merely not required.
      */
     public function testAnUnrequiredClassIsNotForced(): void {
-        $generator = new PasswordService(8, false, requireUpper: false, requireLower: true, requireNumber: false, requireSpecialChar: false);
+        $generator = new PasswordGenerator(8, false, requireUpper: false, requireLower: true, requireNumber: false, requireSpecialChar: false);
 
         $sawSomethingOtherThanLower = false;
         for ($i = 0; $i < self::DRAWS; $i++) {
@@ -86,7 +86,7 @@ final class PasswordServiceTest extends TestCase
     public function testASetThatCannotMeetTheRequirementsIsRejected(): void {
         $this->expectException(\InvalidArgumentException::class);
 
-        new PasswordService(16, requireNumber: true, charset: 'abcdefgh');
+        new PasswordGenerator(16, requireNumber: true, charset: 'abcdefgh');
     }
 
     /**
@@ -96,27 +96,27 @@ final class PasswordServiceTest extends TestCase
     public function testAPasswordTooShortForItsRequirementsIsRejected(): void {
         $this->expectException(\InvalidArgumentException::class);
 
-        new PasswordService(2, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true);
+        new PasswordGenerator(2, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true);
     }
 
     public function testAnEmptySetIsRejected(): void {
         $this->expectException(\InvalidArgumentException::class);
 
-        new PasswordService(16, requireUpper: false, requireLower: false, requireSpecialChar: false, charset: '');
+        new PasswordGenerator(16, requireUpper: false, requireLower: false, requireSpecialChar: false, charset: '');
     }
 
     /**
      * A caller's own set is honoured.
      */
     public function testACustomSetIsUsed(): void {
-        $generator = new PasswordService(20, requireUpper: false, requireLower: true, requireSpecialChar: false, charset: 'abc');
+        $generator = new PasswordGenerator(20, requireUpper: false, requireLower: true, requireSpecialChar: false, charset: 'abc');
 
         $this->assertMatchesRegularExpression('/^[abc]{20}$/', $generator->get());
     }
 
     public function testARegistryPasswordFitsWhatEppAccepts(): void {
         for ($i = 0; $i < self::DRAWS; $i++) {
-            $password = PasswordService::forRegistry();
+            $password = PasswordGenerator::forRegistry();
 
             // pwType: token, minLength 6, maxLength 16
             $this->assertSame(16, strlen($password));
@@ -143,7 +143,7 @@ final class PasswordServiceTest extends TestCase
         $characters = [];
 
         for ($i = 0; $i < self::DRAWS; $i++) {
-            $password = PasswordService::forRegistry();
+            $password = PasswordGenerator::forRegistry();
             $seen[$password] = true;
             foreach (str_split($password) as $character) {
                 $characters[$character] = true;
@@ -152,7 +152,7 @@ final class PasswordServiceTest extends TestCase
 
         $this->assertCount(self::DRAWS, $seen, 'a password repeated');
         $this->assertSame(
-            strlen(PasswordService::SAFE_CHARSET),
+            strlen(PasswordGenerator::SAFE_CHARSET),
             count($characters),
             'some characters of the set were never drawn'
         );

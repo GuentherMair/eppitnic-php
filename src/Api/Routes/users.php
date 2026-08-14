@@ -5,7 +5,7 @@ use Eppitnic\Api\ClientIp;
 use Eppitnic\Api\Json;
 use Eppitnic\Config;
 use Eppitnic\Persistence\Changelog;
-use Eppitnic\Service\PasswordService;
+use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -388,7 +388,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     $expires = isset($params['expires']) ? (int) $params['expires'] : 0;
 
     // 32 random bytes as an opaque hex token -- stored only as a hash, same as passwords
-    $token = PasswordService::token();
+    $token = PasswordGenerator::token();
     R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE id = :id", [
         ':token'   => hash('sha256', $token),
         ':expires' => $expires,
