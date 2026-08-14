@@ -4,7 +4,7 @@ use Eppitnic\Api\Auth;
 use Eppitnic\Api\ClientIp;
 use Eppitnic\Api\Json;
 use Eppitnic\Config;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -134,7 +134,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Changelog::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -196,7 +196,7 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Changelog::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -248,7 +248,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
-    Changelog::record('users', $id, 'create', $users[0] ?? [], $user_id);
+    History::record('users', $id, 'create', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ], 201);
@@ -266,7 +266,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Changelog::record('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
+    History::record('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -336,7 +336,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Changelog::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -361,7 +361,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    Changelog::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -396,7 +396,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     ]);
 
     $user_id = (int) $decoded->data->id;
-    Changelog::record('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
+    History::record('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
 
     // the plaintext token is only ever shown here, at issue time -- it can't be
     // recovered later since only its hash is stored
@@ -420,7 +420,7 @@ $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $r
     ]);
 
     $user_id = (int) $decoded->data->id;
-    Changelog::record('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
+    History::record('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
 
     return Json::response($response, ['revoked' => true]);
 });

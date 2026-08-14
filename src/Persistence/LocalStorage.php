@@ -15,7 +15,7 @@ use RedBeanPHP\R;
  *
  * What repeated verbatim was the plumbing: appending the user-scoping clause,
  * turning a SQL failure into setError() plus false, and looking up the row id
- * for the changelog. That is what lives here.
+ * for the history table. That is what lives here.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\LocalStorage
@@ -77,7 +77,7 @@ trait LocalStorage
     }
 
     /**
-     * @return int the row's own id, which the changelog references
+     * @return int the row's own id, which the history table references
      */
     private function storageId(string $key): int {
         return (int) R::getCell(
@@ -127,8 +127,8 @@ trait LocalStorage
      * and a delete on either side would be refused.
      *
      * @param int $active 0 to deactivate, 1 to restore
-     * @param string $logAction the changelog action; a restore logs as 'update',
-     *               since the changelog's enum has no 'restore'
+     * @param string $logAction the history action; a restore logs as 'update',
+     *               since the history enum has no 'restore'
      * @param string $extraWhere an additional condition, e.g. the check that a
      *               contact is not still some domain's registrant
      */
@@ -152,14 +152,14 @@ trait LocalStorage
             return false;
         }
 
-        Changelog::record(static::storageTable(), $this->storageId($key), $logAction, $logData, $userId);
+        History::record(static::storageTable(), $this->storageId($key), $logAction, $logData, $userId);
         return true;
     }
 
     /**
      * Write changed columns back, scoped to the user unless acting as an admin.
      *
-     * Writes only. The changelog entry is the caller's, because what it should
+     * Writes only. The history entry is the caller's, because what it should
      * say differs: an update records the changed columns, while the update half
      * of an upsert records that the object was stored.
      *

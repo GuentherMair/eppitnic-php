@@ -19,13 +19,16 @@ CREATE TABLE `users` (
   UNIQUE KEY (`api_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `changelog` (
+-- Not only changes: `security` rows record events that alter nothing, such as
+-- an admin retrieving the registry credential, which is why this is `history`
+-- rather than `changelog`. Those carry `action` = 'read'.
+CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
   `user_id`               bigint unsigned NOT NULL DEFAULT 1,
-  `object`                enum('users', 'contacts', 'domains') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete') NOT NULL,
+  `action`                enum('create','update','delete','read') NOT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
   PRIMARY KEY (`id`),
   KEY `object_lookup` (`object`,`object_id`),

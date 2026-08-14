@@ -168,7 +168,7 @@ anything actually moved.
 
 `Net\EPP\LocalStorage` holds the persistence plumbing both classes repeated:
 the user-scoping clause, turning a SQL failure into `setError()` plus false,
-the row-id lookup for the changelog, and the soft-delete flip.
+the row-id lookup for the history table, and the soft-delete flip.
 
 Deliberately primitives rather than a shared `storeDB()`. The two classes
 really do store differently -- a contact is upserted because
@@ -183,7 +183,7 @@ Nothing in the offline suite touches the `*DB()` methods, so all of them were
 exercised against the real database inside a transaction, asserting the
 behaviour that is easy to lose in a refactor and invisible afterwards:
 
-- exactly **one** changelog row per operation (the first draft logged twice on
+- exactly **one** history row per operation (the first draft logged twice on
   an upsert, because the shared update helper logged and so did its caller --
   the helper now writes and leaves logging to the caller)
 - an upsert does **not** reassign `user_id` or `active`
@@ -425,3 +425,31 @@ mention that had picked up an import it did not need.
 `Service/` now means one thing, orchestration, and the graph is strictly
 layered — `Support/` and `Persistence/` depend on nothing, `Epp/` on those,
 `Service/` on `Epp/`, and `Api/` and `Cli/` on everything below.
+
+## Phase 9 — the audit trail records more than changes
+
+`GET /v1/session/epp/credentials` hands out the shared registry credential, and
+a disclosure that leaves no trace is not one anybody can review later. Writing
+that trace needed the table to stop being only about changes.
+
+`changelog` is now `history`, `Persistence\Changelog` is `Persistence\History`,
+and `GET /v1/changelog/...` is `GET /v1/history/...`. Its enums gained the two
+values a non-change needs: `object` = `security` and `action` = `read`.
+
+A `security` row records the event, the acting user, the client IP and the
+request headers. It does not record the password — the log is read by more
+people, and far more casually, than the credential was shown to — and
+`History::recordSecurityEvent()` replaces `Authorization`, `Cookie` and
+`Proxy-Authorization` with `[redacted]`, since each is itself a live credential
+and copying one into a table anyone with SELECT can read would hand out a
+working session. They are kept as `[redacted]` rather than dropped, so that a
+header's absence from the log is not read as its absence from the request.
+
+`GET /v1/history/security/{id}` is admin-only. The other three object types stay
+unscoped, as they always were — that is a separate gap, noted in docs/API.md.
+
+Two faults surfaced while testing this. `EPP_PUBLIC_FIELDS` was a file-scope
+`const` in a route file that is `require`d rather than `require_once`d:
+loading the routes twice warns today and is fatal in PHP 9. And
+`ClientIp::get()` read `$_SERVER['REMOTE_ADDR']` blind, which warns wherever
+there is no connection to name — the CLI, and any synthesised request.

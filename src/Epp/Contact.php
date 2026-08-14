@@ -4,7 +4,7 @@ namespace Eppitnic\Epp;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
@@ -646,7 +646,7 @@ class Contact extends AbstractObject
       }
     }
 
-    Changelog::record(
+    History::record(
       'contacts', $this->storageId($this->handle),
       empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id
     );
@@ -721,7 +721,7 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    Changelog::record('contacts', $this->storageId($contact), 'update', $data, $user_id);
+    History::record('contacts', $this->storageId($contact), 'update', $data, $user_id);
     return TRUE;
   }
 
@@ -773,7 +773,7 @@ class Contact extends AbstractObject
    * @return bool status
    */
   public function restoreContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
-    // logged as 'update': the changelog action enum has no 'restore'
+    // logged as 'update': the history action enum has no 'restore'
     return $this->storageSetActive(
       $contact, 1, $user_id, $isAdmin, 'update', ['handle' => $contact, 'active' => 1]
     );

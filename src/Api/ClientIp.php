@@ -33,7 +33,11 @@ final class ClientIp
         } elseif (array_key_exists('HTTP_X_FORWARDED_FOR', $headers) && filter_var($headers['HTTP_X_FORWARDED_FOR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
             return $headers['HTTP_X_FORWARDED_FOR'];
         } else {
-            return filter_var($_SERVER['REMOTE_ADDR'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+            // REMOTE_ADDR is absent whenever there is no connection to name --
+            // the CLI, and any test that builds a request itself. Reading it
+            // blind warned, and "there is no address" is a normal answer here,
+            // not an error: false is what the signature already promises.
+            return filter_var($_SERVER['REMOTE_ADDR'] ?? '', FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
         }
     }
 

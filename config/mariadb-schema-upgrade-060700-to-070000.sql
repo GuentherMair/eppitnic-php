@@ -336,8 +336,8 @@ ALTER TABLE messages
   CHANGE COLUMN `archivedTime` `archived_time` DATETIME DEFAULT NULL,
   CHANGE COLUMN `createdTime` `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- `reminder` pre-dates this migration (unlike changelog) and already holds
--- data, so -- unlike changelog -- it's altered in place here rather than
+-- `reminder` pre-dates this migration (unlike history) and already holds
+-- data, so -- unlike history -- it's altered in place here rather than
 -- created fresh; PART 2 only renamed + converted its charset, this finishes
 -- the job: reorders columns to match the target layout, narrows `notice`
 -- from TEXT to VARCHAR(255) and makes `date` NOT NULL (both pre-flight
@@ -432,10 +432,12 @@ UPDATE domains SET
 
 
 -- ----------------------------------------------------------------------------
--- PART 4: NEW TABLE - changelog
+-- PART 4: NEW TABLE - history
 --
--- Unlike reminder, changelog has no equivalent in the dump --
--- there is no tbl_changelog -- so this genuinely is a fresh CREATE TABLE.
+-- Unlike reminder, history has no equivalent in the dump -- there is no
+-- tbl_changelog -- so this genuinely is a fresh CREATE TABLE. It records more
+-- than changes: `security` rows note events that alter nothing, such as an
+-- admin retrieving the registry credential.
 -- Depends on `users` existing under its final name (created in Part 2), so
 -- this must run after Part 2. Not dependent on Part 3's column renames.
 --
@@ -448,13 +450,13 @@ UPDATE domains SET
 -- (11.8.8-MariaDB) comfortably supports this.
 -- ----------------------------------------------------------------------------
 
-CREATE TABLE `changelog` (
+CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
   `user_id`               bigint unsigned NOT NULL DEFAULT 1,
-  `object`                enum('users', 'contacts', 'domains') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete') NOT NULL,
+  `action`                enum('create','update','delete','read') NOT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
   PRIMARY KEY (`id`),
   KEY `object_lookup` (`object`,`object_id`),
@@ -496,7 +498,7 @@ ALTER TABLE users
 -- ----------------------------------------------------------------------------
 
 -- 6a. Confirm every renamed table now reports utf8mb4 / utf8mb4_unicode_ci
---     at both the table default and per-column level. (changelog is
+--     at both the table default and per-column level. (history is
 --     excluded from the per-column check below since `data` is
 --     intentionally utf8mb4_bin, not utf8mb4_unicode_ci.)
 SELECT TABLE_NAME, CCSA.CHARACTER_SET_NAME, T.TABLE_COLLATION
@@ -506,7 +508,7 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'reminder','changelog');
+                        'reminder','history');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
@@ -547,21 +549,21 @@ WHERE TABLE_SCHEMA = DATABASE()
 -- ^ this query should return ZERO rows (no upper-case characters left in
 --   any column name across these 10 tables).
 
--- 6e. Confirm changelog/reminder exist with the expected shape:
---     PKs, secondary indexes, and changelog's data column
+-- 6e. Confirm history/reminder exist with the expected shape:
+--     PKs, secondary indexes, and history's data column
 --     charset/collation/CHECK constraint.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('changelog','reminder')
+  AND TABLE_NAME IN ('history','reminder')
 ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
 SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('changelog','reminder')
+  AND TABLE_NAME IN ('history','reminder')
 ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
--- ^ expect: changelog: PRIMARY (id), object_lookup (object, object_id)
+-- ^ expect: history: PRIMARY (id), object_lookup (object, object_id)
 --           reminder:  PRIMARY (id), id (id, the pre-existing redundant
 --                      UNIQUE KEY -- harmless, matches the pattern already
 --                      present on every other original table), domain
@@ -570,7 +572,7 @@ ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
 WHERE CONSTRAINT_SCHEMA = DATABASE()
-  AND TABLE_NAME = 'changelog';
+  AND TABLE_NAME = 'history';
 -- ^ expect one row enforcing json_valid(`data`)
 
 -- 6f. Confirm users picked up the new columns, in the expected order, and
@@ -585,7 +587,7 @@ ORDER BY ORDINAL_POSITION;
 --   api_token, api_token_expires (in that order after techc), and no `dns`.
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the
---     new names, including changelog's and reminder's FKs.
+--     new names, including history's and reminder's FKs.
 SELECT
     TABLE_NAME        AS child_table,
     COLUMN_NAME        AS child_column,
@@ -597,12 +599,12 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'reminder','changelog');
+                      'reminder','history');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
---           changelog.user_id -> users.id
+--           history.user_id -> users.id
 --           reminder.domain -> domains.domain
 -- (there is deliberately no accounting table any more -- PART 2 drops it)
 

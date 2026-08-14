@@ -132,6 +132,12 @@ schema still in use. Drop it yourself once you have confirmed you do not need it
 
 ### Breaking changes to check your code against
 
+- The audit-trail table is `history`, not `changelog`, and records more than
+  changes: a `security`/`read` row notes events that alter nothing, such as an
+  admin retrieving the registry credential. The endpoint is
+  `GET /v1/history/{object}/{object_id}`, and its `security` rows are
+  admin-only.
+
 - `Domain->get('tech')` always returns an array now (keyed handle => handle).
   It used to return a bare string for a single technical contact, so
   `array_keys((array) $domain->get('tech'))` gave `[0]` instead of the handle.

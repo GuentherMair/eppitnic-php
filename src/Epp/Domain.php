@@ -3,7 +3,7 @@
 namespace Eppitnic\Epp;
 
 use Algo26\IdnaConvert\ToIdn;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
@@ -940,7 +940,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    Changelog::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
+    History::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
       // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the zone
@@ -1048,7 +1048,7 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    Changelog::record('domains', $this->storageId($domain), 'update', $data, $user_id);
+    History::record('domains', $this->storageId($domain), 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update
     if (in_array('ns', $changes, true)) {
@@ -1250,7 +1250,7 @@ class Domain extends AbstractObject
    * @return bool status
    */
   public function restoreDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
-    // logged as 'update': the changelog action enum has no 'restore'
+    // logged as 'update': the history action enum has no 'restore'
     if ( ! $this->storageSetActive($domain, 1, $user_id, $isAdmin, 'update', ['domain' => $domain, 'active' => 1])) {
       return FALSE;
     }

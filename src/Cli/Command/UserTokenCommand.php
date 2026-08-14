@@ -4,7 +4,7 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
@@ -62,7 +62,7 @@ final class UserTokenCommand extends Command
             ':expires' => $expires,
             ':id'      => $user['id'],
         ]);
-        Changelog::record('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
+        History::record('users', (int) $user['id'], 'update', ['api_token_expires' => $expires], (int) $user['id']);
 
         $this->record(
             "API token issued for '{$user['username']}' (id {$user['id']})\n"

@@ -6,7 +6,7 @@ use Algo26\IdnaConvert\ToUnicode;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use RedBeanPHP\R;
 
 /**
@@ -255,7 +255,7 @@ final class DomainService
         if ($persist) {
             R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
             $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-            Changelog::record('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
+            History::record('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
         }
 
         return ['ok' => true, 'domain' => $domain];

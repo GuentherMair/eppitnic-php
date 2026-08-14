@@ -50,7 +50,7 @@ final class ErrorResponseTest extends TestCase
         $app = AppFactory::create();
         Middleware::register($app);
 
-        foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'reminders', 'whois', 'changelog'] as $file) {
+        foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'reminders', 'whois', 'history'] as $file) {
             require EPPITNIC_ROOT . "/src/Api/Routes/{$file}.php";
         }
 

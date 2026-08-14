@@ -4,7 +4,7 @@ use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Domain;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use Eppitnic\Service\DomainService;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Support\Csv;
@@ -305,13 +305,13 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
     }
 
     // quota check -- count today's domain creations against this user's cap,
-    // sourced from the changelog audit trail rather than a separate counter
+    // sourced from the history audit trail rather than a separate counter
     if ( ! $isAdmin) {
         $user = R::getRow("SELECT max_operations FROM users WHERE id = ?", [$user_id]);
         $maxOps = (int) ($user['max_operations'] ?? 0);
         if ($maxOps > 0) {
             $used = (int) R::getCell("
-                SELECT COUNT(*) FROM changelog
+                SELECT COUNT(*) FROM history
                 WHERE user_id = ? AND object = 'domains' AND action = 'create' AND DATE(timestamp) = CURDATE()
             ", [$user_id]);
             if ($used >= $maxOps) {
@@ -517,7 +517,7 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     }
     R::exec($sql, $sqlParams);
     $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-    Changelog::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
+    History::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
 
     return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });

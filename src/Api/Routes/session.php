@@ -3,6 +3,7 @@
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Config;
+use Eppitnic\Persistence\History;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Service\RegistryPasswordChange;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -69,7 +70,7 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
  * owner has TOTP enabled but has not completed it for this session.
  */
 $app->get('/v1/session/epp/credentials', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    $user_id = Auth::requireAdmin($request);
 
     $epp = Config::get('epp');
     if (($epp['password'] ?? '') === '') {
@@ -93,11 +94,14 @@ $app->get('/v1/session/epp/credentials', function (Request $request, Response $r
                              . 'Run `eppitnic doctor epp-password` to settle it.';
     }
 
-    // Deliberately not written to the changelog: its `object` enum covers
-    // users, contacts and domains, and a credential disclosure is none of
-    // those. Recording it against the reading admin as an 'update' would put
-    // a false entry in the audit trail, which is worse than no entry. Adding
-    // 'settings' to that enum would make this auditable properly.
+    // A credential left the system, so who took it and from where is recorded
+    // before it is handed over. The password itself is not written -- the log
+    // is read by more people, and more casually, than the thing it is about --
+    // and History redacts the Authorization header for the same reason.
+    History::recordSecurityEvent('epp_credentials_retrieved', $request, $user_id, [
+        'rotation_pending' => isset($credentials['pending_password']),
+    ]);
+
     return Json::response($response, ['credentials' => $credentials]);
 });
 

@@ -4,7 +4,7 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Persistence\Changelog;
+use Eppitnic\Persistence\History;
 use RedBeanPHP\R;
 
 /**
@@ -67,7 +67,7 @@ final class UserCreateCommand extends Command
         $id = (int) R::getInsertID();
         // no authenticated actor exists yet when bootstrapping, so the new user
         // is recorded as its own actor
-        Changelog::record('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
+        History::record('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
 
         $this->record(
             "user '{$username}' created (id {$id}" . ($isAdmin ? ', admin' : '') . ')',
