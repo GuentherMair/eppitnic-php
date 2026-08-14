@@ -77,7 +77,7 @@ final class HistoryAcknowledgeTest extends TestCase
         $app = $this->app();
         $this->seed('security', 'denied');
 
-        $body = self::body($this->call($app, 'GET', '/v1/history/security'));
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security'));
 
         $this->assertSame(1, $body['outstanding']);
         $this->assertNull($body['history'][0]['acknowledged_time']);
@@ -91,7 +91,7 @@ final class HistoryAcknowledgeTest extends TestCase
 
         $this->call($app, 'POST', "/v1/history/{$first}/acknowledge");
 
-        $body = self::body($this->call($app, 'GET', '/v1/history/security?acknowledged=0'));
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security&acknowledged=0'));
 
         $this->assertCount(1, $body['history']);
         $this->assertSame($second, (int) $body['history'][0]['id']);
@@ -104,7 +104,7 @@ final class HistoryAcknowledgeTest extends TestCase
         $this->seed('security', 'denied');
         $this->call($app, 'POST', "/v1/history/{$first}/acknowledge");
 
-        $body = self::body($this->call($app, 'GET', '/v1/history/security?acknowledged=1'));
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security&acknowledged=1'));
 
         $this->assertCount(1, $body['history']);
         $this->assertSame($first, (int) $body['history'][0]['id']);
@@ -119,7 +119,7 @@ final class HistoryAcknowledgeTest extends TestCase
         R::exec("INSERT INTO history (user_id, object, object_id, action, data) VALUES (NULL, 'security', 0, 'denied', '{}')");
         $this->seed('security', 'login', 'login_succeeded');
 
-        $this->assertCount(2, self::body($this->call($app, 'GET', '/v1/history/security'))['history']);
+        $this->assertCount(2, self::body($this->call($app, 'GET', '/v1/history?object=security'))['history']);
     }
 
     public function testOnlySecurityRowsAreListed(): void {
@@ -127,7 +127,7 @@ final class HistoryAcknowledgeTest extends TestCase
         $this->seed('domains', 'update');
         $this->seed('security', 'denied');
 
-        $body = self::body($this->call($app, 'GET', '/v1/history/security'));
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security'));
 
         $this->assertCount(1, $body['history']);
         $this->assertSame('security', $body['history'][0]['object']);
@@ -192,12 +192,22 @@ final class HistoryAcknowledgeTest extends TestCase
     // who may do it
     // ---------------------------------------------------------------
 
-    public function testListingSecurityRequiresAdmin(): void {
+    /**
+     * A non-admin asking for security events is answered, and told about none
+     * of them. Filters narrow what the caller may see; they never widen it, so
+     * this is an empty list rather than a 403 -- the honest answer to "what
+     * security events are there" is, for them, none.
+     */
+    public function testANonAdminSeesNoSecurityEntries(): void {
         $app = $this->app();
         $this->seed('security', 'denied');
 
-        $this->assertSame(401, $this->call($app, 'GET', '/v1/history/security', null)->getStatusCode());
-        $this->assertSame(403, $this->call($app, 'GET', '/v1/history/security', ['admin' => 0])->getStatusCode());
+        $this->assertSame(401, $this->call($app, 'GET', '/v1/history?object=security', null)->getStatusCode());
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security', ['admin' => 0]));
+        $this->assertSame([], $body['history']);
+        $this->assertSame(0, $body['total']);
+        $this->assertArrayNotHasKey('outstanding', $body, 'a non-admin was told how many security entries exist');
     }
 
     public function testAcknowledgingRequiresAdmin(): void {
@@ -215,7 +225,7 @@ final class HistoryAcknowledgeTest extends TestCase
         $app = $this->app();
         $this->seed('domains', 'update');
 
-        $this->assertSame(200, $this->call($app, 'GET', '/v1/history/domains/1', ['admin' => 0])->getStatusCode());
-        $this->assertSame(403, $this->call($app, 'GET', '/v1/history/security/1', ['admin' => 0])->getStatusCode());
+        $this->assertSame(200, $this->call($app, 'GET', '/v1/history/domains/1')->getStatusCode());
+        $this->assertSame([], self::body($this->call($app, 'GET', '/v1/history/security/1', ['admin' => 0]))['history']);
     }
 }

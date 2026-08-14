@@ -334,8 +334,8 @@ proxy: every request looks like it came from the proxy, so all clients share
 one bucket and none of them ever matches `safe_networks`. Populated without a
 proxy: nothing changes, because the connecting address will not be in it.
 
-Work through them with `GET /v1/history/security?acknowledged=0`, which also
-answers how many are outstanding, and `POST /v1/history/{id}/acknowledge` to
+Work through them with `GET /v1/history?object=security&acknowledged=0`, which
+also answers how many are outstanding, and `POST /v1/history/{id}/acknowledge` to
 mark one as read. Acknowledging records who did it and when — for a security
 log, who dismissed an alert matters as much as that somebody did — and changes
 nothing about what the entry says happened.

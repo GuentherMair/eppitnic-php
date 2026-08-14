@@ -2,41 +2,40 @@
 
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
+use Eppitnic\Persistence\History;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 /**
- * The security log, newest first.
+ * The audit trail, newest first, filtered by whatever the caller asks for.
  *
- * Admin only, and separate from the per-object lookup below because reviewing
- * security events is a different question: not "what happened to this domain"
- * but "what has happened that nobody has looked at yet". A failed login at a
- * username that does not exist has no object to be looked up under, so without
- * this it would be reachable only by knowing to ask for object_id 0.
+ * What comes back is scoped to what the caller may see -- an admin sees
+ * everything, everyone else sees the history of the objects they own. See
+ * History::visibleTo(). Filters narrow that; they never widen it, so asking
+ * for `object=security` as a non-admin returns nothing rather than 403: the
+ * answer to "what security events are there" is, for them, none.
  *
- * `?acknowledged=0` is the working view -- what is still outstanding. Omit it
- * to see everything.
+ * Filters: object, object_id, action, network, acknowledged (0/1), since,
+ * until, limit (max 500), offset.
+ *
+ * `outstanding` accompanies an admin's response: how many `security` entries
+ * nobody has acknowledged, so a UI can badge them without a second request.
  */
-$app->get('/v1/history/security', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+$app->get('/v1/history', function (Request $request, Response $response, array $args): Response {
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
 
-    $params = $request->getQueryParams();
-    $limit  = min(500, max(1, (int) ($params['limit'] ?? 100)));
+    $page = History::visibleTo($user_id, $isAdmin, $request->getQueryParams());
 
-    $where = "object = 'security'";
-    if (isset($params['acknowledged'])) {
-        $where .= ($params['acknowledged'] === '0')
-            ? ' AND acknowledged_time IS NULL'
-            : ' AND acknowledged_time IS NOT NULL';
+    $body = [
+        'history' => $page['rows'],
+        'total'   => $page['total'],
+    ];
+    if ($isAdmin) {
+        $body['outstanding'] = History::outstandingSecurityCount();
     }
 
-    $events = R::getAll("SELECT * FROM history WHERE {$where} ORDER BY id DESC LIMIT {$limit}");
-
-    return Json::response($response, [
-        'history'      => $events,
-        'outstanding'  => (int) R::getCell("SELECT COUNT(*) FROM history WHERE object = 'security' AND acknowledged_time IS NULL"),
-    ]);
+    return Json::response($response, $body);
 });
 
 /**
@@ -71,33 +70,24 @@ $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response 
 });
 
 /**
- * What happened to one object, newest first.
+ * What happened to one object -- the shorthand for the two filters people ask
+ * for together most often.
  *
- * `security` is admin-only. The other object types record what someone did to
- * a domain, contact or user; `security` records who read a credential, from
- * which address, with which headers, and that is not something every holder of
- * a valid token should be able to page through.
- *
- * The remaining three are deliberately left unscoped, as they always were --
- * any valid token can read any domain's or contact's history. That is a
- * separate question from this one and is noted in docs/API.md.
+ * Scoped exactly as the listing is. It used to answer for any object anybody
+ * named, which meant any valid token could read every user's history, and a
+ * `users` snapshot carries an email address and an admin flag.
  */
 $app->get('/v1/history/{object}/{object_id}', function (Request $request, Response $response, array $args): Response {
-    if ($args['object'] === 'security') {
-        Auth::requireAdmin($request);
-    } else {
-        Auth::userId($request);
-    }
+    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
 
-    $history = R::getAll(
-        "SELECT * FROM history WHERE object = :object AND object_id = :object_id ORDER BY timestamp DESC",
-        [
-            ':object'    => $args['object'],
-            ':object_id' => $args['object_id'],
-        ]
-    );
+    $page = History::visibleTo($user_id, $isAdmin, [
+        'object'    => $args['object'],
+        'object_id' => $args['object_id'],
+        'limit'     => $request->getQueryParams()['limit'] ?? 500,
+    ]);
 
     return Json::response($response, [
-        'history' => $history,
+        'history' => $page['rows'],
+        'total'   => $page['total'],
     ]);
 });

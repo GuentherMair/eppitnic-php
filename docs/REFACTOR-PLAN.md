@@ -521,6 +521,30 @@ Only `security` rows are meant to be worked through, but the columns live on
 `history` rather than in a table of their own -- as `network` does -- because
 one sparse column pair is cheaper than a join at this size.
 
-The listing is separate from `GET /v1/history/{object}/{object_id}` because a
-failed login at a username that does not exist has no object to be looked up
-under: it would otherwise be reachable only by knowing to ask for object_id 0.
+The listing is `GET /v1/history` with filters, rather than a route per object
+type: a failed login at a username that does not exist has no object to be
+looked up under, so it would otherwise be reachable only by knowing to ask for
+object_id 0.
+
+### Reading the rest of it, and the scoping that had to come first
+
+`GET /v1/history` exposes the whole trail, filtered by `object`, `object_id`,
+`action`, `network`, `acknowledged`, `since`, `until`, with paging.
+`GET /v1/history/{object}/{object_id}` stays as the shorthand.
+
+Doing that safely meant fixing what was already there. The per-object endpoint
+answered for any object anybody named -- documented as "not scoped at all" --
+and a `users` snapshot carries an email address and an admin flag, so any valid
+token could read every user's. A general listing would have turned that from a
+leak you had to know how to ask for into a leak you could page through.
+
+`History::visibleTo()` is now the single place that decides: an admin sees
+everything, everyone else sees the history of objects they own, by the same
+rule the domain and contact routes already scope by. `security` is excluded by
+omission rather than by a `NOT`, so a new object type is invisible until
+somebody lists it.
+
+Filters narrow what is visible and never widen it, so `?object=security` as a
+non-admin returns an empty list rather than 403 -- the honest answer to "what
+security events are there" is, for them, none. `total` counts what the caller
+may see, since a total of everything would report how much is being withheld.

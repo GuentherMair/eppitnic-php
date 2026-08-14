@@ -109,6 +109,92 @@ final class History
      * @return array<string, string> header name => value, comma-joined where a
      *         header appeared more than once
      */
+    /**
+     * Entries $userId is allowed to see, newest first.
+     *
+     * An admin sees everything. Everyone else sees the history of the objects
+     * they own, by the same rule the rest of the API scopes by: their own user
+     * row, their own domains, their own contacts. Never `security`, which
+     * carries other people's addresses and headers.
+     *
+     * This exists because the per-object endpoint used to answer for any
+     * object anybody asked about -- a `users` snapshot carries an email address
+     * and an admin flag, and any valid token could read every one of them.
+     *
+     * @param array<string, mixed> $filters object, object_id, action, network,
+     *        acknowledged ('0'/'1'), since, until, limit, offset
+     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     */
+    public static function visibleTo(int $userId, bool $isAdmin, array $filters = []): array {
+        [$where, $params] = self::scope($userId, $isAdmin, $filters);
+
+        $limit  = min(500, max(1, (int) ($filters['limit'] ?? 100)));
+        $offset = max(0, (int) ($filters['offset'] ?? 0));
+
+        return [
+            'rows'  => R::getAll(
+                "SELECT * FROM history WHERE {$where} ORDER BY id DESC LIMIT {$limit} OFFSET {$offset}",
+                $params
+            ),
+            'total' => (int) R::getCell("SELECT COUNT(*) FROM history WHERE {$where}", $params),
+        ];
+    }
+
+    /**
+     * How many `security` entries nobody has acknowledged. Admin-only figure,
+     * since admins are the only ones who can see those entries at all.
+     */
+    public static function outstandingSecurityCount(): int {
+        return (int) R::getCell(
+            "SELECT COUNT(*) FROM history WHERE object = 'security' AND acknowledged_time IS NULL"
+        );
+    }
+
+    /**
+     * The WHERE clause and its parameters: what this caller may see, narrowed
+     * by whatever they asked for.
+     *
+     * @param array<string, mixed> $filters
+     * @return array{0: string, 1: array<string, mixed>}
+     */
+    private static function scope(int $userId, bool $isAdmin, array $filters): array {
+        $params = [];
+        $clauses = [];
+
+        if ($isAdmin) {
+            $clauses[] = '1 = 1';
+        } else {
+            // security is excluded by omission rather than by a NOT: a new
+            // object type defaults to invisible until it is listed here
+            $params[':me'] = $userId;
+            $clauses[] = "(object = 'users' AND object_id = :me
+                        OR object = 'domains'  AND object_id IN (SELECT id FROM domains  WHERE user_id = :me)
+                        OR object = 'contacts' AND object_id IN (SELECT id FROM contacts WHERE user_id = :me))";
+        }
+
+        foreach (['object' => 'object', 'object_id' => 'object_id', 'action' => 'action', 'network' => 'network'] as $filter => $column) {
+            if (isset($filters[$filter]) && $filters[$filter] !== '') {
+                $clauses[] = "{$column} = :{$filter}";
+                $params[":{$filter}"] = $filters[$filter];
+            }
+        }
+
+        if (isset($filters['acknowledged'])) {
+            $clauses[] = $filters['acknowledged'] === '0'
+                ? 'acknowledged_time IS NULL'
+                : 'acknowledged_time IS NOT NULL';
+        }
+
+        foreach (['since' => '>=', 'until' => '<='] as $filter => $comparison) {
+            if ( ! empty($filters[$filter])) {
+                $clauses[] = "`timestamp` {$comparison} :{$filter}";
+                $params[":{$filter}"] = $filters[$filter];
+            }
+        }
+
+        return [implode(' AND ', $clauses), $params];
+    }
+
     private static function safeHeaders(Request $request): array {
         $headers = [];
 
