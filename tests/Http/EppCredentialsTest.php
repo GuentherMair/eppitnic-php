@@ -27,6 +27,8 @@ final class EppCredentialsTest extends TestCase
 
     private const SETTINGS = [
         'jwt_psk' => 'test-signing-key-for-this-suite-only',
+        'trusted_proxies' => [],
+        'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
         'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
         'epp'     => [
             'server'   => 'https://epp.pubtest.nic.it',
@@ -54,7 +56,7 @@ final class EppCredentialsTest extends TestCase
         }
         R::exec('DROP TABLE IF EXISTS history');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, data TEXT)');
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
 
         $app = AppFactory::create();
         Middleware::register($app);

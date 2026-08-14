@@ -453,3 +453,48 @@ Two faults surfaced while testing this. `EPP_PUBLIC_FIELDS` was a file-scope
 loading the routes twice warns today and is fatal in PHP 9. And
 `ClientIp::get()` read `$_SERVER['REMOTE_ADDR']` blind, which warns wherever
 there is no connection to name — the CLI, and any synthesised request.
+
+## Phase 10 — login rate limiting
+
+Failed logins are recorded as `security`/`attempt` rows, and enough of them from
+one network stop being answered: `POST /v1/users/authenticate` returns 429
+before the credentials are examined, since a check that runs after the guess has
+been evaluated has already done the work the guesser wanted.
+
+Counted per network rather than per address. One ordinary IPv6 customer
+connection is a `/64` — 18 billion billion addresses — so a per-address limit
+would stop nobody at all. IPv4 uses `/24`. Both are settings, alongside
+`max_failures` and `timespan`.
+
+The window slides, so a block lifts itself as the old failures age out; there is
+nothing to clear and no expiry job. Blocks are recorded as `security`/`read`
+rather than `attempt`, so a network that keeps knocking does not extend its own
+block. A successful login does not reset the count, which would let anyone
+holding one working account clear the evidence before guessing at the others.
+
+### The part that made the rest worth doing
+
+`ClientIp` preferred `X-Forwarded-For` over the connecting address, with no
+check on who sent it. That header is written by the client. `safe_networks`
+skips MFA for addresses it recognises, so **any request carrying
+`X-Forwarded-For: 127.0.0.1` skipped MFA** — an authentication bypass that
+predates this work, and one a rate limit keyed on the same value would have
+inherited whole.
+
+The header is now believed only when the address that actually connected is in
+the new `trusted_proxies` setting, which defaults to empty. With a chain, the
+rightmost address that is not itself a trusted proxy is the answer: anything
+left of that was written by someone with no reason to be believed.
+
+`ClientIp` was also IPv4-only throughout — `FILTER_FLAG_IPV4` and `ip2long()`,
+which cannot represent an IPv6 address. Matching is now done on packed bytes,
+so both families work the same way, and an address is never inside a range of
+the other family.
+
+### Schema
+
+`history.user_id` became nullable: a login attempt at a username that does not
+exist has nobody to attribute it to, and defaulting it to user 1 would put a
+false entry in the trail. `action` gained `attempt`. And `network` is a column
+of its own rather than a field inside `data`, because the limiter reads it on
+every authentication attempt and an index cannot reach inside JSON.

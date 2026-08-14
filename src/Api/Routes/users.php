@@ -3,6 +3,7 @@
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\ClientIp;
 use Eppitnic\Api\Json;
+use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
@@ -26,6 +27,25 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     $username = $params['username'] ?? '';
     $password = $params['password'] ?? '';
 
+    // Before the credentials are looked at, not after: the point of the limit
+    // is that guessing costs something, and a check that runs after the guess
+    // has been evaluated has already done the work an attacker wanted.
+    if (LoginRateLimit::isExceeded()) {
+        $retryAfter = LoginRateLimit::retryAfter();
+
+        // recorded, but as its own event -- blocks must not feed the counter
+        // that produced them, or a blocked network would extend its own block
+        // by continuing to knock
+        History::recordSecurityEvent('login_blocked', $request, null, [
+            'username' => (string) $username,
+        ], 'read');
+
+        return Json::response($response, [
+            'error'       => 'Too many failed login attempts. Try again later.',
+            'retry_after' => $retryAfter,
+        ], 429)->withHeader('Retry-After', (string) $retryAfter);
+    }
+
     if (empty($username)) {
         return Json::response($response, ['error' => 'Please provide a username'], 401);
     }
@@ -41,6 +61,14 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     ]);
 
     if (empty($user) || !password_verify($password, $user[0]['password'])) {
+        // The response says only "wrong username or password", so that it
+        // cannot be used to find out which usernames exist. The log may be
+        // precise -- it is read by an operator, not by whoever is guessing.
+        History::recordSecurityEvent('login_failed', $request, empty($user) ? null : (int) $user[0]['id'], [
+            'username' => (string) $username,
+            'reason'   => empty($user) ? 'no such active user' : 'wrong password',
+        ], 'attempt');
+
         return Json::response($response, ['error' => 'Wrong username or password'], 401);
     }
 
@@ -60,6 +88,13 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             return Json::response($response, ['error' => 'MFA code required'], 401);
         }
         if (!Auth::totpVerify($user[0]['totp_secret'], $totpCode)) {
+            // counted like any other failure: the password alone is not a
+            // login here, so guessing the second factor has to cost the same
+            History::recordSecurityEvent('login_failed', $request, (int) $user[0]['id'], [
+                'username' => (string) $username,
+                'reason'   => 'wrong MFA code',
+            ], 'attempt');
+
             return Json::response($response, ['error' => 'Invalid MFA code'], 401);
         }
     }

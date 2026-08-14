@@ -453,13 +453,22 @@ UPDATE domains SET
 CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
-  `user_id`               bigint unsigned NOT NULL DEFAULT 1,
+  -- nullable: a login attempt at a username that does not exist has nobody
+  -- to attribute it to, and defaulting it to user 1 would put a false entry
+  -- in the trail
+  `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','read') NOT NULL,
+  `action`                enum('create','update','delete','read','attempt') NOT NULL,
+  -- the client's address masked to its rate-limiting prefix, for `security`
+  -- rows only. Its own column rather than a field inside `data` because the
+  -- login rate limit reads it on every authentication attempt, and an index
+  -- cannot reach inside JSON.
+  `network`               varchar(64) DEFAULT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
   PRIMARY KEY (`id`),
   KEY `object_lookup` (`object`,`object_id`),
+  KEY `rate_limit_window` (`network`,`timestamp`),
   CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -694,6 +703,16 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
+  -- Proxies whose X-Forwarded-For is believed. Empty means none: the header is
+  -- client-supplied, and this decides both who counts as being on a
+  -- safe_network (which skips MFA) and which network a failed login is counted
+  -- against. List your reverse proxy here, and nothing else.
+  ('trusted_proxies', '[]'),
+  -- Failed logins allowed per network per timespan (seconds) before the login
+  -- endpoint answers 429. Counted per network rather than per address: one
+  -- ordinary IPv6 customer connection is a /64, so a per-address limit would
+  -- stop nobody. max_failures of 0 disables the limit.
+  ('login_ratelimit', '{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":64}'),
   ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),

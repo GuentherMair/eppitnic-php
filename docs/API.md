@@ -43,6 +43,31 @@ call fails with `needs_totp` semantics (see below) — there is no separate
 two-step "submit password, then submit code" exchange; retry the whole call
 once you have the code.
 
+**Rate limited.** Before the credentials are examined, the caller's network is
+checked against the failures it has already produced. Past
+`login_ratelimit.max_failures` within `login_ratelimit.timespan` seconds, the
+call answers `429` with a `Retry-After` header and `{"error": ..., "retry_after": n}`.
+The window slides, so a block lifts itself as the old failures age out.
+
+Counted per **network**, not per address — IPv4 `/24` and IPv6 `/64` by default
+(`ipv4_prefix`, `ipv6_prefix`). One ordinary IPv6 customer connection is a `/64`,
+so a per-address limit would stop nobody. `max_failures: 0` disables it.
+
+Every failure — unknown username, wrong password, wrong TOTP code — is recorded
+in `history` as a `security`/`attempt` row with the address, the network and the
+request headers. Blocks are recorded as `security`/`read`, so a network that
+keeps knocking does not extend its own block. The attempted password is never
+recorded, and the response stays `Wrong username or password` whichever half was
+wrong, so it cannot be used to discover which usernames exist — the log is
+precise where the response is vague.
+
+**Behind a reverse proxy**, list it in the `trusted_proxies` setting.
+`X-Forwarded-For` is written by whoever sends the request, so it is only
+believed when the address that actually connected is a trusted proxy. Without
+that setting every request appears to come from the proxy, which means one
+shared rate-limit bucket for all clients and no client ever matching
+`safe_networks`.
+
 Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
 `token`:
 ```json

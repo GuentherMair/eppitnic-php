@@ -308,6 +308,38 @@ and `--dry-run` prints the exact `pdnsutil` invocations without running any.
 Both are ordinary verbs — run either by hand at any time.
 
 
+# Login rate limiting
+
+Failed logins are recorded in `history` as `security` rows — the address, the
+network, the attempted username and the request headers, never the attempted
+password. Enough of them from one network and `POST /v1/users/authenticate`
+answers `429` until they age out.
+
+Two settings control it:
+
+- `login_ratelimit` — `{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":64}`.
+  Failures are counted per network rather than per address: one ordinary IPv6
+  customer connection is a `/64`, so a per-address limit would stop nobody.
+  `max_failures: 0` turns the limit off.
+- `trusted_proxies` — **set this if the API runs behind a reverse proxy**, e.g.
+  `["10.0.0.0/8"]`. `X-Forwarded-For` is written by whoever sends the request,
+  so it is only believed when the address that actually connected is listed
+  here. Leave it empty when there is no proxy.
+
+Getting `trusted_proxies` wrong is visible in opposite ways. Empty behind a
+proxy: every request looks like it came from the proxy, so all clients share
+one bucket and none of them ever matches `safe_networks`. Populated without a
+proxy: nothing changes, because the connecting address will not be in it.
+
+Review what has been blocked with `GET /v1/history/security/{user_id}`, or
+straight from the table:
+
+```sql
+SELECT timestamp, network, JSON_VALUE(data,'$.event'), JSON_VALUE(data,'$.username')
+FROM history WHERE object = 'security' ORDER BY id DESC LIMIT 20;
+```
+
+
 # Registry password rotation
 
 nic.it warns, through the EPP poll queue, that the account password is

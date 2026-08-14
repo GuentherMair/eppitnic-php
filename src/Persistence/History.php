@@ -3,6 +3,7 @@
 namespace Eppitnic\Persistence;
 
 use Eppitnic\Api\ClientIp;
+use Eppitnic\Api\LoginRateLimit;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
@@ -44,37 +45,62 @@ final class History
      * @param array $data changed fields (or a minimal identifying set, for create/delete)
      * @param int|null $user_id acting user
      */
-    public static function record(string $object, int $object_id, string $action, array $data, ?int $user_id): void {
+    public static function record(
+        string $object,
+        int $object_id,
+        string $action,
+        array $data,
+        ?int $user_id,
+        ?string $network = null
+    ): void {
         R::exec("
-            INSERT INTO history (user_id, object, object_id, action, data)
-            VALUES (:user_id, :object, :object_id, :action, :data)
+            INSERT INTO history (user_id, object, object_id, action, network, data)
+            VALUES (:user_id, :object, :object_id, :action, :network, :data)
         ", [
             ':user_id'   => $user_id,
             ':object'    => $object,
             ':object_id' => $object_id,
             ':action'    => $action,
+            ':network'   => $network,
             ':data'      => json_encode($data),
         ]);
     }
 
     /**
-     * Record something that changed nothing but is worth knowing about, with
-     * where the request came from.
+     * Record something worth knowing about that is not a change to an object,
+     * with where the request came from.
+     *
+     * The address masked to its rate-limiting prefix goes into the `network`
+     * column, which is what LoginRateLimit counts.
      *
      * @param string $event what happened, e.g. 'epp_credentials_retrieved'
      * @param Request $request the request that caused it
      * @param int|null $user_id the acting user, also used as object_id so that
-     *                 GET /v1/history/security/{id} answers "what did they do"
+     *                 GET /v1/history/security/{id} answers "what did they do".
+     *                 Null when there is nobody to attribute it to, which a
+     *                 login attempt at an unknown username genuinely is --
+     *                 blaming user 1 for it would be a false entry.
      * @param array $detail anything else worth keeping. Must not contain a
      *              secret -- this table is read casually, and by more people
      *              than the thing being recorded was shown to.
+     * @param string $action 'read' for a disclosure, 'attempt' for an
+     *               authentication that was tried
      */
-    public static function recordSecurityEvent(string $event, Request $request, ?int $user_id, array $detail = []): void {
-        self::record('security', (int) $user_id, 'read', [
-            'event'   => $event,
-            'ip'      => ClientIp::get() ?: null,
-            'headers' => self::safeHeaders($request),
-        ] + $detail, $user_id);
+    public static function recordSecurityEvent(
+        string $event,
+        Request $request,
+        ?int $user_id,
+        array $detail = [],
+        string $action = 'read'
+    ): void {
+        self::record(
+            'security',
+            (int) $user_id,
+            $action,
+            ['event' => $event, 'ip' => ClientIp::get(), 'headers' => self::safeHeaders($request)] + $detail,
+            $user_id,
+            LoginRateLimit::network()
+        );
     }
 
     /**
