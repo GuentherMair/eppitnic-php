@@ -153,11 +153,8 @@ final class Config
 
     /**
      * Connect to the database: load config/config.php (see loadConfig()),
-     * validate the DB_* constants it's expected to define, alias
-     * RedBeanPHP's global (non-namespaced) `R` facade -- not pulled in by
-     * composer's autoload for this package, so bare `R::...` call sites
-     * elsewhere (src/Api/Routes/*.php) need it defined somewhere -- and
-     * connect/freeze it. A no-op after the first call (R::hasDatabase()
+     * validate the DB_* constants it's expected to define, and connect/freeze
+     * RedBeanPHP. A no-op after the first call (R::hasDatabase()
      * guards it).
      *
      * @throws \RuntimeException if config/config.php is missing/incomplete,
@@ -174,10 +171,6 @@ final class Config
             throw new \RuntimeException(
                 'Database configuration incomplete in config/config.php: missing ' . implode(', ', $missing)
             );
-        }
-
-        if ( ! class_exists('R', false)) {
-            class_alias(R::class, 'R');
         }
 
         if ( ! R::hasDatabase('default')) {

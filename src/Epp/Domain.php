@@ -3,7 +3,6 @@
 namespace Eppitnic\Epp;
 
 use Algo26\IdnaConvert\ToIdn;
-use Algo26\IdnaConvert\ToUnicode;
 use Eppitnic\Persistence\Changelog;
 
 use Eppitnic\Persistence\ChangeTracking;

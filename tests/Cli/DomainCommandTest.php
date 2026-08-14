@@ -6,7 +6,6 @@ use Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command\DomainCheckCommand;
 use Eppitnic\Cli\Command\DomainInfoCommand;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Service\EppSession;
 use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
 use Eppitnic\Tests\Support\FakeTransport;

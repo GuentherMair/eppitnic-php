@@ -5,7 +5,6 @@ namespace Eppitnic\Epp;
 use Eppitnic\Config;
 use Eppitnic\Epp\Transport\Curl;
 use Eppitnic\Epp\Transport\Transport;
-use Eppitnic\Service\EppSession;
 use Eppitnic\Service\PasswordService;
 
 /**

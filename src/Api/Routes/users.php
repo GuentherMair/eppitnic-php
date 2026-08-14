@@ -9,6 +9,7 @@ use Eppitnic\Service\PasswordService;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use RedBeanPHP\R;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
