@@ -67,7 +67,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         History::recordSecurityEvent('login_failed', $request, empty($user) ? null : (int) $user[0]['id'], [
             'username' => (string) $username,
             'reason'   => empty($user) ? 'no such active user' : 'wrong password',
-        ], 'attempt');
+        ], 'denied');
 
         return Json::response($response, ['error' => 'Wrong username or password'], 401);
     }
@@ -93,11 +93,19 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             History::recordSecurityEvent('login_failed', $request, (int) $user[0]['id'], [
                 'username' => (string) $username,
                 'reason'   => 'wrong MFA code',
-            ], 'attempt');
+            ], 'denied');
 
             return Json::response($response, ['error' => 'Invalid MFA code'], 401);
         }
     }
+
+    // Recorded like the failures, and with the same care: the token this call
+    // is about to issue is a credential, so it is not written here any more
+    // than the password was.
+    History::recordSecurityEvent('login_succeeded', $request, (int) $user[0]['id'], [
+        'username'  => (string) $username,
+        'mfa'       => $needsTotp ? 'verified' : ($hasTotp ? 'skipped on a safe network' : 'not configured'),
+    ], 'login');
 
     return Json::response($response, Auth::issueToken([
         'id'            => $user[0]['id'],

@@ -310,17 +310,20 @@ Both are ordinary verbs — run either by hand at any time.
 
 # Login rate limiting
 
-Failed logins are recorded in `history` as `security` rows — the address, the
-network, the attempted username and the request headers, never the attempted
-password. Enough of them from one network and `POST /v1/users/authenticate`
-answers `429` until they age out.
+Logins are recorded in `history` as `security` rows — the address, the network,
+the username and the request headers, never the password and never the issued
+token. `action` is `login` for a success, `denied` for a failure, `read` for a
+request the limit turned away. Enough failures from one network and
+`POST /v1/users/authenticate` answers `429` until they age out; successes and
+blocks do not count toward it.
 
 Two settings control it:
 
-- `login_ratelimit` — `{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":64}`.
-  Failures are counted per network rather than per address: one ordinary IPv6
-  customer connection is a `/64`, so a per-address limit would stop nobody.
-  `max_failures: 0` turns the limit off.
+- `login_ratelimit` — `{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":48}`.
+  Failures are counted per network rather than per address: an IPv6 customer is
+  handed an allocation, so a per-address limit would stop nobody. `/48` is the
+  usual end-site assignment; narrow it to `/56` or `/64` if blocking a whole
+  site would catch too many unrelated users. `max_failures: 0` turns it off.
 - `trusted_proxies` — **set this if the API runs behind a reverse proxy**, e.g.
   `["10.0.0.0/8"]`. `X-Forwarded-For` is written by whoever sends the request,
   so it is only believed when the address that actually connected is listed

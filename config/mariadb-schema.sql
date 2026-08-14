@@ -31,7 +31,7 @@ CREATE TABLE `history` (
   `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','read','attempt') NOT NULL,
+  `action`                enum('create','update','delete','read','login','denied') NOT NULL,
   -- the client's address masked to its rate-limiting prefix, for `security`
   -- rows only. Its own column rather than a field inside `data` because the
   -- login rate limit reads it on every authentication attempt, and an index
@@ -184,10 +184,12 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- against. List your reverse proxy here, and nothing else.
   ('trusted_proxies', '[]'),
   -- Failed logins allowed per network per timespan (seconds) before the login
-  -- endpoint answers 429. Counted per network rather than per address: one
-  -- ordinary IPv6 customer connection is a /64, so a per-address limit would
-  -- stop nobody. max_failures of 0 disables the limit.
-  ('login_ratelimit', '{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":64}'),
+  -- endpoint answers 429. Counted per network rather than per address: an IPv6
+  -- customer gets a whole allocation, so a per-address limit would stop nobody.
+  -- /48 is the usual end-site assignment and is what an attacker would have to
+  -- rotate within; /56 or /64 narrow the bucket if blocking a whole site is too
+  -- blunt for your users. max_failures of 0 disables the limit.
+  ('login_ratelimit', '{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":48}'),
   ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),

@@ -461,16 +461,22 @@ one network stop being answered: `POST /v1/users/authenticate` returns 429
 before the credentials are examined, since a check that runs after the guess has
 been evaluated has already done the work the guesser wanted.
 
-Counted per network rather than per address. One ordinary IPv6 customer
-connection is a `/64` — 18 billion billion addresses — so a per-address limit
-would stop nobody at all. IPv4 uses `/24`. Both are settings, alongside
-`max_failures` and `timespan`.
+Counted per network rather than per address. An IPv6 customer is handed an
+allocation rather than an address, so a per-address limit would stop nobody at
+all. The default is `/48`, the usual end-site assignment: `/64` would leave an
+attacker with an ordinary `/56` or `/48` free to rotate subnets inside their
+own. IPv4 uses `/24`. Both are settings, alongside `max_failures` and
+`timespan`.
 
 The window slides, so a block lifts itself as the old failures age out; there is
-nothing to clear and no expiry job. Blocks are recorded as `security`/`read`
-rather than `attempt`, so a network that keeps knocking does not extend its own
-block. A successful login does not reset the count, which would let anyone
-holding one working account clear the evidence before guessing at the others.
+nothing to clear and no expiry job.
+
+Both outcomes are logged: `action` is `login` for a success, `denied` for a
+failure, `read` for a request the limit turned away. Only `denied` is counted,
+so neither a busy legitimate user nor a network that keeps knocking extends the
+block. A success does not reset the count either, which would let anyone holding
+one working account clear the evidence before guessing at the others. Neither
+the attempted password nor the issued token is recorded.
 
 ### The part that made the rest worth doing
 
@@ -495,6 +501,6 @@ the other family.
 
 `history.user_id` became nullable: a login attempt at a username that does not
 exist has nobody to attribute it to, and defaulting it to user 1 would put a
-false entry in the trail. `action` gained `attempt`. And `network` is a column
+false entry in the trail. `action` gained `login` and `denied`. And `network` is a column
 of its own rather than a field inside `data`, because the limiter reads it on
 every authentication attempt and an index cannot reach inside JSON.

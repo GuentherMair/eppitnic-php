@@ -36,7 +36,7 @@ final class LoginRateLimitTest extends TestCase
             'jwt_psk'         => 'test-signing-key-for-this-suite-only',
             'safe_networks'   => [],
             'trusted_proxies' => [],
-            'login_ratelimit' => $rateLimit + ['max_failures' => 3, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
+            'login_ratelimit' => $rateLimit + ['max_failures' => 3, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 48],
         ]);
 
         if ( ! R::hasDatabase('default')) {
@@ -93,7 +93,7 @@ final class LoginRateLimitTest extends TestCase
         $this->assertCount(1, $rows);
 
         $data = json_decode($rows[0]['data'], true);
-        $this->assertSame('attempt', $rows[0]['action']);
+        $this->assertSame('denied', $rows[0]['action']);
         $this->assertSame('login_failed', $data['event']);
         $this->assertSame('someone', $data['username']);
         $this->assertSame('203.0.113.5', $data['ip']);
@@ -128,12 +128,53 @@ final class LoginRateLimitTest extends TestCase
         );
     }
 
-    public function testASuccessfulLoginIsNotRecordedAsAFailure(): void {
+    public function testASuccessfulLoginIsRecordedToo(): void {
         $app = $this->app();
         $response = $this->login($app, '203.0.113.5', 'the-right-password');
 
         $this->assertSame(200, $response->getStatusCode());
-        $this->assertSame([], self::rows());
+
+        $rows = self::rows();
+        $this->assertCount(1, $rows);
+
+        $data = json_decode($rows[0]['data'], true);
+        $this->assertSame('login', $rows[0]['action']);
+        $this->assertSame('login_succeeded', $data['event']);
+        $this->assertSame('someone', $data['username']);
+        $this->assertSame(1, (int) $rows[0]['user_id']);
+        $this->assertSame('203.0.113.0/24', $rows[0]['network']);
+    }
+
+    /**
+     * The token a successful login issues is a credential, and belongs in the
+     * log no more than the password does.
+     */
+    public function testASuccessfulLoginDoesNotRecordTheToken(): void {
+        $app = $this->app();
+        $response = $this->login($app, '203.0.113.5', 'the-right-password');
+
+        $token = json_decode((string) $response->getBody(), true)['token'];
+        $this->assertNotSame('', $token);
+
+        $this->assertStringNotContainsString(
+            $token,
+            (string) R::getCell("SELECT data FROM history WHERE object = 'security'"),
+            'the issued token was written to the log'
+        );
+    }
+
+    /**
+     * Successes must not spend the failure budget, or a busy legitimate user
+     * would lock out their own network.
+     */
+    public function testSuccessesDoNotCountTowardTheLimit(): void {
+        $app = $this->app(['max_failures' => 2]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->assertSame(200, $this->login($app, '203.0.113.5', 'the-right-password')->getStatusCode());
+        }
+
+        $this->assertSame(401, $this->login($app, '203.0.113.5', 'wrong')->getStatusCode());
     }
 
     // ---------------------------------------------------------------
@@ -188,11 +229,25 @@ final class LoginRateLimitTest extends TestCase
     public function testAddressesInOneIpv6EndSiteShareTheBudget(): void {
         $app = $this->app(['max_failures' => 3]);
 
-        $this->login($app, '2001:db8:1:2::1', 'wrong');
-        $this->login($app, '2001:db8:1:2::2', 'wrong');
-        $this->login($app, '2001:db8:1:2:ffff:ffff:ffff:ffff', 'wrong');
+        // four different /64s inside one /48: at /64 these would be four
+        // separate budgets, which is the rotation the /48 default closes
+        $this->login($app, '2001:db8:1:0::1', 'wrong');
+        $this->login($app, '2001:db8:1:1::1', 'wrong');
+        $this->login($app, '2001:db8:1:ffff::1', 'wrong');
 
-        $this->assertSame(429, $this->login($app, '2001:db8:1:2::dead', 'wrong')->getStatusCode());
+        $this->assertSame(429, $this->login($app, '2001:db8:1:abcd::1', 'wrong')->getStatusCode());
+    }
+
+    /**
+     * A neighbouring /48 is somebody else, and keeps its own budget.
+     */
+    public function testANeighbouringIpv6SiteIsUnaffected(): void {
+        $app = $this->app(['max_failures' => 2]);
+        $this->login($app, '2001:db8:1::1', 'wrong');
+        $this->login($app, '2001:db8:1::2', 'wrong');
+
+        $this->assertSame(429, $this->login($app, '2001:db8:1::3', 'wrong')->getStatusCode());
+        $this->assertSame(401, $this->login($app, '2001:db8:2::1', 'wrong')->getStatusCode());
     }
 
     public function testADifferentNetworkHasItsOwnBudget(): void {
@@ -219,7 +274,7 @@ final class LoginRateLimitTest extends TestCase
             $this->login($app, '203.0.113.1', 'wrong');
         }
 
-        $attempts = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'attempt'");
+        $attempts = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'denied'");
         $blocks   = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'read'");
 
         $this->assertSame(2, $attempts, 'a blocked request was counted as a failure');
@@ -237,7 +292,7 @@ final class LoginRateLimitTest extends TestCase
         $this->assertSame(429, $this->login($app, '203.0.113.1', 'wrong')->getStatusCode());
 
         // age both failures past the window
-        R::exec("UPDATE history SET timestamp = datetime('now', '-1 hour') WHERE action = 'attempt'");
+        R::exec("UPDATE history SET timestamp = datetime('now', '-1 hour') WHERE action = 'denied'");
 
         $this->assertSame(401, $this->login($app, '203.0.113.1', 'wrong')->getStatusCode());
     }

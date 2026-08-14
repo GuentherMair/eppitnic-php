@@ -40,7 +40,7 @@ final class LoginRateLimit
         'max_failures' => 10,
         'timespan'     => 900,
         'ipv4_prefix'  => 24,
-        'ipv6_prefix'  => 64,
+        'ipv6_prefix'  => 48,
     ];
 
     /**
@@ -104,7 +104,7 @@ final class LoginRateLimit
         $timespan = (int) $settings['timespan'];
         $oldest = R::getCell(
             "SELECT MIN(`timestamp`) FROM history
-             WHERE `network` = :network AND object = 'security' AND action = 'attempt'
+             WHERE `network` = :network AND object = 'security' AND action = 'denied'
                AND `timestamp` > :cutoff",
             [':network' => $network, ':cutoff' => self::cutoff($timespan)]
         );
@@ -123,12 +123,12 @@ final class LoginRateLimit
      * @return int failures recorded for $network inside the window
      */
     private static function failuresFor(string $network, int $timespan): int {
-        // `action` distinguishes the failures from the blocks: a block is
-        // recorded as 'read', so knocking at a closed door does not extend
-        // how long the door stays closed
+        // 'denied' is the only action counted: a successful login is 'login'
+        // and a rate-limit block is 'read', so neither a legitimate user nor a
+        // network that keeps knocking extends how long the door stays closed
         return (int) R::getCell(
             "SELECT COUNT(*) FROM history
-             WHERE `network` = :network AND object = 'security' AND action = 'attempt'
+             WHERE `network` = :network AND object = 'security' AND action = 'denied'
                AND `timestamp` > :cutoff",
             [':network' => $network, ':cutoff' => self::cutoff($timespan)]
         );

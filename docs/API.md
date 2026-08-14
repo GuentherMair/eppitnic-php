@@ -49,17 +49,26 @@ checked against the failures it has already produced. Past
 call answers `429` with a `Retry-After` header and `{"error": ..., "retry_after": n}`.
 The window slides, so a block lifts itself as the old failures age out.
 
-Counted per **network**, not per address — IPv4 `/24` and IPv6 `/64` by default
-(`ipv4_prefix`, `ipv6_prefix`). One ordinary IPv6 customer connection is a `/64`,
-so a per-address limit would stop nobody. `max_failures: 0` disables it.
+Counted per **network**, not per address — IPv4 `/24` and IPv6 `/48` by default
+(`ipv4_prefix`, `ipv6_prefix`). An IPv6 customer is handed an allocation rather
+than an address, and `/48` is the usual end-site assignment, so anything
+narrower leaves room to rotate subnets inside one's own. Narrow it to `/56` or
+`/64` where blocking a whole site would catch too many unrelated users.
+`max_failures: 0` disables it.
 
-Every failure — unknown username, wrong password, wrong TOTP code — is recorded
-in `history` as a `security`/`attempt` row with the address, the network and the
-request headers. Blocks are recorded as `security`/`read`, so a network that
-keeps knocking does not extend its own block. The attempted password is never
-recorded, and the response stays `Wrong username or password` whichever half was
-wrong, so it cannot be used to discover which usernames exist — the log is
-precise where the response is vague.
+Both outcomes are recorded in `history` as `security` rows carrying the address,
+the network and the request headers:
+
+| action | what it means | counted? |
+|---|---|---|
+| `login` | authentication succeeded | no |
+| `denied` | unknown username, wrong password, or wrong TOTP code | **yes** |
+| `read` | turned away by the limit, or a credential disclosure | no |
+
+Neither the attempted password nor the issued token is ever recorded. The
+response stays `Wrong username or password` whichever half was wrong, so it
+cannot be used to discover which usernames exist — the log is precise where the
+response is vague.
 
 **Behind a reverse proxy**, list it in the `trusted_proxies` setting.
 `X-Forwarded-For` is written by whoever sends the request, so it is only
