@@ -366,13 +366,35 @@ scheduled notices (`action` NULL, e.g. "renew this domain").
 | `POST /v1/domains/{name}/reminders` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
 | `DELETE /v1/reminders/{id}` | user | soft-delete (`active = 0`); 403 if the reminder's domain isn't owned by the caller |
 
-### Changelog (audit trail)
+### History (audit trail)
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything, everyone else sees the history of objects they own — their own `users` row, their `domains`, their `contacts` — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action`, `network`, `acknowledged` (`0`/`1`), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
-| `GET /v1/history/{object}/{object_id}` | user | shorthand for `GET /v1/history?object=…&object_id=…`, scoped identically |
-| `POST /v1/history/{id}/acknowledge` | admin | mark one entry as reviewed. Records `acknowledged_time` and `acknowledged_user_id` rather than a flag — an entry that was dismissed is worth being able to ask about later. Does not alter what the entry says happened. Re-acknowledging re-stamps it, so the last person to look at it is the one on record. `404` for an unknown id |
+| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything, everyone else sees the history of objects they own — their own `users` row, their `domains`, their `contacts` — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action`, `network`, `acknowledged` (`0` = not yet acknowledged, **any other value** = acknowledged), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
+| `GET /v1/history/{object}/{object_id}` | user | shorthand for `GET /v1/history?object=…&object_id=…`, scoped identically. Only `limit` is honoured here (default **500**, not 100) — no `offset`, no further filters. Answers `{"history": [...], "total": n}` without `outstanding` |
+| `POST /v1/history/{id}/acknowledge` | admin | mark one entry as reviewed. Records `acknowledged_time` and `acknowledged_user_id` rather than a flag — an entry that was dismissed is worth being able to ask about later. Does not alter what the entry says happened. Re-acknowledging re-stamps it, so the last person to look at it is the one on record. Returns `{"acknowledged": true, "id": n, "entry": {…}}` with the entry as it now stands. `404` for an unknown id. Unscoped: an admin may acknowledge any entry, including a non-`security` one |
+
+An entry is the table row as stored:
+
+```json
+{
+  "id": "42", "timestamp": "2026-08-20 04:43:39", "user_id": "1",
+  "object": "security", "object_id": "0", "action": "denied",
+  "network": "203.0.113.0/24",
+  "data": "{\"event\":\"login_failed\",\"username\":\"x\"}",
+  "acknowledged_time": null, "acknowledged_user_id": null
+}
+```
+
+Two things to expect when consuming it: `data` arrives as a **JSON string**, not a
+nested object — parse it a second time — and the integer columns arrive as
+numeric strings, because nothing re-types what the database driver returned.
+`user_id` is `null` for events with no authenticated actor (a failed login at an
+unknown username), and `object_id` is `0` where there is no object to point at.
+What `data` holds depends on the event and is not a fixed schema; for `security`
+rows it carries at least `event`, plus the client address and the request
+headers, with `Authorization`, `Cookie` and `Proxy-Authorization` stored as
+`[redacted]`.
 
 ### WHOIS
 
