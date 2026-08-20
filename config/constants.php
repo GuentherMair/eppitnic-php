@@ -53,3 +53,9 @@ if ( ! defined('CONTACT_CHECK_FAILED'))  define('CONTACT_CHECK_FAILED', 35);
 
 // dns exit codes (40-49)
 if ( ! defined('DNS_SYNC_FAILED'))       define('DNS_SYNC_FAILED', 40);
+
+// self-test exit codes (50-59). A refusal and a failure are separate answers:
+// the first means the run never started, the second that it started and found
+// something wrong -- a script around it has to tell those apart.
+if ( ! defined('SELFTEST_REFUSED'))      define('SELFTEST_REFUSED', 50);
+if ( ! defined('SELFTEST_FAILED'))       define('SELFTEST_FAILED', 51);

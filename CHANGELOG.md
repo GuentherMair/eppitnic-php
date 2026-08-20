@@ -58,10 +58,91 @@ evaluated to `[0]` instead of the handle, so the REST API reported a tech
 contact of `0` and update diffs computed from it never removed the outgoing
 contact. Callers that special-cased the string return can drop that branch.
 
+A `Contact` built without an explicit authinfo now has one. Its constructor
+generated a code and then called `initValues()`, which blanks every entry in
+`FIELDS` — and `authinfo` is one — so every contact created without one was
+sent to the registry with an empty `<contact:pw>`: a transfer credential
+shipped blank. `Domain`, whose `initValues()` assigns each field by name, was
+never affected. The generated default is not treated as a change, so `update()`
+still sends an authinfo only when one was actually asked for.
+
+Nothing rejected the empty one, which is why it went unnoticed for so long. The
+`authInfo` element is mandatory in `contact:create`, but its content is
+`eppcom:pwAuthInfoType` — an unrestricted `normalizedString`, so an empty value
+validates and the registry accepts it. The familiar min-6/max-16 rule is
+`epp:pwType`, which governs the `<login>` password and nothing else; several
+docblocks here confused the two and now say which is which.
+
 Everything runnable now lives behind one entry point, `bin/eppitnic`: the
 `CLI/`, `examples/` and `cronjobs/` folders are gone, absorbed into verbs.
 The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
 see "Scheduled jobs" in the README for crontab lines.
+
+The `changelog` table is now `history`, because not everything it records is a
+change: it gained a `security` object type and `read`, `login` and `denied`
+actions, so that an admin retrieving the shared registry credential through the
+new `GET /v1/session/epp/credentials` is recorded along with the address and
+headers the request arrived with. The password itself is never written, and
+`Authorization`, `Cookie` and `Proxy-Authorization` are stored as `[redacted]` —
+the log is read by more people than the credential was shown to. `user_id`
+became nullable, since a login attempt at a username that does not exist has
+nobody to attribute it to.
+
+Login attempts are recorded the same way and rate-limited from those rows:
+past `login_ratelimit.max_failures` within `login_ratelimit.timespan` seconds,
+`POST /v1/users/authenticate` answers `429` with a `Retry-After` header. The
+window slides, so a block lifts itself with no lock to clear. Failures are
+counted per network rather than per address — IPv4 `/24` and IPv6 `/48`, since
+an IPv6 customer is handed an allocation and a per-address limit would stop
+nobody.
+
+That work uncovered an authentication bypass predating it: `ClientIp` preferred
+`X-Forwarded-For` over the connecting address with no check on who sent it, and
+`safe_networks` skips MFA for addresses it recognises — so **any request
+carrying `X-Forwarded-For: 127.0.0.1` skipped MFA**. The header is now believed
+only when the peer that actually connected is listed in the new
+`trusted_proxies` setting, which defaults to empty; **set it if the API runs
+behind a reverse proxy**, or every client shares one rate-limit bucket and none
+matches `safe_networks`. `ClientIp` was also IPv4-only throughout
+(`FILTER_FLAG_IPV4`, `ip2long()`); matching is now done on packed bytes, so
+both families work, and an address is never inside a range of the other family.
+
+The trail is readable over the API: `GET /v1/history` with filters for
+`object`, `object_id`, `action`, `network`, `acknowledged`, `since` and `until`,
+and `POST /v1/history/{id}/acknowledge` to mark a security entry reviewed —
+recording who and when rather than a flag, since for a security log who
+dismissed an alert matters as much as that somebody did. Exposing it meant
+fixing what was already there: `GET /v1/history/{object}/{object_id}` answered
+for any object anybody named, and a `users` snapshot carries an email address
+and an admin flag, so any valid token could read every user's history.
+`History::visibleTo()` is now the single place that decides — an admin sees
+everything, everyone else the history of objects they own — and filters narrow
+what is visible without ever widening it.
+
+The cookbook's contact-creation example was wrong in two ways that only a live
+registry reveals: it withheld consent to publication for an entity type that
+may not (refused with `2308` / `8028`), and its registration code
+`01234567890` fails the partita IVA checksum the registry verifies (`2004` /
+`8027` — the check digit should be `7`). Both are corrected and the rules
+stated. The same placeholder remains in the test fixtures, which compare
+generated XML and reach no registry.
+
+`eppitnic selftest run` exercises the library against the registry's public
+test endpoint: it registers, reads back, changes and deletes real contacts and
+a real domain, checking each answer against what was sent, and reports one line
+per operation. `--domain=NAME` registers a name you choose rather than a generated one, so its
+zone can exist beforehand and the nameservers given with `--ns` actually pass
+the registry's checks — with a generated name they never can, and the run's
+nameserver assertions are inert. In that mode it pauses ten seconds after each
+delegation change to let those checks finish. It refuses to run anywhere else — the check is an allowlist of
+test endpoints made before a session is opened, with no flag to defeat it.
+Because nic.it keeps a contact linked to a domain until that domain is purged,
+30 days after its delete, the contacts that were on the domain when
+it was deleted cannot be removed on the day; those attempts are reported as
+deferred rather than failed, and `eppitnic selftest reap` clears them later
+from the note the run leaves in `var/selftest/`. Nothing else waits — a
+leftover domain, or a contact from a run that failed before creating one, is
+deleted on sight.
 
 WSDL support has been dropped.
 

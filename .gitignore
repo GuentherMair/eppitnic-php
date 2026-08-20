@@ -2,6 +2,9 @@
 /vendor/
 /config/config.php
 
+# self-test leftovers (see Eppitnic\Selftest\Leftovers)
+/var/
+
 
 # phpunit
 /.phpunit.cache/

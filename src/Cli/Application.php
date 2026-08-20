@@ -30,6 +30,8 @@ use Eppitnic\Cli\Command\PdnsSyncCommand;
 use Eppitnic\Cli\Command\PollDrainCommand;
 use Eppitnic\Cli\Command\PollListCommand;
 use Eppitnic\Cli\Command\PollProcessCommand;
+use Eppitnic\Cli\Command\SelftestReapCommand;
+use Eppitnic\Cli\Command\SelftestRunCommand;
 use Eppitnic\Cli\Command\SessionCreditCommand;
 use Eppitnic\Cli\Command\SessionHelloCommand;
 use Eppitnic\Cli\Command\UserCreateCommand;
@@ -84,6 +86,8 @@ final class Application
             'doctor epp-password'       => DoctorEppPasswordCommand::class,
             'doctor normalize-payloads' => DoctorNormalizePayloadsCommand::class,
             'pdns sync'               => PdnsSyncCommand::class,
+            'selftest run'            => SelftestRunCommand::class,
+            'selftest reap'           => SelftestReapCommand::class,
             'user create'             => UserCreateCommand::class,
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,

@@ -396,7 +396,7 @@ PSR-7's `ResponseInterface` under that name.
 **8.2 Grouped by kind.** `Epp/` for what speaks the protocol,
 `Epp/Transport/` for the interface and its three implementations (including the
 dry-run one that was in `Cli/`), `Persistence/`, `Service/`, `Api/`, `Cli/` with
-its 32 verbs in `Cli/Command/`, `Support/`.
+its verbs in `Cli/Command/`, `Support/`.
 
 `IT/` is gone. It promised a country axis that does not exist — extdom, extcon
 and extepp are baked into `Session` and `Domain`. `PollProcessor` left it for
@@ -508,9 +508,9 @@ every authentication attempt and an index cannot reach inside JSON.
 ### Acknowledgement
 
 A log nobody can work through is a log nobody reads. `history` gained
-`acknowledged_time` and `acknowledged_user_id`, `GET /v1/history/security`
-lists what is outstanding, and `POST /v1/history/{id}/acknowledge` marks one
-read.
+`acknowledged_time` and `acknowledged_user_id`,
+`GET /v1/history?object=security&acknowledged=0` lists what is outstanding, and
+`POST /v1/history/{id}/acknowledge` marks one read.
 
 A timestamp and a user rather than the flag first suggested: for a security
 log, who dismissed an alert matters as much as that somebody did, and NULL
@@ -548,3 +548,169 @@ Filters narrow what is visible and never widen it, so `?object=security` as a
 non-admin returns an empty list rather than 403 -- the honest answer to "what
 security events are there" is, for them, none. `total` counts what the caller
 may see, since a total of everything would report how much is being withheld.
+
+
+## Phase 11 — verifying against the live registry
+
+The suite proves that the right XML is generated for a given call, and that a
+recorded answer is parsed the way it was parsed last week. Neither says whether
+the registry still accepts that XML — and the fixtures are, by construction,
+answers nic.it gave in the past.
+
+`eppitnic selftest run` closes that gap: contacts and a domain created, read
+back, changed and deleted against `epp.pubtest.nic.it`, each answer checked
+against what was sent. `src/Selftest/` holds the sequence; the CLI verb is a
+driver.
+
+### Why not `tests/`
+
+`tests/` is `autoload-dev`, so it is absent from a `--no-dev` deployment — and
+this repository *is* the deployment. PHPUnit's model is wrong for it besides:
+this is one ordered sequence of network round trips that deliberately leaves
+state behind, against a suite configured `failOnWarning`/`failOnNotice`.
+
+The parts that can be tested hermetically are: `SelftestGuardTest`,
+`SelftestNamingTest`, `SelftestRunTest`, `SelftestLeftoversTest` and
+`SelftestCommandTest`. Every one of them stops short of a session — which is
+also the point, since the checks that matter happen before anything is sent.
+
+### The guard
+
+An allowlist of test endpoints, read from `epp.server` before a client is
+built, with no override flag. A denylist naming `epp.nic.it` would admit any
+endpoint nobody thought of, so an unrecognised one is refused instead — the
+same instinct as excluding `security` from `History::scope()` by omission.
+
+It parses the URL rather than searching it. `https://epp.nic.it/?see=epp.pubtest.nic.it`
+and `https://epp.pubtest.nic.it@epp.nic.it/` both contain the test host and
+both are production; both are refused, and both are pinned by tests.
+
+Note it vouches for `epp.server` only. `epp.server_deleted` is a separate host
+reached by passing it to `Client` explicitly, and no scenario touches it — one
+that did would have to be guarded on that endpoint too.
+
+### What the purge window forced
+
+A contact attached to a domain stays linked until that domain finishes
+pendingDelete, 30 days after the delete was accepted. So a run
+cannot clean up after itself, and the structure had to admit that rather than
+work around it:
+
+- `Step` has a fourth status, `deferred`. The six contacts that touch the
+  domain are attempted and their refusal recorded as the registry being right.
+  Reporting them as failures would end every complete run red, and a self-test
+  that cries wolf is one nobody reads. A deferrable step that unexpectedly
+  *succeeds* is an ordinary success — and the more interesting result.
+- `ContactLifecycle` exists separately because a contact never attached to
+  anything is the only one whose delete can actually be *verified*.
+- Names carry one base-36 timestamp per run, shared by everything in it. That
+  is what keeps a run off the leftovers of an earlier one, and what lets `reap`
+  date an object from its name alone.
+- `Leftovers` writes what is outstanding to `var/selftest/<stamp>.json`, and
+  `eppitnic selftest reap` finishes the job later. A file rather than a table:
+  the self-test's bookkeeping is not the operator's data and should not turn up
+  in a domain export or a backup, and it has to survive a run that did not.
+
+The wait belongs to the blockage, not to the run — which the first version got
+wrong. `--min-age` gated the whole note, so a run that fell over before
+creating its domain had its orphaned contacts held back for a month waiting
+on a purge that was never going to happen, and `reap` answered "no self-test
+run is 30 days old or more". The note now separates `contacts` from `linked`,
+and only what was on the domain *at the time it was deleted* is in the second
+set. `blocked_since` records that deletion, so a leftover domain that only a
+later reap removes starts its contacts' clock then rather than backdating it to
+whenever the run happened to begin.
+
+"Nothing to reap" and "nothing ready yet" are also different answers, and only
+the second means come back later — so the message says which, and how long.
+
+Objects a run *did* delete are dropped from the note, or `reap` would retry
+them for weeks and be answered "object does not exist" each time. An unexpected
+exception fails only its own step, because letting it escape would abandon
+objects already created without writing the note that says they exist.
+
+### Nameservers
+
+nic.it does not report a nameserver until its own checks say the delegation
+resolves (the behaviour `Domain::fetch()` already documented), so a default run
+reads back none and cannot prove the nameserver round-trip at all. Two
+consequences, both found live:
+
+The update states the whole target set and reconciles to it, rather than
+removing one name and adding another. Diffed against an empty report, that pair
+left exactly one nameserver and the registry refused it -- 9005, "Too few name
+servers".
+
+And `--domain` exists because the check is that the nameservers answer
+authoritatively *for the domain being registered*, which cannot be arranged for
+a name generated from the clock. With a name given in advance the zone can be
+prepared, and the run then waits ten seconds after each delegation change for
+the out-of-band check to finish. Without one there is nothing to verify, so
+there is no wait -- twenty seconds per run spent on a foregone conclusion is
+the kind of cost that stops people running it.
+
+### Transfers
+
+A transfer-in cannot be part of the sequence: it needs a domain held by another
+registrar and the authinfo its holder issued, neither of which this can make
+for itself. `--transfer=NAME --authinfo=CODE` replaces the lifecycle rather
+than joining it, and `--authinfo` without `--transfer` is a usage error rather
+than being silently ignored.
+
+It does not clean up either — a requested transfer is withdrawn with
+`eppitnic domain transfer cancel`, not by deleting anything.
+
+### Not done
+
+`--dry-run` is deliberately not offered. The answers a self-test checks come
+from the registry and a dry run has none, so accepting the flag and ignoring it
+would be worse than rejecting it.
+
+Under `--json` the payload is the step array and the verdict is the exit code.
+A summary record of a different shape in the same array would make the output
+harder to parse, not easier.
+
+### What the first live run found
+
+Two things, neither of which any fixture could have caught:
+
+`Contact`'s constructor generated an authinfo and then called `initValues()`,
+which blanks every entry in `FIELDS` — `authinfo` among them. Every contact
+created without an explicit one went to the registry with an empty
+`<contact:pw>`. `Domain` was never affected, because its `initValues()` assigns
+each field by name.
+
+Worth being precise about what that was, because the obvious reading is wrong.
+It was not a schema violation: `contact:create` requires the `authInfo` element,
+but its content is `eppcom:pwAuthInfoType`, an unrestricted `normalizedString`,
+so an empty value validates and nic.it accepts it — `ContactAuthinfoTest` pins
+both. The min-6/max-16 rule belongs to `epp:pwType`, which governs the
+`<login>` password alone; several docblocks conflated the two and have been
+corrected. What actually shipped was a transfer credential with no value in it.
+
+Which is exactly why nothing caught it. Schema validation was content, the
+registry was content, and every wire fixture sets an authinfo explicitly —
+exercising only the path that worked. What gave it away was a live run printing
+`authinfo` with nothing after it.
+
+Then two rules about registrant data that no schema states and no fixture
+exercises, each found by a separate live run.
+
+nic.it refuses `consentForPublishing` = 0 for any registrant that is not a
+natural person or a freelancer (2308 / 8028) — anyone else is published by law.
+The self-test's registrant was a company withholding consent, and so was the
+cookbook's contact-creation example.
+
+And it verifies the registrant's registration code. For entity type 2 that is a
+partita IVA, whose eleventh digit is a Luhn-style check over the other ten;
+`01234567890` — the placeholder used throughout the fixtures, the cookbook and
+the capture tool — does not satisfy it, and is answered with 2004 / 8027,
+"invalid reg code". Its check digit should be 7. `ContactFactory` now computes
+one per contact, so the two registrants in a run also get distinct numbers, one
+number being one company.
+
+That is the argument for the phase in three paragraphs: every one of these is
+wrong against the real registry, every one looks right in isolation, and no
+amount of fixture-based testing was going to say so. The fixtures keep the
+invalid placeholder — they are byte-comparisons of generated XML and reach no
+registry — but the cookbook does not.

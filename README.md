@@ -389,6 +389,178 @@ that is an account problem (expired, locked, an unauthorised IP), and the
 credential to keep is whichever the registry will take once it is resolved.
 
 
+# Verifying against the live test registry
+
+The test suite proves that the right XML is generated for a given call, and
+that a recorded answer is parsed the way it was parsed last week. Neither says
+whether the registry still accepts that XML. `selftest` does: it registers,
+reads back, changes and deletes real contacts and a real domain at the public
+test registry, checking each answer against what was sent.
+
+There are two ways to run it, and they prove different amounts.
+
+**Quick, needs nothing prepared:**
+
+```
+bin/eppitnic selftest run
+```
+
+**Full, needs a zone you control** — this is the one that also proves the
+nameserver round-trip, see below:
+
+```
+bin/eppitnic selftest run --yes \
+    --domain=my-selftest-1.it \
+    --ns=ns1.yourdns.it:ns2.yourdns.it:ns3.yourdns.it
+```
+
+Either way it prints one line per operation and nothing else unless something
+went wrong:
+
+```
+endpoint  https://epp.pubtest.nic.it
+run       TJCF9M
+
+Contact lifecycle
+  + contact check                  STTJCF9MD1           0.31s  free
+  + contact create                 STTJCF9MD1           0.44s  authinfo K7#mQx2_pLdR9wZt
+  + contact info                   STTJCF9MD1           0.29s  fields match what was sent
+  + contact update                 STTJCF9MD1           0.51s  name, city, voice
+  + contact delete                 STTJCF9MD1           0.33s  accepted
+  ...
+
+Domain lifecycle
+  + domain create                  st-tjcf9m-1.it       0.62s  authinfo 3Rp_xW8@qN4zVbLm, ns ns1.example.it ns2.example.it
+  + domain set-registrant          st-tjcf9m-1.it       0.58s  registrant is now STTJCF9MR2, authinfo rotated
+  + domain delete                  st-tjcf9m-1.it       0.41s  accepted; the registry now holds it in pendingDelete
+  + contact delete                 STTJCF9MR1           0.28s  deleted -- it was already free
+  ~ contact delete                 STTJCF9MA1           0.23s  EPP code '2305': Object association prohibits operation (still linked to the deleted domain; `selftest reap` clears it once the domain is purged)
+  ...
+
+29 steps: 26 ok, 0 failed, 3 deferred, 0 skipped, in 12.1s
+```
+
+Abridged above. A full quick run is **29 steps** — eight for the contact
+lifecycle, twenty-one for the domain — of which three are deferred: the
+registrant, admin and tech the domain was carrying when it was deleted. The
+three the run had already swapped off it are deleted on the spot. With
+`--domain` it is **31 steps**, the two extra being the verification pauses.
+
+`--verbose` turns on the library's own diagnostics: the full request and
+response behind every failure, and a row in `transactions` and `responses` for
+every command. `--json` and `--jsonl` emit one object per step; the verdict is
+the exit code — `0` all well, `51` something failed, `50` it refused to start.
+
+## Nameservers, and what a quick run does not prove
+
+By default the domain is registered under `example.it` nameservers, which is
+reserved for documentation and answers nothing. nic.it does not report a
+nameserver until its own checks say the delegation resolves, so those come back
+empty — which the run treats as expected and notes rather than failing:
+
+```
+  + domain info    st-tjcf9m-1.it   0.20s  registrant, admin and tech match; nameservers not reported (the registry has not validated the delegation)
+```
+
+So **a green quick run does not prove the nameserver round-trip.** Proving it
+needs nameservers that really serve the zone, and the registry checks that they
+answer authoritatively *for the domain being registered* — so the name has to
+be known in advance, which is what `--domain` is for.
+
+What to prepare:
+
+- a second-level `.it` name you are willing to register and delete, e.g.
+  `my-selftest-1.it`. It is what actually gets registered, so not a hostname
+  beneath one — `Validate::isDomain()` will refuse that.
+- a zone for it on the first two nameservers, answering authoritatively.
+- a third nameserver, which is only the swap target for the update and **need
+  not exist**. The update's job is to prove the change reaches the registry,
+  not that the result resolves.
+
+The run then pauses ten seconds after each delegation change, so the registry's
+out-of-band checks can finish before it reads back. That pause happens only
+with `--domain` — without a real delegation there is nothing to verify and
+nothing to wait for. It is announced up front and appears as its own step:
+
+```
+domain    my-selftest-1.it (as given)
+Note: pausing 10s after each delegation change, so the registry's checks can
+      finish. Without that it reports no nameservers at all.
+...
+  + await dns verification    my-selftest-1.it   10.00s  gave the registry 10s to check the delegation before reading it back
+...
+31 steps: 28 ok, 0 failed, 3 deferred, 0 skipped, in 27.2s
+```
+
+One consequence: a named domain cannot be reused until the previous
+registration has been purged, which takes 30 days. Until then `domain check`
+refuses it as taken — correctly, and reported as a failure. Keep a small pool
+of names (`my-selftest-1.it`, `-2`, …) if you intend to run this regularly.
+
+**It will not run against production.** The check is an allowlist of the
+registry's test endpoints, made before a session is opened, and there is no
+flag to defeat it — see `Eppitnic\Selftest\Guard`. Point the `epp` setting at
+`https://epp.pubtest.nic.it` to use it. A deployment that has never been
+reconfigured is a production deployment, and gets exit code `50`.
+
+## Deferred items, and reaping them
+
+A run can only partly clean up after itself, and which part depends on how far
+it got. nic.it keeps a contact linked to a domain until that domain has been
+purged — 30 days after its delete was accepted, through redemptionPeriod and
+then pendingDelete — so the contacts that were *on the domain when it was
+deleted* cannot be removed on the day.
+Those attempts are reported as `~ deferred`, not as failures: the refusal is
+the registry being right, and a self-test that ended red on every complete run
+is one nobody would read.
+
+Nothing else waits. A leftover domain, a contact the run swapped off the domain
+before deleting it, and every contact created by a run that failed before it
+got as far as a domain are all free immediately.
+
+What is left over is written to `var/selftest/<run>.json`, and cleared later:
+
+```
+bin/eppitnic selftest reap --list      # what is outstanding
+bin/eppitnic selftest reap             # delete what is ready
+```
+
+`reap` deletes everything that is not held, on sight. `--min-age` governs only
+the held contacts and is counted from **their domain's deletion**, not from the
+run — a leftover domain that only a later reap deletes starts its contacts'
+clock then. `--min-age=0` attempts them regardless. Anything the registry still
+refuses stays on file for next time.
+
+The two "nothing to do" answers are different, and the message says which:
+
+```
+nothing to reap
+nothing to reap yet: 3 contact(s) are held by a domain the registry has not
+purged; try again in 6 day(s), or --min-age=0 to attempt them now
+```
+
+Every name a run creates carries the same base-36 timestamp — `STTJCF9MR1`,
+`st-tjcf9m-1.it`. That is what keeps a run from colliding with the leftovers of
+an earlier one, and what lets `reap` tell which run made an object from its
+name alone.
+
+
+## Transfers
+
+A transfer-in cannot be part of the lifecycle: it needs a domain somebody else
+holds and the authinfo code its current registrar issued, neither of which this
+can make for itself. It is a separate operation:
+
+```
+bin/eppitnic selftest run --transfer=example.it --authinfo=CODE
+```
+
+It confirms the name is registered, requests the transfer, and reads the
+transfer status back. It does not clean up after itself either — a requested
+transfer is withdrawn with `eppitnic domain transfer cancel`, not by deleting
+anything.
+
+
 # ToDo's
 
 1. Implement a client-daemon with session keep-alive functionality. Btw. this

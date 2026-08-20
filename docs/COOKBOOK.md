@@ -106,16 +106,38 @@ $contact->set('countrycode', 'IT');
 $contact->set('voice', '+39.0471000000');
 $contact->set('email', 'mario.rossi@example.it');
 
+// an authinfo is generated for you; set one explicitly to choose it
+
 // a registrant also needs these; an admin/tech contact is entityType 0
 $contact->set('nationalitycode', 'IT');
 $contact->set('entitytype', 2);
-$contact->set('regcode', '01234567890');
+$contact->set('regcode', '01234567897');   // a partita IVA; the checksum is verified
+
+// and, for this entity type, consent to publication -- see below
+$contact->setConsent();
 
 if ( ! $contact->create()) {
     throw new RuntimeException($contact->getError());
 }
 $contact->storeDB($userId);   // optional: keep a local copy
 ```
+
+Consent to publication is not free to choose. Only entity type 1 (a natural
+person) and entity type 3 (a freelancer) may withhold it; every other
+registrant is published in the public whois by law, and the registry enforces
+that — `setConsent()` omitted on the contact above is refused with EPP code
+`2308` and extended reason `8028`, *"consentForPublishing cannot be set to
+false if entity type != 1 and entity type != 3"*. An admin or technical
+contact is entity type 0, carries no registrant block at all, and is
+unaffected.
+
+The registration code is checked too, not merely required. For entity type 2 it
+is a partita IVA, and the registry verifies its check digit — the last of the
+eleven, chosen so that the whole number adds up to a multiple of ten under the
+usual Luhn variant. A code that does not add up is refused with EPP code `2004`
+and extended reason `8027`, *"Registrant: invalid reg code"*. Note that the
+familiar placeholder `01234567890` is **not** valid: its check digit should be
+`7`.
 
 ## Registering a domain
 
@@ -145,7 +167,7 @@ $domain->set('registrant', 'REGISTRANT-HANDLE');
 $domain->addTECH('TECH-HANDLE');
 $domain->addNS('ns1.example.it');
 $domain->addNS('ns2.example.it', ['192.0.2.1']);   // glue, when below the domain
-$domain->set('authinfo', $domain->authinfo());     // 16 random hex characters
+$domain->set('authinfo', $domain->authinfo());     // 16 random characters, mixed classes
 
 $domain->create();
 ```

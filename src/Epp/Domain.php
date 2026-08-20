@@ -372,9 +372,12 @@ class Domain extends AbstractObject
 
     // if a nameserver by this name was already set and IPs didn't change stop here
     if (isset($this->ns[$name])) {
-      // create a list of all addresses associated to this NS record
+      // create a list of all addresses associated to this NS record.
+      // 'ip' is absent entirely for a glueless nameserver -- which is the
+      // ordinary case, since glue is only needed below the domain itself --
+      // so re-adding one warned twice and passed null to foreach()
       $ip_list = array();
-      foreach ($this->ns[$name]['ip'] as $ip) {
+      foreach ($this->ns[$name]['ip'] ?? array() as $ip) {
         $ip_list[] = $ip['address'];
       }
 
