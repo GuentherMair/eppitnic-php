@@ -136,8 +136,13 @@ final class PasswordGenerator
      * this registrar.
      *
      * The one credential here that a person actually copies out and passes on,
-     * which is what the safe set is for. Same `pwType` ceiling as the registry
-     * password, and the registry accepts the same characters in it.
+     * which is what the safe set is for.
+     *
+     * Drawn to the same 16 characters as the registry password, though nothing
+     * requires it to be: an authinfo is `eppcom:pwAuthInfoType`, an
+     * unrestricted normalizedString. `pwType`'s min 6 / max 16 governs the
+     * <login> password alone. One length for every credential is simply easier
+     * to reason about than two.
      */
     public static function forAuthinfo(): string {
         return self::forRegistry();

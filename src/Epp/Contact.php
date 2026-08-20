@@ -118,14 +118,11 @@ class Contact extends AbstractObject
   /**
    * Class constructor
    *
-   * (initializes authinfo)
-   *
    * @param Client $client client class
    */
   function __construct(Client $client) {
     parent::__construct($client);
 
-    $this->authinfo = $this->authinfo();
     $this->initValues();
   }
 
@@ -142,6 +139,17 @@ class Contact extends AbstractObject
     foreach (self::FIELDS as $field) {
       $this->$field = self::FIELD_DEFAULTS[$field] ?? "";
     }
+
+    // After the loop, not before it: authinfo is one of FIELDS, so generating
+    // it in the constructor -- as this did -- left every contact built without
+    // an explicit one carrying an empty <contact:pw>. Nothing rejected that:
+    // the element is mandatory but its content is an unrestricted
+    // normalizedString, so an empty one validates and the registry takes it.
+    // It is simply a transfer credential shipped blank. Assigned directly
+    // rather than through set(), so the generated default is not a change:
+    // update() sends authinfo only when somebody asked for a new one. Domain
+    // does the same thing in the same place.
+    $this->authinfo = $this->authinfo();
   }
 
   /**

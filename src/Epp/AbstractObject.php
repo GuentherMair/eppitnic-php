@@ -166,10 +166,15 @@ abstract class AbstractObject
    * credential here that a person copies off a screen and reads to somebody
    * else, so it also needs to survive that.
    *
-   * PasswordGenerator answers both: 16 characters, EPP's `pwType` ceiling, drawn
-   * from a set with no l/I or O/0 to confuse and nothing a shell would eat.
-   * Those 16 characters carry about 95 bits, where the hex this used to return
-   * spent the same 16 on 64.
+   * PasswordGenerator answers both: 16 characters drawn from a set with no
+   * l/I or O/0 to confuse and nothing a shell would eat. Those 16 characters
+   * carry about 95 bits, where the hex this used to return spent the same 16
+   * on 64.
+   *
+   * 16 by choice, not by rule. An authinfo is `eppcom:pwAuthInfoType`, an
+   * unrestricted normalizedString -- the min-6/max-16 `pwType` limit applies
+   * to the <login> password, not to this. Matching that ceiling anyway keeps
+   * one length for every credential the registry is sent.
    *
    * @return string 16-character random authinfo code
    */

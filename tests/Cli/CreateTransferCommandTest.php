@@ -69,8 +69,10 @@ final class CreateTransferCommandTest extends EppTestCase
         $this->assertSame(1, preg_match('#<domain:pw>(.*)</domain:pw>#', $output, $m), 'no authinfo was generated');
 
         // whatever PasswordGenerator draws from, not a shape frozen here: the
-        // assertion is that the authinfo is a 16-character credential the
-        // registry will take, which is what pwType asks for
+        // assertion is that the authinfo is the 16-character credential this
+        // codebase generates. The schema would take any length -- an authinfo
+        // is an unrestricted normalizedString -- so this pins our choice, not
+        // a rule of the protocol
         $this->assertSame(16, strlen($m[1]));
         $this->assertSame('', preg_replace(
             '/[' . preg_quote(PasswordGenerator::SAFE_CHARSET, '/') . ']/', '', $m[1]
