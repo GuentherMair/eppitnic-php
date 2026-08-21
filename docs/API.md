@@ -337,6 +337,19 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 
 ### Users (admin-managed accounts)
 
+**Password rule.** Every route that *sets* a password — `POST /v1/users`,
+`PUT /v1/users/{id}` (only when one is supplied) and `PUT /v1/changepassword/{id}` —
+requires at least 12 characters including a lower-case letter, an upper-case
+letter, a digit and one character that is neither. A password that misses any of
+them is refused with `400` and a message naming what is missing. The rule is
+also enforced in `Persistence\User::create()`, so the CLI and the installer
+cannot route around it, and `GET /v1/setup` returns it as data so a form can
+state it before anybody types.
+
+`POST /v1/users/authenticate` is deliberately **not** subject to it: judging a
+password at login would lock out every account created before the rule, and the
+refusal there stays the generic `Wrong username or password` whatever the reason.
+
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug_level, has_totp`. Never returns password hashes |

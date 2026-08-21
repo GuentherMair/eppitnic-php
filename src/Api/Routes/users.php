@@ -6,6 +6,7 @@ use Eppitnic\Api\Json;
 use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
+use Eppitnic\Support\PasswordPolicy;
 use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -52,6 +53,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     if (empty($password)) {
         return Json::response($response, ['error' => 'Please provide a password'], 401);
     }
+
 
     $user = R::getAll("SELECT
         id, admin, username, password, totp_secret, debug,
@@ -156,6 +158,14 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
         return Json::response($response, ['error' => 'Please provide a password'], 401);
     }
 
+    // 400, not 401: the password was supplied, it is simply not good enough.
+    // Checked before the authorization test below only because that test is
+    // about *whose* password this is, and a caller changing their own still
+    // has to meet the rule.
+    if ( ! PasswordPolicy::isAcceptable($password)) {
+        return Json::response($response, ['error' => PasswordPolicy::explain($password)], 400);
+    }
+
     // 403, not 401: the caller is authenticated, they are just not allowed to
     // change this particular user's password. Matches every other authorization
     // refusal in the codebase.
@@ -222,6 +232,9 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     ];
     // the password column is only touched when a new one was actually supplied
     if ( ! empty($params['password'])) {
+        if ( ! PasswordPolicy::isAcceptable($params['password'])) {
+            return Json::response($response, ['error' => PasswordPolicy::explain($params['password'])], 400);
+        }
         $fields['password'] = password_hash($params['password'], PASSWORD_DEFAULT);
     }
 
@@ -255,6 +268,10 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
 
     // pre-check the UNIQUE column, so a collision comes back as a 400 with a
     // clear message instead of an uncaught SQL error surfacing as a 500
+    if ( ! PasswordPolicy::isAcceptable($params['password'] ?? '')) {
+        return Json::response($response, ['error' => PasswordPolicy::explain((string) ($params['password'] ?? ''))], 400);
+    }
+
     $taken = R::getRow("SELECT username FROM users WHERE username = :username", [
         ':username' => $params['username'],
     ]);

@@ -127,6 +127,20 @@ may not (refused with `2308` / `8028`), and its registration code
 stated. The same placeholder remains in the test fixtures, which compare
 generated XML and reach no registry.
 
+Login passwords now have to meet a rule, where previously they did not have to
+meet any: `password_hash()` was reached from four places and none of them looked
+at what it was given, so a single character was stored happily. At least 12
+characters with a lower-case letter, an upper-case letter, a digit and one
+character that is neither — taken from the only complexity the codebase already
+expressed, `PasswordGenerator::forRegistry()`'s four character classes. Its
+length is deliberately not taken from there: 16 is EPP's ceiling for a registry
+credential, a protocol constraint on that one field with no bearing on a password
+this application hashes itself. Enforced by `Support\PasswordPolicy` at the three
+routes that set a password and in `Persistence\User::create()`, and stated as
+data so the installer can show it before anything is typed. **Existing passwords
+are not affected** — the rule applies where a password is set, never where one is
+checked, so nobody is locked out of an account created before it.
+
 `eppitnic selftest run` exercises the library against the registry's public
 test endpoint: it registers, reads back, changes and deletes real contacts and
 a real domain, checking each answer against what was sent, and reports one line
