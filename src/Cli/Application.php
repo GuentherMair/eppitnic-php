@@ -34,6 +34,7 @@ use Eppitnic\Cli\Command\SelftestReapCommand;
 use Eppitnic\Cli\Command\SelftestRunCommand;
 use Eppitnic\Cli\Command\SessionCreditCommand;
 use Eppitnic\Cli\Command\SessionHelloCommand;
+use Eppitnic\Cli\Command\SetupCommand;
 use Eppitnic\Cli\Command\UserCreateCommand;
 use Eppitnic\Cli\Command\UserTokenCommand;
 
@@ -88,6 +89,7 @@ final class Application
             'pdns sync'               => PdnsSyncCommand::class,
             'selftest run'            => SelftestRunCommand::class,
             'selftest reap'           => SelftestReapCommand::class,
+            'setup'                   => SetupCommand::class,
             'user create'             => UserCreateCommand::class,
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,

@@ -2,7 +2,8 @@
 
 namespace Eppitnic;
 
-use Hexmode\IOMode\IOMode;
+use Eppitnic\Setup\ConfigFile;
+use Eppitnic\Setup\ConfigMissing;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
@@ -32,20 +33,23 @@ use RedBeanPHP\R;
  * first, even if it doesn't need any particular setting value: call
  * Config::init().
  *
- * If config/config.php doesn't exist yet, connect() (via loadConfig())
- * either walks the user through creating it interactively -- when attached
- * to a real terminal, see isInteractive() -- or fails with a clear
- * error otherwise (e.g. a web request, or a non-interactive cron/CI run).
+ * If config/config.php doesn't exist and the six DB_* constants aren't
+ * already defined in-process, connect() (via loadConfig()) throws
+ * Setup\ConfigMissing. Creating that file is Setup\Installer's job, driven by
+ * `eppitnic setup`, the REST installer (src/Api/Routes/setup.php) or the
+ * bundled fallback page (public/setup.html) -- never this class, which does
+ * no I/O beyond the database itself.
  *
  * Similarly, config/mariadb-schema.sql and the upgrade script seed the
  * `settings` table with placeholder values for a handful of settings that
- * can't have a real default (jwt_psk, allowed_origins, epp credentials) --
- * setupSettings() fills those in the first time the constructor runs.
+ * can't have a real default (jwt_psk, allowed_origins, epp credentials).
+ * jwt_psk is filled in the first time the constructor runs (setupSettings());
+ * the rest are left at their placeholder until Setup\Installer or a direct
+ * settings edit sets them.
  */
 final class Config
 {
     private static ?self $instance = null;
-    private static ?string $configFile = null;
     private array $settings = [];
 
     /**
@@ -70,19 +74,6 @@ final class Config
      */
     private static function instance(): self {
         return self::$instance ??= new self();
-    }
-
-    /**
-     * Whether this process is attached to a real interactive terminal on
-     * STDIN. Checks PHP_SAPI first: IOMode::isTTY() references the STDIN
-     * constant unconditionally, which isn't even defined outside the `cli`
-     * SAPI (e.g. `cli-server`, fpm-fcgi) -- calling it there would fatal,
-     * not just return false.
-     *
-     * @return bool status
-     */
-    private static function isInteractive(): bool {
-        return PHP_SAPI === 'cli' && IOMode::isTTY();
     }
 
     /**
@@ -157,10 +148,17 @@ final class Config
      * RedBeanPHP. A no-op after the first call (R::hasDatabase()
      * guards it).
      *
-     * @throws \RuntimeException if config/config.php is missing/incomplete,
-     *                            or the database connection itself fails
+     * Public rather than private: Setup\Installer calls this directly, after
+     * define()-ing candidate DB_* constants itself but before
+     * config/config.php exists, so it can apply the schema and create the
+     * first admin before committing to those credentials by writing the file.
+     *
+     * @throws ConfigMissing if neither config/config.php nor the six DB_*
+     *                       constants exist
+     * @throws \RuntimeException if config/config.php is incomplete, or the
+     *                            database connection itself fails
      */
-    private static function connect(): void {
+    public static function connect(): void {
         self::loadConfig();
 
         $missing = array_filter(
@@ -195,141 +193,48 @@ final class Config
     }
 
     /**
-     * Ensure config/config.php is loaded: require it if it already exists.
-     * Otherwise, if this process is attached to a real interactive terminal
-     * (isInteractive()), walk the user through creating it
-     * (setupConfig()); if not, there's nobody to ask, so fail loudly.
+     * Ensure config/config.php is loaded: require it if it exists. Otherwise,
+     * if the six DB_* constants are already defined in-process -- Setup\Installer
+     * does this while proving candidate credentials, before config/config.php
+     * exists -- there is nothing to load. Otherwise there is no configuration
+     * at all: nothing here prompts for one any more (see Setup\Installer,
+     * Cli\Command\SetupCommand, src/Api/Routes/setup.php).
      *
-     * @throws \RuntimeException if config/config.php is missing and this
-     *                            process isn't interactive
+     * @throws ConfigMissing if neither the file nor the constants exist
      */
     private static function loadConfig(): void {
-        self::$configFile ??= EPPITNIC_ROOT . '/config/config.php';
-
-        if (is_readable(self::$configFile)) {
-            require_once self::$configFile;
+        if (ConfigFile::exists()) {
+            require_once ConfigFile::path();
             return;
         }
 
-        if (self::isInteractive()) {
-            self::setupConfig();
+        if (defined('DB_TYPE') && defined('DB_HOST') && defined('DB_NAME')
+            && defined('DB_CHARSET') && defined('DB_USER') && defined('DB_PASSWORD')) {
             return;
         }
 
-        throw new \RuntimeException(
-            "Database configuration missing: '" . self::$configFile . "' not found or not readable. " .
-            "Copy config/config.php-template to config/config.php and fill in your database credentials."
+        // States the fault and stops. What to do about it differs by caller --
+        // the CLI names its setup verb, the web tier serves the installer
+        // instead of a message at all -- so the advice belongs to whoever
+        // catches this, not to every reader of it.
+        throw new ConfigMissing(
+            "Database configuration missing: '" . ConfigFile::path() . "' not found or not readable."
         );
     }
 
     /**
-     * Interactively prompt for database credentials and write them to
-     * self::$configFile. Only ever reached from loadConfig(), which has
-     * already confirmed we're attached to a real terminal.
+     * jwt_psk is a real secret, not something a human should type in, so it
+     * is always silently regenerated if still at its schema-default
+     * empty-string placeholder. Runs once, from the constructor, right after
+     * settings are first loaded.
      *
-     * @throws \RuntimeException if self::$configFile can't be written
-     */
-    private static function setupConfig(): void {
-        fwrite(STDOUT, "No database configuration found at '" . self::$configFile . "'.\n");
-        fwrite(STDOUT, "Let's set one up now (press enter to accept the default in [brackets]).\n\n");
-
-        $dbType     = self::prompt('Database type', 'mysql');
-        $dbHost     = self::prompt('Database host', 'localhost');
-        $dbName     = self::prompt('Database name', 'eppitnic');
-        $dbCharset  = self::prompt('Database charset', 'utf8');
-        $dbUser     = self::prompt('Database user', 'eppitnic');
-        $dbPassword = self::prompt('Database password');
-
-        $php = "<?php\n\n"
-            . "define('DB_TYPE',     " . var_export($dbType, true) . ");\n"
-            . "define('DB_HOST',     " . var_export($dbHost, true) . ");\n"
-            . "define('DB_NAME',     " . var_export($dbName, true) . ");\n"
-            . "define('DB_CHARSET',  " . var_export($dbCharset, true) . ");\n"
-            . "define('DB_USER',     " . var_export($dbUser, true) . ");\n"
-            . "define('DB_PASSWORD', " . var_export($dbPassword, true) . ");\n";
-
-        if (file_put_contents(self::$configFile, $php) === false) {
-            throw new \RuntimeException("Unable to write '" . self::$configFile . "'.");
-        }
-        fwrite(STDOUT, "\nWrote '" . self::$configFile . "'.\n\n");
-
-        require_once self::$configFile;
-    }
-
-    /**
-     * @param string $label prompt text
-     * @param string $default value used if the user just presses enter
-     * @return string the entered value, or $default if left blank
-     */
-    private static function prompt(string $label, string $default = ''): string {
-        $suffix = $default !== '' ? " [{$default}]" : '';
-        fwrite(STDOUT, "{$label}{$suffix}: ");
-        $line = trim((string) fgets(STDIN));
-        return $line !== '' ? $line : $default;
-    }
-
-    /**
-     * like prompt(), but best-effort hides the typed characters (via `stty
-     * -echo`, when available -- not on Windows, or if `stty` isn't on
-     * PATH -- falling back to a plain visible prompt otherwise)
-     *
-     * @param string $label prompt text
-     * @return string the entered value
-     */
-    private static function promptHidden(string $label): string {
-        $canHide = PHP_OS_FAMILY !== 'Windows' && trim((string) @shell_exec('command -v stty')) !== '';
-        if ( ! $canHide) {
-            return self::prompt($label);
-        }
-
-        fwrite(STDOUT, "{$label}: ");
-        shell_exec('stty -echo');
-        try {
-            $line = trim((string) fgets(STDIN));
-        } finally {
-            shell_exec('stty echo');
-        }
-        fwrite(STDOUT, "\n");
-        return $line;
-    }
-
-    /**
-     * If any of a handful of security-/identity-critical settings are still
-     * at their schema-default placeholder value, fill them in. jwt_psk is
-     * always silently regenerated -- it's a real secret, not something a
-     * human should type in -- regardless of interactivity. The rest
-     * (allowed_origins, epp.username/password/cl_trid_prefix) genuinely
-     * need a human, so they're only prompted for when attached to a real
-     * terminal (isInteractive()); a non-interactive first run (cron,
-     * CI, a container's entrypoint) still boots, just with CORS/EPP left
-     * unusable until configured by hand. Runs once, from the constructor,
-     * right after settings are first loaded.
+     * allowed_origins and the epp credentials are left at their placeholders
+     * if unset -- the application still boots, just with CORS/EPP unusable
+     * until Setup\Installer (or a direct settings edit) fills them in.
      */
     private function setupSettings(): void {
         if ($this->settings['jwt_psk'] === '') {
             $this->persistSetting('jwt_psk', PasswordGenerator::signingKey());
-        }
-
-        if ( ! self::isInteractive()) {
-            return;
-        }
-
-        if (empty(array_filter($this->settings['allowed_origins']))) {
-            fwrite(STDOUT, "\nNo CORS origins are configured yet -- the API will refuse every browser request until this is set.\n");
-            $origins = self::prompt('Allowed origins, comma-separated (e.g. https://app.example.com)');
-            $origins = array_values(array_filter(array_map('trim', explode(',', $origins))));
-            if ( ! empty($origins)) {
-                $this->persistSetting('allowed_origins', $origins);
-            }
-        }
-
-        $epp = $this->settings['epp'];
-        if (($epp['username'] ?? '') === '') {
-            fwrite(STDOUT, "\nNo EPP credentials are configured yet -- domain/contact operations won't work until this is set.\n");
-            $epp['username'] = self::prompt('EPP username');
-            $epp['password'] = self::promptHidden('EPP password');
-            $epp['cl_trid_prefix'] = self::prompt('EPP clTRID prefix', strtok($epp['username'], '-') ?: $epp['username']);
-            $this->persistSetting('epp', $epp);
         }
     }
 
@@ -354,8 +259,14 @@ final class Config
      * through get()/set(): this runs from inside the constructor, before
      * self::$instance is assigned, so calling back into self::instance()
      * here would recurse.
+     *
+     * Public rather than private: Setup\Installer calls this (via init())
+     * right after SchemaInstaller has decided fresh-vs-existing, so a fresh
+     * database's brand-new `settings` table (already stamped at
+     * SCHEMA_VERSION by mariadb-schema.sql) is a no-op pass through here
+     * rather than a second, parallel notion of "is this up to date."
      */
-    private static function migrate(): void {
+    public static function migrate(): void {
         if (empty(R::getAll("SHOW TABLES LIKE 'settings'"))) {
             // no `settings` table, so no stamp to read -- assume the legacy
             // pre-versioning baseline and let the loop below find its own
@@ -434,8 +345,17 @@ final class Config
      * migration files use for stored-procedure bodies. It isn't real SQL
      * and PDO doesn't understand it, so it can't just be split on every
      * semicolon; this tracks the active delimiter manually instead.
+     *
+     * Public rather than private: Setup\SchemaInstaller reuses this to apply
+     * config/mariadb-schema.sql on a fresh database, rather than
+     * re-implementing DELIMITER-aware SQL-file execution a second time.
+     *
+     * @throws \RuntimeException on the first failing statement. The message
+     *         embeds up to 200 raw characters of that statement's SQL --
+     *         fine for a CLI/log audience, but src/Api/Routes/setup.php
+     *         truncates it before it can reach an HTTP response body.
      */
-    private static function runSqlFile(string $path): void {
+    public static function runSqlFile(string $path): void {
         if ( ! is_readable($path)) {
             throw new \RuntimeException("Migration file not found or not readable: {$path}");
         }

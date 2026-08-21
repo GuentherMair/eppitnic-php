@@ -16,13 +16,21 @@ if (PHP_SAPI !== 'cli') {
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
 use Eppitnic\Cli\Application;
+use Eppitnic\Setup\ConfigMissing;
 
 try {
     exit((new Application())->run($argv));
+} catch (ConfigMissing $e) {
+    // config/config.php doesn't exist yet -- point at the fix rather than
+    // just the symptom. Caught ahead of the plain \RuntimeException below,
+    // since ConfigMissing extends it and PHP matches catch blocks in order.
+    fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
+    fwrite(STDERR, "Run 'eppitnic setup' to create it.\n");
+    exit(CONFIG_ERROR);
 } catch (\RuntimeException $e) {
-    // Config throws these for a missing config/config.php or an unreachable
-    // database -- a setup problem, and one worth stating plainly rather than
-    // as a stack trace
+    // Config throws these for an incomplete config/config.php or an
+    // unreachable database -- a setup problem, and one worth stating plainly
+    // rather than as a stack trace
     fwrite(STDERR, "Error: " . $e->getMessage() . "\n");
     exit(CONFIG_ERROR);
 }

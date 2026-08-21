@@ -59,3 +59,7 @@ if ( ! defined('DNS_SYNC_FAILED'))       define('DNS_SYNC_FAILED', 40);
 // something wrong -- a script around it has to tell those apart.
 if ( ! defined('SELFTEST_REFUSED'))      define('SELFTEST_REFUSED', 50);
 if ( ! defined('SELFTEST_FAILED'))       define('SELFTEST_FAILED', 51);
+
+// setup exit codes (60-69)
+if ( ! defined('SETUP_ALREADY_DONE')) define('SETUP_ALREADY_DONE', 60); // config/config.php already exists
+if ( ! defined('SETUP_FAILED'))       define('SETUP_FAILED', 61);       // credential verification or installation failed

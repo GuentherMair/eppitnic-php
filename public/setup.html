@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EPP IT-NIC Setup</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.4rem; }
+  p.intro { color: #555; }
+
+  .step { border: 1px solid #ccc; border-radius: 4px; margin-top: 1rem; }
+  .step[hidden] { display: none; }
+  .step-head { display: flex; align-items: center; gap: .5rem; width: 100%;
+               padding: .7rem .9rem; font: inherit; font-weight: bold; text-align: left;
+               background: #f4f4f4; border: 0; border-radius: 4px; cursor: pointer; }
+  .step-head:disabled { cursor: default; color: #666; }
+  .step-head .marker { width: 1rem; color: #666; }
+  .step-head .done { margin-left: auto; font-weight: normal; color: #1a5c2c; }
+  /* points down while the step is shut -- the direction it will open -- and
+     turns over once it is open. One glyph rotated, so the two states cannot
+     drift apart the way two separate icons would. */
+  .step-head .chevron { flex: none; color: #666; transition: transform .15s ease; }
+  .step:not(.collapsed) .step-head .chevron { transform: rotate(180deg); }
+  .step-body { padding: 0 .9rem .9rem; }
+  .step.collapsed .step-body { display: none; }
+  .step.collapsed .step-head { border-radius: 4px; }
+
+  label { display: block; margin-top: .75rem; font-weight: bold; }
+  label small { font-weight: normal; color: #666; }
+  input { display: block; width: 100%; box-sizing: border-box; padding: .4rem; margin-top: .2rem; font-size: 1rem; }
+  button.action { margin-top: 1rem; padding: .5rem 1rem; font-size: 1rem; cursor: pointer; }
+  .result { margin-top: .75rem; padding: .5rem; border-radius: 3px; }
+  .ok { background: #e6f4ea; color: #1a5c2c; }
+  .error { background: #fbe7e7; color: #8a1c1c; white-space: pre-wrap; }
+
+  ul.policy { margin: .4rem 0 0; padding-left: 1.2rem; color: #666; font-size: .9rem; }
+  /* brighter and bold, so a rule going from unmet to met is obvious while
+     typing -- #15803d holds 5:1 against white, which 0.9rem bold text still
+     needs to meet AA */
+  ul.policy li.met { color: #15803d; font-weight: bold; }
+  ul.policy li.met::marker { content: '\2713\00a0'; color: #15803d; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>EPP IT-NIC Setup</h1>
+<p class="intro">No configuration was found. Please complete it in three simple steps:</p>
+
+<form id="setup-form">
+  <section class="step" id="step-database">
+    <button type="button" class="step-head" aria-expanded="true"><span class="marker">1</span>Database<span class="done"></span><svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="step-body">
+      <div id="db-fields"></div>
+      <button type="button" class="action" id="verify-button">Test connection</button>
+      <div class="result" id="verify-result"></div>
+    </div>
+  </section>
+
+  <section class="step collapsed" id="step-admin" hidden>
+    <button type="button" class="step-head" aria-expanded="false"><span class="marker">2</span>Admin account<span class="done"></span><svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="step-body">
+      <div id="admin-fields"></div>
+      <ul class="policy" id="policy"></ul>
+      <button type="button" class="action" id="admin-button">Use this account</button>
+      <div class="result" id="admin-result"></div>
+    </div>
+  </section>
+
+  <section class="step collapsed" id="step-epp" hidden>
+    <button type="button" class="step-head" aria-expanded="false"><span class="marker">3</span>EPP credentials<span class="done"></span><svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="step-body">
+      <p class="intro">Optional. Domain and contact operations will not work until these are set, but you can add them later.</p>
+      <div id="epp-fields"></div>
+      <button type="submit" class="action">Install</button>
+      <div class="result" id="submit-result"></div>
+    </div>
+  </section>
+</form>
+
+<script>
+(function () {
+  'use strict';
+
+  var groups = { database: document.getElementById('db-fields'),
+                 admin: document.getElementById('admin-fields'),
+                 epp: document.getElementById('epp-fields') };
+  var fields = [];
+  var policy = [];
+
+  // ---------------------------------------------------------------
+  // talking to the API
+  // ---------------------------------------------------------------
+
+  // Every response here is meant to be JSON. When one is not, the cause is
+  // almost never JavaScript -- it is that the web server is serving public/
+  // but is not routing unknown paths to index.php, so it answered this
+  // request itself with its own HTML error page. Handing the reader a
+  // "SyntaxError: the string did not match the expected pattern" at that
+  // point sends them to look at entirely the wrong thing, and it happens at
+  // the one moment they have nothing else working to reason from.
+  function readJson(response) {
+    var type = response.headers.get('Content-Type') || '';
+
+    if (type.indexOf('json') !== -1) {
+      return response.json();
+    }
+    return response.text().then(function (body) {
+      throw new Error(explain(response, body));
+    });
+  }
+
+  function explain(response, body) {
+    if (response.status === 404) {
+      return 'The API is not reachable at this address. The web server answered 404 for '
+        + '/v1/setup by itself, which means requests that are not real files on disk are '
+        + 'not being handed to index.php -- so PHP never sees them. Add "FallbackResource '
+        + '/index.php" (Apache) or "try_files $uri /index.php$is_args$args" (nginx) to the '
+        + 'configuration for this document root; config/apache-vhost.sample and '
+        + 'config/nginx.sample in the checkout are working examples.';
+    }
+    return 'The server answered ' + response.status + ' with '
+      + (body.trim() === '' ? 'an empty body' : 'something that is not JSON')
+      + '. Check the web server and PHP error logs.';
+  }
+
+  function postJson(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (response) {
+      return readJson(response).then(function (data) {
+        return { ok: response.ok, data: data };
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // steps
+  // ---------------------------------------------------------------
+
+  function step(name) { return document.getElementById('step-' + name); }
+
+  // The chevron is decorative (aria-hidden); this is what actually tells a
+  // screen reader whether the section is open, so it has to move with the
+  // class rather than only with a click.
+  function syncExpanded(el) {
+    el.querySelector('.step-head').setAttribute('aria-expanded', el.classList.contains('collapsed') ? 'false' : 'true');
+  }
+
+  function collapse(name, summary) {
+    var el = step(name);
+    el.classList.add('collapsed');
+    el.querySelector('.done').textContent = summary || 'done';
+    syncExpanded(el);
+  }
+
+  function reveal(name) {
+    var el = step(name);
+    el.hidden = false;
+    el.classList.remove('collapsed');
+    syncExpanded(el);
+  }
+
+  // Reopening is a toggle on the heading and is deliberately never disabled:
+  // the commonest reason to come back is that a later step failed *because* of
+  // an answer given in an earlier one, and locking those away would leave the
+  // only fix out of reach.
+  Array.prototype.forEach.call(document.querySelectorAll('.step-head'), function (head) {
+    head.addEventListener('click', function () {
+      head.parentNode.classList.toggle('collapsed');
+      syncExpanded(head.parentNode);
+    });
+  });
+
+  function showResult(el, ok, text) {
+    el.className = 'result ' + (ok ? 'ok' : 'error');
+    el.textContent = text;
+  }
+
+  // ---------------------------------------------------------------
+  // fields
+  // ---------------------------------------------------------------
+
+  function renderField(field) {
+    var wrap = document.createElement('label');
+    wrap.textContent = field.label + (field.required ? '' : ' ');
+    if (!field.required) {
+      var small = document.createElement('small');
+      small.textContent = '(optional)';
+      wrap.appendChild(small);
+    }
+    var input = document.createElement('input');
+    input.type = field.secret ? 'password' : 'text';
+    input.name = field.name;
+    input.id = 'field-' + field.name;
+    if (field.secret) { input.autocomplete = 'new-password'; }
+    if (field.default) { input.value = field.default; }
+    if (field.required) { input.required = true; }
+    wrap.appendChild(input);
+    (groups[field.group] || groups.database).appendChild(wrap);
+
+    // Right after the field it confirms, rather than after the whole group:
+    // the fields come from the server in the order it lists them, and the
+    // optional e-mail is one of them -- so anything appended to the group as a
+    // whole would land between the password and its repeat.
+    if (field.name === 'admin_password') {
+      var repeat = document.createElement('label');
+      repeat.textContent = 'Repeat admin password';
+      var confirm = document.createElement('input');
+      confirm.type = 'password';
+      confirm.id = 'field-admin_password_confirm';
+      confirm.autocomplete = 'new-password';
+      repeat.appendChild(confirm);
+      groups.admin.appendChild(repeat);
+    }
+  }
+
+  function value(name) {
+    var el = document.getElementById('field-' + name);
+    return el ? el.value : '';
+  }
+
+  function valuesFor(group) {
+    var out = {};
+    fields.filter(function (f) { return f.group === group; }).forEach(function (f) {
+      out[f.name] = value(f.name);
+    });
+    return out;
+  }
+
+  function allValues() {
+    var out = {};
+    fields.forEach(function (f) { out[f.name] = value(f.name); });
+    out.admin_password_confirm = value('admin_password_confirm');
+    return out;
+  }
+
+  // ---------------------------------------------------------------
+  // the password rule
+  // ---------------------------------------------------------------
+
+  // Rendered from what GET /v1/setup returned, not from a copy kept here:
+  // install() judges the password against that same list server-side, and two
+  // statements of one rule drift.
+  // The repeat is checked client-side only -- the server checks it too, but it
+  // is not part of PasswordPolicy, which judges one password rather than a
+  // pair. It belongs at the end of the same list all the same: to the person
+  // typing there is no difference between "this password is not long enough"
+  // and "these two are not the same", and two places to look for that answer
+  // is one too many.
+  var MATCH_RULE = { key: 'match', description: 'both entries the same' };
+
+  function renderPolicy() {
+    var list = document.getElementById('policy');
+    list.textContent = '';
+    policy.concat([MATCH_RULE]).forEach(function (rule) {
+      var li = document.createElement('li');
+      li.textContent = rule.description;
+      li.id = 'policy-' + rule.key;
+      list.appendChild(li);
+    });
+  }
+
+  var CHECKS = {
+    length:  function (p, rule) { return p.length >= parseInt((rule.description.match(/\d+/) || [0])[0], 10); },
+    lower:   function (p) { return /\p{Ll}/u.test(p); },
+    upper:   function (p) { return /\p{Lu}/u.test(p); },
+    number:  function (p) { return /\d/u.test(p); },
+    special: function (p) { return /[^\p{L}\d]/u.test(p); },
+    // an empty pair is not a match: both being blank should not tick before
+    // anything has been typed
+    match:   function (p) { return p !== '' && p === value('admin_password_confirm'); }
+  };
+
+  // A convenience only. The server checks the same things and is the
+  // authority; this exists so the rules are visibly met before the form is
+  // submitted.
+  //
+  // Returns the two answers separately even though the list shows one set of
+  // ticks: the button can then say which of them is wrong, and "these do not
+  // match" is worth hearing instead of "something above is not satisfied".
+  function checkPassword() {
+    var p = value('admin_password');
+    var complexity = true;
+    var match = true;
+
+    policy.concat([MATCH_RULE]).forEach(function (rule) {
+      var check = CHECKS[rule.key];
+      var met = check ? check(p, rule) : true;
+      var li = document.getElementById('policy-' + rule.key);
+
+      if (li) { li.className = met ? 'met' : ''; }
+      if (!met) {
+        if (rule.key === 'match') { match = false; } else { complexity = false; }
+      }
+    });
+
+    return { complexity: complexity, match: match };
+  }
+
+  document.addEventListener('input', function (e) {
+    if (e.target.id === 'field-admin_password' || e.target.id === 'field-admin_password_confirm') {
+      checkPassword();
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // step 1: database
+  // ---------------------------------------------------------------
+
+  document.getElementById('verify-button').addEventListener('click', function () {
+    var el = document.getElementById('verify-result');
+    showResult(el, true, 'Testing...');
+    el.className = 'result';
+
+    postJson('/v1/setup/verify', valuesFor('database')).then(function (result) {
+      if (!result.ok) {
+        showResult(el, false, result.data.error || 'Connection failed.');
+        return;
+      }
+      showResult(el, true, 'Connected (server version ' + result.data.server_version + ').');
+      collapse('database', value('db_name') + ' on ' + (value('db_host') || 'localhost'));
+      reveal('admin');
+    }).catch(function (e) {
+      showResult(el, false, e.message);
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // step 2: admin account
+  // ---------------------------------------------------------------
+
+  document.getElementById('admin-button').addEventListener('click', function () {
+    var el = document.getElementById('admin-result');
+    var username = value('admin_username');
+
+    if (username === '') {
+      showResult(el, false, 'An admin username is required.');
+      return;
+    }
+    var state = checkPassword();
+    if (!state.complexity) {
+      showResult(el, false, 'The password does not meet the requirements listed above.');
+      return;
+    }
+    if (!state.match) {
+      showResult(el, false, 'The two passwords do not match.');
+      return;
+    }
+
+    // Nothing is created yet -- the account is written by POST /v1/setup at the
+    // end, along with everything else. This step only checks what was typed.
+    showResult(el, true, 'Looks good.');
+    collapse('admin', username);
+    reveal('epp');
+  });
+
+  // ---------------------------------------------------------------
+  // step 3: EPP, then install
+  // ---------------------------------------------------------------
+
+  document.getElementById('setup-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var el = document.getElementById('submit-result');
+    showResult(el, true, 'Installing...');
+    el.className = 'result';
+
+    postJson('/v1/setup', allValues()).then(function (result) {
+      if (!result.ok) {
+        showResult(el, false, result.data.error || 'Setup failed.');
+        return;
+      }
+      showResult(el, true, 'Setup complete. Schema version ' + result.data.schema_version
+        + ', admin user "' + result.data.admin.username + '" created. You can now use the application.');
+      collapse('epp', 'installed - setup complete!');
+      Array.prototype.forEach.call(
+        document.querySelectorAll('#setup-form input, #setup-form button.action'),
+        function (i) { i.disabled = true; }
+      );
+    }).catch(function (e) {
+      showResult(el, false, e.message);
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // start
+  // ---------------------------------------------------------------
+
+  fetch('/v1/setup').then(readJson).then(function (data) {
+    fields = data.fields || [];
+    policy = data.password_policy || [];
+    fields.forEach(renderField);
+    renderPolicy();
+  }).catch(function (e) {
+    // textContent rather than insertAdjacentHTML: the message can carry the
+    // server's own response, which is not ours to trust as markup
+    var banner = document.createElement('p');
+    banner.className = 'error';
+    banner.textContent = e.message;
+    document.body.insertBefore(banner, document.body.firstChild);
+  });
+})();
+</script>
+</body>
+</html>

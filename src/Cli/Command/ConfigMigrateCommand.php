@@ -4,6 +4,8 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Config;
+use Eppitnic\Setup\ConfigFile;
+use Eppitnic\Setup\DatabaseCredentials;
 use Eppitnic\Support\PasswordGenerator;
 
 /**
@@ -51,23 +53,29 @@ final class ConfigMigrateCommand extends Command
         // exists, so re-running this script never clobbers a working deployment's
         // credentials. Must happen before the Config::set() loop below, which is
         // what actually needs it to exist.
-        $configPhpFile = EPPITNIC_ROOT . '/config/config.php';
-        if (is_readable($configPhpFile)) {
-          $this->line("[{$configPhpFile}] already exists -- leaving it untouched.");
+        if (ConfigFile::exists()) {
+          $this->line("[" . ConfigFile::path() . "] already exists -- leaving it untouched.");
         } else {
           $db = $xml->db;
-          $configPhp = "<?php\n\n"
-            . "define('DB_TYPE',     " . var_export(self::xmlStr($db->dbtype), true) . ");\n"
-            . "define('DB_HOST',     " . var_export(self::xmlStr($db->dbhost), true) . ");\n"
-            . "define('DB_NAME',     " . var_export(self::xmlStr($db->dbname), true) . ");\n"
-            . "define('DB_CHARSET',  'utf8');\n" // no config.xml source
-            . "define('DB_USER',     " . var_export(self::xmlStr($db->dbuser), true) . ");\n"
-            . "define('DB_PASSWORD', " . var_export(self::xmlStr($db->dbpwd), true) . ");\n";
-          if (file_put_contents($configPhpFile, $configPhp) === false) {
-            $this->line("Unable to write '{$configPhpFile}'.");
+          try {
+            // \Throwable, not \RuntimeException: DatabaseCredentials's own
+            // constructor throws \InvalidArgumentException (a \LogicException,
+            // not a \RuntimeException) if config.xml's <db> is missing dbname
+            // or dbuser, and that needs the same clean message-and-exit-code
+            // treatment as ConfigFile::write() failing, not an uncaught trace.
+            ConfigFile::write(new DatabaseCredentials(
+                type:     self::xmlStr($db->dbtype) ?: 'mysql',
+                host:     self::xmlStr($db->dbhost) ?: 'localhost',
+                name:     self::xmlStr($db->dbname),
+                charset:  'utf8', // no config.xml source
+                user:     self::xmlStr($db->dbuser),
+                password: self::xmlStr($db->dbpwd),
+            ));
+          } catch (\Throwable $e) {
+            $this->line($e->getMessage());
             return OUTPUT_ERROR;
           }
-          $this->line("Wrote {$configPhpFile}.");
+          $this->line("Wrote " . ConfigFile::path() . ".");
         }
 
         // 2. settings table -- everything else.

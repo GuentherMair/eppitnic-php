@@ -146,6 +146,24 @@ deleted on sight.
 
 WSDL support has been dropped.
 
+First-run setup no longer requires a terminal. `Config` throws
+`Setup\ConfigMissing` when `config/config.php` is absent, rather than
+prompting from inside `connect()` the way it used to when attached to a TTY;
+`eppitnic setup` (interactive, or scriptable via `--db-name=` and similar
+flags) and a REST/HTML installer (`GET/POST /v1/setup`, `POST
+/v1/setup/verify`, `public/setup.html` — served automatically from
+`public/index.php` for as long as `config/config.php` doesn't exist) both
+drive the same `Setup\Installer`, which probes candidate credentials with a
+throwaway PDO connection before committing to them and creates the first
+admin account, since `POST /v1/users` needs an admin token nothing yet holds.
+Nothing in PHP used to apply `config/mariadb-schema.sql` at all — an empty
+database fell into the schema-versioning code's legacy `'060700'` baseline and
+failed on the 6.7-to-7.0 upgrade's first `ALTER TABLE`; `Setup\SchemaInstaller`
+now tells an empty database apart from an existing installation before
+`Config`'s migration chain ever runs. `config/config.php` is written last,
+once every other step has succeeded, so a setup that fails partway through is
+simply re-run rather than left half-configured.
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

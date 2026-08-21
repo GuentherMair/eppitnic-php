@@ -4,14 +4,15 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Persistence\History;
-use RedBeanPHP\R;
+use Eppitnic\Persistence\User;
+use Eppitnic\Persistence\UsernameTaken;
 
 /**
  * Create a local login account.
  *
- * The way to make the first admin: POST /v1/users needs an admin token to
- * call, so there is no way to bootstrap one over the API.
+ * Once config/config.php exists, this is the only way to create further
+ * accounts -- `eppitnic setup` (or the REST/HTML installer, Setup\Installer)
+ * only ever creates the first one.
  */
 final class UserCreateCommand extends Command
 {
@@ -45,29 +46,21 @@ final class UserCreateCommand extends Command
             throw new UsageError('--password is required');
         }
 
-        if (R::getCell("SELECT id FROM users WHERE username = ?", [$username]) !== null) {
-            $this->warn("a user named '{$username}' already exists");
-            return INVALID_INPUT;
-        }
-
         $isAdmin = $this->hasOption('admin');
 
-        R::exec("
-            INSERT INTO users (description, username, password, email, max_operations, active, admin)
-            VALUES (:description, :username, :password, :email, :max_operations, 1, :admin)
-        ", [
-            ':description'    => $this->option('description'),
-            ':username'       => $username,
-            ':password'       => password_hash((string) $this->option('password'), PASSWORD_DEFAULT),
-            ':email'          => $this->option('email'),
-            ':max_operations' => (int) $this->option('max-operations', 0),
-            ':admin'          => $isAdmin ? 1 : 0,
-        ]);
-
-        $id = (int) R::getInsertID();
-        // no authenticated actor exists yet when bootstrapping, so the new user
-        // is recorded as its own actor
-        History::record('users', $id, 'create', ['username' => $username, 'admin' => $isAdmin], $id);
+        try {
+            $id = User::create(
+                username: $username,
+                password: (string) $this->option('password'),
+                email: $this->option('email'),
+                description: $this->option('description'),
+                maxOperations: (int) $this->option('max-operations', 0),
+                admin: $isAdmin,
+            );
+        } catch (UsernameTaken $e) {
+            $this->warn($e->getMessage());
+            return INVALID_INPUT;
+        }
 
         $this->record(
             "user '{$username}' created (id {$id}" . ($isAdmin ? ', admin' : '') . ')',

@@ -1,0 +1,84 @@
+<?php
+
+namespace Eppitnic\Tests\Unit\Setup;
+
+use Eppitnic\Setup\ConfigFile;
+use Eppitnic\Setup\DatabaseCredentials;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * config/config.php is never actually touched here -- every test points
+ * ConfigFile at a throwaway path via usePath(), which is the whole reason
+ * that seam exists: this checkout has a real config/config.php holding real
+ * credentials, and there is no other way to exercise the "file missing" or
+ * "file written" branches without it.
+ */
+final class ConfigFileTest extends TestCase
+{
+    private string $dir;
+    private string $path;
+
+    protected function setUp(): void {
+        $this->dir = sys_get_temp_dir() . '/eppitnic-configfile-test-' . bin2hex(random_bytes(4));
+        mkdir($this->dir);
+        $this->path = $this->dir . '/config.php';
+        ConfigFile::usePath($this->path);
+    }
+
+    protected function tearDown(): void {
+        ConfigFile::usePath(null);
+        // the not-writable test may leave $this->dir chmoded down -- restore
+        // before cleanup so unlink/rmdir don't fail
+        @chmod($this->dir, 0700);
+        @unlink($this->path);
+        @rmdir($this->dir);
+    }
+
+    private function creds(): DatabaseCredentials {
+        return new DatabaseCredentials(type: 'mysql', host: 'localhost', name: 'eppitnic', charset: 'utf8', user: 'eppitnic', password: 'sekrit');
+    }
+
+    public function testExistsIsFalseForANonexistentPath(): void {
+        $this->assertFalse(ConfigFile::exists());
+    }
+
+    public function testExistsIsTrueAfterWrite(): void {
+        ConfigFile::write($this->creds());
+
+        $this->assertTrue(ConfigFile::exists());
+    }
+
+    public function testWriteProducesTheSixExpectedDefines(): void {
+        ConfigFile::write($this->creds());
+
+        // grepped as raw text, not required -- requiring it would define()
+        // real DB_* constants and pollute the rest of the suite
+        $contents = (string) file_get_contents($this->path);
+        foreach (['DB_TYPE', 'DB_HOST', 'DB_NAME', 'DB_CHARSET', 'DB_USER', 'DB_PASSWORD'] as $constant) {
+            $this->assertStringContainsString("define('{$constant}',", $contents);
+        }
+        $this->assertStringContainsString("'sekrit'", $contents);
+    }
+
+    public function testWrittenFileModeIsExactly0600(): void {
+        ConfigFile::write($this->creds());
+
+        $this->assertSame(0600, fileperms($this->path) & 0777);
+    }
+
+    public function testWriteRefusesToOverwriteAnExistingFile(): void {
+        ConfigFile::write($this->creds());
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/already exists/');
+        ConfigFile::write($this->creds());
+    }
+
+    public function testWriteThrowsWhenTheDirectoryIsNotWritable(): void {
+        chmod($this->dir, 0500);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/not writable/');
+        ConfigFile::write($this->creds());
+    }
+}

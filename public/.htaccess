@@ -1,0 +1,28 @@
+# Front-controller routing, for hosts that allow per-directory overrides.
+#
+# Slim routes exist only inside index.php -- /v1/setup is never a file on disk
+# -- so a server that answers from the filesystem alone returns its own HTML
+# 404 and the API looks dead. That failure is confusing precisely when nothing
+# else is working yet, so this ships alongside the vhost samples rather than
+# instead of them.
+#
+# Doing it in the vhost is still preferable and is what config/apache-vhost.sample
+# shows: AllowOverride None spares Apache a stat() for this file on every
+# request. Where AllowOverride is None this file is simply ignored, which is
+# why it is safe to ship either way.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # anything that is a real file or directory is served as-is
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# mod_rewrite is not always present; this needs no module at all
+<IfModule !mod_rewrite.c>
+    FallbackResource /index.php
+</IfModule>

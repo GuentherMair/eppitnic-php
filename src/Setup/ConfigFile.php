@@ -1,0 +1,73 @@
+<?php
+
+namespace Eppitnic\Setup;
+
+/**
+ * The only thing that reads, writes or locates config/config.php.
+ *
+ * Its existence is treated as the "installed" flag throughout Setup\Installer
+ * -- see write()'s refuse-if-exists guard, which is what makes that flag
+ * trustworthy even if some future caller forgets to check exists() first.
+ * Config's own copy of this path was retired in favour of this one: a
+ * checkout normally has a real config/config.php on disk, so without one
+ * owner carrying a redirect seam, the "file missing" branch of
+ * Config::loadConfig() would have nothing to point away from it and stay
+ * untestable.
+ *
+ * @category    Net
+ * @package     Eppitnic\Setup\ConfigFile
+ * @author      Günther Mair <info@inet-services.it>
+ * @license     http://opensource.org/licenses/bsd-license.php New BSD License
+ */
+final class ConfigFile
+{
+    private static ?string $path = null;
+
+    public static function path(): string {
+        return self::$path ??= EPPITNIC_ROOT . '/config/config.php';
+    }
+
+    /**
+     * Point at a throwaway file instead of config/config.php. Test suite
+     * only -- pass null to restore the real path.
+     */
+    public static function usePath(?string $path): void {
+        self::$path = $path;
+    }
+
+    public static function exists(): bool {
+        return is_readable(self::path());
+    }
+
+    /**
+     * @throws \RuntimeException if the file already exists, the containing
+     *         directory isn't writable, or the write/chmod fails
+     */
+    public static function write(DatabaseCredentials $creds): void {
+        if (self::exists()) {
+            throw new \RuntimeException("'" . self::path() . "' already exists -- refusing to overwrite it.");
+        }
+
+        $dir = dirname(self::path());
+        if ( ! is_writable($dir)) {
+            throw new \RuntimeException("Cannot write '" . self::path() . "': '{$dir}' is not writable.");
+        }
+
+        $d = $creds->toDefines();
+        $php = "<?php\n\n"
+            . "define('DB_TYPE',     " . var_export($d['DB_TYPE'], true) . ");\n"
+            . "define('DB_HOST',     " . var_export($d['DB_HOST'], true) . ");\n"
+            . "define('DB_NAME',     " . var_export($d['DB_NAME'], true) . ");\n"
+            . "define('DB_CHARSET',  " . var_export($d['DB_CHARSET'], true) . ");\n"
+            . "define('DB_USER',     " . var_export($d['DB_USER'], true) . ");\n"
+            . "define('DB_PASSWORD', " . var_export($d['DB_PASSWORD'], true) . ");\n";
+
+        if (file_put_contents(self::path(), $php) === false) {
+            throw new \RuntimeException("Unable to write '" . self::path() . "'.");
+        }
+        // holds a live database password
+        if ( ! @chmod(self::path(), 0600)) {
+            throw new \RuntimeException("Wrote '" . self::path() . "' but could not chmod it to 0600.");
+        }
+    }
+}

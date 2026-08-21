@@ -7,6 +7,7 @@ use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Session;
 use Eppitnic\Epp\Transport\DryRun;
 use Eppitnic\Service\EppSession;
+use Eppitnic\Setup\ConfigMissing;
 
 /**
  * Base for every `bin/eppitnic` subcommand.
@@ -245,6 +246,48 @@ abstract class Command
     }
 
     /**
+     * Ask for one value, moved here from the old Config::setupConfig() now
+     * that SetupCommand is the only interactive caller left. Kept on Command
+     * rather than local to that one subcommand so any future interactive
+     * command gets it for free instead of re-implementing it.
+     *
+     * @param string $label prompt text
+     * @param string $default value used if the user just presses enter
+     * @return string the entered value, or $default if left blank
+     */
+    protected function prompt(string $label, string $default = ''): string {
+        $suffix = $default !== '' ? " [{$default}]" : '';
+        fwrite(STDOUT, "{$label}{$suffix}: ");
+        $line = trim((string) fgets(STDIN));
+        return $line !== '' ? $line : $default;
+    }
+
+    /**
+     * like prompt(), but best-effort hides the typed characters (via `stty
+     * -echo`, when available -- not on Windows, or if `stty` isn't on
+     * PATH -- falling back to a plain visible prompt otherwise)
+     *
+     * @param string $label prompt text
+     * @return string the entered value
+     */
+    protected function promptHidden(string $label): string {
+        $canHide = PHP_OS_FAMILY !== 'Windows' && trim((string) @shell_exec('command -v stty')) !== '';
+        if ( ! $canHide) {
+            return $this->prompt($label);
+        }
+
+        fwrite(STDOUT, "{$label}: ");
+        shell_exec('stty -echo');
+        try {
+            $line = trim((string) fgets(STDIN));
+        } finally {
+            shell_exec('stty echo');
+        }
+        fwrite(STDOUT, "\n");
+        return $line;
+    }
+
+    /**
      * Names given as positional arguments, or one per line from --file.
      *
      * Both forms were supported by the old scripts through mutually exclusive
@@ -308,6 +351,15 @@ abstract class Command
 
         try {
             $result = EppSession::run($fn, $this->isVerbose(), $client);
+        } catch (ConfigMissing $e) {
+            // An uninstalled application is not a registry problem, and saying
+            // "Registry session unavailable" sends the reader looking at the
+            // network. It also has to keep its own exit code: this reaches the
+            // session only because Client's constructor is the first thing to
+            // ask for a setting, so the very same condition arrives here on
+            // `domain info` and at bin/eppitnic on `poll list`, and the two
+            // must not answer differently.
+            throw $e;
         } catch (\RuntimeException $e) {
             throw new SessionError($e->getMessage(), 0, $e);
         }

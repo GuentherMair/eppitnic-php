@@ -24,33 +24,39 @@ Run `composer install` to fetch the third-party dependencies into `vendor/`
 and generate the class autoloader (`vendor/autoload.php`) — `bin/eppitnic`
 needs only that one `require`, nothing else.
 
-A database is required for storing/persisting communication with the
-server (and, as of this version, all configuration except DB credentials
-themselves — see below). Set it up using the schema provided in
-`/config/mariadb-schema.sql`, which includes the `settings` table.
+A database is required for storing/persisting communication with the server
+(and, as of this version, all configuration except DB credentials themselves
+— see below). `config/config.php` is created by running `eppitnic setup` —
+prompts interactively, or takes `--db-name=`, `--admin-username=` and so on
+for a non-interactive/scripted install — or by visiting the application's URL
+in a browser: with no `config/config.php` present, it serves a bundled
+installer page (`public/setup.html`) that walks through the same steps over
+`POST /v1/setup`. Either one applies `config/mariadb-schema.sql`, which
+includes the `settings` table, and creates the first admin account, so there
+is no separate "set up the schema by hand" step. (If you'd rather do it by
+hand — copy `config/config.php-template` to `config/config.php`, apply
+`config/mariadb-schema.sql` yourself, and use `bin/eppitnic user create
+--admin` for the first account.)
 
 Configuration is split in two:
 
 1. `config/config.php` holds the database credentials — this is the one
    thing that has to live in a file, since it's needed to even connect to
-   the database everything else is read from. Either copy
-   `config/config.php-template` to `config/config.php` and fill it in by
-   hand, or just run any `bin/eppitnic` command from an interactive
-   terminal: if `config/config.php` is missing, `Config`
-   (`src/Config.php`) notices, prompts you for the database
-   type/host/name/charset/user/password right there, and writes the file
-   itself. Running the same command non-interactively (cron, CI, piped
-   input) with no `config/config.php` in place fails with a clear error
-   instead of hanging on a prompt nobody can answer.
+   the database everything else is read from. Its absence is also what
+   `eppitnic setup`/the installer page above key off: once it exists, both
+   are unreachable (`eppitnic setup` refuses to run again, and the setup
+   routes answer `404`).
 2. Everything else lives in the `settings` table, pre-populated with
-   placeholder values by `/config/mariadb-schema.sql` itself — no separate
+   placeholder values by `config/mariadb-schema.sql` itself — no separate
    seed file to copy. A handful of settings that can't have a real default
    (`jwt_psk`, `allowed_origins`, the EPP `username`/`password`/`cl_trid_prefix`)
-   are filled in for you: `jwt_psk` is silently auto-generated, and the
-   rest are prompted for — same as `config/config.php` above, the first
-   time `Config` runs from an interactive terminal and finds them still at
-   their placeholder. Everything else (`epp.server`, DNSSEC, …) can
-   be left at its default or adjusted later with `Config::set()`.
+   are filled in for you: `jwt_psk` is silently auto-generated on first
+   connection, and `eppitnic setup` (or the installer page) fills in the EPP
+   credentials, if given. `allowed_origins` has no setup-time equivalent — a
+   browser driving the installer is, by definition, unauthenticated CORS
+   traffic *before* that list exists to permit it — so set it afterward with
+   `Config::set()`. Everything else (`epp.server`, DNSSEC, …) can be left at
+   its default or adjusted later the same way.
 
    One setting is maintained by the software rather than by you:
    `epp.lastPasswordUpdate`, a unix timestamp recording when an automated
@@ -99,16 +105,16 @@ Both are destroyed by the migration and are only recoverable from a backup:
 
 1. `composer install` — dependencies are no longer vendored, and PHP 8.1+ is
    required.
-2. Create `config/config.php` from `config/config.php-template` for the
-   database credentials, or run any `bin/eppitnic` command from a terminal and
-   let it prompt you.
-3. `bin/eppitnic config migrate` — converts `config.xml` into
-   `config/config.php` plus the `settings` table. Afterwards `config.xml` is
-   read by nothing and can be archived.
-4. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()`, and
+2. `bin/eppitnic config migrate` — converts `config.xml` into
+   `config/config.php` (from the same file's own database credentials) plus
+   the `settings` table. Afterwards `config.xml` is read by nothing and can
+   be archived. (Use this rather than `eppitnic setup`: that command applies
+   `config/mariadb-schema.sql` fresh, which is for a brand-new install, not
+   a 6.x database being migrated in place.)
+3. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()`, and
    the old hashes cannot be converted, so no existing login works until it is
    reset (see "User setup").
-5. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
+4. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
    is gone, replaced by JSON/REST (`public/`, documented in `docs/API.md`) with
    JWT bearer tokens instead of PHP sessions.
 
@@ -212,7 +218,14 @@ curl -i https://epp.example.com/v1/network-check
 ```
 
 That must come back as JSON. An HTML 404 means the front-controller routing
-isn't in place.
+isn't in place — and so does *"The API is not reachable at this address"* on the
+setup page, which is the first thing you will see if the document root is right
+but the routing is not.
+
+`public/.htaccess` does the same job for hosts that allow per-directory
+overrides, so a plain `DocumentRoot .../public` works without it. Configuring it
+in the vhost is still better: `AllowOverride None` spares Apache a `stat()` for
+that file on every request, and where overrides are off the file is ignored.
 
 For local development you can skip all of this — PHP's built-in server
 already routes everything to one script:
@@ -232,12 +245,14 @@ the PHP error log either way.
 
 # User setup
 
-Every route that creates a user (`POST /v1/users`) requires an admin token
-to call it, so the very first admin account can't be created over the API —
-use `bin/eppitnic` directly against the database instead:
+Every route that creates a user (`POST /v1/users`) requires an admin token to
+call it, so the very first admin account is created by `eppitnic setup` (or
+the installer page) instead, as part of first-run setup — see Installation
+above. From then on, `bin/eppitnic user create` is how you create any
+*further* account directly against the database:
 
 ```
-bin/eppitnic user create admin --password='a-strong-password' --admin
+bin/eppitnic user create admin2 --password='a-strong-password' --admin
 ```
 
 The same script can also issue a fixed, non-expiring (or time-limited) API

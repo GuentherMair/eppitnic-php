@@ -25,6 +25,36 @@ falls back to an HTML error page if it doesn't see `application/json`. See
 "Error shapes" below — these responses look different from routes' own
 `{"error": "..."}` JSON.
 
+## Setup
+
+`GET /v1/setup`, `POST /v1/setup/verify` and `POST /v1/setup` are reachable
+only while `config/config.php` does not exist; each answers `404` once it
+does. No auth — there is nothing to authenticate against yet, and the file's
+absence is the gate (see the README's Installation section). They're served
+from a separate, database-free Slim instance (`Eppitnic\Api\SetupApp`), not
+from the route list below: `public/index.php` runs one or the other, never
+both in the same request.
+
+`GET /v1/setup` → `{"required": true, "fields": [...]}` — one entry per input
+field (`name`, `label`, `default`, `secret`, `group`, `required`), the same
+list `eppitnic setup` prompts from and `public/setup.html` renders from.
+`group` is `database`, `admin` or `epp`.
+
+`POST /v1/setup/verify` — body: the `database` group's fields (`db_type`,
+`db_host`, `db_name`, `db_charset`, `db_user`, `db_password`). Opens a
+throwaway connection and discards it; `{"ok": true, "server_version": "..."}`
+on success, `{"error": "..."}` / `400` otherwise. Nothing is written or
+committed by this call.
+
+`POST /v1/setup` — body: every field from `GET /v1/setup`. Applies
+`config/mariadb-schema.sql`, creates the first admin account, and writes
+`config/config.php` as its last step — a failure partway through leaves
+nothing committed, so the call is safe to retry.
+`{"ok": true, "schema_version": "070000", "admin": {"id": 1, "username": "..."}}`
+on success, `{"error": "..."}` / `400` otherwise. Never returns a database or
+admin password, and a schema failure's raw SQL is truncated out of the
+response body (the full detail goes to the server log).
+
 ## Authentication
 
 Two independent mechanisms produce a bearer token accepted the same way by
