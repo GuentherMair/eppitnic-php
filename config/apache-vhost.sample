@@ -7,8 +7,8 @@
 #
 # 1. The document root is `public/`, and ONLY `public/`. The rest of the
 #    checkout must stay outside the served tree -- config/config.php holds the
-#    database credentials, and CLI/, cronjobs/ and vendor/ have no business
-#    being reachable over HTTP.
+#    database credentials, and bin/ and vendor/ have no business being
+#    reachable over HTTP.
 #
 # 2. The rewrite below is what makes the API work at all. Slim is a front
 #    controller: every route lives inside public/index.php, so a request for
@@ -16,8 +16,10 @@
 #    before PHP is involved. The rule sends anything that is not a real file to
 #    index.php, which then routes it.
 #
-# There is deliberately no .htaccess in public/ -- the rewrite lives here, and
-# AllowOverride None spares Apache a per-request stat() looking for one.
+# public/.htaccess carries the same rewrite, for hosts that only allow
+# per-directory overrides. Putting it here instead is still preferable where
+# you can: AllowOverride None spares Apache a per-request stat() looking for
+# a file that, with it, would never be there.
 
 <VirtualHost *:443>
     ServerName      epp.example.com

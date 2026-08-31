@@ -4,8 +4,8 @@
 # config/apache-vhost.sample for the same setup on Apache.
 #
 # As there, the two things that matter are that the root is `public/` and only
-# `public/` (config/config.php holds the database credentials, and CLI/,
-# cronjobs/ and vendor/ must not be reachable over HTTP), and that anything
+# `public/` (config/config.php holds the database credentials, and bin/ and
+# vendor/ must not be reachable over HTTP), and that anything
 # which is not a real file is handed to index.php -- Slim is a front
 # controller, so /v1/domains exists only as a route inside index.php, never as
 # a file on disk.
