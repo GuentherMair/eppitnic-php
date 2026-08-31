@@ -1,0 +1,79 @@
+# Two eppitnic instances on one host, sharing nothing but the image: separate
+# ports, separate /data folders (so each writes only its own config.php and
+# selftest notes -- see src/Setup/ConfigFile.php and src/Selftest/Leftovers.php),
+# and separate scheduler sidecars. Copy this to compose.yaml for a genuine
+# two-instance deployment, or run it alongside the real one with
+# `docker compose -f compose.multi.yaml.sample up`.
+#
+# Each instance needs its own web + scheduler pair -- the scheduler is not
+# optional, see README's "Scheduled jobs": without it that instance's EPP
+# password reminder is never acted on. The two instances can point at the
+# same database host with different DB_NAME/config, or entirely different
+# databases; that's a config.php choice, not a compose one.
+#
+# The eppitnic-cli-<name> services give the wrapper script (./eppitnic
+# <instance> <verb>...) something to target -- e.g. `./eppitnic alpha domain
+# info example.it` runs against the alpha instance's own /data.
+
+services:
+  web-alpha:
+    build: .
+    image: eppitnic
+    ports:
+      - "127.0.0.1:8081:80"
+    volumes:
+      - ./data/alpha:/data
+    restart: unless-stopped
+
+  scheduler-alpha:
+    build: .
+    image: eppitnic
+    command: ["crond", "-f", "-L", "/dev/stdout"]
+    volumes:
+      - ./data/alpha:/data
+    restart: unless-stopped
+
+  eppitnic-cli-alpha:
+    build: .
+    image: eppitnic
+    profiles: ["cli"]
+    # Keeps tini and entrypoint.sh in front of the verb rather than replacing
+    # them: entrypoint.sh is what creates and chowns /data/config and
+    # /data/var, and `docker compose run --rm eppitnic-cli setup` on a fresh
+    # deployment may well be the first thing that ever touches the volume --
+    # Docker hands it over root-owned and empty, and ConfigFile::write()
+    # needs the directory to exist and be writable.
+    entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
+    volumes:
+      - ./data/alpha:/data
+
+  web-beta:
+    build: .
+    image: eppitnic
+    ports:
+      - "127.0.0.1:8082:80"
+    volumes:
+      - ./data/beta:/data
+    restart: unless-stopped
+
+  scheduler-beta:
+    build: .
+    image: eppitnic
+    command: ["crond", "-f", "-L", "/dev/stdout"]
+    volumes:
+      - ./data/beta:/data
+    restart: unless-stopped
+
+  eppitnic-cli-beta:
+    build: .
+    image: eppitnic
+    profiles: ["cli"]
+    # Keeps tini and entrypoint.sh in front of the verb rather than replacing
+    # them: entrypoint.sh is what creates and chowns /data/config and
+    # /data/var, and `docker compose run --rm eppitnic-cli setup` on a fresh
+    # deployment may well be the first thing that ever touches the volume --
+    # Docker hands it over root-owned and empty, and ConfigFile::write()
+    # needs the directory to exist and be writable.
+    entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
+    volumes:
+      - ./data/beta:/data

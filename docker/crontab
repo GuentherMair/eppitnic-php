@@ -1,0 +1,24 @@
+# `poll process` is not optional: it's the only thing that acts on the
+# registry's passwdReminder, so a scheduler that silently stops running it
+# ends with an expired EPP credential and every call failing. This file is
+# the sidecar's whole job -- see compose.yaml's scheduler service.
+#
+# EPPITNIC_CONFIG_DIR/EPPITNIC_VAR_DIR are set as image ENV (see the
+# Dockerfile) and would normally just be inherited, but cron implementations
+# differ in what environment they hand a job -- vixie-style cron resets it to
+# a fixed minimal set, and only variables declared in the crontab itself
+# survive that. BusyBox crond's actual behaviour here isn't verified (no
+# Docker on this machine to check), so they're declared explicitly below
+# rather than assumed inherited. Do not "tidy up" this duplication with the
+# Dockerfile's ENV -- without it, `poll process` looks for
+# /app/config/config.php, finds nothing, and fails every five minutes: a
+# scheduler that's silently broken on an otherwise healthy stack.
+EPPITNIC_CONFIG_DIR=/data/config
+EPPITNIC_VAR_DIR=/data/var
+
+# su-exec, not root: config.php and the selftest notes this writes have to
+# be owned the same as the web tier that also reads and writes them (see
+# docker/entrypoint.sh's chown). /proc/1/fd/1 is this container's own PID 1
+# (crond itself, run in the foreground -- see compose.yaml) -- the usual way
+# to make a cron job's output land in `docker logs` instead of nowhere.
+*/5 * * * * su-exec www-data /usr/local/bin/eppitnic poll process >> /proc/1/fd/1 2>&1

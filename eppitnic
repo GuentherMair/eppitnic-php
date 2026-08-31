@@ -1,0 +1,53 @@
+#!/bin/sh
+set -eu
+
+# Reaches a container instance's CLI the same way `docker compose run --rm
+# eppitnic-cli <verb>...` does (see compose.yaml) -- a one-shot container,
+# not `exec` into a running one, because the verbs most worth having here
+# (doctor ownership, doctor epp-password, setup) are wanted precisely when
+# the stack is not healthy.
+#
+# The one thing this adds is picking which instance: a multi-instance
+# deployment (compose.multi.yaml.sample) gives each instance its own
+# eppitnic-cli-<name> service rather than a different working directory per
+# instance, so this script's whole job is turning the instance name into
+# that service name.
+#
+# Usage: ./eppitnic [docker compose run flags] <instance> <verb> [args...]
+#   ./eppitnic default domain info example.it        # compose.yaml's one instance
+#   ./eppitnic alpha selftest reap --list             # compose.multi.yaml.sample
+#   ./eppitnic -T alpha domain delete example.it --yes   # unattended: -T (no
+#                                                         # TTY) and --yes both
+#                                                         # required, or Command::confirm()
+#                                                         # refuses -- see README
+
+compose_file="${EPPITNIC_COMPOSE_FILE:-compose.yaml}"
+
+# anything before the instance name is a `docker compose run` flag (-T, ...);
+# anything from the instance name on is the instance plus the eppitnic verb
+# and its own flags (--yes, ...), which must stay together and in order for
+# `eppitnic`'s own option parsing to see them correctly
+run_flags=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -*) run_flags="${run_flags} $1" ;;
+        *)  break ;;
+    esac
+    shift
+done
+
+if [ $# -lt 2 ]; then
+    echo "usage: $0 [docker compose run flags] <instance> <verb> [args...]" >&2
+    exit 1
+fi
+
+instance="$1"
+shift
+
+# compose.yaml's single instance keeps the plain service name; only a named,
+# multi-instance deployment gets the -<name> suffix
+service="eppitnic-cli"
+[ "$instance" = "default" ] || service="eppitnic-cli-${instance}"
+
+# shellcheck disable=SC2086  # run_flags is deliberately word-split
+exec docker compose -f "$compose_file" run --rm $run_flags "$service" "$@"

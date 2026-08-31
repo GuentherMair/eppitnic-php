@@ -1,0 +1,23 @@
+# Trimmed for build-context size and, more importantly, so the live dev
+# config in this checkout never ends up baked into an image.
+.git
+vendor/
+tests/
+xsd/
+docs/
+.claude/
+.phpunit.cache/
+var/
+data/
+
+# holds this checkout's real database credentials -- config/config.php-template
+# is what ships in the image instead, and eppitnic/the installer write the
+# real one at container start, into the EPPITNIC_CONFIG_DIR volume
+config/config.php
+
+*.md
+.DS_Store
+compose*.yaml
+compose*.yaml.sample
+Dockerfile
+.dockerignore

@@ -1,0 +1,63 @@
+# One eppitnic instance: the web tier, its scheduler sidecar, and a CLI
+# service that never starts on its own. See README.md's Docker section for
+# the reasoning; compose.multi.yaml.sample is the same shape run twice, for
+# two installations on one host.
+#
+# EPPITNIC_CONFIG_DIR and EPPITNIC_VAR_DIR are baked into the image (see the
+# Dockerfile) -- what an instance actually needs to set is where /data lands
+# on the host and which port it publishes, below.
+#
+# None of this provides a database. Reach one on the Docker host at
+# host.docker.internal (works out of the box on Docker Desktop; on Linux, add
+#   extra_hosts: ["host.docker.internal:host-gateway"]
+# to each service below), or point DB_HOST at another compose service's name
+# if the database is a container too.
+
+services:
+  web:
+    build: .
+    image: eppitnic
+    ports:
+      - "127.0.0.1:80:80"
+    volumes:
+      - ./data:/data
+    # environment:
+    #   EPPITNIC_DEBUG: "true"   # never in production -- see README's Web server section
+    restart: unless-stopped
+
+  # `poll process` every 5 minutes is not optional -- it's the only thing
+  # that acts on the registry's passwdReminder, so without it the shared EPP
+  # credential expires and every call starts failing. See docker/crontab.
+  scheduler:
+    build: .
+    image: eppitnic
+    command: ["crond", "-f", "-L", "/dev/stdout"]
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  # Excluded from `docker compose up` by its profile -- reached with
+  # `docker compose run --rm eppitnic-cli <verb>...`, or `./eppitnic default
+  # <verb>...` via the wrapper. A one-shot container rather than `exec` into
+  # a running one: the verbs most worth having here (doctor ownership,
+  # doctor epp-password, setup) are wanted precisely when the stack is *not*
+  # healthy, and `exec` needs a container already running to attach to --
+  # hence also no depends_on.
+  #
+  # `docker compose run` allocates a TTY by default, which is what lets
+  # Cli\Command::confirm() prompt for destructive verbs; add -T for scripted/
+  # unattended use, together with --yes on the eppitnic verb itself -- one
+  # without the other still refuses (no terminal, not confirmed).
+  eppitnic-cli:
+    build: .
+    image: eppitnic
+    profiles: ["cli"]
+    # Keeps tini and entrypoint.sh in front of the verb rather than replacing
+    # them: entrypoint.sh is what creates and chowns /data/config and
+    # /data/var, and `docker compose run --rm eppitnic-cli setup` on a fresh
+    # deployment may well be the first thing that ever touches the volume --
+    # Docker hands it over root-owned and empty, and ConfigFile::write()
+    # needs the directory to exist and be writable.
+    entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
+    volumes:
+      - ./data:/data
