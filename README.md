@@ -33,8 +33,8 @@ Detailed instructions can be found in:
 # Quick Start
 
 1. MariaDB/MySQL database + user:
-   * `CREATE DATABASE eppitnic;`
-   * `GRANT ALL PRIVILEGES ON eppitnic.* TO 'username'@'localhost' IDENTIFIED BY '<YOUR-PASSWORD>';`
+   * `CREATE DATABASE <DATABASENAME>;`
+   * `GRANT ALL PRIVILEGES ON <DATABASENAME>.* TO '<USERNAME>'@'localhost' IDENTIFIED BY '<PASSWORD>';`
    * `FLUSH ALL PRIVILEGES;`
 2. Webserver Virtual Host (see config/apache-vhost.sample and config/nginx.sample)
 3. run `composer install`
