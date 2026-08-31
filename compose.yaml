@@ -14,6 +14,13 @@
 # if the database is a container too.
 
 services:
+  # The only service that declares `build:`. scheduler and eppitnic-cli
+  # below share the same `image: eppitnic` without building it themselves --
+  # three services building the identical Dockerfile to the identical tag
+  # raced each other on the final export/tag step (BuildKit shares the build
+  # steps between them but not that last one), so there must be exactly one
+  # owner. `docker compose build`/`up --build` builds this one service;
+  # the others just start from the image it produces.
   web:
     build: .
     image: eppitnic
@@ -29,7 +36,6 @@ services:
   # that acts on the registry's passwdReminder, so without it the shared EPP
   # credential expires and every call starts failing. See docker/crontab.
   scheduler:
-    build: .
     image: eppitnic
     command: ["crond", "-f", "-L", "/dev/stdout"]
     volumes:
@@ -49,7 +55,6 @@ services:
   # unattended use, together with --yes on the eppitnic verb itself -- one
   # without the other still refuses (no terminal, not confirmed).
   eppitnic-cli:
-    build: .
     image: eppitnic
     profiles: ["cli"]
     # Keeps tini and entrypoint.sh in front of the verb rather than replacing

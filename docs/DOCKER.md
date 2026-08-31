@@ -1,5 +1,29 @@
 # Docker
 
+## Prerequisites
+
+Docker Engine plus the **Compose v2** and **Buildx** plugins. On Ubuntu, the
+`docker.io` apt package ships neither — install both explicitly:
+
+```
+sudo apt install docker-compose-v2 docker-buildx
+```
+
+Without Compose v2, `docker compose` isn't a recognized command at all (older
+`docker-compose`, hyphenated, is a different, unsupported tool). Without
+Buildx, `docker compose up` still runs, but with a `configured to build using
+Bake, but buildx isn't installed` warning.
+
+Only `web` (`web-alpha` in the multi-instance sample) declares `build: .`.
+`scheduler` and `eppitnic-cli` deliberately don't, even though they run the
+same `image: eppitnic` — building the identical `Dockerfile` to the identical
+tag from more than one service races on the final export/tag step even under
+Buildx/Bake (it shares the build steps between them, but not that last one),
+failing with `image "docker.io/library/eppitnic:latest": already exists`. If
+you ever add a service that needs this image, give it `image: eppitnic`
+without its own `build:` — Compose builds it once, from whichever service
+owns it, and the rest just start from the result.
+
 `docker compose up -d` brings up one instance: nginx + php-fpm in one
 container serving `public/` on `127.0.0.1:80`, plus a scheduler sidecar on the
 same image running `poll process` every five minutes (see "Scheduled jobs" in
