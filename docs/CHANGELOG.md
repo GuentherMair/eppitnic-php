@@ -178,6 +178,20 @@ now tells an empty database apart from an existing installation before
 once every other step has succeeded, so a setup that fails partway through is
 simply re-run rather than left half-configured.
 
+`docker compose up -d` now brings up a whole instance: nginx and php-fpm in
+one container (`Dockerfile`, `docker/`), a scheduler sidecar running the same
+image for `poll process`, and a `eppitnic-cli` service for one-shot verbs like
+`setup` or `doctor ownership` — see the README's "Docker" section, and
+`compose.multi.yaml.sample` for running more than one instance on the same
+host. `config/config.php` and the self-test notes move outside the image
+entirely, to whatever `EPPITNIC_CONFIG_DIR`/`EPPITNIC_VAR_DIR` point at
+(`Setup\ConfigFile`, `Selftest\Leftovers`), so a bind mount never has to shadow
+`config/` itself — the schema files and `constants.php` living there are read
+on every request and every `Config` construction. `composer.json` now also
+declares `ext-pdo_mysql`, the one extension the image needed to add on top of
+`php:8.5-fpm-alpine`; every DSN this codebase builds is `mysql:` regardless, so
+its absence is now a Composer error instead of a runtime one.
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.
