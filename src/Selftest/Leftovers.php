@@ -49,9 +49,17 @@ final class Leftovers
     /**
      * Where the notes live. Under the checkout rather than in the system
      * temporary directory: these have to outlive a reboot by more than a week.
+     *
+     * The explicit test seam wins if set; otherwise EPPITNIC_VAR_DIR redirects
+     * this alongside config.php's own EPPITNIC_CONFIG_DIR, for a container
+     * instance whose /app is the image and whose state lives elsewhere.
      */
     public static function directory(): string {
-        return self::$directory ?? EPPITNIC_ROOT . '/var/selftest';
+        if (self::$directory !== null) {
+            return self::$directory;
+        }
+        $dir = getenv('EPPITNIC_VAR_DIR');
+        return $dir !== false && $dir !== '' ? $dir . '/selftest' : EPPITNIC_ROOT . '/var/selftest';
     }
 
     /**

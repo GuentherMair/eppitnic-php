@@ -259,4 +259,38 @@ final class SelftestLeftoversTest extends EppTestCase
 
         $this->assertSame($before, Leftovers::pending()[0]['age_days']);
     }
+
+    // ---------------------------------------------------------------
+    // EPPITNIC_VAR_DIR
+    // ---------------------------------------------------------------
+
+    public function testDirectoryHonoursEppitnicVarDirWhenNoSeamIsSet(): void {
+        Leftovers::useDirectory(null);
+        putenv('EPPITNIC_VAR_DIR=/data/var');
+        try {
+            $this->assertSame('/data/var/selftest', Leftovers::directory());
+        } finally {
+            putenv('EPPITNIC_VAR_DIR');
+            Leftovers::useDirectory($this->directory);
+        }
+    }
+
+    public function testExplicitSeamStillWinsOverEppitnicVarDir(): void {
+        putenv('EPPITNIC_VAR_DIR=/should-not-be-used');
+        try {
+            $this->assertSame($this->directory, Leftovers::directory());
+        } finally {
+            putenv('EPPITNIC_VAR_DIR');
+        }
+    }
+
+    public function testDirectoryDefaultsToVarSelftestWhenEnvVarIsUnset(): void {
+        Leftovers::useDirectory(null);
+        putenv('EPPITNIC_VAR_DIR');
+        try {
+            $this->assertSame(EPPITNIC_ROOT . '/var/selftest', Leftovers::directory());
+        } finally {
+            Leftovers::useDirectory($this->directory);
+        }
+    }
 }

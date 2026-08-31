@@ -23,8 +23,19 @@ final class ConfigFile
 {
     private static ?string $path = null;
 
+    /**
+     * Where config.php lives: the explicit test seam if one was set,
+     * otherwise EPPITNIC_CONFIG_DIR when the process has one (a container
+     * instance's per-install directory, kept outside config/ so it never
+     * shadows constants.php or the bundled schema files there), otherwise
+     * the checkout's own config/.
+     */
     public static function path(): string {
-        return self::$path ??= EPPITNIC_ROOT . '/config/config.php';
+        if (self::$path !== null) {
+            return self::$path;
+        }
+        $dir = getenv('EPPITNIC_CONFIG_DIR');
+        return ($dir !== false && $dir !== '' ? $dir : EPPITNIC_ROOT . '/config') . '/config.php';
     }
 
     /**

@@ -81,4 +81,34 @@ final class ConfigFileTest extends TestCase
         $this->expectExceptionMessageMatches('/not writable/');
         ConfigFile::write($this->creds());
     }
+
+    // -----------------------------------------------------------------
+    // EPPITNIC_CONFIG_DIR
+    // -----------------------------------------------------------------
+
+    public function testPathHonoursEppitnicConfigDirWhenNoSeamIsSet(): void {
+        ConfigFile::usePath(null);
+        putenv('EPPITNIC_CONFIG_DIR=' . $this->dir);
+        try {
+            $this->assertSame($this->dir . '/config.php', ConfigFile::path());
+        } finally {
+            putenv('EPPITNIC_CONFIG_DIR');
+        }
+    }
+
+    public function testExplicitSeamStillWinsOverEppitnicConfigDir(): void {
+        putenv('EPPITNIC_CONFIG_DIR=/should-not-be-used');
+        try {
+            $this->assertSame($this->path, ConfigFile::path());
+        } finally {
+            putenv('EPPITNIC_CONFIG_DIR');
+        }
+    }
+
+    public function testPathDefaultsToConfigDirectoryWhenEnvVarIsUnset(): void {
+        ConfigFile::usePath(null);
+        putenv('EPPITNIC_CONFIG_DIR');
+
+        $this->assertSame(EPPITNIC_ROOT . '/config/config.php', ConfigFile::path());
+    }
 }
