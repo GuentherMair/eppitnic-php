@@ -41,8 +41,12 @@ FROM base AS runtime
 #   jar and selftest notes then end up owned the same as the web/cron
 #   processes that read them back, rather than root-owned and unreadable to
 #   the www-data worker that needs them next.
+#
+# No docker-php-ext-enable opcache here: on this base image OPcache is
+# compiled into the core binary, not a separate loadable .so -- there is
+# nothing to enable. docker/php.ini's opcache.* settings are what actually
+# turn it on.
 RUN apk add --no-cache nginx tini su-exec \
-    && docker-php-ext-enable opcache \
     && rm -f /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/www.conf.default \
     && rm -f /etc/nginx/http.d/default.conf \
     && mkdir -p /run/php
