@@ -7,9 +7,13 @@
 #
 # Each instance needs its own web + scheduler pair -- the scheduler is not
 # optional, see README's "Scheduled jobs": without it that instance's EPP
-# password reminder is never acted on. The two instances can point at the
-# same database host with different DB_NAME/config, or entirely different
-# databases; that's a config.php choice, not a compose one.
+# password reminder is never acted on. Every service carries
+#   extra_hosts: ["host.docker.internal:host-gateway"]
+# so DB_HOST=host.docker.internal reaches a database on the Docker host (see
+# compose.yaml's comment on why that still needs the server listening beyond
+# 127.0.0.1). The two instances can point at the same database host with
+# different DB_NAME/config, or entirely different databases; that's a
+# config.php choice, not a compose one.
 #
 # The eppitnic-cli-<name> services give the wrapper script (./eppitnic
 # <instance> <verb>...) something to target -- e.g. `./eppitnic alpha domain
@@ -26,6 +30,8 @@ services:
       - "127.0.0.1:8081:80"
     volumes:
       - ./data/alpha:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   scheduler-alpha:
@@ -33,6 +39,8 @@ services:
     command: ["crond", "-f", "-L", "/dev/stdout"]
     volumes:
       - ./data/alpha:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   eppitnic-cli-alpha:
@@ -47,6 +55,8 @@ services:
     entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
     volumes:
       - ./data/alpha:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   web-beta:
     image: eppitnic
@@ -54,6 +64,8 @@ services:
       - "127.0.0.1:8082:80"
     volumes:
       - ./data/beta:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   scheduler-beta:
@@ -61,6 +73,8 @@ services:
     command: ["crond", "-f", "-L", "/dev/stdout"]
     volumes:
       - ./data/beta:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   eppitnic-cli-beta:
@@ -75,3 +89,5 @@ services:
     entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
     volumes:
       - ./data/beta:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

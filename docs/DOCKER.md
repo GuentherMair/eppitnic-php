@@ -28,10 +28,31 @@ owns it, and the rest just start from the result.
 container serving `public/` on `127.0.0.1:80`, plus a scheduler sidecar on the
 same image running `poll process` every five minutes (see "Scheduled jobs" in
 [INSTALL.md](INSTALL.md) — it can't be skipped). Neither container provides a
-database; point `config.php` at one on the Docker host via
-`host.docker.internal` (works out of the box on Docker Desktop; on Linux add
-`extra_hosts: ["host.docker.internal:host-gateway"]`), or at another compose
-service by name.
+database; every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`
+so `DB_HOST=host.docker.internal` in `config.php` reaches one on the Docker
+host — or point `DB_HOST` at another compose service's name if the database
+is a container too.
+
+## Reaching a database on the host
+
+A container's loopback isn't the host's — traffic to `host.docker.internal`
+arrives at the host over the bridge interface, with a real (non-loopback)
+source address. A MariaDB bound to `127.0.0.1` refuses it regardless of
+`extra_hosts`; it never had a chance to see the connection. Three changes on
+the host, none of them exposing the database to the internet — the bridge
+network isn't routed anywhere by the host's public interface unless you
+explicitly forward it:
+
+1. **`bind-address`** in MariaDB's config — `127.0.0.1` → `0.0.0.0`, then
+   restart. This puts it on every interface, the bridge included; it is not
+   the same as making it internet-reachable.
+2. **Firewall it anyway**, defense in depth: `docker network inspect
+   eppitnic_default | grep Subnet` for the bridge's actual subnet, then allow
+   port 3306 from only that subnet and confirm nothing already allows it from
+   the public interface.
+3. **A grant that matches the bridge, not `localhost`** —
+   `GRANT ALL PRIVILEGES ON eppitnic.* TO 'username'@'172.18.%.%' IDENTIFIED BY '<password>'; FLUSH PRIVILEGES;`
+   (adjust the wildcard to the subnet from step 2).
 
 The image adds only `docker-php-ext-install pdo_mysql` to
 `php:8.5-fpm-alpine` — everything else this codebase touches (`curl`, `dom`,

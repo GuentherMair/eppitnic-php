@@ -7,11 +7,15 @@
 # Dockerfile) -- what an instance actually needs to set is where /data lands
 # on the host and which port it publishes, below.
 #
-# None of this provides a database. Reach one on the Docker host at
-# host.docker.internal (works out of the box on Docker Desktop; on Linux, add
+# None of this provides a database. Each service below carries
 #   extra_hosts: ["host.docker.internal:host-gateway"]
-# to each service below), or point DB_HOST at another compose service's name
-# if the database is a container too.
+# so DB_HOST=host.docker.internal reaches one on the Docker host, Linux
+# included (a no-op on engines that already resolve the name, e.g. Docker
+# Desktop) -- but a MariaDB bound only to 127.0.0.1 still won't answer:
+# traffic from a container arrives over the bridge interface, not loopback,
+# so the server needs to listen on that interface too (see docs/DOCKER.md's
+# "Reaching a database on the host"). Point DB_HOST at another compose
+# service's name instead if the database is a container itself.
 
 services:
   # The only service that declares `build:`. scheduler and eppitnic-cli
@@ -28,6 +32,8 @@ services:
       - "127.0.0.1:80:80"
     volumes:
       - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux; a no-op where the engine already provides it
     # environment:
     #   EPPITNIC_DEBUG: "true"   # never in production -- see README's Web server section
     restart: unless-stopped
@@ -40,6 +46,8 @@ services:
     command: ["crond", "-f", "-L", "/dev/stdout"]
     volumes:
       - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   # Excluded from `docker compose up` by its profile -- reached with
@@ -66,3 +74,5 @@ services:
     entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
     volumes:
       - ./data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
