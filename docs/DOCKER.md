@@ -101,3 +101,33 @@ services twice, different ports and `/data` folders, each with its own
 `pdns sync` is deliberately not scheduled in the image: it shells out to
 `pdnsutil`, not part of a PHP image, against zones the container can't reach.
 Run it from the PowerDNS host itself, against the same database.
+
+## Tearing down, rebuilding, and starting over
+
+To pick up a code or `Dockerfile` change, keeping the build cache:
+
+```
+docker compose down
+docker compose up -d --build
+```
+
+For a genuinely clean rebuild — discard the built image and the build
+cache, not just the containers:
+
+```
+docker compose down --rmi all
+docker compose build --no-cache
+docker compose up -d
+```
+
+`--rmi all` removes every image the compose file references, including the
+pulled `php:8.5-fpm-alpine` and `composer:2` base images, so the next build
+re-pulls those too. Removing the image alone doesn't clear BuildKit's layer
+cache — a plain `docker compose build` afterward could still hand back
+something close to what was just deleted — `--no-cache` is what forces an
+actual rebuild.
+
+Neither command touches `./data`: it's a bind mount, not a named volume, so
+`config/config.php` and `var/selftest/` survive regardless. `eppitnic-cli`
+needs no separate handling — it only ever runs via `docker compose run --rm`,
+so there's never a lingering container for it.
