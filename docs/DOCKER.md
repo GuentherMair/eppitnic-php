@@ -54,6 +54,28 @@ explicitly forward it:
    `GRANT ALL PRIVILEGES ON eppitnic.* TO 'username'@'172.18.%.%' IDENTIFIED BY '<password>'; FLUSH PRIVILEGES;`
    (adjust the wildcard to the subnet from step 2).
 
+## Putting a reverse proxy in front
+
+`web` publishes on `127.0.0.1:80` only, plain HTTP — nothing in the image
+terminates TLS or knows the real hostname, by design (see
+`docker/nginx.conf`'s own comment). Put a normal host webserver in front of
+it: `config/nginx-proxy.sample` or `config/apache-proxy.sample`, which
+terminate TLS at the real `server_name`/`ServerName` and proxy to
+`127.0.0.1:80`. These are the Docker-facing counterparts of
+`config/nginx-vhost.sample`/`config/apache-vhost.sample` (which serve
+`public/` directly, for a bare-metal install).
+
+One thing both proxy samples call out and is easy to get wrong: a request
+proxied through `127.0.0.1` to a published container port does not
+necessarily arrive with a source address of `127.0.0.1` — Docker's NAT for
+host-to-published-port traffic commonly rewrites it to the bridge gateway
+address instead (`docker network inspect eppitnic_default` shows the real
+one). Set the `trusted_proxies` setting (see INSTALL.md's "Login rate
+limiting") to whatever address actually shows up — confirmed by sending one
+request and checking `GET /v1/history?object=security&limit=1` — not to
+`127.0.0.1`. Get it wrong and `X-Forwarded-For` is silently ignored, so every
+client behind the proxy shares one rate-limit bucket.
+
 The image adds only `docker-php-ext-install pdo_mysql` to
 `php:8.5-fpm-alpine` — everything else this codebase touches (`curl`, `dom`,
 `simplexml`, `mbstring`, `posix`, …) already ships in it. `xsd/` is left out;

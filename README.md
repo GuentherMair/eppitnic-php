@@ -36,7 +36,8 @@ Detailed instructions can be found in:
    * `CREATE DATABASE <DATABASENAME>;`
    * `GRANT ALL PRIVILEGES ON <DATABASENAME>.* TO '<USERNAME>'@'localhost' IDENTIFIED BY '<PASSWORD>';`
    * `FLUSH ALL PRIVILEGES;`
-2. Webserver Virtual Host (see config/apache-vhost.sample and config/nginx.sample)
+2. Webserver Virtual Host (see config/apache-vhost.sample and config/nginx-vhost.sample;
+   config/*-proxy.sample instead if fronting a Docker install, see docs/DOCKER.md)
 3. run `composer install`
 4. choose a setup method (CLI or web UI) and follow the instructions provided:
    * CLI: run `bin/eppitnic setup`

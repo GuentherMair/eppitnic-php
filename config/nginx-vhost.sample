@@ -1,7 +1,10 @@
-# Sample nginx server block for the eppitnic REST API.
+# Sample nginx server block for the eppitnic REST API, serving public/
+# directly. If eppitnic instead runs via `docker compose up` (see
+# docs/DOCKER.md), use config/nginx-proxy.sample here instead -- the
+# container already runs its own copy of this file and only needs a proxy
+# in front of it. config/apache-vhost.sample is the same setup on Apache.
 #
-# Adjust server_name, the paths and the PHP-FPM socket. See
-# config/apache-vhost.sample for the same setup on Apache.
+# Adjust server_name, the paths and the PHP-FPM socket.
 #
 # As there, the two things that matter are that the root is `public/` and only
 # `public/` (config/config.php holds the database credentials, and bin/ and

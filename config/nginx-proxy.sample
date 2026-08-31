@@ -1,0 +1,43 @@
+# Sample nginx reverse proxy in front of an eppitnic Docker container.
+#
+# Use this instead of config/nginx-vhost.sample when eppitnic runs via
+# `docker compose up` (see docs/DOCKER.md): compose.yaml publishes the web
+# service on 127.0.0.1:80 only, plain HTTP, and expects TLS -- and a real
+# hostname -- to be handled by whatever sits in front of it. This is that
+# front: the public-facing vhost that terminates TLS and forwards to the
+# container. Adjust server_name and the certificate paths.
+#
+# IMPORTANT -- trusted_proxies: a connection to 127.0.0.1 that Docker then
+# hairpins to a published container port does not necessarily arrive with a
+# source address of 127.0.0.1 -- Docker's NAT for host-to-published-port
+# traffic commonly rewrites the source to the bridge gateway address instead
+# (e.g. 172.18.0.1; `docker network inspect eppitnic_default` shows the real
+# one). Confirm what actually shows up -- send one request, then check
+# GET /v1/history?object=security&limit=1 -- and set the `trusted_proxies`
+# setting (see INSTALL.md's "Login rate limiting") to that address, not to
+# 127.0.0.1. Get it wrong and X-Forwarded-For is silently ignored, so every
+# client behind this proxy shares one rate-limit bucket.
+
+server {
+    listen              443 ssl;
+    server_name         epp.example.com;
+
+    ssl_certificate     /etc/ssl/certs/epp.example.com.crt;
+    ssl_certificate_key /etc/ssl/private/epp.example.com.key;
+
+    location / {
+        proxy_pass              http://127.0.0.1:80;
+        proxy_http_version      1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # the container's own nginx (docker/nginx.conf) already carries the
+        # larger fastcgi buffers GET /v1/domains/export needs -- nothing
+        # extra required on this side
+    }
+
+    access_log /var/log/nginx/eppitnic-proxy-access.log;
+    error_log  /var/log/nginx/eppitnic-proxy-error.log;
+}

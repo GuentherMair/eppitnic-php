@@ -1,4 +1,8 @@
-# Sample Apache virtual host for the eppitnic REST API.
+# Sample Apache virtual host for the eppitnic REST API, serving public/
+# directly. If eppitnic instead runs via `docker compose up` (see
+# docs/DOCKER.md), use config/apache-proxy.sample here instead -- the
+# container already runs its own web server and only needs a proxy in
+# front of it. config/nginx-vhost.sample is the same setup on nginx.
 #
 # Copy this into your Apache configuration (e.g. /etc/apache2/sites-available/)
 # and adjust ServerName, the paths and the TLS certificate locations.

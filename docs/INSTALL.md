@@ -56,8 +56,10 @@ Once set up, run `bin/eppitnic` to see what it can do, and see
    front controller — `/v1/domains` exists only as a route inside
    `index.php`. Without this the API looks entirely dead (404 before PHP runs).
 
-Ready-made configs: `config/apache-vhost.sample`, `config/nginx.sample`. Copy,
-adjust host/paths/certs, enable. Verify with:
+Ready-made configs: `config/apache-vhost.sample`, `config/nginx-vhost.sample`.
+Copy, adjust host/paths/certs, enable. (Running eppitnic via Docker instead?
+Use `config/apache-proxy.sample`/`config/nginx-proxy.sample` here in front of
+it — see [DOCKER.md](DOCKER.md).) Verify with:
 
 ```
 curl -i https://epp.example.com/v1/network-check

@@ -1,0 +1,36 @@
+# Sample Apache reverse proxy in front of an eppitnic Docker container.
+#
+# Use this instead of config/apache-vhost.sample when eppitnic runs via
+# `docker compose up` (see docs/DOCKER.md): compose.yaml publishes the web
+# service on 127.0.0.1:80 only, plain HTTP, and expects TLS -- and a real
+# hostname -- to be handled by whatever sits in front of it. This is that
+# front: the public-facing vhost that terminates TLS and forwards to the
+# container. Adjust ServerName and the certificate paths.
+#
+# Requires mod_proxy, mod_proxy_http and mod_ssl (a2enmod proxy proxy_http ssl).
+#
+# IMPORTANT -- trusted_proxies: see config/nginx-proxy.sample's comment --
+# the same Docker hairpin-NAT caveat applies here regardless of which web
+# server does the proxying. Confirm the address the container actually sees
+# (GET /v1/history?object=security&limit=1 after one request) before setting
+# `trusted_proxies` (see INSTALL.md's "Login rate limiting"), or every client
+# behind this proxy will share one rate-limit bucket.
+
+<VirtualHost *:443>
+    ServerName      epp.example.com
+
+    SSLEngine               on
+    SSLCertificateFile      /etc/ssl/certs/epp.example.com.crt
+    SSLCertificateKeyFile   /etc/ssl/private/epp.example.com.key
+
+    ProxyPreserveHost On
+    ProxyPass        / http://127.0.0.1:80/
+    ProxyPassReverse / http://127.0.0.1:80/
+
+    # mod_proxy_http adds X-Forwarded-For/-Host/-Server on its own; it does
+    # not know the original request was HTTPS, so that one is set by hand
+    RequestHeader set X-Forwarded-Proto "https"
+
+    ErrorLog    ${APACHE_LOG_DIR}/eppitnic-proxy-error.log
+    CustomLog   ${APACHE_LOG_DIR}/eppitnic-proxy-access.log combined
+</VirtualHost>
