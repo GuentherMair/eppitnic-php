@@ -8,6 +8,7 @@
         "ext-simplexml": "*",
         "ext-dom": "*",
         "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
         "ext-posix": "*",
         "kevinoo/phpwhois": "^6.3",
         "algo26-matthias/idna-convert": "^3.1",
