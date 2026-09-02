@@ -35,6 +35,26 @@ final class ContactCreateCommand extends Command
     /** what the registry will not accept a contact without */
     private const REQUIRED = ['name', 'street', 'city', 'province', 'postalcode', 'countrycode', 'voice', 'email'];
 
+    /**
+     * Extra format/value hints for fields whose plain name isn't enough on
+     * its own, keyed by option name. Source: nic.it's own technical
+     * guidelines (Linee Guida Tecniche Sincrone -- the extcon:entityType
+     * table, and the phone-number/province validation rules), not this
+     * codebase's own choice, so a code change here would be the registry
+     * changing the rule, not a preference.
+     */
+    private const HINTS = [
+        'entitytype' => "0/omitted = plain admin/tech contact, not a registrant. As a registrant: " .
+            '1 natural person, 2 company, 3 individual enterprise or freelancer, 4 non-profit, ' .
+            '5 public entity, 6 other, 7 foreign entity other than a natural person -- requires ' .
+            '--nationalitycode when 1 or higher',
+        'province' => 'two-letter Italian province code (e.g. MI, RM); required by the registry when --countrycode=IT',
+        'voice' => 'ISO international phone format, e.g. +39.0503139811; optional extension as x1234 ' .
+            '(max 10 digits) -- fax uses the same format',
+        'nationalitycode' => "ISO 3166-1 country code of the registrant's citizenship (e.g. IT, FR, NL); " .
+            'for a non-natural-person registrant (--entitytype != 1) this matches --countrycode',
+    ];
+
     public function describe(): string {
         return 'create a contact at the registry';
     }
@@ -48,7 +68,8 @@ final class ContactCreateCommand extends Command
             'publish' => 'consent to publishing this contact in the public whois',
         ];
         foreach (array_keys(self::FIELDS) as $field) {
-            $options[$field . '='] = in_array($field, self::REQUIRED, true) ? "{$field} (required)" : $field;
+            $label = self::HINTS[$field] ?? $field;
+            $options[$field . '='] = in_array($field, self::REQUIRED, true) ? "{$label} (required)" : $label;
         }
         $options['store'] = 'also write the contact to the local database';
 
