@@ -46,8 +46,15 @@ FROM base AS runtime
 # compiled into the core binary, not a separate loadable .so -- there is
 # nothing to enable. docker/php.ini's opcache.* settings are what actually
 # turn it on.
+# The base image's own default pool config -- www.conf/www.conf.default on
+# older tags, docker.conf + zz-docker.conf on this one (the "zz" prefix sorts
+# it after eppitnic.conf, so its [www] pool -- with no `user` directive --
+# is still there to break startup even though ours is correctly configured;
+# php-fpm refuses to start at all if *any* pool is missing `user` while
+# running as root). Removing all four names covers both generations.
 RUN apk add --no-cache nginx tini su-exec \
     && rm -f /usr/local/etc/php-fpm.d/www.conf /usr/local/etc/php-fpm.d/www.conf.default \
+             /usr/local/etc/php-fpm.d/docker.conf /usr/local/etc/php-fpm.d/zz-docker.conf \
     && rm -f /etc/nginx/http.d/default.conf \
     && mkdir -p /run/php
 
