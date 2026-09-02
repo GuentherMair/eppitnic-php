@@ -141,7 +141,7 @@ final class ContactCreateCommand extends Command
             }
             $contact->set('consentforpublishing', $this->hasOption('publish'));
 
-            if ( ! $contact->authinfo) {
+            if ( ! $contact->get('authinfo')) {
                 $contact->set('authinfo', $contact->authinfo());
             }
 

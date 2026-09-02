@@ -224,20 +224,25 @@ class Contact extends AbstractObject
    * set the entity type which may be one of
    *
    * 0 - NON REGISTRANT CONTACT (admin-c/tech-c)
-   * 1 - persone fisiche
-   * 2 - società/imprese individuali (incluso istituti scolastici paritari gestiti da enti con finalità di lucro)
-   * 3 - liberi professionisti
-   * 4 - enti no-profit (incluso istituti scolastici paritari gestiti da enti no profit)
-   * 5 - enti pubblici (incluso istituti scolastici gestiti da enti pubblici)
+   * 1 - persone fisiche italiane e straniere
+   * 2 - società
+   * 3 - imprese individuali, liberi professionisti / ordini professionali
+   * 4 - enti no-profit
+   * 5 - enti pubblici
    * 6 - altri soggetti
-   * 7 - soggetti stranieri equiparati ai precedenti escluso persone fisiche
+   * 7 - soggetti stranieri equiparati ai precedenti escluso le persone fisiche
+   *
+   * Per nic.it's current technical guidelines (Linee Guida Tecniche
+   * Sincrone): individual enterprises used to be category 2, reclassified
+   * into category 3 alongside freelancers -- see also
+   * Cli\Command\ContactCreateCommand::ENTITY_TYPES.
    *
    * @param int $type entity type
    * @return bool status
    */
   protected function setEntityType(mixed $type): bool|int {
     $tmp = (int)$type;
-    if (($tmp < 1) && ($tmp > 7)) {
+    if (($tmp < 1) || ($tmp > 7)) {
       $tmp = 0; // failback to the default value
     }
 
