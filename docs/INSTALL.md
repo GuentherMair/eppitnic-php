@@ -265,6 +265,18 @@ endpoints made before a session opens, with no override flag (see
 `Eppitnic\Selftest\Guard`). Point `epp.server` at
 `https://epp.pubtest.nic.it`; an unconfigured deployment gets exit code `50`.
 
+```
+bin/eppitnic config epp-server              # show the current endpoint
+bin/eppitnic config epp-server test         # -> https://epp.pubtest.nic.it
+bin/eppitnic config epp-server production   # -> https://epp.nic.it
+bin/eppitnic config epp-server toggle       # switch to whichever it isn't
+```
+
+A local settings write only — `username`/`password`/`cl_trid_prefix` are left
+untouched, since production and the public test registry normally use
+separate accounts. `--dry-run` shows the change without writing it; `--yes`
+skips the confirmation prompt.
+
 ## Deferred items, and reaping them
 
 nic.it keeps a contact linked to a domain until that domain is purged — 30

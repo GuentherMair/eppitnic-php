@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Cli;
 
+use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
 use Eppitnic\Cli\Command\ContactCreateCommand;
@@ -93,6 +94,7 @@ final class Application
             'user create'             => UserCreateCommand::class,
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,
+            'config epp-server'       => ConfigEppServerCommand::class,
         ];
     }
 
