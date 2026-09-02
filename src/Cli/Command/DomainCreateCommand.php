@@ -28,9 +28,9 @@ final class DomainCreateCommand extends Command
         return [
             'file='       => "read domains from this file; either one name per line, or ';'-separated rows of domain;registrant;tech[:tech...];ns[:ns...]",
             'registrant=' => 'registrant contact handle (required unless every --file row supplies its own)',
-            'admin='      => 'administrative contact handle',
-            'tech='       => 'technical contact handles, colon-separated (up to 6)',
-            'ns='         => 'nameservers, colon-separated (up to 6)',
+            'admin='      => 'administrative contact handle (required)',
+            'tech='       => 'technical contact handles, colon-separated -- 1 to 6 (required)',
+            'ns='         => 'nameservers, colon-separated -- 2 to 6 (required)',
             'authinfo='   => 'authinfo code (generated when omitted)',
         ] + self::MUTATING_OPTIONS;
     }
