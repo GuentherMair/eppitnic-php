@@ -2,10 +2,12 @@
 #
 # Use this instead of config/apache-vhost.sample when eppitnic runs via
 # `docker compose up` (see docs/DOCKER.md): compose.yaml publishes the web
-# service on 127.0.0.1:80 only, plain HTTP, and expects TLS -- and a real
-# hostname -- to be handled by whatever sits in front of it. This is that
-# front: the public-facing vhost that terminates TLS and forwards to the
-# container. Adjust ServerName and the certificate paths.
+# service on 127.0.0.1:8080 (not 80 -- that's left free for this vhost, or
+# for config/apache-vhost.sample's bare-metal use, to bind directly), plain
+# HTTP, and expects TLS -- and a real hostname -- to be handled by whatever
+# sits in front of it. This is that front: the public-facing vhost that
+# terminates TLS and forwards to the container. Adjust ServerName, the
+# certificate paths, and the ProxyPass port if you changed compose.yaml's.
 #
 # Requires mod_proxy, mod_proxy_http and mod_ssl (a2enmod proxy proxy_http ssl).
 #
@@ -24,8 +26,8 @@
     SSLCertificateKeyFile   /etc/ssl/private/epp.example.com.key
 
     ProxyPreserveHost On
-    ProxyPass        / http://127.0.0.1:80/
-    ProxyPassReverse / http://127.0.0.1:80/
+    ProxyPass        / http://127.0.0.1:8080/
+    ProxyPassReverse / http://127.0.0.1:8080/
 
     # mod_proxy_http adds X-Forwarded-For/-Host/-Server on its own; it does
     # not know the original request was HTTPS, so that one is set by hand

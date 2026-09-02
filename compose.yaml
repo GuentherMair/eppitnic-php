@@ -28,8 +28,13 @@ services:
   web:
     build: .
     image: eppitnic
+    # 8080, not 80: a bare-metal install's nginx-vhost.sample/apache-vhost.sample
+    # binds host port 80 directly, and a reverse proxy in front of this
+    # container (nginx-proxy.sample/apache-proxy.sample) needs 80 free for
+    # its own use too. Change this if 8080 collides with something else on
+    # the host; update the proxy sample(s) to match.
     ports:
-      - "127.0.0.1:80:80"
+      - "127.0.0.1:8080:80"
     volumes:
       - ./data:/data
     extra_hosts:

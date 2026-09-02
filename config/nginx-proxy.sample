@@ -2,10 +2,12 @@
 #
 # Use this instead of config/nginx-vhost.sample when eppitnic runs via
 # `docker compose up` (see docs/DOCKER.md): compose.yaml publishes the web
-# service on 127.0.0.1:80 only, plain HTTP, and expects TLS -- and a real
-# hostname -- to be handled by whatever sits in front of it. This is that
-# front: the public-facing vhost that terminates TLS and forwards to the
-# container. Adjust server_name and the certificate paths.
+# service on 127.0.0.1:8080 (not 80 -- that's left free for this vhost, or
+# for config/nginx-vhost.sample's bare-metal use, to bind directly), plain
+# HTTP, and expects TLS -- and a real hostname -- to be handled by whatever
+# sits in front of it. This is that front: the public-facing vhost that
+# terminates TLS and forwards to the container. Adjust server_name, the
+# certificate paths, and the proxy_pass port if you changed compose.yaml's.
 #
 # IMPORTANT -- trusted_proxies: a connection to 127.0.0.1 that Docker then
 # hairpins to a published container port does not necessarily arrive with a
@@ -26,7 +28,7 @@ server {
     ssl_certificate_key /etc/ssl/private/epp.example.com.key;
 
     location / {
-        proxy_pass              http://127.0.0.1:80;
+        proxy_pass              http://127.0.0.1:8080;
         proxy_http_version      1.1;
         proxy_set_header Host              $host;
         proxy_set_header X-Real-IP         $remote_addr;

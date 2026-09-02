@@ -25,7 +25,7 @@ without its own `build:` — Compose builds it once, from whichever service
 owns it, and the rest just start from the result.
 
 `docker compose up -d` brings up one instance: nginx + php-fpm in one
-container serving `public/` on `127.0.0.1:80`, plus a scheduler sidecar on the
+container serving `public/` on `127.0.0.1:8080`, plus a scheduler sidecar on the
 same image running `poll process` every five minutes (see "Scheduled jobs" in
 [INSTALL.md](INSTALL.md) — it can't be skipped). Neither container provides a
 database; every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`
@@ -56,14 +56,17 @@ explicitly forward it:
 
 ## Putting a reverse proxy in front
 
-`web` publishes on `127.0.0.1:80` only, plain HTTP — nothing in the image
+`web` publishes on `127.0.0.1:8080` only, plain HTTP — nothing in the image
 terminates TLS or knows the real hostname, by design (see
-`docker/nginx.conf`'s own comment). Put a normal host webserver in front of
-it: `config/nginx-proxy.sample` or `config/apache-proxy.sample`, which
-terminate TLS at the real `server_name`/`ServerName` and proxy to
-`127.0.0.1:80`. These are the Docker-facing counterparts of
-`config/nginx-vhost.sample`/`config/apache-vhost.sample` (which serve
-`public/` directly, for a bare-metal install).
+`docker/nginx.conf`'s own comment). Port 8080, not 80: that leaves 80 free
+for the proxy itself, or for `config/nginx-vhost.sample`/
+`config/apache-vhost.sample` to bind directly on a bare-metal install. Put a
+normal host webserver in front of the container: `config/nginx-proxy.sample`
+or `config/apache-proxy.sample`, which terminate TLS at the real
+`server_name`/`ServerName` and proxy to `127.0.0.1:8080`. These are the
+Docker-facing counterparts of the two vhost samples above. Changed
+`compose.yaml`'s published port? Update the proxy sample's target port to
+match.
 
 One thing both proxy samples call out and is easy to get wrong: a request
 proxied through `127.0.0.1` to a published container port does not
