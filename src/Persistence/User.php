@@ -6,12 +6,9 @@ use Eppitnic\Support\PasswordPolicy;
 use RedBeanPHP\R;
 
 /**
- * Creates a local login account.
- *
- * Extracted from UserCreateCommand's direct insert so Setup\Installer can
- * create the first admin account through the same path -- once
- * config/config.php exists, `eppitnic user create` is the only other place
- * that does this, and neither should re-implement the insert or the hashing.
+ * Creates a local login account -- extracted from UserCreateCommand so
+ * Setup\Installer makes the first admin by the same path, neither
+ * re-implementing the insert or the hashing.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\User
@@ -33,11 +30,9 @@ final class User
         int $maxOperations = 0,
         bool $admin = false
     ): int {
-        // Here rather than only in the callers: this is the last point before
-        // a password becomes a hash nobody can inspect afterwards, and it is
-        // reached from the installer, the CLI and anything added later. The
-        // callers still check first, so they can say so in their own terms --
-        // this is the guarantee, not the error message.
+        // The last point before a password becomes an uninspectable hash, and
+        // reached from the installer, the CLI and anything added later. Callers
+        // still check first: this is the guarantee, not the error message
         if ( ! PasswordPolicy::isAcceptable($password)) {
             throw new \InvalidArgumentException(PasswordPolicy::explain($password));
         }

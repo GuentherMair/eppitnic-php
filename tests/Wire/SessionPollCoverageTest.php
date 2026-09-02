@@ -6,16 +6,9 @@ use Eppitnic\Epp\Session;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Guards Session::parsePollReq() against the registry's schemas.
- *
- * This exists because of how 7.2 happened: nic.it changed the shape of
- * dnsErrorMsgData and added dnsWarningMsgData, nothing here was watching, and
- * 330 messages parsed as 'unknown' with no domain for years. The failure mode
- * is silent by construction -- an unhandled message type does not throw, it
- * just quietly loses the domain it was about.
- *
- * So rather than trusting anyone to notice, these tests read xsd/ and fail
- * when the registry's vocabulary and ours drift apart.
+ * Guards Session::parsePollReq() against the registry's schemas. nic.it changed
+ * dnsErrorMsgData, nothing was watching, and 330 messages parsed as 'unknown'
+ * for years -- an unhandled type does not throw, it loses the domain silently.
  */
 final class SessionPollCoverageTest extends TestCase
 {
@@ -45,17 +38,9 @@ final class SessionPollCoverageTest extends TestCase
     }
 
     /**
-     * Which declared elements are poll messages.
-     *
-     * Named by convention upstream -- '...MsgData' or '...Reminder' -- with
-     * one documented exception: remappedIdnData carries no such suffix but is
-     * unambiguously a poll notification (the registry telling us it created a
-     * different IDN from the one requested).
-     *
-     * The convention is deliberately not trusted on its own; the companion
-     * test below fails whenever the declared element set changes at all, so a
-     * new message type that does not follow the naming convention still gets
-     * a human look rather than slipping past.
+     * Which declared elements are poll messages -- '...MsgData' or '...Reminder'
+     * upstream, plus remappedIdnData, which carries no suffix. The convention is
+     * not trusted alone: the test below fails on any change to the declared set.
      *
      * @return string[]
      */
@@ -110,14 +95,9 @@ final class SessionPollCoverageTest extends TestCase
     }
 
     /**
-     * A snapshot of every top-level element the extension schemas declare.
-     *
-     * The naming-convention filter above can only recognise a new message type
-     * that follows the convention. This catches the rest: when nic.it ships a
-     * revised schema, this test fails with the exact additions and removals,
-     * and somebody decides whether each new element is a poll message. It will
-     * also fail for perfectly innocent schema updates -- that is the point,
-     * the review is cheap and the alternative is silence.
+     * A snapshot of every top-level element the extension schemas declare, for
+     * the types the convention cannot recognise: a revised schema fails this with
+     * its exact additions. Innocent updates fail it too -- the review is cheap.
      *
      * @return array<string, string[]>
      */

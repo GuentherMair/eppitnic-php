@@ -105,14 +105,9 @@ final class Validate
     // -----------------------------------------------------------------
 
     /**
-     * The rules below come from the registry's own schemas, not from a
-     * preference here, so they hold wherever a value is accepted: first-run
-     * setup (Setup\Installer), `eppitnic config epp-set` and `eppitnic config
-     * epp-password` all validate through this one place. They used to live
-     * only in the CLI, which meant a value the CLI refused could still be
-     * seeded by the web installer and then fail at every `<login>`.
-     *
-     * Each returns the error to show, or null when the value is acceptable.
+     * The registry's own schema rules, so they hold wherever a value is
+     * accepted -- first-run setup and both `config epp-*` verbs validate here.
+     * In the CLI alone, the web installer could seed what the CLI refused.
      *
      * @param string $field one of the FIELD_VALIDATORS keys
      * @return string|null a validation error, or null if $value is acceptable
@@ -131,18 +126,15 @@ final class Validate
                 ? null
                 : "lang must be 'it' or 'en'",
 
-            // Client::set_clTRID() appends "-{unix timestamp}-{5 chars}"
-            // (17 characters) to build the full clTRID, and
-            // epp:trIDStringType (xsd/epp-1.0.xsd) caps that whole string at
-            // 64 -- so the prefix itself must leave room for the rest.
+            // set_clTRID() appends 17 characters, and epp:trIDStringType caps
+            // the whole clTRID at 64, so the prefix must leave room
             'cl_trid_prefix' => ($value !== '' && strlen($value) <= 47)
                 ? null
                 : 'cl_trid_prefix must be 1 to 47 characters',
 
-            // eppcom:clIDType (xsd/eppcom-1.0.xsd): 3 to 16 characters. The
-            // '-REG' suffix is nic.it's own registrar-account convention, not
-            // a schema rule, but every real account has it, so a value
-            // without one is almost certainly a mistake.
+            // eppcom:clIDType: 3 to 16 characters. '-REG' is nic.it's account
+            // convention rather than a schema rule, but every real account has
+            // it, so one without is almost certainly a mistake
             'username' => match (true) {
                 strlen($value) < 3, strlen($value) > 16 =>
                     'username must be 3 to 16 characters (EPP clIDType)',
@@ -151,10 +143,9 @@ final class Validate
                 default => null,
             },
 
-            // epp:pwType (xsd/epp-1.0.xsd): 6 to 16 characters, for both <pw>
-            // and <newPW> -- the registry's own ceiling, not this codebase's
-            // Support\PasswordPolicy, which governs local admin-account
-            // passwords only.
+            // epp:pwType: 6 to 16 characters, for <pw> and <newPW> alike. The
+            // registry's ceiling, not PasswordPolicy, which governs local
+            // admin passwords only
             'password' => (strlen($value) < 6 || strlen($value) > 16)
                 ? 'password must be 6 to 16 characters (EPP pwType)'
                 : null,

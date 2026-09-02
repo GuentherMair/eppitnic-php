@@ -10,13 +10,9 @@ use Slim\Exception\HttpException;
 use Slim\Factory\AppFactory;
 
 /**
- * What public/index.php serves in place of the real application when
- * config/config.php doesn't exist yet: the three setup routes
- * (src/Api/Routes/setup.php) and the bundled fallback page
- * (public/setup.html) that drives them, on a Slim instance that needs no
- * database at all -- unlike Middleware::register(), whose CORS closure reads
- * Config::get('allowed_origins') and would fatal here the same way
- * public/index.php itself used to before config existed.
+ * What public/index.php serves before config/config.php exists: the setup
+ * routes and public/setup.html, on a Slim instance needing no database --
+ * unlike Middleware::register(), whose CORS closure reads a setting.
  *
  * @category    Net
  * @package     Eppitnic\Api\SetupApp
@@ -26,10 +22,8 @@ use Slim\Factory\AppFactory;
 final class SetupApp
 {
     /**
-     * Builds the Slim app without running it -- split out from run() so the
-     * test suite can dispatch requests at it directly (App::handle()) rather
-     * than through the real PHP SAPI, the way ErrorResponseTest already does
-     * for the configured application.
+     * Build the Slim app without running it, so the test suite can dispatch at
+     * it directly rather than through the PHP SAPI.
      */
     public function build(): App {
         $app = AppFactory::create();
@@ -52,10 +46,9 @@ final class SetupApp
             }
         );
 
-        // Permissive rather than the real Middleware's origin allowlist:
-        // these routes are unauthenticated by design (see
-        // src/Api/Routes/setup.php), and a separate-origin frontend has to
-        // reach this before allowed_origins even exists to configure it.
+        // Permissive, not the real origin allowlist: these routes are
+        // unauthenticated by design, and a separate-origin frontend must reach
+        // them before allowed_origins exists to configure
         $app->add(function (Request $request, RequestHandler $handler): Response {
             $response = $handler->handle($request);
             return $response
@@ -64,11 +57,9 @@ final class SetupApp
                 ->withHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         });
 
-        // require_once: setup.php declares a global function at include
-        // time, and the test suite's SetupRouteTest also loads this file
-        // directly against its own Slim instance -- require_once is what
-        // keeps that a redeclaration-safe no-op the second time either one
-        // (or a repeated build() call) runs in the same process.
+        // require_once: setup.php declares a global function at include time,
+        // and SetupRouteTest loads it too -- this keeps the second load a
+        // redeclaration-safe no-op
         require_once EPPITNIC_ROOT . '/src/Api/Routes/setup.php';
 
         $app->get('/', function (Request $request, Response $response): Response {

@@ -3,18 +3,9 @@
 namespace Eppitnic\Selftest;
 
 /**
- * The names one self-test run gives the objects it creates.
- *
- * Every name in a run carries the same base-36 timestamp, which does two jobs.
- * It keeps a run from colliding with the objects an earlier one left behind --
- * and something is always left behind, because a contact attached to a domain
- * is not free until that domain is purged, 30 days after it was
- * deleted. And it makes those leftovers both identifiable and *datable*: the
- * handle says which run made it and when, so `selftest reap` can tell what is
- * old enough to be worth another delete attempt without keeping a list.
- *
- * Base 36 fits a whole Unix timestamp in six characters until 2038, which is
- * what leaves room inside EPP's 16-character clIDType for a prefix and a role.
+ * The names one self-test run gives its objects, all carrying the same base-36
+ * timestamp: it keeps a run clear of earlier leftovers and dates those, so
+ * `selftest reap` knows what to retry. Six characters until 2038.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Naming

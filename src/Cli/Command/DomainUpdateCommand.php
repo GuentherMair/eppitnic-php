@@ -8,10 +8,8 @@ use Eppitnic\Epp\Domain;
 
 /**
  * Change a domain's nameservers, technical contacts, admin contact or authinfo.
- *
- * Registrant changes are not here: they are a distinct EPP command that
- * requires the authinfo to change alongside them, which is what
- * `domain set-registrant` is for.
+ * Registrant changes are not here: they are a distinct EPP command requiring the
+ * authinfo to change with them, which `domain set-registrant` does.
  */
 final class DomainUpdateCommand extends Command
 {

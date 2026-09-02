@@ -7,12 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
 
 /**
- * Change a domain's registrant.
- *
- * Its own verb rather than an option on `domain update`, because it is its own
- * EPP command: the registry requires the authinfo to change alongside the
- * registrant, and ignores nameserver or technical-contact changes sent with
- * it.
+ * Change a domain's registrant. Its own verb because it is its own EPP command:
+ * the registry requires the authinfo to change with it, and ignores nameserver
+ * or technical-contact changes sent alongside.
  */
 final class DomainSetRegistrantCommand extends Command
 {

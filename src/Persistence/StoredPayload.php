@@ -3,23 +3,9 @@
 namespace Eppitnic\Persistence;
 
 /**
- * The two shapes an EPP body can have in `transactions` / `responses` /
- * `msgqueue`.
- *
- * The 6.x codebase wrapped these columns as `__SERIALIZED:` +
- * base64(serialize(...)). For a body that meant a serialized *string*, so the
- * envelope carried nothing the column did not already have, at a third again
- * the size. For `sv_httpheaders` it meant a serialized *array*, the response
- * headers as a field => value map, where current code stores the raw header
- * block the server sent.
- *
- * That envelope is **deprecated**: nothing writes it, the affected columns are
- * marked in the schema, and `eppitnic doctor normalize-payloads` strips it from
- * rows that still have it. Reading stays permanent, though -- an installation
- * that never runs the cleanup must keep working -- so every read goes through
- * decode() rather than assuming either shape. A reader that assumes gets base64
- * where it expected XML, which parses as nothing and looks like a corrupt
- * response rather than a decoding mistake.
+ * The two shapes an EPP body can have in `transactions`/`responses`/`msgqueue`:
+ * plain, or 6.x's deprecated `__SERIALIZED:` envelope. Every read goes through
+ * decode(), or base64 arrives where XML was expected and looks like corruption.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\StoredPayload
@@ -61,12 +47,9 @@ final class StoredPayload
     }
 
     /**
-     * A field => value map as the raw header block current code stores.
-     *
-     * No status line: 6.x kept only the fields, so there is none to render and
-     * inventing one would be making up what the server said. Names keep the
-     * lower case they were captured in -- HTTP field names are case-insensitive,
-     * and re-casing them would be the same kind of invention.
+     * A field => value map as the raw header block current code stores. No
+     * status line and no re-casing: 6.x kept only the fields as captured, and
+     * inventing either would be making up what the server said.
      *
      * @param array<string, mixed> $headers
      * @return string|null null if any field is not something a header line can

@@ -11,19 +11,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Every parser, against responses that are not what it expects.
- *
- * A parser that walks an unexpected document does not fail usefully: PHP
- * answers a missing SimpleXML child with an empty element, so a chain like
- * `->response->resData->children($ns['domain'])->infData->name` produces
- * warnings and nulls rather than an error, and `count()` on the result is a
- * fatal. Six such sites were found one at a time during this refactoring --
- * in the poll parser, the login credit read, both fetch() methods and both
- * check() methods -- each a real fault, one of them fatal.
- *
- * Finding the seventh by waiting for it is not a plan. This drives every
- * parser with every shape of wrong answer and requires the same thing of all
- * of them: return a failure, set an error, and raise no PHP diagnostic.
+ * Every parser, against responses that are not what it expects. SimpleXML
+ * answers a missing child with an empty element, so an unexpected document gives
+ * warnings and nulls rather than an error -- six such sites, found one by one.
  */
 final class MalformedResponseTest extends EppTestCase
 {
@@ -51,12 +41,9 @@ final class MalformedResponseTest extends EppTestCase
     }
 
     /**
-     * Answers that carry a result code but no object payload.
-     *
-     * These are not malformed for every command -- a <delete> or <logout>
-     * succeeds with exactly this shape -- so only the parsers that need data
-     * back are required to reject them. Every parser is still required not to
-     * raise a diagnostic on them, which is where the six faults lived.
+     * Answers with a result code but no object payload -- not malformed for
+     * every command, a <delete> succeeding with exactly this shape, so only the
+     * parsers needing data must reject them. None may raise a diagnostic.
      *
      * @return array<string, array{0: string}>
      */
@@ -181,13 +168,9 @@ final class MalformedResponseTest extends EppTestCase
     }
 
     /**
-     * The invariant that holds for every parser and every bad answer: no PHP
-     * diagnostic and no fatal.
-     *
-     * This is the one that matters. The suite runs with failOnWarning,
-     * failOnNotice and failOnDeprecation, so a single warning fails this on
-     * its own -- and a warning is exactly how each of the six faults showed
-     * itself before it was understood.
+     * The invariant for every parser and every bad answer: no PHP diagnostic and
+     * no fatal. The suite runs with failOnWarning, so one warning fails this --
+     * and a warning is how each of the six faults first showed itself.
      */
     #[DataProvider('everyCombination')]
     public function testParserRaisesNoDiagnostic(callable $call, string $response): void {

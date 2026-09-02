@@ -15,12 +15,9 @@ use Slim\Exception\HttpForbiddenException;
 use Slim\Exception\HttpUnauthorizedException;
 
 /**
- * Who the caller is, and whether they may do this.
- *
- * Three credentials reach the same place: a JWT, a fixed automation token
- * (users.api_token, hashed at rest) synthesized into the same claims shape, and
- * a TOTP second factor on top of either. Downstream code reads one decoded
- * object and never learns which it was.
+ * Who the caller is, and whether they may do this. Three credentials reach the
+ * same place -- a JWT, a hashed automation token synthesized into the same
+ * claims shape, and TOTP on top of either -- and downstream reads one object.
  *
  * @category    Net
  * @package     Eppitnic\Api\Auth
@@ -30,12 +27,9 @@ use Slim\Exception\HttpUnauthorizedException;
 final class Auth
 {
     /**
-     * the authenticated caller, as every route needs them
-     *
-     * Just the two fields: a route wanting more of the token (src/Api/Routes/users.php
-     * reads username, has_totp and friends) calls verify() directly and
-     * gets the whole claims object, so carrying it here too would be a second
-     * way to reach the same thing.
+     * The authenticated caller, as every route needs them. Just these fields: a
+     * route wanting more of the token calls verify() directly, so carrying it
+     * here too would be a second way to reach the same thing.
      *
      * @param Request $request the incoming HTTP request
      * @return array{id: int, isAdmin: bool, debug: bool}
@@ -55,17 +49,9 @@ final class Auth
     // -----------------------------------------------------------------
 
     /**
-     * check whether $token matches a stored fixed automation token (users.api_token,
-     * hashed at rest) and, if so, synthesize a decoded-claims object shaped exactly
-     * like what JWT::decode() would return -- so every downstream consumer
-     * (jwtUserID/jwtRequireAdmin/jwtRequireMfa, and every route reading
-     * $decoded->data->id / ->admin / etc.) works identically regardless of which
-     * auth mechanism was actually used. Returns null if $token isn't a valid,
-     * unexpired fixed token, so callers can fall through to their normal failure
-     * path unchanged.
-     *
-     * Automation tokens bypass MFA entirely (has_totp forced false) -- there's no
-     * human present to enter a TOTP code in a headless/scripted context.
+     * Match $token against users.api_token and synthesize the claims object
+     * JWT::decode() would return, so downstream works the same either way.
+     * Null lets callers fall through. MFA is bypassed: no human is present.
      *
      * @param string $token the raw bearer token from the Authorization header
      * @return object|null synthesized decoded-claims object, or null if not a valid fixed token
@@ -116,10 +102,9 @@ final class Auth
         }
         $token = $parts[1];
 
-        // a fixed automation token never round-trips through JWT::decode() successfully
-        // (it's an opaque random string, not a signed header.payload.signature triple),
-        // so on any decode failure below, check it against the fixed-token store before
-        // giving up -- this only adds work on the failure path, never the normal one
+        // an automation token is opaque, not a signed triple, so it can only
+        // fail JWT::decode() -- check the fixed-token store before giving up.
+        // Costs nothing on the normal path
         try {
             return JWT::decode($token, new Key(Config::get('jwt_psk'), 'HS256'));
         } catch (SignatureInvalidException $e) {
@@ -182,14 +167,9 @@ final class Auth
     }
 
     /**
-     * sign a new JWT for $data, adding the standard claims
-     *
-     * The token's lifetime comes from $data['max_token_age'], in minutes --
-     * spelled exactly like the users column and the claim every caller already
-     * passes. It used to be read as 'maxTokenAge', which no call site ever set,
-     * so users.max_token_age was silently ignored and every token got the
-     * 240-minute default. A null or non-positive value still means "use the
-     * default": 0 would otherwise mint a token that has already expired.
+     * Sign a new JWT for $data, adding the standard claims. The lifetime comes
+     * from $data['max_token_age'], in minutes, spelled like the users column;
+     * null or non-positive means the default, since 0 would already be expired.
      *
      * @param array $data claims to embed (may include 'max_token_age', in minutes, defaulting to 240)
      * @return array $data merged with the signed 'token' string
@@ -232,10 +212,9 @@ final class Auth
      * @return array ['secret' => ..., 'uri' => ...]
      */
     public static function totpGenerate(string $username): array {
-        // 20 bytes / 160 bits -- the size RFC 4226 section 4 recommends, and what
-        // authenticator apps expect. otphp's own default is 64 bytes, whose
-        // 103-character base32 encoding does not fit users.totp_secret varchar(64)
-        // (config/mariadb-schema.sql) and would be silently truncated on write.
+        // 20 bytes, per RFC 4226 section 4 and what authenticator apps expect.
+        // otphp defaults to 64, whose base32 encoding overflows
+        // users.totp_secret varchar(64) and is silently truncated on write
         $totp = TOTP::generate(null, 20);
         $totp->setLabel($username);
         $totp->setIssuer('inet-services.it');

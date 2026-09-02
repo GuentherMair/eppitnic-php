@@ -9,11 +9,9 @@ use Eppitnic\Setup\DatabaseCredentials;
 use Eppitnic\Support\PasswordGenerator;
 
 /**
- * Convert a 6.x config.xml into config/config.php and the `settings` table.
- *
- * A one-time upgrade step: 7.0 keeps the database credentials in a file
- * because they are needed to reach the database that holds everything else,
- * and everything else in `settings`.
+ * Convert a 6.x config.xml into config/config.php and the `settings` table. A
+ * one-time upgrade step: the DB credentials stay in a file because they are
+ * needed to reach the database holding everything else.
  */
 final class ConfigMigrateCommand extends Command
 {
@@ -49,20 +47,17 @@ final class ConfigMigrateCommand extends Command
             return INVALID_INPUT;
         }
 
-        // 1. config/config.php -- DB credentials. Left untouched if it already
-        // exists, so re-running this script never clobbers a working deployment's
-        // credentials. Must happen before the Config::set() loop below, which is
-        // what actually needs it to exist.
+        // 1. config/config.php -- DB credentials. Left alone if it exists, so a
+        // re-run never clobbers a working deployment. Before the Config::set()
+        // loop below, which needs it to exist
         if (ConfigFile::exists()) {
           $this->line("[" . ConfigFile::path() . "] already exists -- leaving it untouched.");
         } else {
           $db = $xml->db;
           try {
-            // \Throwable, not \RuntimeException: DatabaseCredentials's own
-            // constructor throws \InvalidArgumentException (a \LogicException,
-            // not a \RuntimeException) if config.xml's <db> is missing dbname
-            // or dbuser, and that needs the same clean message-and-exit-code
-            // treatment as ConfigFile::write() failing, not an uncaught trace.
+            // \Throwable, not \RuntimeException: DatabaseCredentials throws
+            // \InvalidArgumentException on a <db> missing dbname or dbuser, and
+            // that wants the same clean exit as a failed write, not a trace
             ConfigFile::write(new DatabaseCredentials(
                 type:     self::xmlStr($db->dbtype) ?: 'mysql',
                 host:     self::xmlStr($db->dbhost) ?: 'localhost',
@@ -93,10 +88,9 @@ final class ConfigMigrateCommand extends Command
           // no config.xml source -- seeded with the same placeholder
           // config/mariadb-schema.sql uses; review and adjust by hand
           'safe_networks'   => ['127.0.0.1/32'],
-          // browser origins only, and deployment-specific -- seeded empty rather than
-          // with whatever hostnames happened to be on the author's machine. Requests
-          // with no Origin header (curl, cron, API-token clients) are unaffected by
-          // this list; see the CORS middleware in src/Api/Middleware.php.
+          // browser origins only, and deployment-specific, so seeded empty.
+          // Requests with no Origin header (curl, cron, token clients) are
+          // unaffected -- see the CORS middleware in src/Api/Middleware.php
           'allowed_origins' => [],
           'allowed_headers' => ['Authorization', 'Content-Type', 'X-Api-Key', 'Content-Disposition'],
           'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -109,11 +103,9 @@ final class ConfigMigrateCommand extends Command
             'password'       => self::xmlStr($xml->password),
             'lang'           => self::xmlStr($xml->lang),
             'cl_trid_prefix' => self::xmlStr($xml->clTRIDprefix),
-            // config.xml's passwordexpirydays/passwordexpirynext are deliberately not
-            // carried over: nothing ever read them. Automated rotation is now driven by
-            // the registry's own passwdReminder poll messages, and this timestamp is
-            // what rate-limits it to one attempt per 24 hours (see
-            // `eppitnic poll process`). 0 means "never attempted".
+            // config.xml's passwordexpiry* are not carried over: nothing read
+            // them. Rotation now follows the registry's passwdReminder, and this
+            // timestamp rate-limits it to one attempt per 24h. 0 means never
             'lastPasswordUpdate' => 0,
           ],
           'dnssec' => [
@@ -121,10 +113,9 @@ final class ConfigMigrateCommand extends Command
             'algorithm'  => (int) self::xmlStr($xml->dnssec->algorithm),
             'digesttype' => (int) self::xmlStr($xml->dnssec->digesttype),
           ],
-          // config.xml's DEBUG flag is not carried over -- nothing ever read the
-          // resulting 'debug' setting. Per-object verbosity is the $debug property on
-          // Eppitnic objects (users.debug), and debugfile below is what turns on cURL
-          // wire logging.
+          // config.xml's DEBUG flag is not carried over: nothing read it.
+          // Verbosity is now per-object (users.debug), and debugfile below is
+          // what turns on cURL wire logging
           'debugfile'       => self::xmlStr($xml->debugfile),
           'certificatefile' => null, // no config.xml source
           'cookie_dir'      => self::xmlStr($xml->cookie_dir) !== '' ? self::xmlStr($xml->cookie_dir) : null,

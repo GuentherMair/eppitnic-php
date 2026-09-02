@@ -5,17 +5,9 @@ namespace Eppitnic\Persistence;
 use RedBeanPHP\R;
 
 /**
- * The parts of local persistence that Contact and Domain do identically.
- *
- * Deliberately primitives rather than finished methods: the two classes really
- * do store differently -- a contact is upserted because `domains`.`registrant`
- * is a foreign key onto it, a domain is replaced outright, and only a domain
- * queues DNS-sync work -- so a single storeDB() covering both would be a
- * parameter list describing which of the two it was pretending to be.
- *
- * What repeated verbatim was the plumbing: appending the user-scoping clause,
- * turning a SQL failure into setError() plus false, and looking up the row id
- * for the history table. That is what lives here.
+ * The plumbing Contact and Domain repeat verbatim: the user-scoping clause, a
+ * SQL failure turned into setError() plus false, and the row-id lookup for
+ * history. Primitives: the two really do store differently.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\LocalStorage
@@ -40,12 +32,9 @@ trait LocalStorage
     abstract protected static function storageNoun(): string;
 
     /**
-     * Restrict a statement to one user's rows, unless acting as an admin.
-     *
-     * The placeholder is a parameter because an UPDATE already binds the key
-     * as :user_id in some statements, and re-binding the same name with a
-     * different value is a bug that only shows up on the rows it silently
-     * fails to match.
+     * Restrict a statement to one user's rows, unless admin. The placeholder is
+     * a parameter because some UPDATEs already bind :user_id, and rebinding it
+     * fails silently on the rows it then does not match.
      *
      * @param array $params bound parameters, added to in place
      * @return string the SQL to append
@@ -157,11 +146,9 @@ trait LocalStorage
     }
 
     /**
-     * Write changed columns back, scoped to the user unless acting as an admin.
-     *
-     * Writes only. The history entry is the caller's, because what it should
-     * say differs: an update records the changed columns, while the update half
-     * of an upsert records that the object was stored.
+     * Write changed columns back, scoped to the user unless admin. Writes only:
+     * the history entry is the caller's, since an update records the changed
+     * columns where an upsert's update half records that it was stored.
      *
      * @param array $data column => value
      */

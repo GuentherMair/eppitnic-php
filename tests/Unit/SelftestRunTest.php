@@ -9,13 +9,9 @@ use Eppitnic\Selftest\Step;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * How a run decides what a step's outcome means.
- *
- * The distinction this pins down is the whole reason the self-test can be run
- * repeatedly: a contact still attached to a deleted domain cannot be removed
- * for another week, so that refusal has to be reported as something other than
- * a failure. If it were not, every complete run would end red and nobody would
- * read the result.
+ * How a run decides what a step's outcome means -- the reason the self-test can
+ * be run repeatedly. A contact still attached to a deleted domain cannot be
+ * removed for a week, so that refusal is not a failure; else every run ends red.
  */
 final class SelftestRunTest extends EppTestCase
 {
@@ -99,10 +95,9 @@ final class SelftestRunTest extends EppTestCase
     }
 
     /**
-     * An unexpected exception is that step's failure, not the run's. If it
-     * escaped, the objects already created at the registry would be abandoned
-     * without the leftover note that says they exist -- and that note is the
-     * only way anyone finds them again.
+     * An unexpected exception is that step's failure, not the run's: if it
+     * escaped, objects already created at the registry would be abandoned
+     * without the note that says they exist and is the only way to find them.
      */
     public function testAnUnexpectedExceptionFailsOnlyItsOwnStep(): void {
         $run = $this->newRun();
@@ -243,10 +238,9 @@ final class SelftestRunTest extends EppTestCase
      * worth knowing about, and the answer to "which part" is on the line.
      */
     /**
-     * The leftover note is written from what is still outstanding, so anything
-     * the run did manage to delete has to drop out of it. Otherwise `selftest
-     * reap` retries it for weeks, and is told "object does not exist" each
-     * time -- a cleanup that reports problems it invented.
+     * The note is written from what is still outstanding, so anything the run did
+     * delete must drop out of it -- otherwise `selftest reap` retries it for
+     * weeks against "object does not exist", reporting problems it invented.
      */
     public function testWhatWasDeletedIsNoLongerOutstanding(): void {
         $run = $this->newRun();

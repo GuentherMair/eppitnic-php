@@ -3,15 +3,9 @@
 namespace Eppitnic\Persistence;
 
 /**
- * Which of an object's fields have been changed since it was loaded.
- *
- * The registry only accepts a change expressed against what it currently
- * holds, so both Contact and Domain have to know which fields a caller
- * touched. That used to be a bitmask, with the bit for each field spelled out
- * at every site that tested it -- including composites like `$changes & 508`,
- * which meant "any of the seven address fields" and said so nowhere.
- *
- * A set of field names needs no legend.
+ * Which of an object's fields changed since it was loaded -- the registry only
+ * accepts a change expressed against what it holds. Previously a bitmask, where
+ * `$changes & 508` meant "any address field" and said so nowhere.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\ChangeTracking
@@ -50,11 +44,9 @@ trait ChangeTracking
     }
 
     /**
-     * The changed fields, for a caller that needs to hold on to them.
-     *
-     * update() clears the set once the registry has accepted it, so a caller
-     * that wants to persist the same change locally afterwards has to take a
-     * copy first -- see Domain::updateDB()'s $changes argument.
+     * The changed fields, for a caller that must hold on to them: update()
+     * clears the set once the registry accepts it, so persisting the same
+     * change locally afterwards needs a copy taken first.
      *
      * @return string[]
      */

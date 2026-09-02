@@ -11,17 +11,9 @@ use Eppitnic\Tests\Support\FakeTransport;
 use RedBeanPHP\R;
 
 /**
- * Recovering from a password rotation that did not finish.
- *
- * The rotation's dangerous moment is between the registry accepting the new
- * password and this installation recording it: a process killed in that window
- * leaves the registry holding a credential nobody here knows. It used to be
- * survived by printing the password to the cron log, which put the credential
- * somewhere worse than the database and made recovery a human errand.
- *
- * The candidate is now written before it is sent, so both possibilities are on
- * disk and the registry can be asked which one is live. These drive that
- * question with each answer it can give.
+ * Recovering from a password rotation that did not finish. The dangerous moment
+ * is between the registry accepting the new password and this installation
+ * recording it, so the candidate is now written first and both are on disk.
  */
 final class PasswordRotationTest extends EppTestCase
 {
@@ -37,11 +29,9 @@ final class PasswordRotationTest extends EppTestCase
     protected function setUp(): void {
         parent::setUp();
 
-        // Config::set() writes through to the settings table, so this needs a
-        // database -- an in-memory SQLite one, since what is being tested is
-        // the ordering of the writes, not the dialect. RedBean holds its
-        // connection globally and refuses a second setup() for the same key,
-        // so the connection is made once and the tables are rebuilt per test.
+        // Config::set() writes through, so this needs a database -- in-memory
+        // SQLite, the ordering of the writes being what is tested. RedBean holds
+        // its connection globally, so it is made once and the tables rebuilt
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
@@ -184,11 +174,9 @@ final class PasswordRotationTest extends EppTestCase
     }
 
     /**
-     * apply()'s second argument is what every deliberate, operator-driven
-     * change has to pass: `lastPasswordUpdate` is not just a display field,
-     * it is the once-per-24h guard rotateOnReminder() reads, so a manual
-     * change that leaves it untouched can be followed moments later by an
-     * automatic rotation. POST /v1/session/change-password used to omit it.
+     * apply()'s second argument is what every operator-driven change must pass:
+     * `lastPasswordUpdate` is the once-per-24h guard rotateOnReminder() reads,
+     * so omitting it lets a rotation follow a manual change moments later.
      */
     public function testApplyStampsTheAttemptOnlyWhenAskedTo(): void {
         $this->seedEpp(['password' => 'old-password', 'lastPasswordUpdate' => 0]);

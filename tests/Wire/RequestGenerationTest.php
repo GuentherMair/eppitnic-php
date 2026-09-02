@@ -7,19 +7,11 @@ use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Snapshot test over every EPP request the codebase generates.
- *
- * The generator may be replaced wholesale as long as these bytes do not move.
- * Deliberately a snapshot rather than a set of hand-written expectations:
- * hand-written expectations for 29 requests would themselves be the thing most
- * likely to contain the mistake.
- *
- * To (re)generate the fixtures after an intentional change:
+ * Snapshot test over every EPP request the codebase generates: the generator may
+ * be replaced wholesale as long as these bytes do not move. To regenerate, then
+ * *read the diff* -- an unreviewed regeneration is a rubber stamp:
  *
  *     UPDATE_FIXTURES=1 vendor/bin/phpunit --testsuite wire
- *
- * and then *read the diff*. An unreviewed regeneration turns this test from a
- * safety net into a rubber stamp.
  */
 final class RequestGenerationTest extends EppTestCase
 {

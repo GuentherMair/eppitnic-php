@@ -3,30 +3,9 @@
 namespace Eppitnic\Selftest;
 
 /**
- * What a run could not clean up, and where that is written down.
- *
- * A run can only partly clean up after itself, and which part depends on what
- * it got as far as doing. A contact that was on a domain when that domain was
- * deleted stays linked until the domain is purged, 30 days later
- * (redemptionPeriod, then pendingDelete).
- * A contact that was never on one -- because the run created it and then
- * failed, or because it was swapped off the domain before the delete -- is
- * free immediately, and making it wait out a window that applies to something
- * else would be an invented delay.
- *
- * So the note distinguishes the two, and the waiting attaches to the blockage
- * rather than to the run: `blocked_since` is when the domain was deleted, not
- * when the run started. Those are the same moment for a run that finished, and
- * are days apart when a leftover domain is only deleted by a later reap.
- *
- * The note is a file rather than a row in the database, deliberately. The
- * self-test's own bookkeeping is not the operator's data, and it should not
- * turn up in a domain export, an ownership check or a backup. It is also the
- * only part of this that has to survive when the run itself did not: a run
- * killed halfway leaves the same note as one that finished.
- *
- * Nothing here reaches the registry. The note says what exists; the reap
- * command decides what to do about it.
+ * What a run could not clean up. A contact held by a deleted domain waits out
+ * its 30-day purge from `blocked_since`, one never on a domain is free at once.
+ * A file, not a row: not the operator's data, and it outlives the run.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Leftovers
@@ -36,10 +15,9 @@ namespace Eppitnic\Selftest;
 final class Leftovers
 {
     /**
-     * How long nic.it takes to be done with a deleted domain, and so how long
-     * the contacts that were on it stay linked: 30 days, spent in
-     * redemptionPeriod and then pendingDelete. Nothing is freed until the end
-     * of it, so a reap that runs earlier simply finds everything refused.
+     * How long nic.it holds a deleted domain, and so its contacts: 30 days of
+     * redemptionPeriod then pendingDelete. Nothing is freed before the end, so
+     * an earlier reap simply finds everything refused.
      */
     public const PURGE_DAYS = 30;
 
@@ -47,12 +25,9 @@ final class Leftovers
     private static ?string $directory = null;
 
     /**
-     * Where the notes live. Under the checkout rather than in the system
-     * temporary directory: these have to outlive a reboot by more than a week.
-     *
-     * The explicit test seam wins if set; otherwise EPPITNIC_VAR_DIR redirects
-     * this alongside config.php's own EPPITNIC_CONFIG_DIR, for a container
-     * instance whose /app is the image and whose state lives elsewhere.
+     * Where the notes live -- under the checkout, not /tmp: they must outlive a
+     * reboot by more than a week. The test seam wins if set, else
+     * EPPITNIC_VAR_DIR redirects them for a container whose state is elsewhere.
      */
     public static function directory(): string {
         if (self::$directory !== null) {
@@ -128,12 +103,9 @@ final class Leftovers
     // -----------------------------------------------------------------
 
     /**
-     * Every note on file, oldest run first.
-     *
-     * Nothing is filtered out here: a note may hold objects that are free now
-     * and objects that are not, and only the caller knows how long it is
-     * willing to wait. `ripe_in_days` is how much longer the linked ones have
-     * to sit, 0 when they are ready.
+     * Every note on file, oldest run first. Nothing is filtered: one note may
+     * hold free and blocked objects alike, and only the caller knows how long
+     * it will wait. `ripe_in_days` is what the linked ones still owe, 0 if none.
      *
      * @return array<int, array{stamp: string, path: string, age_days: int,
      *               domains: string[], contacts: string[], linked: string[],
@@ -173,12 +145,8 @@ final class Leftovers
     }
 
     /**
-     * How many more days the linked contacts have to wait.
-     *
-     * Measured from when their domain was deleted. A note with no
-     * `blocked_since` -- one written before a domain was ever deleted, or by
-     * an earlier version of this file -- has nothing waiting on a purge, so
-     * the answer is none.
+     * How many more days the linked contacts owe, from when their domain was
+     * deleted. A note with no `blocked_since` has nothing waiting on a purge.
      *
      * @param array<string, mixed> $manifest
      */

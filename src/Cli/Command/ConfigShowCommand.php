@@ -7,11 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 
 /**
- * Show the current `settings` table -- the configuration a web GUI or
- * `eppitnic setup` produced, and the only thing left to inspect once
- * config/config.php itself holds nothing but the database credentials.
- *
- * A local, read-only settings dump: no registry session opens.
+ * Show the current `settings` table -- all there is to inspect, once
+ * config/config.php holds nothing but the database credentials. A local,
+ * read-only dump: no registry session opens.
  */
 final class ConfigShowCommand extends Command
 {

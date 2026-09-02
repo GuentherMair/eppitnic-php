@@ -68,10 +68,9 @@ final class StoredPayloadTest extends TestCase
     }
 
     /**
-     * `sv_httpheaders` was wrapped as an array, not a string: 6.x kept the
-     * response headers as a field => value map where current code stores the
-     * raw block. Rejecting those as "not a string" left every one of the 532
-     * such rows in the live database undecodable.
+     * `sv_httpheaders` was wrapped as an array, not a string: 6.x kept headers as
+     * a field => value map where current code stores the raw block, so rejecting
+     * them left all 532 such rows in the live database undecodable.
      */
     public function testAHeaderMapBecomesARawHeaderBlock(): void {
         $stored = '__SERIALIZED:' . base64_encode(serialize([

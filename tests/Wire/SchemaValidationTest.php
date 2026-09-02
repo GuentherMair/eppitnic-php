@@ -8,28 +8,16 @@ use Eppitnic\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Validates every generated request against the registry's own XML schemas
- * (xsd/), which is a far stronger statement than "it parses": it checks
- * element order, cardinality, value facets and namespace correctness -- the
- * exact class of mistake that otherwise surfaces as a 2001 "Command syntax
- * error" from the registry, at the worst possible moment.
- *
- * A request whose extensions live in a namespace with no schema on disk is
- * skipped with a message naming the missing file, rather than passing quietly.
- * A silent pass here would be worse than no test: it would report coverage
- * that does not exist.
+ * Validates every generated request against the registry's own schemas -- order,
+ * cardinality, facets and namespaces, the mistake that otherwise arrives as a
+ * 2001. A request with no schema on disk is skipped by name, never passed.
  */
 final class SchemaValidationTest extends EppTestCase
 {
     /**
-     * Compile the catalog on its own and report what libxml made of it.
-     *
-     * Without this, a single unresolvable type reference inside one registry
-     * schema fails every request in the suite, and 27 identical failures say
-     * nothing about the 27 requests. XMLReader::setSchema() is used rather
-     * than DOMDocument::schemaValidateSource() precisely because it compiles
-     * the schema without also validating a document against it, which is the
-     * separation being drawn here.
+     * Compile the catalog alone and report what libxml made of it: otherwise one
+     * unresolvable type reference fails every request, and 27 identical failures
+     * say nothing. XMLReader::setSchema() compiles without also validating.
      *
      * @return string[] compile errors; empty when the schema set is sound
      */

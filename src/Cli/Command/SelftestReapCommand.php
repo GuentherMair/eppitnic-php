@@ -11,25 +11,9 @@ use Eppitnic\Selftest\Leftovers;
 use Eppitnic\Selftest\RefusedError;
 
 /**
- * Finish the cleanup a self-test run could not.
- *
- * Only one kind of leftover has to be waited for: a contact that was on a
- * domain when that domain was deleted, which the registry holds until the
- * domain is purged 30 days later, after redemptionPeriod and pendingDelete.
- * Everything else -- a leftover
- * domain, a contact swapped off the domain before the delete, every contact a
- * run created before failing -- is free straight away and is deleted on sight.
- *
- * That distinction is the whole point of the command. A run that fell over
- * before creating its domain has nothing blocked at all, and making its
- * contacts sit out a purge window that applies to something else would be a
- * delay this code invented.
- *
- * `--min-age` governs only the blocked ones, and is counted from the domain's
- * deletion rather than from the run. Attempting them early is harmless -- the
- * registry simply refuses again -- but it turns a command that should be
- * silent into one that reports a page of expected refusals, and a cleanup that
- * cries wolf is a cleanup nobody reads.
+ * Finish the cleanup a self-test run could not. Only a contact held by a
+ * deleted domain waits out its 30-day purge; everything else goes on sight.
+ * `--min-age` governs those, counted from that deletion rather than the run.
  *
  * @category    Net
  * @package     Eppitnic\Cli\Command\SelftestReapCommand
@@ -101,11 +85,9 @@ final class SelftestReapCommand extends Command
     // -----------------------------------------------------------------
 
     /**
-     * Narrow one note to what may be attempted now.
-     *
-     * Domains and unblocked contacts always may. The blocked ones only once
-     * their domain has had long enough to be purged -- `--min-age=0` says to
-     * try anyway.
+     * Narrow one note to what may be attempted now: domains and unblocked
+     * contacts always, blocked ones only once their domain has had long enough
+     * to be purged. `--min-age=0` says to try anyway.
      *
      * @param array{stamp: string, path: string, age_days: int, domains: string[],
      *              contacts: string[], linked: string[], ripe_in_days: int} $found
@@ -186,11 +168,9 @@ final class SelftestReapCommand extends Command
     }
 
     /**
-     * Delete one object, and say what happened either way.
-     *
-     * A refusal is expected often enough that it is not a warning: a run whose
-     * domain is still in pendingDelete answers exactly this, and the object
-     * simply stays on file for next time.
+     * Delete one object, and say what happened either way. A refusal is not a
+     * warning -- a domain still in pendingDelete answers exactly this, and the
+     * object stays on file for next time.
      *
      * @param string $kind 'domain' or 'contact'
      * @return bool whether the registry accepted it

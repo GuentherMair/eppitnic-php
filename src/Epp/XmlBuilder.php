@@ -3,17 +3,9 @@
 namespace Eppitnic\Epp;
 
 /**
- * Builds EPP requests with DOMDocument.
- *
- * One method per command, each returning a serialized document. The point of
- * building rather than templating is that a node is either added or it is not:
- * there is no equivalent of a template reading a variable the caller forgot to
- * assign, and so no need for callers to assign empty values just to keep a
- * template quiet.
- *
- * Escaping is the other half. DOMDocument escapes text and attribute values at
- * serialization, exactly once, whatever they contain -- an organisation named
- * "Rossi & Figli" needs no thought from the caller.
+ * Builds EPP requests with DOMDocument, one method per command: a node is
+ * either added or it is not, so no caller assigns an empty value to keep a
+ * template quiet, and escaping happens once at serialization.
  *
  * @category    Net
  * @package     Eppitnic\Epp\XmlBuilder

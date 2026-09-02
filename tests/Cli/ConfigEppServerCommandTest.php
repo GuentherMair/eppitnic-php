@@ -10,10 +10,8 @@ use RedBeanPHP\R;
 
 /**
  * `config epp-server` -- a local settings write only, no registry session.
- *
- * Config::set() writes through to the settings table (see PasswordRotationTest),
- * so this needs a database -- an in-memory SQLite one, since what is being
- * tested is which URL ends up stored, not the dialect.
+ * Config::set() writes through, so this needs a database: in-memory SQLite,
+ * since what is tested is which URL ends up stored, not the dialect.
  */
 final class ConfigEppServerCommandTest extends EppTestCase
 {

@@ -7,17 +7,9 @@ use Eppitnic\Persistence\StoredPayload;
 use RedBeanPHP\R;
 
 /**
- * Rewrite `__SERIALIZED:`-enveloped columns as the plain bodies they hold.
- *
- * The 6.x codebase stored EPP bodies as `__SERIALIZED:` +
- * base64(serialize($string)) -- a serialized *string*, so the envelope carried
- * nothing the column did not already have, at a third again the size. Current
- * code writes the body plainly.
- *
- * Optional. StoredPayload::decode() reads either shape, so nothing needs this
- * to work; it is here for installations that would rather have one shape in
- * the table than two. Rows that cannot be decoded are counted and left alone
- * -- a damaged envelope is still the only copy of whatever it holds.
+ * Rewrite 6.x's `__SERIALIZED:` columns as the plain bodies they hold. Optional,
+ * since StoredPayload::decode() reads either shape; undecodable rows are counted
+ * and left alone, a damaged envelope being the only copy of what it holds.
  */
 final class DoctorNormalizePayloadsCommand extends Command
 {
@@ -40,11 +32,9 @@ final class DoctorNormalizePayloadsCommand extends Command
     private const BATCH = 500;
 
     /**
-     * The marker as a LIKE pattern. `_` is a single-character wildcard, so the
-     * two leading underscores have to be escaped or the pattern also matches
-     * rows that merely end up looking like it. `!` rather than the default
-     * backslash as the escape character: a backslash here would have to survive
-     * PHP quoting and SQL quoting, and one of the two always loses.
+     * The marker as a LIKE pattern: `_` is a wildcard, so the leading
+     * underscores are escaped with `!` rather than a backslash, which would
+     * have to survive both PHP and SQL quoting.
      */
     private const MARKER_LIKE = '!_!_SERIALIZED:%';
     private const MARKER_ESCAPE = "ESCAPE '!'";

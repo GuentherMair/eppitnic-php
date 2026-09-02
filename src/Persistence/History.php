@@ -8,11 +8,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 /**
- * The audit trail: who did what, and when.
- *
- * Named history rather than changelog because not everything it records is a
- * change. A `security` row notes an event that altered nothing -- an admin
- * retrieving the registry credential, say -- and carries `action` = 'read'.
+ * The audit trail: who did what, and when. History rather than changelog
+ * because not everything is a change -- a `security` row can note an event
+ * that altered nothing, such as an admin reading the registry credential.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\History
@@ -26,13 +24,9 @@ final class History
     // -----------------------------------------------------------------
 
     /**
-     * Request headers never worth keeping, whatever else is.
-     *
-     * `authorization` is the live bearer token: writing it here would put a
-     * working credential in a table an operator reads casually, and anyone
-     * with SELECT on it could then act as whoever was logged. `cookie` is the
-     * same problem in a different header. The rest of a request's headers are
-     * what makes the entry useful -- user agent, forwarding chain, origin.
+     * Headers never worth keeping: `authorization` is a live bearer token, and
+     * anyone with SELECT here could then act as whoever was logged; `cookie` is
+     * the same problem. The rest is what makes an entry useful.
      */
     private const REDACTED_HEADERS = ['authorization', 'cookie', 'proxy-authorization'];
 
@@ -67,11 +61,9 @@ final class History
     }
 
     /**
-     * Record something worth knowing about that is not a change to an object,
-     * with where the request came from.
-     *
-     * The address masked to its rate-limiting prefix goes into the `network`
-     * column, which is what LoginRateLimit counts.
+     * Record something that is not a change to an object, with where it came
+     * from -- masked to its rate-limiting prefix in `network`, what
+     * LoginRateLimit counts.
      *
      * @param string $event what happened, e.g. 'epp_credentials_retrieved'
      * @param Request $request the request that caused it
@@ -110,16 +102,9 @@ final class History
      *         header appeared more than once
      */
     /**
-     * Entries $userId is allowed to see, newest first.
-     *
-     * An admin sees everything. Everyone else sees the history of the objects
-     * they own, by the same rule the rest of the API scopes by: their own user
-     * row, their own domains, their own contacts. Never `security`, which
+     * Entries $userId may see, newest first: an admin sees everything, everyone
+     * else the objects they own, and nobody but an admin sees `security`, which
      * carries other people's addresses and headers.
-     *
-     * This exists because the per-object endpoint used to answer for any
-     * object anybody asked about -- a `users` snapshot carries an email address
-     * and an admin flag, and any valid token could read every one of them.
      *
      * @param array<string, mixed> $filters object, object_id, action, network,
      *        acknowledged ('0'/'1'), since, until, limit, offset

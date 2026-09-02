@@ -8,11 +8,9 @@ use Eppitnic\Persistence\User;
 use Eppitnic\Persistence\UsernameTaken;
 
 /**
- * Create a local login account.
- *
- * Once config/config.php exists, this is the only way to create further
- * accounts -- `eppitnic setup` (or the REST/HTML installer, Setup\Installer)
- * only ever creates the first one.
+ * Create a local login account. Once config/config.php exists this is the only
+ * way to make further ones: `eppitnic setup` and the installers only ever
+ * create the first.
  */
 final class UserCreateCommand extends Command
 {

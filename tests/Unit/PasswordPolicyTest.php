@@ -8,12 +8,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * What a login password has to look like.
- *
- * There was no such rule before: `password_hash()` is reached from four places
- * and not one of them looked at what it was given, so a single character was
- * accepted. This is the rule, and the first place it is enforced is the
- * installer -- the one account an installation starts with.
+ * What a login password has to look like. There was no such rule: four call
+ * sites reach `password_hash()` and none looked at what it was given, so a
+ * single character was accepted. First enforced in the installer.
  */
 final class PasswordPolicyTest extends TestCase
 {

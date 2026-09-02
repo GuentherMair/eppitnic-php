@@ -9,10 +9,8 @@ use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
- * Issue a fixed API token for an existing user, for headless or scripted
- * access.
- *
- * The same operation as POST /v1/users/{id}/api-token, run directly against
+ * Issue a fixed API token for an existing user, for headless or scripted access
+ * -- the same operation as POST /v1/users/{id}/api-token, run directly against
  * the database.
  */
 final class UserTokenCommand extends Command

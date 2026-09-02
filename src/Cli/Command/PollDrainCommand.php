@@ -7,11 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Session;
 
 /**
- * Read the registry's message queue into the local database.
- *
- * Each message is polled, stored, then acknowledged -- the acknowledgement is
- * what removes it from the registry's queue and reveals the next one, so this
- * empties the queue as it goes and cannot be repeated for the same messages.
+ * Read the registry's message queue into the local database. Each message is
+ * polled, stored, then acknowledged -- the acknowledgement reveals the next --
+ * so this empties the queue and cannot be repeated for the same messages.
  */
 final class PollDrainCommand extends Command
 {

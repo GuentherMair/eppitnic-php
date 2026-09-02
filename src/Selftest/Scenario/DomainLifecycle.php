@@ -9,22 +9,9 @@ use Eppitnic\Selftest\Run;
 use Eppitnic\Selftest\Scenario;
 
 /**
- * A domain from registration to deletion, with the contacts it needs.
- *
- * Six contacts, because the interesting operations are the ones that *change*
- * a domain: a second admin and a second tech contact to swap the first pair
- * for, and a second registrant to hand the domain to. A run that created only
- * what a registration needs could never exercise an update.
- *
- * Note the shape of the ending. The domain delete is the last thing that can
- * be verified; the contact deletes after it are attempts, not assertions --
- * and they split in two. The three the domain was still carrying when it was
- * deleted stay linked until it has finished its 30 days of redemptionPeriod
- * and pendingDelete, so those are expected to be refused and are recorded as
- * deferred rather than failed; `eppitnic selftest reap` clears them later. The
- * three the update and the registrant change had already swapped off it are
- * associated with nothing and delete immediately, which is why onDomain is
- * kept up to date rather than assumed.
+ * A domain from registration to deletion, with six contacts -- a spare admin,
+ * tech and registrant to swap the originals for. The deletes at the end are
+ * attempts: those still on the domain are deferred to `selftest reap`.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Scenario\DomainLifecycle
@@ -37,12 +24,9 @@ final class DomainLifecycle implements Scenario
     private array $made = [];
 
     /**
-     * What the domain carries right now, by role.
-     *
-     * Kept up to date through the update and the registrant change, because
-     * only what is still on the domain when it is deleted is held by the purge
-     * -- a contact swapped off it earlier is associated with nothing and can
-     * be removed straight away.
+     * What the domain carries right now, by role -- kept current through the
+     * update and the registrant change, since only what is still on it at
+     * deletion is held by the purge.
      *
      * @var array<string, string> role => handle
      */
@@ -208,12 +192,9 @@ final class DomainLifecycle implements Scenario
             return;
         }
 
-        // Where the nameservers should end up: the first kept, the second
-        // swapped for the third. Stated as the whole target set rather than as
-        // a remove/add pair, because the registry does not report a nameserver
-        // until it has passed its DNS checks -- so fetch() often finds none,
-        // and `remNS(second); addNS(third)` against nothing leaves exactly one
-        // nameserver, which is refused as 9005 "Too few name servers".
+        // The whole target set, not a remove/add pair: the registry reports no
+        // nameserver until it passes DNS checks, so fetch() often finds none and
+        // remNS/addNS against nothing leaves one -- refused as 9005
         $swapped = count($this->nameservers) >= 3;
         $target = $swapped
             ? [$this->nameservers[0], $this->nameservers[2]]
@@ -268,15 +249,9 @@ final class DomainLifecycle implements Scenario
     // -----------------------------------------------------------------
 
     /**
-     * Leave the registry time to check the delegation before asking what it
-     * holds.
-     *
-     * Only worth doing when a real domain was named. nic.it validates
-     * nameservers out of band and does not report them until they pass, so
-     * reading back immediately shows nothing whether or not the delegation is
-     * good -- which makes the check meaningless rather than merely slow. With
-     * a generated name the delegation can never resolve anyway, so there is
-     * nothing to wait for and the run stays fast.
+     * Let the registry check the delegation before asking what it holds. Only
+     * worth it for a real domain: nic.it validates out of band, and a generated
+     * name can never resolve anyway, so waiting on one buys nothing.
      */
     private function awaitVerification(Run $run, string $name): void {
         if ($this->verificationWait <= 0) {
@@ -292,14 +267,9 @@ final class DomainLifecycle implements Scenario
     }
 
     /**
-     * Bring the domain's nameservers to exactly $target.
-     *
-     * A diff against what fetch() found is not enough: nic.it does not report
-     * a nameserver until it has passed the registry's DNS checks (see the note
-     * in Domain::fetch()), so a delegation that does not resolve reads back as
-     * empty however the domain was created. Removing one name and adding
-     * another against that empty set leaves a single nameserver, and the
-     * registry refuses anything under two.
+     * Bring the domain's nameservers to exactly $target. A diff against fetch()
+     * will not do: a delegation that does not resolve reads back empty, and
+     * remove-one/add-one against that leaves one, under the registry's minimum.
      *
      * @param string[] $target what the domain should carry afterwards
      */
@@ -317,15 +287,9 @@ final class DomainLifecycle implements Scenario
     }
 
     /**
-     * Check the nameservers the registry admits to holding, if it admits to
-     * any.
-     *
-     * Reporting none is not a failure. It is what nic.it answers for a
-     * delegation its DNS checks have not passed, and the default names point
-     * at example.it, which is reserved for documentation and answers nothing
-     * -- so this is the ordinary case unless `--ns` named something real. What
-     * would be a fault is the registry holding nameservers that are not the
-     * ones asked for, and that is still checked.
+     * Check the nameservers the registry admits to holding. None is not a
+     * failure -- it is the ordinary answer for a delegation that has not passed
+     * its checks. Holding ones nobody asked for would be, and is still caught.
      *
      * @param string[] $expected what was asked for
      * @return string what to append to the step's note
@@ -349,10 +313,8 @@ final class DomainLifecycle implements Scenario
     // -----------------------------------------------------------------
 
     /**
-     * The registrant change is its own EPP command, and the registry refuses
-     * one that does not rotate the authinfo along with it -- so this both
-     * changes the registrant and proves the new authinfo took, which an
-     * ordinary update could not.
+     * Its own EPP command, and the registry refuses one that does not rotate
+     * the authinfo with it -- so this also proves the new authinfo took.
      */
     private function changeRegistrant(Run $run, string $name): void {
         $registrant = $this->contact($run, 'R', 2, true);
@@ -417,12 +379,9 @@ final class DomainLifecycle implements Scenario
     }
 
     /**
-     * Try to delete every contact this scenario made.
-     *
-     * All of them are expected to be refused: each is attached to the domain
-     * that was just deleted, and stays attached until it is purged. The
-     * attempt is made anyway, because one that succeeds says something changed
-     * at the registry that this code assumes has not.
+     * Try to delete every contact this scenario made. Refusal is expected --
+     * each stays attached until the domain is purged -- but one that succeeds
+     * says the registry changed in a way this code assumes it has not.
      */
     private function attemptContactCleanup(Run $run): void {
         $held = array_values($this->onDomain);

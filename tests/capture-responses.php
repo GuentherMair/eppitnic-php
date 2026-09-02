@@ -6,30 +6,9 @@
  *
  *     php tests/capture-responses.php [--dry-run]
  *
- * Why this exists
- * ---------------
- * The response parsers (Domain::fetch(), Contact::fetch(),
- * Session::parsePollReq() and friends) are the half of this codebase that
- * cannot be checked by generating XML and validating it -- they are only as
- * correct as the documents they are fed. Hand-written samples prove the
- * parser handles what its author imagined; these prove it handles what
- * nic.it actually sends.
- *
- * Why the anonymisation is not optional
- * -------------------------------------
- * `transactions`/`responses`/`msgqueue` hold live traffic: registrant names,
- * postal addresses, phone numbers, e-mail addresses, and authInfo codes --
- * the credential that authorises transferring a domain away. Fixtures are
- * committed to the repository, so anything not scrubbed here is published.
- *
- * Scrubbing is done on the parsed DOM rather than with regular expressions:
- * a regex over XML mangles what it does not understand and silently misses
- * what it does not match, and "silently missed" here means a customer's
- * address in a public git history.
- *
- * As a backstop, every generated fixture is checked against a denylist built
- * from the contacts/domains tables themselves. If any real value survives,
- * nothing is written and the script fails loudly.
+ * The parsers can only be as correct as the documents they are fed. These tables
+ * hold names, addresses and authInfo codes and fixtures are committed, so a
+ * value surviving the denylist fails the run.
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -101,10 +80,9 @@ function fakeDomain(string $real): string {
     if ($real === '') {
         return $real;
     }
-    // Idempotent: the generic sweep runs after the structured pass and will
-    // encounter names this function already replaced. Without this, a
-    // second pass would map example-3.it to example-9.it and the same
-    // nameserver would appear under two different names in one document.
+    // Idempotent: the generic sweep runs after the structured pass and meets
+    // names already replaced. Without this, example-3.it becomes example-9.it
+    // and one nameserver appears under two names in a single document
     if (isset($domainMapValues[$real])) {
         return $real;
     }
@@ -121,15 +99,9 @@ function fakeDomain(string $real): string {
 }
 
 /**
- * Final catch-all over every text node and attribute value.
- *
- * The structured pass above knows the elements that matter and gives them
- * stable, readable substitutes. It cannot know the rest: these documents carry
- * an open-ended set of DNS diagnostic elements (dnsreport, destination,
- * queryFor, detail, ...) whose text is free-form and full of hostnames and
- * addresses. Enumerating them one by one is a losing game -- each capture
- * turns up another -- so anything that still *looks* like a hostname or an IP
- * after the structured pass is replaced here regardless of where it sits.
+ * Final catch-all over every text node and attribute value: the structured pass
+ * cannot know the open-ended DNS diagnostic elements, and enumerating them is a
+ * losing game, so anything that still looks like a hostname is replaced.
  */
 function sweepFreeText(\DOMDocument $dom): void {
     $hostname = '/\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)*\.[a-z]{2,}\.?/i';
@@ -196,13 +168,9 @@ function scrubElement(\DOMElement $el): void {
         $replacement = null;
 
         if (str_contains($text, "\n")) {
-            // Multi-line free text in these documents is a raw DNS transcript
-            // (extdom:dnsreport carries a whole zone dump in CDATA: SOA, MX,
-            // SPF ranges, the hostmaster address). No parser reads a word of
-            // it -- Session::parsePollReq() works off the surrounding elements
-            // and attributes -- so it is pure risk with no test value.
-            // Replaced wholesale rather than pattern-scrubbed: an unstructured
-            // blob is exactly where a targeted scrubber misses something.
+            // Multi-line free text here is a raw DNS transcript no parser reads,
+            // so it is risk with no test value. Replaced wholesale: a blob is
+            // where a targeted scrubber misses something
             $replacement = '[dns transcript removed]';
         } elseif ($local === 'name') {
             // domain:name / extdom:name carry a domain; contact:name a person
@@ -251,12 +219,9 @@ function scrubElement(\DOMElement $el): void {
 }
 
 /**
- * Unwrap a stored response body.
- *
- * Historical rows (written by the 6.x codebase) are wrapped in a
- * "__SERIALIZED:" + base64(serialize($string)) envelope; rows written by the
- * current AbstractObject::ExecuteQuery() are the plain string. A production
- * database contains both, so both are handled here rather than assuming one.
+ * Unwrap a stored response body: 6.x rows carry a "__SERIALIZED:" envelope and
+ * current ones are the plain string. A production database holds both, so both
+ * are handled rather than assuming one.
  *
  * @param string $stored the raw column value
  * @return string|null the response body, or null if the envelope is unreadable
@@ -317,12 +282,9 @@ function buildDenylist(): array {
     // number) and make the check useless through false positives.
     $values = array_filter($values, fn($v) => strlen(trim($v)) >= 6);
 
-    // The substitutes this script writes are themselves plausible real values
-    // -- 'Bolzano' is a real city in this dataset, and it is also what every
-    // city is replaced *with*. Leaving them on the denylist would flag every
-    // correctly-scrubbed fixture. Removing them is safe precisely because the
-    // substitution is unconditional: the output value is the constant whatever
-    // the input was, so it carries nothing about the original.
+    // The substitutes are themselves plausible values -- 'Bolzano' is a real
+    // city here and what every city becomes -- so leaving them flags every
+    // correct fixture. Safe: the substitution is unconditional
     $substitutes = array_map('strval', array_filter(array_values(SCRUB_TEXT)));
     $substitutes[] = 'Mario Rossi';
 
@@ -330,14 +292,9 @@ function buildDenylist(): array {
 }
 
 /**
- * Every text node and attribute value in a document -- what a reader actually
- * learns from it.
- *
- * The check has to run over these rather than over the raw markup, because
- * markup contains strings that are not data: the XML declaration's
- * standalone="no" contains "andalo", which is also a real municipality in this
- * dataset, so a naive substring scan of the serialized document reports a leak
- * in every single response.
+ * Every text node and attribute value -- what a reader actually learns. Not the
+ * raw markup, which holds strings that are not data: standalone="no" contains
+ * "andalo", a real municipality here, so that reports a leak in every response.
  *
  * @return string[]
  */
@@ -399,23 +356,9 @@ foreach (R::getAll("SELECT DISTINCT cl_trtype FROM transactions WHERE cl_trtype 
 }
 
 /**
- * Poll responses, one per *document shape*.
- *
- * Deliberately keyed on what the document actually contains -- the qualified
- * name of the element under <extension>, or the transfer status under
- * <resData> -- and not on messages.type. messages.type is the output of
- * Session::parsePollReq(), so keying fixtures on it means the fixture set
- * inherits whatever that parser gets wrong: every message it fails to
- * recognise collapses into a single "unknown" bucket, and the shapes it is
- * failing on become invisible precisely because it is failing on them.
- *
- * Keying on the document instead, the same corpus yields a separate fixture
- * for each real message shape, including the ones the parser does not
- * currently handle.
- *
- * The namespace is part of the key: nic.it kept the element name
- * dnsErrorMsgData across extdom-1.0 and extdom-2.0 while changing its
- * structure completely, and both still occur in the queue.
+ * Poll responses, one per *document shape* -- keyed on what the document holds,
+ * not messages.type, which is parsePollReq()'s output and hides every shape it
+ * fails on. The namespace is part of the key: dnsErrorMsgData kept its name.
  */
 $seen = [];
 foreach (R::getAll("SELECT id, cl_trid, sv_httpdata FROM msgqueue WHERE sv_httpdata IS NOT NULL AND sv_httpdata <> '' ORDER BY id DESC") as $row) {

@@ -45,23 +45,9 @@ use RedBeanPHP\R;
 class Session extends AbstractObject
 {
   /**
-   * The poll-message vocabulary: every extension element the registry can put
-   * in a poll response, and which parsePollReq() therefore has a branch for.
-   * These are the values that end up in `messages`.`type`.
-   *
-   * The names are the registry's own element names, deliberately, rather than
-   * anything of our own invention: they are declared, versioned and documented
-   * upstream in xsd/extdom-2.0.xsd and xsd/extepp-2.0.xsd, so a name here
-   * cannot drift from what the registry means by it.
-   *
-   * This list is not decoration -- SessionPollCoverageTest reads the schemas
-   * and fails if the registry declares a message type that is missing from it.
-   * When that happens, add the branch and the entry together; do not just add
-   * the entry.
-   *
-   * Transfer notifications are not here: they arrive in <resData> rather than
-   * <extension> and are typed '<trStatus>Transfer' after the registry's own
-   * transfer status, which PollProcessor matches with LIKE '%Transfer'.
+   * Every extension element a poll response can carry, by the registry's own
+   * names, so parsePollReq() has a branch for each -- SessionPollCoverageTest
+   * fails on one missing here. Transfers are absent, arriving in <resData>.
    */
   public const POLL_MESSAGE_ELEMENTS = array(
     // extdom -- object-scoped notifications
@@ -133,11 +119,9 @@ class Session extends AbstractObject
   private function loginout(string $which): bool {
     // query server
     if ($this->ExecuteQuery($which, "")) {
-      // The registry reports the remaining credit as an extepp extension on
-      // login and logout. is_object() on its own is not a test for presence:
-      // SimpleXML answers a missing child with an empty element, so this used
-      // to walk into children($ns['extepp']) whether or not the document had
-      // any extepp content -- and index a namespace key that was not there.
+      // Credit arrives as an extepp extension on login and logout. is_object()
+      // alone is not a presence test: SimpleXML answers a missing child with an
+      // empty element, so this indexed a namespace key that was not there
       $extepp = $this->responseExtension('extepp');
       if ($extepp !== null && isset($extepp->creditMsgData->credit)) {
         $this->credit = (float)$extepp->creditMsgData->credit;
@@ -315,15 +299,9 @@ class Session extends AbstractObject
   /**
    * try to parse message received by poll "req"
    *
-   * The registry speaks two generations of these messages and the queue holds
-   * both: extdom-1.0 documents going back years, and the extdom-2.0 documents
-   * it sends now. They reuse element names while changing structure entirely
-   * -- dnsErrorMsgData is <report><domain name="..."> in 1.0 and a flat
-   * <domain> element plus <tests> in 2.0 -- so each shape needs its own test.
-   * Recognising only one generation silently drops the other: before both were
-   * handled here, 330 messages in a real queue parsed as 'unknown' with no
-   * domain, which meant PollProcessor and the DNS-sync queue were never told
-   * which zone had failed validation.
+   * The queue holds extdom-1.0 and 2.0, which reuse element names while
+   * changing structure, so each needs its own test -- one alone left 330 real
+   * messages as 'unknown', naming no zone at all.
    *
    * @return array [message type], [domain], [human readable data]
    */
@@ -393,10 +371,8 @@ class Session extends AbstractObject
       );
     }
 
-    // remappedIdnData -- the registry created a *different* IDN from the one
-    // requested. The created name is the one that now exists, so that is what
-    // goes in the domain column; without this the local record would name a
-    // domain the registry does not have.
+    // remappedIdnData: the registry created a *different* IDN than requested.
+    // The created name is the one that exists, so that is what is stored
     if ($extdom !== null && isset($extdom->remappedIdnData->idnCreated)) {
       $remap = $extdom->remappedIdnData;
       return array(
@@ -407,10 +383,9 @@ class Session extends AbstractObject
       );
     }
 
-    // dnsWarningMsgData (extdom-2.0). Deliberately tested before
-    // chgStatusMsgData: a warning *contains* a chgStatusMsgData, so checking
-    // for the latter first would classify every warning as a status change and
-    // throw the validation results away.
+    // dnsWarningMsgData (extdom-2.0), tested before chgStatusMsgData: a warning
+    // *contains* one, so the other order classifies every warning as a status
+    // change and discards the validation results
     if ($extdom !== null && isset($extdom->dnsWarningMsgData->dnsWarningData)) {
       $warning = $extdom->dnsWarningMsgData->dnsWarningData;
       $outcomes = $this->dnsTestOutcomes($warning);
@@ -500,10 +475,9 @@ class Session extends AbstractObject
     $domainData = $this->responseData('domain');
     if ($domainData !== null && isset($domainData->trnData->name)) {
       $transfer = $domainData->trnData;
-      // the acID field is necessary to compare transfer-out's in case of 'serverApproved' transfers.
-      // Both are cast to string here: they are bound straight into the messages
-      // INSERT by poll(), and a SimpleXMLElement only survives PDO binding via
-      // its __toString(), which is an accident waiting to change.
+      // acID is needed to compare transfer-outs on 'serverApproved'. Both cast
+      // to string: poll() binds them straight into the INSERT, and a
+      // SimpleXMLElement survives that only via __toString()
       return array(
         'type'   => (string)$transfer->trStatus . "Transfer",
         'domain' => $this->stripTrailingDots((string)$transfer->name),

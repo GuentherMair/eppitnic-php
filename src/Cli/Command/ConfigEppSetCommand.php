@@ -8,14 +8,9 @@ use Eppitnic\Config;
 use Eppitnic\Support\Validate;
 
 /**
- * Set one plain `epp` field: interface, lang, cl_trid_prefix, or username.
- *
- * Local settings write only, no registry session opens -- same as `config
- * epp-server`. `server`/`server_deleted`/`port` have their own verb (`config
- * epp-server`); `password` has its own, guarded one (`config epp-password`),
- * since a bad value there breaks every subsequent EPP call rather than
- * failing a single request the way a bad `interface` or `cl_trid_prefix`
- * would.
+ * Set one plain `epp` field: interface, lang, cl_trid_prefix, or username -- a
+ * local write only. `server`/`server_deleted`/`port` belong to `config
+ * epp-server`, and `password` to the guarded `config epp-password`.
  */
 final class ConfigEppSetCommand extends Command
 {

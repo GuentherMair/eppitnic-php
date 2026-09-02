@@ -3,12 +3,9 @@
 namespace Eppitnic\Setup;
 
 /**
- * The six values config/config.php holds, as a value object rather than six
- * loose scalars threaded through Installer, ConfigFile and the raw PDO probe.
- *
- * Password is deliberately not trimmed or defaulted the way the others are --
- * a local trust-auth setup genuinely wants it empty, and leading/trailing
- * whitespace could be a real character of it rather than formatting.
+ * The six values config/config.php holds, as one object rather than scalars
+ * threaded through Installer, ConfigFile and the PDO probe. Password is neither
+ * trimmed nor defaulted: trust auth wants it empty, and whitespace may be real.
  *
  * @category    Net
  * @package     Eppitnic\Setup\DatabaseCredentials

@@ -8,60 +8,16 @@ use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
- * Owns the database connection (formerly helpers/db.php, `files`-autoloaded
- * eagerly on every request/script -- now established lazily here instead,
- * the first time anything actually needs it) and loads every row of the
- * `settings` table once, serving values from that in-memory cache for the
- * rest of the request.
- *
- * Also owns schema versioning: right after connecting, it compares the
- * `settings` table's 'schema_version' row (zero-padded MMmmrr, e.g.
- * '070000' for 7.0.0 -- see SCHEMA_VERSION, config/constants.php) against
- * SCHEMA_VERSION and applies any outstanding
- * config/mariadb-schema-upgrade-{from}-to-{to}.sql files, walking the chain
- * one version-to-next-version step at a time (never a single file spanning
- * several versions -- see findMigration()) until it catches up. If the
- * `settings` table doesn't exist at all yet, there's no stamp to read, so
- * '060700' -- the legacy pre-versioning baseline -- is assumed as the
- * starting point and fed into that same lookup, currently resolving to
- * config/mariadb-schema-upgrade-060700-to-070000.sql (which also creates
- * `settings` as part of what it applies). No filename is special-cased.
- *
- * Because the database connection is lazy now rather than eager, anything
- * that touches `R::` directly -- not through a Eppitnic object, whose
- * constructor already goes through Config::get() -- must trigger this class
- * first, even if it doesn't need any particular setting value: call
- * Config::init().
- *
- * If config/config.php doesn't exist and the six DB_* constants aren't
- * already defined in-process, connect() (via loadConfig()) throws
- * Setup\ConfigMissing. Creating that file is Setup\Installer's job, driven by
- * `eppitnic setup`, the REST installer (src/Api/Routes/setup.php) or the
- * bundled fallback page (public/setup.html) -- never this class, which does
- * no I/O beyond the database itself.
- *
- * Similarly, config/mariadb-schema.sql and the upgrade script seed the
- * `settings` table with placeholder values for a handful of settings that
- * can't have a real default (jwt_psk, allowed_origins, epp credentials).
- * jwt_psk is filled in the first time the constructor runs (setupSettings());
- * the rest are left at their placeholder until Setup\Installer or a direct
- * settings edit sets them.
+ * The database connection, made lazily, plus the `settings` table loaded once
+ * and served from memory. Also owns schema versioning, migrate() walking the
+ * upgrade chain to SCHEMA_VERSION. Direct `R::` callers must init() first.
  */
 final class Config
 {
     /**
-     * The `epp` setting's fields safe to show a caller.
-     *
-     * An allow-list, not a deny-list of secrets: the shared registry password
-     * lives in the same setting, and so might whatever secret is added next.
-     * Naming what is safe means a new field defaults to *not* being published,
-     * rather than leaking until somebody remembers to exclude it.
-     *
-     * Here rather than in each consumer because there are two of them --
-     * GET /v1/session/epp and `eppitnic config show` -- and they were kept in
-     * agreement by a comment in each pointing at the other. That works exactly
-     * until someone adds a field to one list, which is the case the allow-list
-     * exists to survive.
+     * The `epp` fields safe to publish, for GET /v1/session/epp and
+     * `config show`. An allow-list: the registry password lives in the same
+     * setting, so a field added later is withheld until it is named here.
      */
     public const EPP_PUBLIC_FIELDS = [
         'server', 'server_deleted', 'port', 'interface',
@@ -71,12 +27,7 @@ final class Config
     private static ?self $instance = null;
     private array $settings = [];
 
-    /**
-     * connect to the database, run any outstanding migrations, load every
-     * setting into the in-process cache, and fill in whichever
-     * security-/identity-critical settings are still at their schema-default
-     * placeholder -- see connect(), migrate(), setupSettings()
-     */
+    /** connect(), migrate(), load the settings, then setupSettings() */
     private function __construct() {
         self::connect();
         self::migrate();
@@ -95,26 +46,15 @@ final class Config
         return self::$instance ??= new self();
     }
 
-    /**
-     * Establish the database connection and run any outstanding migrations,
-     * without needing an actual setting value. For scripts that touch `R::`
-     * directly but never call get()/set() themselves.
-     */
+    /** Connect and migrate without reading a setting -- for `R::` callers. */
     public static function init(): void {
         self::instance();
     }
 
     /**
-     * Install a fully-formed settings array as the singleton's state, without
-     * touching the database at all -- no connect(), no migrate(), no
-     * setupSettings() (which would prompt, or auto-generate a jwt_psk).
-     *
-     * Exists for the test suite: nearly everything in this codebase reaches
-     * Config through Client's constructor, so without this hook every unit
-     * test would need a live MariaDB with a migrated schema, and CI would need
-     * one too. Production code must not call it -- get()/set() would then be
-     * answering from a cache no database ever backed, and set() would still
-     * try to REPLACE INTO a table it never connected to.
+     * Install a settings array as the singleton's state, touching no database.
+     * Test suite only: production get()/set() would then answer from a cache
+     * nothing backs, and set() would REPLACE INTO a table it never connected to.
      *
      * @param array $settings the complete settings map, as get() should answer it
      */
@@ -124,10 +64,7 @@ final class Config
         self::$instance = $instance;
     }
 
-    /**
-     * Drop the singleton, so the next call rebuilds it (from the database, or
-     * from whatever loadForTesting() installs next). Test-suite teardown only.
-     */
+    /** Drop the singleton so the next call rebuilds it. Test teardown only. */
     public static function reset(): void {
         self::$instance = null;
     }
@@ -146,14 +83,8 @@ final class Config
     }
 
     /**
-     * Every setting key currently seeded, unredacted.
-     *
-     * For `eppitnic config show` -- get() rightly requires a key, so a typo
-     * fails loudly rather than reading as "unset", but that means there was
-     * no way to enumerate what exists at all. Callers still own redacting
-     * secrets (jwt_psk, epp.password/pendingPassword) before display; this
-     * is the same in-process cache get() already reads from, not a new
-     * trust boundary.
+     * Every seeded key, unredacted -- get() needs a key, so nothing could
+     * enumerate them. Callers own redacting secrets before display.
      *
      * @return array<string, mixed> key => value
      */
@@ -168,30 +99,20 @@ final class Config
      * @param mixed $value new value
      */
     public static function set(string $key, mixed $value): void {
-        // instance() first -- ensures connect()/migrate() have already run
-        // (and so the `settings` table actually exists) before writing to it
-        // directly. Matters when set() is the very first Config call in a
-        // process, e.g. `eppitnic config migrate` seeding a freshly-migrated schema.
+        // instance() first, so the `settings` table exists before writing to
+        // it -- set() may be the first Config call in the process
         $instance = self::instance();
         R::exec('REPLACE INTO settings (`key`, `value`) VALUES (?, ?)', [$key, json_encode($value)]);
         $instance->settings[$key] = $value;
     }
 
     /**
-     * Connect to the database: load config/config.php (see loadConfig()),
-     * validate the DB_* constants it's expected to define, and connect/freeze
-     * RedBeanPHP. A no-op after the first call (R::hasDatabase()
-     * guards it).
+     * Load config/config.php, validate the DB_* constants, connect and freeze
+     * RedBeanPHP. A no-op after the first call. Public because Setup\Installer
+     * calls it with define()d candidates before that file exists.
      *
-     * Public rather than private: Setup\Installer calls this directly, after
-     * define()-ing candidate DB_* constants itself but before
-     * config/config.php exists, so it can apply the schema and create the
-     * first admin before committing to those credentials by writing the file.
-     *
-     * @throws ConfigMissing if neither config/config.php nor the six DB_*
-     *                       constants exist
-     * @throws \RuntimeException if config/config.php is incomplete, or the
-     *                            database connection itself fails
+     * @throws ConfigMissing if neither the file nor the six constants exist
+     * @throws \RuntimeException if the config is incomplete or the connect fails
      */
     public static function connect(): void {
         self::loadConfig();
@@ -209,11 +130,8 @@ final class Config
         if ( ! R::hasDatabase('default')) {
             try {
                 R::setup(DB_TYPE.':host='.DB_HOST.';dbname='.DB_NAME.';charset='.DB_CHARSET, DB_USER, DB_PASSWORD);
-                // R::setup() only configures the DSN -- RedBeanPHP connects
-                // lazily, on the first real query. Force that connection
-                // attempt now, inside this try block, so a failure surfaces
-                // here with a clear message instead of later (e.g. from
-                // migrate()'s first query, deep in the constructor).
+                // R::setup() only sets the DSN; force the connection here, in
+                // this try, so a failure surfaces with a clear message
                 R::getCell('SELECT 1');
                 R::freeze(true);
                 R::getWriter()->setUseCache(true);
@@ -228,12 +146,8 @@ final class Config
     }
 
     /**
-     * Ensure config/config.php is loaded: require it if it exists. Otherwise,
-     * if the six DB_* constants are already defined in-process -- Setup\Installer
-     * does this while proving candidate credentials, before config/config.php
-     * exists -- there is nothing to load. Otherwise there is no configuration
-     * at all: nothing here prompts for one any more (see Setup\Installer,
-     * Cli\Command\SetupCommand, src/Api/Routes/setup.php).
+     * require config/config.php, or accept DB_* constants already defined
+     * in-process -- Setup\Installer defines them while proving credentials.
      *
      * @throws ConfigMissing if neither the file nor the constants exist
      */
@@ -248,45 +162,30 @@ final class Config
             return;
         }
 
-        // States the fault and stops. What to do about it differs by caller --
-        // the CLI names its setup verb, the web tier serves the installer
-        // instead of a message at all -- so the advice belongs to whoever
-        // catches this, not to every reader of it.
+        // No advice here: the CLI names its setup verb and the web tier serves
+        // the installer instead, so it belongs to whoever catches this
         throw new ConfigMissing(
             "Database configuration missing: '" . ConfigFile::path() . "' not found or not readable."
         );
     }
 
     /**
-     * jwt_psk is a real secret, not something a human should type in, so it
-     * is always silently regenerated if still at its schema-default
-     * empty-string placeholder. Runs once, from the constructor, right after
-     * settings are first loaded.
-     *
-     * allowed_origins and the epp credentials are left at their placeholders
-     * if unset -- the application still boots, just with CORS/EPP unusable
-     * until Setup\Installer (or a direct settings edit) fills them in.
+     * Generate jwt_psk if it is still at its placeholder -- it is a secret, not
+     * something to type in. allowed_origins and the epp credentials are left
+     * alone: the application boots without them, just with CORS/EPP unusable.
      */
     private function setupSettings(): void {
-        // `?? ''` rather than a bare read: the row is seeded by
-        // config/mariadb-schema.sql, but a settings table assembled some other
-        // way (a partial restore, a hand-run migration) can be missing it
-        // entirely -- and then a bare read warns and evaluates to null, which
-        // is not '', so the key silently never gets generated and every JWT
-        // operation fails later instead. Treat absent and placeholder alike.
+        // `?? ''` treats absent like placeholder: a settings table assembled
+        // some other way can lack the row, and null !== '' would skip the
+        // generation and fail every JWT operation later instead
         if (($this->settings['jwt_psk'] ?? '') === '') {
             $this->persistSetting('jwt_psk', PasswordGenerator::signingKey());
         }
     }
 
     /**
-     * Write directly to both the database and the in-process cache,
-     * bypassing set()'s self::instance() call -- safe to use from setupSettings(),
-     * itself called from inside the constructor, unlike the public set(),
-     * which would recurse back into the constructor here.
-     *
-     * @param string $key setting name
-     * @param mixed $value new value
+     * set() without its instance() call, so setupSettings() can use it from
+     * inside the constructor -- the public set() would recurse.
      */
     private function persistSetting(string $key, mixed $value): void {
         R::exec('REPLACE INTO settings (`key`, `value`) VALUES (?, ?)', [$key, json_encode($value)]);
@@ -294,25 +193,14 @@ final class Config
     }
 
     /**
-     * Bring the `settings` table -- and, transitively, the whole schema --
-     * up to SCHEMA_VERSION, applying config/mariadb-schema-upgrade-*.sql
-     * files in sequence. Deliberately talks to `R::` directly rather than
-     * through get()/set(): this runs from inside the constructor, before
-     * self::$instance is assigned, so calling back into self::instance()
-     * here would recurse.
-     *
-     * Public rather than private: Setup\Installer calls this (via init())
-     * right after SchemaInstaller has decided fresh-vs-existing, so a fresh
-     * database's brand-new `settings` table (already stamped at
-     * SCHEMA_VERSION by mariadb-schema.sql) is a no-op pass through here
-     * rather than a second, parallel notion of "is this up to date."
+     * Bring the schema up to SCHEMA_VERSION. Uses `R::` directly because it
+     * runs from the constructor, before $instance exists, so instance() would
+     * recurse. Public for Setup\Installer, where a fresh database is a no-op.
      */
     public static function migrate(): void {
         if (empty(R::getAll("SHOW TABLES LIKE 'settings'"))) {
-            // no `settings` table, so no stamp to read -- assume the legacy
-            // pre-versioning baseline and let the loop below find its own
-            // way from there via the normal filename lookup, same as any
-            // other step in the chain (no filename hardcoded here)
+            // no stamp to read: assume the pre-versioning baseline and let the
+            // loop find its way from there by the normal filename lookup
             $current = '060700';
         } else {
             $current = R::getCell("SELECT `value` FROM settings WHERE `key` = 'schema_version'");
@@ -325,10 +213,8 @@ final class Config
             $current = json_decode($current, true);
         }
 
-        // Migrations only ever run forwards, so a database stamped newer than
-        // this checkout has nowhere to go. Say that, rather than letting the
-        // loop look for a migration away from a version it has never heard of
-        // and report the missing file as if it were the problem.
+        // Migrations run forwards only. Said here, or the loop below reports a
+        // missing file as if that were the problem.
         if ((int) $current > (int) SCHEMA_VERSION) {
             throw new \RuntimeException(
                 "The database schema is version '{$current}', newer than this installation's '" . SCHEMA_VERSION . "'. " .
@@ -352,14 +238,9 @@ final class Config
     }
 
     /**
-     * Find config/mariadb-schema-upgrade-{$from}-to-*.sql, if one exists.
-     * Migrations are only ever version-to-next-version -- maintaining a
-     * script for every possible (from, to) pair would be far more upgrade
-     * scripts than anyone wants to write or test, so a multi-version jump
-     * is always walked one step at a time by the caller's loop, never
-     * satisfied by a single file. If more than one file's "from" matches
-     * (branching, shouldn't normally happen), the one with the numerically
-     * lowest "to" wins -- i.e. the very next step, never a skip-ahead.
+     * Find config/mariadb-schema-upgrade-{$from}-to-*.sql. Only ever one step:
+     * a multi-version jump is walked by the caller's loop, never satisfied by
+     * a single file, so on a tie the lowest "to" wins.
      *
      * @return array{0: string, 1: string}|null [file path, target version]
      */
@@ -381,20 +262,12 @@ final class Config
     }
 
     /**
-     * Execute every statement in a .sql file via R::exec(), respecting
-     * `DELIMITER` directives -- a mysql-CLI-client-only construct these
-     * migration files use for stored-procedure bodies. It isn't real SQL
-     * and PDO doesn't understand it, so it can't just be split on every
-     * semicolon; this tracks the active delimiter manually instead.
+     * Run every statement in a .sql file, honouring `DELIMITER` -- a mysql-CLI
+     * construct PDO does not understand, so this cannot just split on ';'.
+     * Public so Setup\SchemaInstaller can apply mariadb-schema.sql with it.
      *
-     * Public rather than private: Setup\SchemaInstaller reuses this to apply
-     * config/mariadb-schema.sql on a fresh database, rather than
-     * re-implementing DELIMITER-aware SQL-file execution a second time.
-     *
-     * @throws \RuntimeException on the first failing statement. The message
-     *         embeds up to 200 raw characters of that statement's SQL --
-     *         fine for a CLI/log audience, but src/Api/Routes/setup.php
-     *         truncates it before it can reach an HTTP response body.
+     * @throws \RuntimeException on the first failing statement, quoting 200
+     *         characters of its SQL (setup.php truncates that for HTTP)
      */
     public static function runSqlFile(string $path): void {
         if ( ! is_readable($path)) {

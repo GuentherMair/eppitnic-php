@@ -32,14 +32,9 @@ function domainToArray(Domain $domain): array {
 }
 
 /**
- * A domain may be operated on by its local owner, or by any admin. Unlike
- * contacts (canAccessContact(), src/Api/Routes/contact.php) there is no wider
- * attachment rule -- a domain belongs to exactly one local user.
- *
- * Every write route calls this *before* opening an EPP session: the local
- * *DB() helpers scope their own UPDATE by user_id, but that happens after the
- * registry has already been changed, which is far too late to be an authorization
- * check.
+ * A domain may be operated on by its owner or any admin -- one user, no wider
+ * attachment rule. Every write route calls this *before* opening a session: the
+ * *DB() helpers scope by user_id only after the registry has changed.
  *
  * @param bool $includePending also accept a domain that so far only exists as a
  *                     pending transfer-in request (the `transfers` table) --
@@ -61,11 +56,9 @@ function canAccessDomain(string $domain, int $user_id, bool $isAdmin, bool $incl
 }
 
 /**
- * whether some *other* local user already holds this domain. This is the check
- * that applies to claim-style operations (requesting a transfer-in), where the
- * caller is not expected to own the domain yet -- an ownership check would
- * reject every legitimate request -- but must not be able to pull a domain away
- * from a colleague either.
+ * Whether some *other* local user already holds this domain -- the check for
+ * claim-style operations (a transfer-in), where the caller is not expected to
+ * own it yet but must not pull it away from a colleague either.
  */
 function domainHeldByAnotherUser(string $domain, int $user_id, bool $isAdmin): bool {
     if ($isAdmin) {
@@ -85,19 +78,9 @@ function domainForbidden(Response $response, string $domain): Response {
 }
 
 /**
- * Whether the caller may attach $handle to a domain as its registrant.
- *
- * A domain's local owner is derived from its registrant contact
- * (Domain::updateDB() reassigns domains.user_id to the new registrant's owner
- * on a registrant change), so letting a caller name a contact somebody else
- * owns is how the two ownership notions drift apart -- and the drift is
- * invisible, because the resulting domain then answers to one user in the
- * listings and another in the renewals view. Domain::updateDB()'s own comment
- * has always assumed the caller checks this; this is that check.
- *
- * Ownership, not canAccessContact(): being allowed to *read* a contact because
- * it happens to hang off one of your domains is not grounds for making it the
- * registrant of another.
+ * Whether the caller may make $handle a domain's registrant. Domain::updateDB()
+ * moves domains.user_id to that contact's owner, so naming somebody else's
+ * hands the domain away -- ownership, not canAccessContact()'s read access.
  */
 function canUseAsRegistrant(string $handle, int $user_id, bool $isAdmin): bool {
     if ($isAdmin) {
@@ -130,11 +113,9 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
 
-    // scoped by the DOMAIN's owner, like every other domain route (listDomains(),
-    // export, autocomplete, canAccessDomain()). It used to scope by the
-    // registrant CONTACT's owner, which meant a domain whose registrant belongs
-    // to another user was missing from its own owner's renewals list and showing
-    // up in that other user's -- who cannot act on it at all.
+    // scoped by the DOMAIN's owner, like every other domain route. Scoping by
+    // the registrant CONTACT's owner hid a domain from its own owner's
+    // renewals list and showed it to a user who cannot act on it at all
     $where = ['1 = 1'];
     $params = [':days' => $days];
     if ( ! $isAdmin) {
@@ -198,10 +179,9 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
     $titles = ['Active', 'Domain', 'Auth-Info', 'Created', 'Expires', 'Registrant Handle', 'Registrant Org', 'Registrant Name', 'Registrant Email'];
     $fields = ['active', 'domain', 'authinfo', 'cr_date', 'ex_date', 'handle', 'org', 'name', 'email'];
 
-    // Csv::row() rather than inlining the quoting a fourth time. It
-    // also doubles embedded quotes, which the inline version here did not: an
-    // organisation named 'Rossi "Da Bepi" S.r.l.' used to end the field early
-    // and shift every following column of that row.
+    // Csv::row() rather than a fourth inline copy of the quoting -- it also
+    // doubles embedded quotes, which this did not: 'Rossi "Da Bepi" S.r.l.'
+    // ended the field early and shifted every following column
     $csv = Csv::row($titles, ';');
     foreach ($records as $record) {
         $row = [];
@@ -221,11 +201,9 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $registrant = $request->getQueryParams()['registrant'] ?? '';
 
-    // scoped by who REQUESTED the transfer (transfers.user_id), which is also
-    // what the transfer/cancel authorization check uses -- scoping by the
-    // registrant contact's owner instead meant a user could be shown a pending
-    // transfer they were not allowed to cancel, and vice versa. The joined user
-    // is likewise the requester now, so `user_id`/`email_user` agree with it.
+    // scoped by who REQUESTED it (transfers.user_id), matching the
+    // transfer/cancel authorization check -- otherwise a user is shown a
+    // pending transfer they may not cancel. The joined user is the requester too
     $where = ['t.registrant = c.handle', 't.user_id = u.id'];
     $bind = [];
     if ($registrant !== '') {
@@ -258,10 +236,9 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
-    // the registry is authoritative -- its answer is returned as-is, never
-    // overlaid with the local row (overlaying is what used to blank the whole
-    // object out, since loadDB() re-initializes before its own lookup and
-    // leaves it empty when that lookup misses)
+    // the registry is authoritative: its answer is returned as-is, never
+    // overlaid with the local row -- loadDB() re-initializes before its lookup
+    // and leaves the object empty when that misses
     try {
         $domain = EppSession::run(function ($nic) use ($name) {
             $domain = new Domain($nic);
@@ -277,10 +254,9 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
         return Json::response($response, ['domain' => domainToArray($domain), 'stale' => false]);
     }
 
-    // registry lookup failed: serve the last known local state instead, flagged
-    // as potentially out of date. loadDB() scopes by user_id, so a domain the
-    // caller doesn't own is simply not found here.
-    // (via a variable: Domain::__construct() takes its Client by reference)
+    // registry lookup failed: serve the last known local state, flagged as
+    // possibly stale. loadDB() scopes by user_id, so a domain the caller does
+    // not own is simply not found. (via a variable: Domain takes it by reference)
     $nic = new Client();
     $domain = new Domain($nic);
     if ( ! $domain->loadDB($name, $user_id, $isAdmin)) {
@@ -438,10 +414,9 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
     if (empty($params['registrant'])) {
         return Json::response($response, ['error' => 'registrant is required'], 400);
     }
-    // a registrant change also moves the domain's local ownership to that
-    // contact's owner (Domain::updateDB()), so this must be a contact the
-    // caller owns -- otherwise it is a way to hand your domain to someone else,
-    // or to take one out of your own listings by accident
+    // a registrant change moves local ownership to that contact's owner
+    // (Domain::updateDB()), so it must be a contact the caller owns -- or this
+    // is a way to hand a domain away by accident
     if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
         return Json::response($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
@@ -548,11 +523,9 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
         }
 
-        // no `action` here -- this is a future-dated notice, not a DNS-sync event yet.
-        // `eppitnic pdns sync` gates 'delete' rows off created_time, not this row's `date`,
-        // so tagging this action='delete' now would tear down DNS ~12h after the reminder
-        // was set instead of on the actual future date. Whatever later executes this
-        // scheduled deletion (mode=now) fires its own fresh action='delete' row then.
+        // no `action`: this is a future-dated notice, not a DNS-sync event.
+        // `pdns sync` gates 'delete' rows off created_time, not `date`, so
+        // tagging it now would tear down DNS ~12h later instead of on the date
         R::exec("INSERT INTO reminder (domain, date, notice, email) VALUES (:domain, :date, :notice, '')", [
             ':domain' => $name,
             ':date'   => $date ?: $row['ex_date'],
@@ -690,10 +663,9 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
         $authinfo = $params['authinfo'] ?? '';
         $method = 'transfer' . ucfirst($transferAction);
 
-        // approve/reject answer an incoming request for a domain we sponsor, so
-        // the caller must own the `domains` row. cancel withdraws a request we
-        // made ourselves, which only exists in `transfers` -- checking `domains`
-        // alone would reject every legitimate cancel.
+        // approve/reject answer a request for a domain we sponsor, so the
+        // caller must own the `domains` row; cancel withdraws our own request,
+        // which exists only in `transfers`
         if ( ! canAccessDomain($name, $user_id, $isAdmin, $transferAction === 'cancel')) {
             return domainForbidden($response, $name);
         }

@@ -10,11 +10,8 @@ use RedBeanPHP\R;
 
 /**
  * Changing the shared EPP registry credential, and recovering when a change
- * does not finish.
- *
- * PasswordGenerator makes the password; this carries it to the registry and
- * keeps the two copies -- the registry's account and the `epp` setting -- in
- * step.
+ * does not finish. PasswordGenerator makes the password; this carries it to
+ * the registry and keeps that account and the `epp` setting in step.
  *
  * @category    Net
  * @package     Eppitnic\Service\RegistryPasswordChange
@@ -24,14 +21,9 @@ use RedBeanPHP\R;
 final class RegistryPasswordChange
 {
     /**
-     * How to build a Client for the password rotation.
-     *
-     * A seam, not a configuration point: the rotation's interesting behaviour
-     * is what it does when the registry answers unexpectedly, and production
-     * cannot be made to answer unexpectedly on request. Only the test suite
-     * sets this; production leaves it null and gets a fresh Client per call,
-     * which is what the rotation needs anyway -- it makes up to three separate
-     * logins, and a Client carries one session's state.
+     * A test seam, not a configuration point: production leaves it null and
+     * gets a fresh Client per call, which the rotation needs anyway -- it makes
+     * up to three logins, and a Client carries one session's state.
      *
      * @var callable():Client|null
      */
@@ -51,34 +43,9 @@ final class RegistryPasswordChange
     }
 
     /**
-     * Act on any unacknowledged `passwdReminder` poll message by rotating the
-     * shared EPP registry password.
-     *
-     * The registry warns, through the poll queue, that the account password is
-     * approaching expiry; Session::parsePollReq() already recognises and stores
-     * those messages, but nothing acted on them, so the warning just piled up
-     * until the credential expired and every EPP call started failing.
-     *
-     * This cannot go through EppSession::run(): the new password is carried by
-     * the EPP <login> command itself (Session::login($newPW)), so the rotation
-     * has to *be* the login, not something done inside an existing session.
-     * Call it after any EppSession::run() work has finished and logged out.
-     *
-     * The candidate password is written to the `epp` setting as
-     * `pendingPassword` *before* it is sent to the registry, and promoted to
-     * `password` once the registry has accepted it. The dangerous window is
-     * between those two -- the registry has changed the credential and this
-     * installation has not recorded it -- and writing first makes that window
-     * survivable: the value is already on disk, so reconcile()
-     * can work out which of the two the registry now holds. Nothing has to be
-     * recovered from a log, and no credential is written to one.
-     *
-     * At most one rotation is attempted per 24 hours, tracked by the `epp`
-     * setting's `lastPasswordUpdate` (a unix timestamp), also stamped before
-     * the attempt: the registry re-sends its reminder well before the
-     * credential actually expires, so a day's wait costs nothing, while
-     * retrying minutes later with yet another password would leave a second
-     * unreconciled candidate behind.
+     * Rotate the password when `passwdReminder` says it is near expiry -- as the
+     * <login> itself, so call it after any session work. The candidate is
+     * written before it is sent, and one attempt per 24h.
      *
      * @return array human-readable log lines, in the same style as PollProcessor
      */
@@ -131,20 +98,9 @@ final class RegistryPasswordChange
     }
 
     /**
-     * Change the shared EPP registry password, recording the candidate before
-     * sending it.
-     *
-     * The order is the substance of this method. The credential lives in two
-     * places -- the registry's account and this installation's `epp` setting --
-     * and a change has to move both. Whichever moves second defines the failure
-     * that is survivable: send first and a crash leaves the registry holding a
-     * password nobody here knows, which is a lockout; write first and a crash
-     * leaves a candidate on disk that the registry may or may not have taken,
-     * which reconcile() can settle by asking.
-     *
-     * This cannot go through EppSession::run(): the change is carried by the EPP
-     * <login> command itself, so the rotation has to *be* the login, not
-     * something done inside a session that has already logged in.
+     * Change the registry password, recording the candidate before sending it:
+     * send first and a crash is a lockout, write first and reconcile() can
+     * settle it. Not through EppSession::run() -- it rides on the <login>.
      *
      * @param string|null $newPassword the new credential; null generates one
      *                    with PasswordGenerator, at EPP's 16-character ceiling
@@ -192,15 +148,9 @@ final class RegistryPasswordChange
     }
 
     /**
-     * Adopt $password as the credential of record without changing anything
-     * at the registry -- for `eppitnic config epp-password --force`, when an
-     * operator already knows the live password (recovering from an
-     * out-of-band change, or a rotation resolved by other means) and wants
-     * this installation's `epp` setting to agree with it.
-     *
-     * Verified with a real login first, the same as reconcile() verifies a
-     * candidate: the alternative is a local setting the registry silently
-     * disagrees with, which breaks every EPP call until someone notices.
+     * Adopt $password without changing anything at the registry -- for `config
+     * epp-password --force`. Verified by a real login first: a setting the
+     * registry disagrees with breaks every call until someone notices.
      *
      * @return array{ok: bool, error: string}
      */
@@ -219,15 +169,9 @@ final class RegistryPasswordChange
     }
 
     /**
-     * Work out which password the registry is holding, after a rotation that
-     * did not finish.
-     *
-     * Reached when `pendingPassword` is still set at the start of a run, which
-     * means the previous attempt died between sending the change and recording
-     * the outcome -- the process was killed, the database went away, the
-     * response was lost. Either password could be the live one, and the only
-     * authority on which is the registry, so this asks it: log in with the
-     * candidate, and if that is refused, with the stored one.
+     * Work out which password the registry holds after a rotation that did not
+     * finish. Only it knows, so this asks: log in with the candidate, then, if
+     * that is refused, with the stored one.
      *
      * @return array log lines
      */
@@ -252,11 +196,9 @@ final class RegistryPasswordChange
             return $log;
         }
 
-        // Neither works. That is not this function's doing -- a rotation that
-        // half-succeeded would leave one of the two working -- so it is some
-        // other problem (the account is locked, the endpoint is down, the IP
-        // is not authorised). Keep the candidate: discarding it here would
-        // throw away a password that may well be the live one.
+        // Neither works, so this is not a half-finished rotation but something
+        // else (locked account, endpoint down, IP not authorised). Keep the
+        // candidate: it may well be the live one.
         $log[] = "  CRITICAL: the registry accepted neither password. The candidate is kept in the";
         $log[] = "  'epp' setting as 'pendingPassword'; check the account status with the registry";
         $log[] = "  before running again.";

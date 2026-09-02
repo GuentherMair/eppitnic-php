@@ -57,11 +57,9 @@ class Domain extends AbstractObject
   protected static function storageNoun(): string { return 'domain'; }
 
   /**
-   * The domain's own fields, and whether each is stored serialized.
-   *
-   * One list rather than several: the field set was spelled out in the
-   * property comments, again in set(), again in updateDB() and once more in
-   * storeDB().
+   * The domain's own fields, and whether each is stored serialized. One list
+   * where the set was spelled out in the properties, set(), updateDB() and
+   * storeDB() alike.
    */
   public const FIELDS = array(
     'ns'         => true,
@@ -171,10 +169,9 @@ class Domain extends AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // 'ns' and 'tech' are collections -- dispatch them before the string
-    // escaping below, which would TypeError on an array. Passing an array here
-    // is a caller error either way (addNS()/addTECH() each take one entry), but
-    // it should come back as FALSE rather than a fatal.
+    // 'ns' and 'tech' are collections: dispatch before the cast below, which
+    // would TypeError on an array. Passing one is a caller error either way,
+    // but it should return FALSE rather than fatal
     if ($var == "ns" || $var == "tech") {
       if (is_array($val)) {
         $this->setError("set('{$var}', ...) takes a single value; use add" . strtoupper($var) . "() per entry.");
@@ -204,16 +201,9 @@ class Domain extends AbstractObject
   }
 
   /**
-   * Take the current field values as the new baseline: no pending changes, and
-   * the four collections update() diffs against are what they are right now.
-   *
-   * Called wherever this object has just been brought into agreement with the
-   * registry or the database -- create(), fetch(), update(), loadDB(). It is
-   * one method because it was four copies, and one of them had drifted:
-   * update()'s left out dnssec_initial, so a second update() on the same
-   * object diffed DNSSEC against pre-first-update state and re-sent changes
-   * the registry had already taken. A field added to the snapshot now reaches
-   * every caller by construction.
+   * Take the current values as the new baseline, wherever this object has just
+   * agreed with the registry or the database. One method because it was four,
+   * and update()'s had drifted -- missing dnssec_initial, so it re-sent DNSSEC.
    */
   private function resetChangeTracking(): void {
     $this->clearChanges();
@@ -224,13 +214,9 @@ class Domain extends AbstractObject
   }
 
   /**
-   * One <extdom:infContactsData> entry -- the registrant, or one of the
-   * admin/tech contacts -- flattened into the shape infcontacts holds.
-   *
-   * Both callers read exactly the same eighteen fields out of exactly the
-   * same two namespaced children; only where the entry came from and what to
-   * call its type ever differed. As two copies, a field added to one was
-   * simply absent from the other half of the answer.
+   * One <extdom:infContactsData> entry -- registrant or admin/tech contact --
+   * flattened into the shape infcontacts holds. As two copies, a field added
+   * to one was simply absent from the other half of the answer.
    *
    * @param \SimpleXMLElement $entry the <registrant> or <contact> element
    * @param string $type 'registrant', or the <contact type="..."> attribute
@@ -323,13 +309,8 @@ class Domain extends AbstractObject
   /**
    * get a single variable/setting from class
    *
-   * Note that 'tech' always comes back as an array (keyed handle => handle),
-   * even when the domain has exactly one technical contact. It used to be
-   * returned as a bare string in that single-contact case -- the common case --
-   * which silently broke every caller that handled the result uniformly:
-   * array_keys((array) $domain->get('tech')) yielded [0] rather than the
-   * handle, so single-tech domains reported a tech contact of "0" and update
-   * diffs computed against it never removed the outgoing contact.
+   * 'tech' always comes back as an array (handle => handle), even for one: as a
+   * bare string, array_keys((array) ...) gave [0] and reported a tech of "0".
    *
    * @param string $var variable name
    * @return mixed value of variable
@@ -434,10 +415,9 @@ class Domain extends AbstractObject
 
     // if a nameserver by this name was already set and IPs didn't change stop here
     if (isset($this->ns[$name])) {
-      // create a list of all addresses associated to this NS record.
-      // 'ip' is absent entirely for a glueless nameserver -- which is the
-      // ordinary case, since glue is only needed below the domain itself --
-      // so re-adding one warned twice and passed null to foreach()
+      // every address on this NS record. 'ip' is absent for a glueless
+      // nameserver -- the ordinary case -- so re-adding one warned twice and
+      // passed null to foreach()
       $ip_list = array();
       foreach ($this->ns[$name]['ip'] ?? array() as $ip) {
         $ip_list[] = $ip['address'];

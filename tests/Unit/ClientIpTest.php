@@ -8,12 +8,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Which address a request is attributed to, and which network that address is
- * in.
- *
- * Both answers are load-bearing: `safe_networks` skips MFA for addresses it
- * recognises, and the login rate limit counts failures per network. An answer
- * the client can choose gives away both.
+ * Which address a request is attributed to, and which network it is in. Both are
+ * load-bearing: `safe_networks` skips MFA for what it recognises and the rate
+ * limit counts per network, so an answer the client can choose gives away both.
  */
 final class ClientIpTest extends TestCase
 {
@@ -52,10 +49,9 @@ final class ClientIpTest extends TestCase
     }
 
     /**
-     * The fault this test exists for: X-Forwarded-For is written by whoever
-     * sends the request. Believed unconditionally, anyone can claim to be on a
-     * safe_network and skip MFA, or spread a password guess across as many
-     * "networks" as they care to invent.
+     * The fault this exists for: X-Forwarded-For is written by whoever sends the
+     * request, so believing it lets anyone claim a safe_network and skip MFA, or
+     * spread a password guess across as many "networks" as they invent.
      */
     public function testAForwardedHeaderFromAnUntrustedPeerIsIgnored(): void {
         $this->request('203.0.113.5', '127.0.0.1');
@@ -71,9 +67,8 @@ final class ClientIpTest extends TestCase
 
     /**
      * With a chain, the rightmost address that is not itself a trusted proxy is
-     * the furthest one a trusted hop actually saw. Everything left of it was
-     * written by someone with no reason to be believed -- an attacker prepends
-     * whatever they like.
+     * the furthest a trusted hop saw. Everything left of it was written by
+     * someone with no reason to be believed.
      */
     public function testTheChainIsWalkedFromTheRight(): void {
         $this->request('10.0.0.1', '1.1.1.1, 203.0.113.5, 10.0.0.2', ['10.0.0.0/8']);

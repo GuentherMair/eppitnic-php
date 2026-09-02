@@ -11,12 +11,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The behaviour several classes now share, rather than each holding a copy.
- *
- * These are here because the copies were the risk: of the duplications they
- * replace, one had already drifted into a real bug and another had the same
- * bug fixed twice, independently. A test on the shared thing is a test on
- * every caller of it, which is the property the copies did not have.
+ * The behaviour several classes now share, rather than each holding a copy. The
+ * copies were the risk: one had drifted into a real bug and another had the same
+ * bug fixed twice. A test on the shared thing tests every caller of it.
  */
 final class SharedBehaviourTest extends EppTestCase
 {
@@ -25,11 +22,9 @@ final class SharedBehaviourTest extends EppTestCase
     // -----------------------------------------------------------------
 
     /**
-     * The bug that had to be found and fixed twice, once per copy: the
-     * argument is cast to an array before it is tested for emptiness, so
-     * array(null) and array("") are one-element arrays and a check against
-     * the argument as given never fires. Both objects must refuse, rather
-     * than send a <check> for nothing.
+     * The bug found and fixed twice, once per copy: the argument is cast to an
+     * array before it is tested, so array(null) is a one-element array and the
+     * test never fires. Both must refuse rather than send a <check> for nothing.
      *
      * @return array<string, array{0: mixed}>
      */
@@ -64,9 +59,8 @@ final class SharedBehaviourTest extends EppTestCase
 
     /**
      * Each object reads its identifier from a different child of <cd> --
-     * contacts answer with <id>, domains with <name> -- which is one of the
-     * six values checkAvailability() takes. Passing the wrong one would key
-     * every answer by the empty string instead of failing loudly.
+     * contacts <id>, domains <name> -- one of the six values
+     * checkAvailability() takes. The wrong one keys every answer by ''.
      */
     public function testContactCheckReadsTheIdentifierFromCdId(): void {
         $this->transport->queue(<<<'XML'
@@ -161,10 +155,9 @@ final class SharedBehaviourTest extends EppTestCase
     // -----------------------------------------------------------------
 
     /**
-     * Each object accepts a different set of client states. That set is the
-     * parameter; everything around it is shared -- so a domain-only state
-     * offered to a contact must still be refused, and refused before
-     * anything is sent.
+     * Each object accepts a different set of client states, and that set is the
+     * parameter while everything around it is shared -- so a domain-only state
+     * offered to a contact is still refused, before anything is sent.
      */
     public function testAContactRefusesADomainOnlyState(): void {
         $contact = new Contact($this->nic);
@@ -206,10 +199,9 @@ final class SharedBehaviourTest extends EppTestCase
     // -----------------------------------------------------------------
 
     /**
-     * The allow-list's whole purpose: a field added to `epp` stays withheld
-     * until somebody names it here. Asserting the constant's contents is the
-     * point -- a credential quietly joining it should fail a test rather than
-     * depend on catching it in review.
+     * The allow-list's whole purpose: a field added to `epp` stays withheld until
+     * named here. Asserting the constant's contents is the point -- a credential
+     * quietly joining it should fail a test, not depend on review.
      */
     public function testTheEppAllowListNamesOnlyNonSecretFields(): void {
         $this->assertSame([
@@ -281,12 +273,9 @@ final class SharedBehaviourTest extends EppTestCase
     }
 
     /**
-     * Only the plain one-name-per-line ones, which is what fileOption()
-     * describes. Two other --file options legitimately share the name and
-     * nothing else: `config migrate`'s takes the config.xml to convert, and
-     * `domain create`/`update`/`transfer` accept ';'-separated rows and say so
-     * in their own words. What this catches is a fourth command growing a
-     * hand-written near-copy of the shared sentence.
+     * Only the plain one-name-per-line ones fileOption() describes: `config
+     * migrate`'s --file takes a config.xml and three domain verbs take rows.
+     * This catches a fourth command hand-copying the shared sentence.
      */
     public function testEveryListReadingFileOptionUsesTheSharedText(): void {
         $listReaders = [];

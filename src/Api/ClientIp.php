@@ -5,23 +5,9 @@ namespace Eppitnic\Api;
 use Eppitnic\Config;
 
 /**
- * Who the request came from, as far as it can be told.
- *
- * Reads $_SERVER and the proxy headers, so it belongs to the HTTP layer and
- * answers nothing useful from the CLI.
- *
- * Two things decide what this answers, and both are security decisions rather
- * than conveniences:
- *
- * `X-Forwarded-For` is a header the client sends, so it is only believed when
- * the address that actually connected is a configured `trusted_proxies` entry.
- * Believing it unconditionally means anyone can claim any address -- and this
- * class decides who is on a `safe_networks` address (which skips MFA) and which
- * network a login attempt is counted against, so a spoofable answer would give
- * away both.
- *
- * Addresses are compared as packed bytes rather than integers, so IPv6 works
- * the same way IPv4 does. ip2long() cannot represent an IPv6 address at all.
+ * Who the request came from. `X-Forwarded-For` is client-supplied, so it is
+ * believed only from a `trusted_proxies` peer -- this decides who skips MFA and
+ * which network a login counts against. Compared as bytes, so IPv6 works too.
  *
  * @category    Net
  * @package     Eppitnic\Api\ClientIp
@@ -47,10 +33,9 @@ final class ClientIp
             return $remote;
         }
 
-        // Walk the forwarding chain from the right: each entry was added by
-        // the hop to its right, so the rightmost address we do not trust is
-        // the furthest one that a trusted hop actually observed. Anything left
-        // of it was written by someone we have no reason to believe.
+        // From the right: each entry was added by the hop to its right, so the
+        // rightmost untrusted address is the furthest a trusted hop observed.
+        // Anything left of it was written by someone we cannot believe
         foreach (array_reverse(self::forwardedFor()) as $hop) {
             if ( ! self::isTrustedProxy($hop)) {
                 return $hop;
@@ -104,13 +89,9 @@ final class ClientIp
     }
 
     /**
-     * The network $ip belongs to, as a CIDR string.
-     *
-     * This is what a rate limit counts against, and the prefix lengths are why
-     * it is a network rather than an address. A single IPv6 end-site allocation
-     * is a /64 -- 18 billion billion addresses -- so counting per address would
-     * limit nobody. IPv4 has no equivalent, but a /24 is the usual unit of "one
-     * network" and costs an attacker 256 addresses per bucket.
+     * The network $ip belongs to, as CIDR -- what a rate limit counts against.
+     * An IPv6 end-site gets a /64, so per-address counting would limit nobody;
+     * IPv4's /24 is the usual unit and costs 256 addresses per bucket.
      *
      * @param int $v4bits prefix length for IPv4
      * @param int $v6bits prefix length for IPv6

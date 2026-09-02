@@ -5,12 +5,8 @@ namespace Eppitnic\Api;
 use Psr\Http\Message\ResponseInterface as HttpResponse;
 
 /**
- * The one shape every route in this API answers in.
- *
- * Named Json rather than Response because every route file already imports
- * PSR-7's ResponseInterface under that name, and aliasing the type hint in
- * each closure signature would be a worse trade than naming this for what it
- * writes.
+ * The one shape every route in this API answers in. Named Json, not Response,
+ * because every route file already imports PSR-7's ResponseInterface as that.
  *
  * @category    Net
  * @package     Eppitnic\Api\Json
@@ -24,13 +20,9 @@ final class Json
     // -----------------------------------------------------------------
 
     /**
-     * write $body as the JSON response, with the status and content type every
-     * route in this application returns.
-     *
-     * Exists because the three-line write/withStatus/withHeader incantation was
-     * repeated at 129 call sites, and a route that got one of the three subtly
-     * wrong -- a missing charset, a 200 on an error path -- looked exactly like
-     * the 128 that got it right.
+     * Write $body as the JSON response every route returns. The three-line
+     * write/withStatus/withHeader was repeated at 129 sites, where one getting
+     * it subtly wrong looked exactly like the 128 that did not.
      *
      * @param HttpResponse $response the response to write to
      * @param array $body the payload, JSON-encoded as-is

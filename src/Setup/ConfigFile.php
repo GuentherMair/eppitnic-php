@@ -3,16 +3,9 @@
 namespace Eppitnic\Setup;
 
 /**
- * The only thing that reads, writes or locates config/config.php.
- *
- * Its existence is treated as the "installed" flag throughout Setup\Installer
- * -- see write()'s refuse-if-exists guard, which is what makes that flag
- * trustworthy even if some future caller forgets to check exists() first.
- * Config's own copy of this path was retired in favour of this one: a
- * checkout normally has a real config/config.php on disk, so without one
- * owner carrying a redirect seam, the "file missing" branch of
- * Config::loadConfig() would have nothing to point away from it and stay
- * untestable.
+ * The only thing that reads, writes or locates config/config.php, whose
+ * existence is the "installed" flag -- kept trustworthy by write()'s
+ * refuse-if-exists guard. One owner, so the redirect seam has somewhere to live.
  *
  * @category    Net
  * @package     Eppitnic\Setup\ConfigFile
@@ -24,11 +17,9 @@ final class ConfigFile
     private static ?string $path = null;
 
     /**
-     * Where config.php lives: the explicit test seam if one was set,
-     * otherwise EPPITNIC_CONFIG_DIR when the process has one (a container
-     * instance's per-install directory, kept outside config/ so it never
-     * shadows constants.php or the bundled schema files there), otherwise
-     * the checkout's own config/.
+     * Where config.php lives: the test seam if set, else EPPITNIC_CONFIG_DIR --
+     * a container's per-install directory, outside config/ so it never shadows
+     * constants.php or the schema files -- else the checkout's own config/.
      */
     public static function path(): string {
         if (self::$path !== null) {

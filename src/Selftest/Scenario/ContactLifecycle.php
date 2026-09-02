@@ -8,17 +8,9 @@ use Eppitnic\Selftest\Run;
 use Eppitnic\Selftest\Scenario;
 
 /**
- * A contact that is never attached to anything, taken through its whole life.
- *
- * This is the only place the delete half of the contact lifecycle can actually
- * be proved. Every other contact a run makes ends up on a domain, and nic.it
- * keeps such a contact linked until that domain has finished pendingDelete --
- * 30 days later -- so their deletes can only ever be attempted, not
- * verified. Here there is nothing holding it, so a refusal is a real fault.
- *
- * Each read is made through a *fresh* object. Checking the values on the
- * object that just wrote them would prove only that this process can remember
- * what it said.
+ * A contact never attached to anything, through its whole life -- the only
+ * place a delete can be proved rather than attempted. Each read uses a *fresh*
+ * object, or it proves only that this process remembers what it said.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Scenario\ContactLifecycle

@@ -3,23 +3,9 @@
 namespace Eppitnic\Support;
 
 /**
- * What a login password has to look like before it is accepted.
- *
- * There was no such rule anywhere: `password_hash()` is reached from four
- * places -- `POST /v1/users`, `PUT /v1/users/{id}`, `PUT /v1/changepassword/{id}`
- * and `Persistence\User::create()` -- and not one of them looked at what it was
- * given first. A single character would have been stored happily.
- *
- * The rule is taken from the only complexity this codebase already expresses:
- * PasswordGenerator::forRegistry() draws all four character classes, and
- * discards a candidate that misses one. What is deliberately *not* taken from
- * there is its length. Sixteen characters is EPP's ceiling for a registry
- * credential -- a constraint the protocol imposes on that one field, and one
- * that has no bearing on a password this application hashes itself.
- *
- * Stated as data rather than as a regex, because the installer has to show a
- * person what is expected of them before they type it, and a rule that can only
- * be checked cannot be explained.
+ * What a login password must look like -- there was no such rule, and four call
+ * sites reached `password_hash()` without one. Stated as data, not a regex: a
+ * rule that can only be checked cannot be explained to the person typing it.
  *
  * @category    Net
  * @package     Eppitnic\Support\PasswordPolicy

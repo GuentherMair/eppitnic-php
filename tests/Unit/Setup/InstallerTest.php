@@ -12,11 +12,9 @@ use PHPUnit\Framework\TestCase;
 use RedBeanPHP\R;
 
 /**
- * requirements()'s shape and install()'s validation are plain unit tests.
- * The full happy path -- schema applied, admin row created, config.php
- * written -- needs a real database throughout, so it's gated the same way
- * SchemaInstallerTest is: skip when no local MariaDB is reachable, never
- * fail the suite for its absence (tests/bootstrap.php's contract).
+ * requirements()'s shape and install()'s validation are plain unit tests. The
+ * full happy path needs a real database throughout, so it is gated like
+ * SchemaInstallerTest: skipped when no local MariaDB is reachable, never failed.
  */
 final class InstallerTest extends TestCase
 {
@@ -27,11 +25,9 @@ final class InstallerTest extends TestCase
     }
 
     /**
-     * get_current_user() answers the owning user of the *script file*, which
-     * under #[RunInSeparateProcess] is a PHPUnit-generated temp file and can
-     * differ from the shell user actually running the socket-auth MariaDB
-     * connection. posix_getpwuid(posix_geteuid()) answers the real
-     * process-owning user instead.
+     * get_current_user() answers for the *script file*, which under
+     * RunInSeparateProcess is a PHPUnit temp file and can differ from the shell
+     * user making the socket-auth connection. This answers the real one.
      */
     private static function dbUser(): string {
         return posix_getpwuid(posix_geteuid())['name'];
@@ -55,11 +51,9 @@ final class InstallerTest extends TestCase
     }
 
     public function testRequiredTracksWhatActuallyBlocksInstall(): void {
-        // db_type/db_host/db_charset fall back to a real default in
-        // DatabaseCredentials::fromArray() when omitted, and db_password may
-        // genuinely be blank (local trust-auth) -- none of those block
-        // install(). db_name/db_user have no such fallback, and
-        // admin_username/admin_password are checked explicitly.
+        // db_type/db_host/db_charset default in DatabaseCredentials::fromArray()
+        // and db_password may be blank, so none of those block install();
+        // db_name/db_user have no fallback and the admin fields are checked
         $required = ['db_name', 'db_user', 'admin_username', 'admin_password'];
 
         foreach (Installer::requirements() as $field) {
@@ -97,13 +91,9 @@ final class InstallerTest extends TestCase
     // -----------------------------------------------------------------
 
     /**
-     * These fields were stored exactly as given until now: the CLI's `config
-     * epp-set`/`config epp-password` checked them, and this -- the path the
-     * browser installer takes, and the one most installations go through --
-     * did not. The mismatch only showed at `<login>`, days later.
-     *
-     * Checked before the database is touched at all, like the admin fields
-     * above: the DSN here would fail loudly if reached.
+     * These fields were stored exactly as given until now: the `config epp-*`
+     * verbs checked them and the browser installer's path did not, so the
+     * mismatch only showed at `<login>`. Checked before the database is touched.
      *
      * @return array<string, array{0: array<string, string>, 1: string}>
      */
@@ -139,12 +129,9 @@ final class InstallerTest extends TestCase
     }
 
     /**
-     * The complement, and the reason the check is per-field rather than a
-     * blanket "epp block must be complete": seeding no EPP credential at all
-     * is a normal install, and so is one with a username but no password
-     * (filled in later by `eppitnic config epp-password`). Neither may be
-     * turned into a validation error -- both get past this and fail on the
-     * unreachable database below instead.
+     * The complement, and why the check is per-field rather than "the epp block
+     * must be complete": seeding none is a normal install, and so is a username
+     * with no password. Both get past this and fail on the database instead.
      *
      * @return array<string, array{0: array<string, string>}>
      */

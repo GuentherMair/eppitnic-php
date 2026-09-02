@@ -7,14 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 
 /**
- * Show, set, or toggle which EPP endpoint `epp.server` points at.
- *
- * A local settings write only -- no registry session opens, and
- * username/password/cl_trid_prefix are left untouched. nic.it issues
- * separate credentials for production and for the public test registry, so
- * pointing `server` at one does not make the other's account work against
- * it; update those too (setup, or by hand -- see INSTALL.md's
- * "Configuration") when the account changes, not just the host.
+ * Show, set, or toggle which endpoint `epp.server` points at -- a local write
+ * only, leaving username/password/cl_trid_prefix alone. nic.it issues separate
+ * credentials per registry, so change those too, not just the host.
  */
 final class ConfigEppServerCommand extends Command
 {

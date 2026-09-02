@@ -3,14 +3,9 @@
 namespace Eppitnic\Selftest;
 
 /**
- * One registry operation, and how it went.
- *
- * A step is not simply pass or fail. `deferred` exists because of how nic.it
- * frees contacts: one attached to a domain stays linked until that domain has
- * finished its pendingDelete period, days after the delete was accepted. The
- * self-test deletes such a contact anyway -- the attempt is worth making and
- * its refusal is worth seeing -- but a refusal there is the registry behaving
- * correctly, and reporting it as a failure would make every complete run red.
+ * One registry operation, and how it went -- not simply pass or fail.
+ * `deferred` is for a contact still held by a deleted domain, where the refusal
+ * is the registry being right and a failure would make every run red.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Step

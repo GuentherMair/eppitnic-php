@@ -8,19 +8,9 @@ use Eppitnic\Epp\Domain;
 use Eppitnic\Epp\Session;
 
 /**
- * Every EPP request this codebase can generate, and how to make it generate one.
- *
- * This is the single list the wire-format snapshot test iterates. It exists so
- * that "which commands are covered" is a question with one answer in one file:
- * a new EPP command added without an entry here is a command with no
- * regression protection, and that should be obvious rather than discovered
- * later.
- *
- * Each entry drives the real object API with fixed inputs -- no randomness, no
- * clock, nothing read from a database -- and leaves the generated request in
- * the object's $xmlQuery. What the registry would have replied is irrelevant
- * here; the canned response only has to be well-formed enough for
- * AbstractObject::ExecuteQuery() to walk it.
+ * Every EPP request this codebase can generate, and how to make it generate one
+ * -- the single list the wire snapshot test iterates. Each entry drives the real
+ * API with fixed inputs and leaves the request in $xmlQuery.
  */
 final class CommandCatalog
 {
@@ -48,16 +38,9 @@ final class CommandCatalog
     XML;
 
     /**
-     * PROVISIONAL. The responses below are hand-built to the shape the parsers
-     * expect and to the namespaces the live pubtest server advertises in its
-     * greeting (extdom-2.0, extepp-2.0, extcon-1.0, secDNS-1.1) -- but they are
-     * reconstructions, not captures. They are good enough to exercise the
-     * parsing paths and keep this suite honest about warnings; they are NOT
-     * evidence that the parsers handle what the registry really sends.
-     *
-     * Replace them with captured responses as soon as a working set of test
-     * credentials is available (see docs/ or the notes in the refactor plan) --
-     * the capture tooling writes to tests/fixtures/responses/.
+     * PROVISIONAL: reconstructions, not captures. Enough to exercise the parsing
+     * paths, but NOT evidence that the parsers handle what the registry sends.
+     * Replace with captures once test credentials exist.
      */
     public const DOMAIN_CHECK_RESPONSE = <<<'XML'
     <?xml version="1.0" encoding="UTF-8" standalone="no"?>

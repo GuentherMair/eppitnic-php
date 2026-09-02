@@ -12,13 +12,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * Who may read which history entries.
- *
- * The audit trail holds other people's business: a `users` snapshot carries an
- * email address and an admin flag, and a `security` row carries an address and
- * the headers a request arrived with. Exposing the whole table over the API is
- * only safe if the answer is scoped, so this drives it from two ordinary users
- * and an admin and checks each sees exactly their own.
+ * Who may read which history entries. The trail holds other people's business,
+ * so exposing it is safe only if scoped. Driven from two ordinary users and an
+ * admin, each seeing exactly their own.
  */
 final class HistoryScopeTest extends TestCase
 {

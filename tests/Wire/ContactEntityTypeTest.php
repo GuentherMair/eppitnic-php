@@ -6,12 +6,9 @@ use Eppitnic\Epp\Contact;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * Contact::setEntityType()'s range check used to read
- * `if (($tmp < 1) && ($tmp > 7))` -- a value can never be both less than 1
- * and greater than 7 at once, so the condition was always false and nothing
- * out of the registry's 1-7 range was ever reset to the entityType-0
- * ("not a registrant") default. It would have reached the registry as-is,
- * to be refused by the extcon-1.0.xsd's own entityTypeType bounds instead.
+ * Contact::setEntityType()'s range check used to read `($tmp < 1) && ($tmp > 7)`
+ * -- never true, so nothing outside the registry's 1-7 range was reset to the
+ * entityType-0 default; it reached the registry, to be refused by the schema.
  */
 final class ContactEntityTypeTest extends EppTestCase
 {

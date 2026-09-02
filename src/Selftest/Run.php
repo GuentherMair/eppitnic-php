@@ -6,18 +6,9 @@ use Eppitnic\Epp\AbstractObject;
 use Eppitnic\Epp\Client;
 
 /**
- * One self-test run: what it may call things, what it has done so far, and how
- * that went.
- *
- * Scenarios are written against this rather than against the Client directly,
- * so that every registry operation is timed, labelled and reported the same
- * way, and so a scenario reads as the sequence of operations it is meant to
- * describe. A step's body says what it does; the bookkeeping is here.
- *
- * Steps are reported as they finish rather than collected and printed at the
- * end. A full run is a few dozen round trips against a remote registry and
- * takes minutes; watching it arrive is the difference between a command that
- * looks slow and one that looks hung.
+ * One self-test run: what it may call things, what it has done, and how that
+ * went. Scenarios are written against this, not the Client, so they read as
+ * their operations. Steps report as they finish, a run taking minutes.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Run
@@ -76,13 +67,9 @@ final class Run
     }
 
     /**
-     * Attempt an operation whose refusal is an acceptable answer.
-     *
-     * The case this exists for: deleting a contact that is still attached to a
-     * domain. nic.it keeps it linked until the domain finishes pendingDelete,
-     * 30 days after the delete was accepted, so the refusal is the
-     * registry being right. The attempt is still worth making -- one that
-     * unexpectedly succeeds is the interesting result.
+     * Attempt an operation whose refusal is an acceptable answer -- deleting a
+     * contact still attached to a domain in pendingDelete, say. Worth
+     * attempting anyway: unexpected success is the interesting result.
      *
      * @param string $why what a refusal would mean, shown on the line
      * @return bool whether it succeeded
@@ -115,10 +102,9 @@ final class Run
                 $detail = $detail === '' ? $note : "{$detail} ({$note})";
             }
         } catch (\Throwable $e) {
-            // Anything a step did not expect is still that step's failure, not
-            // the run's. Letting it escape would abandon the objects already
-            // created at the registry without writing the note that says they
-            // exist -- and that note is the only way anyone finds them again.
+            // Still that step's failure, not the run's: letting it escape would
+            // abandon objects already created at the registry without writing
+            // the note that is the only way anyone finds them again
             $detail = get_class($e) . ': ' . trim($e->getMessage());
             $status = Step::FAILED;
         }
@@ -129,11 +115,9 @@ final class Run
     }
 
     /**
-     * Stop the current step unless $ok.
-     *
-     * Takes the object the operation was made on so the registry's own answer
-     * -- and its EPP result code -- becomes the step's detail. Under --verbose
-     * getError() also carries the request and the raw response.
+     * Stop the current step unless $ok. Takes the object so the registry's own
+     * answer and EPP result code become the step's detail; under --verbose
+     * getError() also carries the request and raw response.
      *
      * @param bool $ok what the operation returned
      * @param AbstractObject $on the Domain or Contact it was called on
@@ -152,12 +136,9 @@ final class Run
     }
 
     /**
-     * Stop the current step because something this code checked is not true.
-     *
-     * For the assertions a self-test makes about the registry's answers -- a
-     * name that should be taken once it has been created, a field that should
-     * read back as it was written. Nothing went wrong at the transport level,
-     * so there is no object to ask for an error.
+     * Stop the step because an assertion about the registry's answer is not
+     * true -- a created name that reads as free, a field that came back
+     * changed. Nothing failed at the transport level, so there is no object.
      *
      * @throws StepFailed if $ok is false
      */
@@ -184,11 +165,9 @@ final class Run
     }
 
     /**
-     * Stop counting something as outstanding, because it is gone.
-     *
-     * What is left noted becomes the leftover note, and `selftest reap` works
-     * from that. Without this an object the run *did* manage to delete would
-     * be retried for weeks, each time answered with "object does not exist".
+     * Stop counting something as outstanding. What stays noted becomes the
+     * leftover note `selftest reap` works from -- without this, an object the
+     * run did delete is retried for weeks against "object does not exist".
      */
     public function forgetContact(string $handle): void {
         unset($this->contacts[$handle], $this->linked[$handle]);
@@ -199,14 +178,9 @@ final class Run
     }
 
     /**
-     * Note that these contacts were on a domain that has just been deleted,
-     * and so cannot be removed until the registry purges it.
-     *
-     * Only what was on the domain *at the time it was deleted* counts. A
-     * contact the run swapped off it earlier is not associated with anything
-     * any more, and a run that never got as far as creating a domain has
-     * nothing blocked at all -- making either wait out a purge window that
-     * applies to something else would be an invented delay.
+     * Note contacts held by a just-deleted domain's purge. Only what was on it
+     * *at deletion* counts: one swapped off earlier is attached to nothing, and
+     * making it wait out someone else's purge window is an invented delay.
      *
      * @param string[] $handles the registrant, admin and tech it carried
      */

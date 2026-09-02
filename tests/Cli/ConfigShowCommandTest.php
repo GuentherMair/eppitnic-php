@@ -9,10 +9,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
 /**
- * `config show` -- a local, read-only settings dump. No registry session
- * opens, so this needs only Config::loadForTesting() -- unlike
- * ConfigEppServerCommandTest, nothing here calls Config::set(), so no real
- * (even in-memory) database is required either.
+ * `config show` -- a local, read-only settings dump, so this needs only
+ * Config::loadForTesting(). Unlike ConfigEppServerCommandTest nothing here
+ * calls Config::set(), so no database is required at all.
  */
 final class ConfigShowCommandTest extends EppTestCase
 {

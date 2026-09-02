@@ -3,11 +3,9 @@
 namespace Eppitnic\Selftest;
 
 /**
- * The self-test declined to run.
- *
- * Its own class so the CLI can answer with a distinct exit code: a refusal is
- * not a failed test, it is a test that never started, and a caller scripting
- * around it needs to tell those apart.
+ * The self-test declined to run. Its own class so the CLI answers with a
+ * distinct exit code: a refusal is not a failed test but one that never
+ * started, and a script around it has to tell those apart.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\RefusedError

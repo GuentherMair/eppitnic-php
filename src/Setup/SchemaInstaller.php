@@ -6,21 +6,9 @@ use Eppitnic\Config;
 use RedBeanPHP\R;
 
 /**
- * Decides whether the connected database is empty, already running
- * eppitnic, or something else -- and, on empty, applies
- * config/mariadb-schema.sql.
- *
- * Nothing in PHP used to run that file at all: Config's own migration lookup
- * only globs mariadb-schema-upgrade-*.sql, which by construction cannot match
- * it, so an empty database fell into the schema-versioning code's legacy
- * '060700' baseline and failed on the 6.7-to-7.0 upgrade's first
- * ALTER TABLE. state() is what tells those two cases apart before that
- * migration chain ever runs.
- *
- * MariaDB is this application's only supported database, so this talks
- * `SHOW TABLES` directly -- the same call Config::migrate() already makes --
- * rather than routing through a portability layer this codebase has no other
- * use for.
+ * Decides whether the database is empty, already eppitnic, or something else,
+ * and applies config/mariadb-schema.sql when empty -- which nothing did before,
+ * so an empty one fell into the '060700' baseline and failed on its first ALTER.
  *
  * @category    Net
  * @package     Eppitnic\Setup\SchemaInstaller

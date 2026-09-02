@@ -10,26 +10,16 @@ use Slim\App;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * SetupApp -- what public/index.php serves in place of the real application
- * while config/config.php doesn't exist -- dispatched exactly the way
- * ErrorResponseTest dispatches the configured application, so a regression in
- * either fails the same kind of test.
- *
- * Deliberately builds with no Config::loadForTesting() at all, unlike
- * ErrorResponseTest: that absence is itself part of what's being proven here.
- * SetupApp and its routes must need no database to answer, so every
- * ConfigFile::exists() check happens lazily, at request time inside the
- * closure, never at include time -- which is what lets one shared $app
- * (built once, below) be pointed at a different ConfigFile path per test.
+ * SetupApp -- what public/index.php serves while config/config.php does not
+ * exist. Deliberately built with no Config::loadForTesting(): that absence is
+ * the point, since every ConfigFile::exists() must happen at request time.
  */
 final class SetupRouteTest extends TestCase
 {
     /**
-     * src/Api/Routes/setup.php declares a global function at include time,
-     * so -- same reason as ErrorResponseTest's $app -- SetupApp::build() may
-     * only run once per process; a second call would silently return an app
-     * with no routes on it (require_once's second call is a no-op against a
-     * *new* Slim instance).
+     * setup.php declares a global function at include time, so build() may only
+     * run once per process: a second call returns an app with no routes,
+     * require_once being a no-op against a *new* Slim instance.
      */
     private static ?App $app = null;
 

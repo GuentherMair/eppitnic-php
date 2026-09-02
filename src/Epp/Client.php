@@ -50,13 +50,9 @@ class Client
   public $EPPCfg;
 
   /**
-   * Diagnostics for every EPP object built from this client.
-   *
-   * AbstractObject copies this into its own $debug at construction, so setting
-   * it here once -- from the `users`.`debug` column, via
-   * EppSession::run() -- covers the Session, Domain and Contact
-   * objects a request goes on to create, rather than each caller having to
-   * remember. See AbstractObject::$debug for what it turns on.
+   * Diagnostics for every object built from this client: AbstractObject copies
+   * it at construction, so setting it once here covers the Session, Domain and
+   * Contact a request creates. See AbstractObject::$debug for what it turns on.
    */
   public bool $debug = false;
 
@@ -132,12 +128,9 @@ class Client
   }
 
   /**
-   * replace the HTTP transport configured by the constructor
-   *
-   * Exists for the test suite, which substitutes a Transport returning canned
-   * responses so request generation and response parsing can be exercised
-   * without a registry. Production code never calls this -- the constructor
-   * has already wired up a fully configured Curl instance.
+   * Replace the constructor's HTTP transport. Test suite only, to exercise
+   * request generation and parsing without a registry; production already has
+   * a fully configured Curl instance.
    *
    * @param Transport $transport the transport to send subsequent requests through
    */
@@ -160,10 +153,9 @@ class Client
    * @return string a random transaction ID, also stored to $clTRID
    */
   public function set_clTRID(): string {
-    // The random tail only has to keep two transactions started in the same
-    // second apart, and hex rather than a password alphabet because a clTRID
-    // is an identifier, not a secret: it is a database key, it is quoted back
-    // by the registry, and it is what someone greps a log for.
+    // The random tail only separates two transactions in the same second, and
+    // is hex because a clTRID is an identifier, not a secret -- a database key,
+    // quoted back by the registry, and what someone greps a log for
     $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(PasswordGenerator::token(3), 0, 5);
     if (strlen($this->clTRID) > 32) {
       $this->clTRID = substr($this->clTRID, -32);

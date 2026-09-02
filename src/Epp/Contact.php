@@ -56,13 +56,9 @@ class Contact extends AbstractObject
   protected static function storageNoun(): string { return 'contact'; }
 
   /**
-   * The contact's own fields.
-   *
-   * One list, because there were four: the property declarations, the switch
-   * in set(), the ladder in updateDB(), and the array in storeDB(). Adding a
-   * field meant touching all of them, and missing one was silent -- a field
-   * that could be set but never persisted, or persisted but never marked
-   * changed.
+   * The contact's own fields. One list, where there were four -- the property
+   * declarations, set(), updateDB() and storeDB() -- and missing one of them
+   * silently left a field settable but never persisted.
    */
   public const FIELDS = array(
     'name', 'org', 'street', 'street2', 'street3', 'city', 'province',
@@ -140,15 +136,9 @@ class Contact extends AbstractObject
       $this->$field = self::FIELD_DEFAULTS[$field] ?? "";
     }
 
-    // After the loop, not before it: authinfo is one of FIELDS, so generating
-    // it in the constructor -- as this did -- left every contact built without
-    // an explicit one carrying an empty <contact:pw>. Nothing rejected that:
-    // the element is mandatory but its content is an unrestricted
-    // normalizedString, so an empty one validates and the registry takes it.
-    // It is simply a transfer credential shipped blank. Assigned directly
-    // rather than through set(), so the generated default is not a change:
-    // update() sends authinfo only when somebody asked for a new one. Domain
-    // does the same thing in the same place.
+    // After the loop: authinfo is in FIELDS, so generating it earlier would be
+    // overwritten with "". Assigned directly, not via set(), so the default is
+    // not a change -- update() sends it only when a new one was asked for
     $this->authinfo = $this->authinfo();
   }
 
@@ -178,11 +168,9 @@ class Contact extends AbstractObject
     // convert to lower-case
     $var = strtolower($var);
 
-    // Stored as given. Escaping happens once, where it is needed: XmlBuilder
-    // escapes at serialization, and PDO parameters need none. Escaping here
-    // instead meant the database held HTML entities -- an organisation really
-    // named 'Rossi &amp; Figli' -- which every consumer then had to undo, and
-    // which is wrong for XML anyway.
+    // Stored as given: XmlBuilder escapes at serialization and PDO parameters
+    // need none. Escaping here left HTML entities in the database, which every
+    // consumer then had to undo.
     $val = (string)$val;
 
     if ($var == "entitytype") {
@@ -232,11 +220,8 @@ class Contact extends AbstractObject
    * 6 - altri soggetti
    * 7 - soggetti stranieri equiparati ai precedenti escluso le persone fisiche
    *
-   * The classification is nic.it's, from its technical guidelines (Linee
-   * Guida Tecniche Sincrone), so a change here would be the registry
-   * changing the rule. Cli\Command\ContactCreateCommand::ENTITY_TYPES
-   * carries the same list in English, for `contact create --help`; the two
-   * have to stay in step.
+   * nic.it's classification; ContactCreateCommand::ENTITY_TYPES repeats it in
+   * English for --help, and the two have to stay in step.
    *
    * @param int $type entity type
    * @return bool status
@@ -303,10 +288,8 @@ class Contact extends AbstractObject
   }
 
   /**
-   * generate a random, registry-unique contact handle. check() doesn't
-   * touch any other instance state, so this can be called on any contact
-   * object wired to a live EPP session -- the one being prepared for
-   * create() or an unrelated throwaway instance both work.
+   * Generate a random, registry-unique contact handle. check() touches no other
+   * instance state, so any contact object on a live session will do.
    *
    * @param int $maxAttempts max attempts before giving up
    * @return string a 16-character handle, confirmed available at the registry
@@ -321,10 +304,9 @@ class Contact extends AbstractObject
       $handle = strtoupper(PasswordGenerator::token(8)); // 16 hex chars
       $answer = $this->check($handle);
 
-      // A check that never happened is not a taken handle. Retrying it four
-      // more times only produces the same failure, and reporting it as "no
-      // unique handle" sends the reader hunting for a collision that is not
-      // there -- an unauthenticated session says exactly this.
+      // A check that never happened is not a taken handle: retrying produces
+      // the same failure, and "no unique handle" would send the reader hunting
+      // a collision that is not there
       if ( ! $answer->answered()) {
         throw new \RuntimeException("Unable to check handle availability: " . $answer->error());
       }
@@ -496,15 +478,9 @@ class Contact extends AbstractObject
       $addr[] = array('name' => 'cc', 'value' => $this->countrycode);
     }
 
-    // Contact information: only fields that actually changed appear here.
-    //
-    // This distinction is the whole point. In EPP an empty <contact:fax/>
-    // means "remove the fax number", so the value carried here has to
-    // separate "the caller set fax to an empty string" from "the caller never
-    // mentioned fax at all". Every field used to be listed unconditionally,
-    // with an empty value standing in for "unchanged" -- which the template
-    // could not tell apart from a deliberate clear, so simply updating a
-    // contact's email also wiped its fax at the registry.
+    // Only changed fields, which is the whole point: an empty <contact:fax/>
+    // means "remove the fax number", so "set to empty" must stay distinct from
+    // "never mentioned" -- listing all of them wiped a fax on an email change
     $contact = array();
     if ($this->changed('voice')) $contact[] = array('name' => 'voice',  'value' => $this->voice);
     if ($this->changed('fax'))   $contact[] = array('name' => 'fax',    'value' => $this->fax);
@@ -568,23 +544,11 @@ class Contact extends AbstractObject
   }
 
   /**
-   * store contact to DB
-   *
-   * Upserts: a handle that already exists locally is updated in place instead
-   * of failing on the UNIQUE key. It was previously an INSERT only, so
-   * re-storing a known contact always threw, was swallowed, and returned
-   * FALSE -- which is why re-running an import reported 'not stored' for every
-   * registrant it had already seen.
-   *
-   * Unlike Domain::storeDB() this cannot delete-then-insert: domains.registrant
-   * is a foreign key onto contacts.handle, so removing the row would be
-   * rejected for any contact currently used as a registrant.
-   *
-   * Two things are deliberately left alone when updating an existing row:
-   * `user_id` (re-importing somebody else's contact must not silently reassign
-   * ownership -- $user_id applies to new rows only) and `active` (a contact
-   * deactivated on purpose by deleteContactDB() should not be resurrected as a
-   * side effect of an import).
+   * Store contact to DB, upserting: no delete-then-insert like Domain::storeDB(),
+   * domains.registrant being a foreign key onto contacts.handle. On an existing
+   * row two columns are left alone:
+   * - `user_id`, so re-importing does not reassign somebody else's contact
+   * - `active`, so an import does not resurrect a deliberate deactivation
    *
    * @param int $user_id user ACL, applied to newly created rows only
    * @return bool status

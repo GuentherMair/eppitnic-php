@@ -8,15 +8,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use Eppitnic\Tests\Support\FakeTransport;
 
 /**
- * `contact create` without an explicit --authinfo.
- *
- * ContactCreateCommand::run() used to read the generated authinfo back via
- * $contact->authinfo -- a direct read of a protected property from outside
- * the class, which PHP refuses with a fatal "Cannot access protected
- * property" rather than the empty-string fallback the code assumed. Nothing
- * caught it: no test in this suite exercised `contact create` end to end, so
- * the crash only ever surfaced live, against a real registry, with the one
- * field everybody expects to be optional.
+ * `contact create` without an explicit --authinfo. run() used to read
+ * $contact->authinfo, a protected property from outside the class, which PHP
+ * makes fatal. Nothing exercised the verb end to end, so it surfaced live.
  */
 final class ContactCreateCommandTest extends EppTestCase
 {

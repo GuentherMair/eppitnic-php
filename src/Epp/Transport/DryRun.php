@@ -3,18 +3,9 @@
 namespace Eppitnic\Epp\Transport;
 
 /**
- * A transport that answers everything itself, so `--dry-run` shows exactly
- * what would be sent without a single byte leaving the process.
- *
- * The alternative -- connecting, logging in and stopping short of the one
- * command that changes something -- would still need credentials, still touch
- * the registry, and would differ from a real run in a way that is easy to get
- * subtly wrong. Answering locally means a dry run works offline, works with no
- * credentials configured, and cannot possibly modify anything.
- *
- * What it gives up is registry validation: a request that this prints happily
- * may still be refused when actually sent. Schema validity is what
- * tests/Wire covers; this answers "what would go out".
+ * A transport that answers everything itself, so `--dry-run` works offline, with
+ * no credentials, unable to modify anything. It gives up registry validation --
+ * tests/Wire covers schema validity; this answers "what would go out".
  *
  * @category    Net
  * @package     Eppitnic\Cli
@@ -69,21 +60,16 @@ final class DryRun implements Transport
             return self::GREETING;
         }
 
-        // A <check> has to be answered with an actual availability, because
-        // the caller branches on it: create-or-transfer picks its command from
-        // the answer, so a bare success would leave it unable to choose and
-        // the preview would show nothing at all. Every name is reported
-        // available, which previews the create branch; a transfer preview is
-        // what `domain transfer request --dry-run` is for.
+        // A <check> needs a real availability: create-or-transfer picks its
+        // command from the answer, so a bare success previews nothing. Every
+        // name reads available, previewing the create branch
         if (preg_match('#<(domain|contact):check\b#', $request, $m)) {
             return $this->availability($request, $m[1]);
         }
 
-        // A <domain:info> is answered with a minimal record, because the
-        // commands that read before they write -- `domain status` -- need the
-        // read to succeed before they generate the request worth previewing.
-        // The values are placeholders; what those commands actually send is
-        // built from the arguments, not from this.
+        // A minimal record, because the commands that read before they write
+        // need that read to succeed first. The values are placeholders: what
+        // they send is built from the arguments, not from this
         if (preg_match('#<domain:info\b#', $request)) {
             return $this->domainInfo($request);
         }

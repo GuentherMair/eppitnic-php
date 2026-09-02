@@ -8,18 +8,9 @@ use Eppitnic\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The poll message types that have branches but no captured traffic.
- *
- * Three of the message types the registry declares have never occurred in this
- * installation's queue, so there is nothing to capture and the samples below
- * are hand-built from xsd/extdom-2.0.xsd and xsd/extepp-2.0.xsd.
- *
- * A hand-built sample is only worth something if it is checked back against
- * the schema it was written from -- otherwise a misreading of the structure
- * produces a sample that matches the parser because both are wrong in the same
- * way. So every sample here is schema-validated first, and only then fed to
- * the parser. If the sample is invalid the test fails on that, not on the
- * classification.
+ * The poll message types that have branches but no captured traffic: three never
+ * occurred here, so the samples are hand-built from the schemas -- and validated
+ * against them first, or a misreading matches the parser for the wrong reason.
  */
 final class UnobservedPollMessageTest extends EppTestCase
 {

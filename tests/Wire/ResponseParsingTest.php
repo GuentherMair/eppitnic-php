@@ -9,13 +9,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Feeds real registry responses (captured from production traffic and
- * anonymised by tests/capture-responses.php) through the real parsers.
- *
- * This is the half of the codebase that request-generation tests cannot
- * reach. Generating XML and validating it against a schema proves what we
- * send is well-formed; only these prove that what nic.it sends back is
- * understood.
+ * Feeds real registry responses, captured and anonymised by
+ * tests/capture-responses.php, through the real parsers. Validating what we send
+ * proves it well-formed; only these prove what nic.it sends back is understood.
  */
 final class ResponseParsingTest extends EppTestCase
 {
@@ -105,13 +101,9 @@ final class ResponseParsingTest extends EppTestCase
     }
 
     /**
-     * Poll messages, one per document shape actually seen in the queue.
-     *
-     * Both the extdom-1.0 and extdom-2.0 variants are listed on purpose:
-     * nic.it reused element names across the two versions while changing their
-     * structure, and the queue still holds both. A parser that handles only
-     * the shape currently being sent silently drops years of history; one that
-     * handles only the historical shape silently drops everything new.
+     * Poll messages, one per document shape seen in the queue -- both extdom-1.0
+     * and 2.0 on purpose, nic.it having reused element names while changing
+     * structure. Handling either alone silently drops the other.
      *
      * @return array<string, array{0: string, 1: string, 2: bool}>
      *         fixture => [fixture, expected type, carries a domain]
@@ -159,13 +151,9 @@ final class ResponseParsingTest extends EppTestCase
     }
 
     /**
-     * A message about a specific domain must carry that domain through.
-     *
-     * This is the assertion that matters operationally rather than
-     * cosmetically: PollProcessor, the DNS-sync queue and the reminders view
-     * all key off messages.domain, so a message parsed without one is a
-     * message nothing downstream can act on. A DNS failure that arrives as
-     * "unknown, domain ''" is a DNS failure nobody is told about.
+     * A message about a specific domain must carry that domain through:
+     * PollProcessor, the DNS-sync queue and the reminders view all key off
+     * messages.domain, so one parsed without it is a failure nobody hears about.
      */
     #[DataProvider('pollFixtures')]
     public function testDomainScopedPollMessagesCarryTheirDomain(string $fixture, string $expectedType, bool $hasDomain): void {

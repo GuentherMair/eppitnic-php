@@ -9,11 +9,9 @@ use Eppitnic\Support\Csv;
 use RedBeanPHP\R;
 
 /**
- * Domains from the local database or from the registry, as CSV (the default),
- * JSON Lines or one JSON document.
- *
- * Both sources produce the same columns, so a consumer does not have to care
- * which one an export came from.
+ * Domains from the local database or the registry, as CSV (the default), JSON
+ * Lines or one JSON document. Both sources produce the same columns, so a
+ * consumer need not care which an export came from.
  */
 final class DomainExportCommand extends Command
 {
@@ -165,10 +163,9 @@ final class DomainExportCommand extends Command
                     continue;
                 }
 
-                // the registrant's postal details need a second lookup; the
-                // registry does not return them with the domain unless
-                // infContacts is asked for, which needs the authinfo we do not
-                // have for every domain here
+                // the registrant's postal details need a second lookup: the
+                // registry withholds them unless infContacts is asked for,
+                // which needs an authinfo we do not have for every domain
                 $contact = new \Eppitnic\Epp\Contact($nic);
                 $known = $contact->fetch($domain->get('registrant'));
 

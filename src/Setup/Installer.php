@@ -9,17 +9,9 @@ use Eppitnic\Support\Validate;
 use PDO;
 
 /**
- * Drives first-run setup identically for the CLI (`eppitnic setup`), the
- * REST installer (src/Api/Routes/setup.php) and the bundled fallback page
- * (public/setup.html) -- one orchestration, three front ends.
- *
- * config/config.php is written last (write() is the final line of install()),
- * deliberately: its existence is what the rest of the application treats as
- * "installed" (Setup\ConfigFile::exists(), checked by every setup route and
- * by public/index.php before it decides whether to serve this installer or
- * the real application). Writing it any earlier would mark a setup that then
- * failed halfway as done. Every step before that line is safe to retry --
- * nothing is committed until it runs.
+ * First-run setup, one orchestration behind three front ends: `eppitnic setup`,
+ * src/Api/Routes/setup.php and public/setup.html. config/config.php is written
+ * last, its existence being what the application treats as "installed".
  *
  * @category    Net
  * @package     Eppitnic\Setup\Installer
@@ -29,19 +21,9 @@ use PDO;
 final class Installer
 {
     /**
-     * The field list every front end renders/prompts/advertises from --
-     * nothing hardcodes it twice.
-     *
-     * `required` tracks what actually blocks install(), not just what's
-     * *shown*: db_type/db_host/db_charset fall back to their default in
-     * DatabaseCredentials::fromArray() when omitted (so they're never really
-     * required, just pre-filled), and db_password is deliberately allowed
-     * blank for local trust-auth setups. Only db_name and db_user have no
-     * such fallback, alongside admin_username/admin_password, which
-     * install() checks explicitly. Marking any of the former `required`
-     * would make the CLI's non-interactive mode (and an HTML client's own
-     * form validation) demand a value that install() would have happily
-     * defaulted.
+     * The field list every front end renders from. `required` tracks what blocks
+     * install(), not what is shown: the db_* fields default or may be blank, so
+     * marking those would demand a value install() supplies anyway.
      *
      * @return list<array{name: string, label: string, default: string, secret: bool, group: string, required: bool}>
      */
@@ -63,21 +45,17 @@ final class Installer
     }
 
     /**
-     * Whether setup is reachable at all. Currently just ConfigFile::exists()'s
-     * negation -- the single predicate to change if this is ever bounded by
-     * something more than "the file doesn't exist yet" (a network check, a
-     * token).
+     * Whether setup is reachable at all -- the one predicate to change if this
+     * ever needs more than "the file does not exist yet".
      */
     public static function isOpen(): bool {
         return ! ConfigFile::exists();
     }
 
     /**
-     * Probe candidate credentials with a plain PDO connection, discarded
-     * immediately after. Deliberately not RedBeanPHP: R::setup() is
-     * process-global and, once called, cannot be un-called, so a caller
-     * trying several candidates (a mistyped password, retried) would leave
-     * the first attempt's connection state behind. PDO's is ours to drop.
+     * Probe candidate credentials with a plain PDO connection, dropped straight
+     * after. Not RedBeanPHP: R::setup() is process-global and cannot be
+     * un-called, so a retried candidate would inherit the first attempt's state.
      *
      * @throws \RuntimeException if the connection fails
      * @return array{server_version: string}
@@ -99,9 +77,8 @@ final class Installer
 
     /**
      * The clTRID prefix to store: the one given, or the registrar part of the
-     * EPP username when none was ("ABCD-REG" -> "ABCD"). Its own method only
-     * so that validateEpp() checks the value install() will actually store,
-     * rather than a second expression that could drift from it.
+     * username ("ABCD-REG" -> "ABCD"). Its own method so validateEpp() checks
+     * the value install() will actually store.
      *
      * @param array<string, mixed> $input every requirements() field, snake_case
      */
@@ -113,21 +90,9 @@ final class Installer
     }
 
     /**
-     * Reject an EPP credential the registry itself would not accept.
-     *
-     * These fields were previously stored exactly as given: the browser
-     * installer asks for them on the same form as the database credentials
-     * and nothing looked at them, so an over-long username or password was
-     * written happily and then failed at every single `<login>` -- with an
-     * error from the registry, about a value entered days earlier, in a place
-     * that gives no hint where it came from. `eppitnic config epp-set` and
-     * `config epp-password` have always checked; this is the same check, from
-     * the same place (Support\Validate::eppField()), so the two front ends
-     * cannot disagree about what is acceptable.
-     *
-     * All three fields stay optional -- an install that seeds no EPP
-     * credential at all is still normal, and only what was actually supplied
-     * is judged.
+     * Reject an EPP credential the registry would not accept. Stored as given
+     * until now, so an over-long username failed at every `<login>` days later.
+     * Same check as `config epp-set`, so the front ends cannot disagree.
      *
      * @param array<string, mixed> $input every requirements() field, snake_case
      * @throws \InvalidArgumentException on a value the registry would refuse
@@ -190,12 +155,9 @@ final class Installer
             throw new \InvalidArgumentException('The two admin passwords do not match.');
         }
 
-        // Here, and not down at step 7 where these are actually stored: step 6
-        // creates the first admin, and User::create() refuses a username that
-        // already exists -- so a throw after it would make the retry this
-        // method is designed for fail on the previous attempt's own admin
-        // account instead. Nothing below this point is rejected for its
-        // content.
+        // Here, not at step 7 where these are stored: step 6 creates the admin,
+        // and User::create() refuses an existing username -- so a throw after it
+        // would make the retry fail on the previous attempt's own account
         self::validateEpp($input);
 
         // 1. probe credentials (raw PDO) -- nothing committed yet

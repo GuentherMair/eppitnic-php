@@ -5,14 +5,9 @@ namespace Eppitnic\Selftest;
 use Eppitnic\Epp\Contact;
 
 /**
- * The contacts a self-test run creates.
- *
- * Their details are fabricated but have to be *plausible* -- nic.it validates
- * the extcon registrant block, so a registrant needs a nationality, an entity
- * type and a registration code, while an admin or tech contact is entity type
- * 0 and must not carry them at all. The values match the ones the cookbook
- * documents, so a self-test failure points at the library rather than at an
- * invented address the registry happened to dislike.
+ * The contacts a self-test run creates -- fabricated, but plausible enough for
+ * nic.it's extcon validation: a registrant needs nationality, entity type and
+ * reg code, an admin or tech contact is type 0 and carries none of them.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\ContactFactory
@@ -28,14 +23,9 @@ final class ContactFactory
     public const ENTITY_NONE = 0;
 
     /**
-     * The registrant entity types that may keep their details out of the
-     * public whois: 1, an Italian or foreign natural person, and 3, a
-     * freelancer.
-     *
-     * Anybody else is published by law, and the registry enforces it -- a
-     * company registrant sent `consentForPublishing` = 0 is refused with 2308
-     * and extended reason 8028, "consentForPublishing cannot be set to false
-     * if entity type != 1 and entity type != 3".
+     * The entity types that may stay out of the public whois: 1 (natural
+     * person) and 3 (freelancer). Anyone else is published by law, and the
+     * registry refuses consentForPublishing = 0 with 2308 / 8028.
      */
     public const MAY_WITHHOLD_CONSENT = [1, 3];
 
@@ -85,17 +75,9 @@ final class ContactFactory
     }
 
     /**
-     * A registration code entity type 2 will be given: a partita IVA whose
-     * check digit is right.
-     *
-     * It has to be computed rather than picked. nic.it verifies the checksum
-     * and answers 2004 with extended reason 8027, "invalid reg code", for one
-     * that does not add up -- which the obvious placeholder `01234567890` does
-     * not: its check digit should be 7.
-     *
-     * Derived from the handle, so the two registrants in a run get different
-     * codes -- one number identifies one company -- and so that re-running
-     * against the same handle asks for the same thing twice.
+     * A partita IVA for entity type 2, computed rather than picked: nic.it
+     * verifies the checksum, which `01234567890` fails. Derived from the handle,
+     * so the run's two registrants differ and a re-run asks the same twice.
      *
      * @param string $handle the contact this code is for
      * @return string eleven digits
@@ -110,11 +92,9 @@ final class ContactFactory
     }
 
     /**
-     * The Luhn-style check digit that closes a partita IVA.
-     *
-     * Odd positions counting from one are added as they stand; even positions
-     * are doubled, and nine subtracted from anything that then exceeds nine.
-     * The check digit is whatever brings the total to a multiple of ten.
+     * The Luhn-style check digit closing a partita IVA: odd positions added as
+     * they stand, even ones doubled less nine if that exceeds nine, and the
+     * digit is whatever brings the total to a multiple of ten.
      *
      * @param string $body the first ten digits
      */
@@ -148,12 +128,9 @@ final class ContactFactory
     }
 
     /**
-     * The values a self-test changes on an update, and expects to read back.
-     *
-     * Deliberately every kind of field the contact update carries at once: a
-     * postalInfo field, an address field and a plain contact field. An update
-     * that only moved one of the three would not notice a builder that dropped
-     * one of the others.
+     * What a self-test changes on an update and expects to read back -- one
+     * postalInfo, one address and one plain contact field, since moving only
+     * one would not notice a builder that dropped the others.
      *
      * @return array<string, string> field => new value
      */

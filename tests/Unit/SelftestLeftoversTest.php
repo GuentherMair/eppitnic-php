@@ -8,12 +8,9 @@ use Eppitnic\Selftest\Run;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * The note a run leaves behind, and what a later reap makes of it.
- *
- * This is the only record that a run happened which survives the run itself.
- * A contact attached to a domain cannot be deleted for another week, so the
- * cleanup necessarily happens in a different process on a different day, and
- * everything it needs to know has to be in this file.
+ * The note a run leaves behind, and what a later reap makes of it -- the only
+ * record that survives the run. A contact attached to a domain cannot be deleted
+ * for a week, so the cleanup is a different process on a different day.
  */
 final class SelftestLeftoversTest extends EppTestCase
 {
@@ -125,9 +122,8 @@ final class SelftestLeftoversTest extends EppTestCase
 
     /**
      * The case that prompted this: a run that fell over before creating its
-     * domain holds nothing, so nothing has to wait. Making these sit out a
-     * purge window that applies to a domain nobody created would be a delay
-     * this code invented.
+     * domain holds nothing, so nothing waits. A purge window for a domain
+     * nobody created would be a delay this code invented.
      */
     public function testContactsFromARunWithNoDomainAreReadyImmediately(): void {
         $this->noteFrom(time(), ['STAAAAAAA1', 'STAAAAAAT1']);

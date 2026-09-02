@@ -9,17 +9,9 @@ use Eppitnic\Persistence\StoredPayload;
 use RedBeanPHP\R;
 
 /**
- * Re-derive `type` and `domain` on stored poll messages from the raw responses
- * still held in `msgqueue`.
- *
- * Messages carry whatever the parser made of them at the time they were
- * polled, so a release that teaches the parser a message shape it did not know
- * -- as 7.0 did for the extdom-2.0 DNS messages -- leaves the older rows
- * saying 'unknown' with no domain.
- *
- * Rewrites those two columns and nothing else. In particular it fires no side
- * effects: no reminder rows, no DNS-sync events for validation failures that
- * are years old.
+ * Re-derive `type` and `domain` on stored poll messages from `msgqueue`: a row
+ * carries what the parser knew when polled, so a new shape leaves older rows
+ * 'unknown'. Those two columns only -- no reminder rows, no DNS-sync events.
  */
 final class DoctorReparseMessagesCommand extends Command
 {

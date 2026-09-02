@@ -7,15 +7,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The rules the `epp` setting's fields have to satisfy, from the registry's
- * own schemas rather than from a preference here.
- *
- * One place, because there were nearly three: `config epp-set` and `config
- * epp-password` checked, and Setup\Installer -- the browser installer's own
- * path, and the one most installations actually go through -- did not, so a
- * username or password the CLI refused could still be seeded on a form and
- * then fail at every single `<login>`, days later, with nothing pointing back
- * at where it came from.
+ * The rules the `epp` fields must satisfy, from the registry's schemas rather
+ * than a preference here. One place because there were nearly three: both
+ * `config epp-*` verbs checked, and Setup\Installer did not.
  */
 final class EppFieldValidationTest extends TestCase
 {
@@ -93,10 +87,9 @@ final class EppFieldValidationTest extends TestCase
     }
 
     /**
-     * An unknown field is nobody's business here: the callers each own their
-     * own list of what they will set (ConfigEppSetCommand::FIELDS,
-     * Setup\Installer::validateEpp()), and inventing a rule for a name none
-     * of them accepts would only be a second place to keep in step.
+     * An unknown field is nobody's business here: each caller owns its own list
+     * of what it will set, and inventing a rule for a name none accepts would
+     * only be a second place to keep in step.
      */
     public function testUnknownFieldsAreNotJudged(): void {
         $this->assertNull(Validate::eppField('server', 'https://epp.pubtest.nic.it'));

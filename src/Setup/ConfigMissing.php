@@ -3,13 +3,9 @@
 namespace Eppitnic\Setup;
 
 /**
- * config/config.php does not exist, and the six DB_* constants were not
- * predefined in-process either -- there is nothing to connect with.
- *
- * A distinct type from a bare \RuntimeException so a caller can tell "not
- * installed yet" (point at `eppitnic setup`, or serve the bundled installer
- * page) from "installed but broken" (an unreachable database, a permissions
- * error) without parsing the message.
+ * Neither config/config.php nor the six DB_* constants exist, so there is
+ * nothing to connect with. Its own type so a caller can tell "not installed
+ * yet" from "installed but broken" without parsing a message.
  *
  * @category    Net
  * @package     Eppitnic\Setup\ConfigMissing

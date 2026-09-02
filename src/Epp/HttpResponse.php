@@ -3,12 +3,9 @@
 namespace Eppitnic\Epp;
 
 /**
- * One HTTP exchange with the registry.
- *
- * Was a bare `array|null` keyed by four strings, declared as `// HTTP response
- * string` -- which it had not been for some time. Every reader spelled out
- * `$this->result['code'] ?? ''` because nothing guaranteed the keys, and
- * nothing said what type any of them held.
+ * One HTTP exchange with the registry. Was a bare `array|null` of four string
+ * keys, so every reader spelled out `$this->result['code'] ?? ''` -- nothing
+ * guaranteed the keys, and nothing said what they held.
  *
  * @category    Net
  * @package     Eppitnic\Epp\HttpResponse

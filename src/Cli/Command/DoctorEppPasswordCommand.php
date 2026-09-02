@@ -7,17 +7,9 @@ use Eppitnic\Config;
 use Eppitnic\Service\RegistryPasswordChange;
 
 /**
- * Settle a password rotation that did not finish.
- *
- * RegistryPasswordChange::rotateOnReminder() writes its candidate password to the
- * `epp` setting before sending it to the registry, so a run that dies in
- * between leaves both the old and the new password on disk with no record of
- * which one the registry accepted. The cron job resolves that itself on its
- * next run -- but every EPP call fails until it does, and waiting for a cron
- * job is a poor answer when someone is standing there watching it fail.
- *
- * This is the same reconciliation, on demand. It asks the registry which
- * password is live by trying to log in with each.
+ * Settle a password rotation that did not finish: the candidate is written
+ * before it is sent, so a run dying between leaves both on disk. The cron job
+ * resolves it eventually; this is the same reconciliation, on demand.
  */
 final class DoctorEppPasswordCommand extends Command
 {

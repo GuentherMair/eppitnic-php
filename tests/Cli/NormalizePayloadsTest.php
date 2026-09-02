@@ -133,9 +133,8 @@ final class NormalizePayloadsTest extends EppTestCase
 
     /**
      * The batch loop walks by id, since each pass removes rows from the set the
-     * WHERE clause matches -- an offset would step over the ones that moved
-     * down into its place. More rows than one batch holds is the case that
-     * would show it.
+     * WHERE matches and an offset would step over what moved into its place.
+     * More rows than one batch holds is the case that shows it.
      */
     public function testEveryRowIsReachedAcrossBatches(): void {
         for ($id = 1; $id <= 1200; $id++) {

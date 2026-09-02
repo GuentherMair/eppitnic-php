@@ -16,21 +16,9 @@ use Eppitnic\Selftest\Step;
 use Eppitnic\Support\Validate;
 
 /**
- * Exercise the library against the live test registry.
- *
- * The unit suite proves that the right XML is generated for a given call, and
- * that a recorded answer is parsed the way it was parsed last week. Neither
- * says whether the registry still accepts that XML. This does: it registers,
- * reads back, changes and deletes real contacts and a real domain at
- * `epp.pubtest.nic.it`, and checks each answer against what was sent.
- *
- * It will not run anywhere else. See Guard -- the check is on an allowlist of
- * test endpoints, and there is no flag to defeat it.
- *
- * By default it prints one line per operation and nothing else. `--verbose`
- * turns on the library's own diagnostics, which puts the full request and
- * response behind every failure and records both to the `transactions` and
- * `responses` tables.
+ * Exercise the library against the live test registry: the unit suite proves the
+ * XML is generated and parsed, not that the registry accepts it. Runs nowhere
+ * but `epp.pubtest.nic.it` -- see Guard. `--verbose` adds request and response.
  *
  * @category    Net
  * @package     Eppitnic\Cli\Command\SelftestRunCommand
@@ -48,9 +36,8 @@ final class SelftestRunCommand extends Command
 
     /**
      * How long to leave the registry to check a delegation before reading it
-     * back, when a real domain was named. nic.it validates nameservers out of
-     * band; asking immediately gets an empty answer whether or not they are
-     * good.
+     * back. nic.it validates out of band, so asking at once gets an empty
+     * answer whether or not the nameservers are good.
      */
     private const VERIFICATION_WAIT = 10;
 
@@ -149,12 +136,9 @@ final class SelftestRunCommand extends Command
     }
 
     /**
-     * The name to register, when one was given.
-     *
-     * The point of naming it is that its zone can exist before the run does:
-     * nic.it checks that the nameservers answer authoritatively for the domain
-     * being registered, and nothing can be prepared in advance for a name
-     * generated from the clock.
+     * The name to register, when one was given -- the point being that its zone
+     * can exist beforehand, which nic.it checks, and nothing can be prepared
+     * for a name generated from the clock.
      *
      * @return string|null null to generate one
      */

@@ -7,11 +7,9 @@ use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Session;
 
 /**
- * Reach the registry and report what it says about itself.
- *
- * Deliberately does not log in: this is the command to run when something is
- * wrong and the question is whether the problem is the connection, the
- * credentials, or something further in.
+ * Reach the registry and report what it says about itself. Deliberately does
+ * not log in: this is what to run when the question is whether the problem is
+ * the connection, the credentials, or something further in.
  */
 final class SessionHelloCommand extends Command
 {

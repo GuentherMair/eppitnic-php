@@ -3,12 +3,9 @@
 namespace Eppitnic\Selftest;
 
 /**
- * One self-contained sequence of registry operations.
- *
- * Split by lifecycle rather than by object type, because what a scenario can
- * clean up after itself is the thing that actually differs: a contact never
- * attached to a domain can be deleted at the end of the run, and one that was
- * attached cannot be deleted for another week.
+ * One self-contained sequence of registry operations, split by lifecycle rather
+ * than object type: what differs is the cleanup, since a contact never attached
+ * to a domain deletes at once and an attached one cannot for another week.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Scenario

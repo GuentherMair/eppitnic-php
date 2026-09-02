@@ -76,10 +76,9 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
         return Json::response($response, ['error' => 'You are not authorized to view this contact'], 403);
     }
 
-    // the registry is authoritative -- its answer is returned as-is, never
-    // overlaid with the local row (overlaying is what used to blank the whole
-    // object out, since loadDB() re-initializes before its own lookup and
-    // leaves it empty when that lookup misses). Mirrors GET /v1/domains/{name}.
+    // the registry is authoritative: its answer is returned as-is, never
+    // overlaid with the local row -- loadDB() re-initializes before its lookup
+    // and blanks the object when that misses. Mirrors GET /v1/domains/{name}
     try {
         $contact = EppSession::run(function ($nic) use ($handle) {
             $contact = new Contact($nic);
@@ -95,12 +94,9 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
         return Json::response($response, ['contact' => contactToArray($contact), 'stale' => false]);
     }
 
-    // registry lookup failed: serve the last known local state instead, flagged
-    // as potentially out of date. The ACL argument stays TRUE deliberately --
-    // canAccessContact() above has already authorized this caller, including the
-    // attached-to-a-domain-I-own case where the contact is owned by somebody
-    // else, and scoping the fallback by user_id would 404 exactly those.
-    // (via a variable: Contact::__construct() takes its Client by reference)
+    // registry lookup failed: serve the local state, flagged stale. The ACL
+    // argument stays TRUE, canAccessContact() having allowed this already --
+    // scoping by user_id would 404 contacts hanging off a domain they own
     $nic = new Client();
     $contact = new Contact($nic);
     if ( ! $contact->loadDB($handle, $user_id, true)) {

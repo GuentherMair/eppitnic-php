@@ -43,19 +43,15 @@ use Eppitnic\Cli\Command\UserCreateCommand;
 use Eppitnic\Cli\Command\UserTokenCommand;
 
 /**
- * Maps a verb to the class that implements it, and runs it.
- *
- * Kept separate from bin/eppitnic so the dispatch can be exercised by the test
- * suite without spawning a process: bin/eppitnic is then only argv, exit codes
- * and STDERR.
+ * Maps a verb to the class that implements it, and runs it. Separate from
+ * bin/eppitnic so the dispatch is testable without spawning a process, leaving
+ * that file only argv, exit codes and STDERR.
  */
 final class Application
 {
     /**
-     * verb => command class.
-     *
-     * Two-word verbs are the norm ('domain info'); the dispatcher matches the
-     * longest one first, so 'domain transfer approve' wins over
+     * verb => command class. Two-word verbs are the norm, and the dispatcher
+     * matches the longest first, so 'domain transfer approve' beats
      * 'domain transfer' when both are registered.
      *
      * @return array<string, class-string<Command>>

@@ -8,16 +8,9 @@ use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * Values reach the registry as themselves.
- *
- * Until 7.1 the object layer ran everything through htmlspecialchars() before
- * storing it, and the templates then emitted the result raw. The output looked
- * right for `&` by coincidence -- HTML and XML spell that entity the same way
- * -- while the database filled up with entities that every reader had to undo,
- * and a second pass of escaping would have produced `&amp;amp;`.
- *
- * These assert the property that replaced it: whatever goes in comes back out
- * of the generated document unchanged, escaped exactly once by the serializer.
+ * Values reach the registry as themselves. The object layer used to run
+ * everything through htmlspecialchars() and emit it raw, filling the database
+ * with entities. These assert what replaced it: escaped once, by the serializer.
  */
 final class EscapingTest extends EppTestCase
 {

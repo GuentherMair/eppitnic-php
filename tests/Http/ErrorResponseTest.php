@@ -11,16 +11,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * Error responses, dispatched through the real application.
- *
- * Slim's stock handler renders an HTML page with the exception message, file,
- * line and stack trace in it. From a JSON API that is two problems at once:
- * every client of /v1/* has to special-case a content type it never asked
- * for, and an unauthenticated request is enough to get the server's file
- * paths and call stack back.
- *
- * These tests dispatch real requests through the same middleware stack
- * public/index.php builds, so they fail if either regresses.
+ * Error responses, dispatched through the real application. Slim's stock handler
+ * renders HTML with a stack trace in it -- the wrong content type for every
+ * route, and a call stack an unauthenticated request can have.
  */
 final class ErrorResponseTest extends TestCase
 {
@@ -36,10 +29,9 @@ final class ErrorResponseTest extends TestCase
             return self::$app;
         }
 
-        // Route *files* need no database to load; the routes that need one
-        // reach for it inside their closures, past the auth check these tests
-        // stop at. A settings array is installed anyway so that anything
-        // touching Config during middleware setup finds it.
+        // Route *files* need no database to load; those that do reach for it
+        // inside their closures, past the auth check these stop at. Settings are
+        // installed anyway, for anything touching Config during setup
         Config::loadForTesting([
             'allowed_origins' => ['https://app.example.com'],
             'allowed_headers' => ['Authorization', 'Content-Type'],
@@ -132,10 +124,9 @@ final class ErrorResponseTest extends TestCase
     }
 
     /**
-     * CORS headers have to survive on error responses too -- a browser cannot
-     * read a 401 it is not allowed to see, which turns "you are not logged in"
-     * into an opaque network error in the client. This is why the error
-     * middleware is registered before the CORS middleware.
+     * CORS headers must survive on error responses: a browser cannot read a 401
+     * it is not allowed to see, turning "you are not logged in" into an opaque
+     * network error. Hence the error middleware registering first.
      */
     public function testCorsHeadersArePresentOnErrors(): void {
         $response = $this->request('GET', '/v1/domains', ['Origin' => 'https://app.example.com']);

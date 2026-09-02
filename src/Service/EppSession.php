@@ -18,13 +18,9 @@ use Eppitnic\Epp\Session;
  */
 final class EppSession
 {
-    // Note: there is deliberately no run()-plus-502 wrapper for the routes.
-    // With Json::response() in place each of those catch blocks is a single
-    // line, and the alternative -- returning a [result, ?Response] tuple the
-    // caller has to unpack and test -- hides the control flow rather than
-    // shortening it. One route (GET /v1/domains/{name}) also treats an
-    // unreachable registry as "fall back to the local row" rather than as a
-    // 502, so it could not use such a wrapper anyway.
+    // No run()-plus-502 wrapper for the routes, deliberately: each catch is one
+    // line already, a [result, ?Response] tuple would hide the control flow,
+    // and GET /v1/domains/{name} falls back to the local row instead of a 502
 
     // -----------------------------------------------------------------
     // EPP session lifecycle
@@ -32,9 +28,8 @@ final class EppSession
 
     /**
      * Run $fn against a fresh, logged-in EPP session, then always log out.
-     * Connect-per-request, matching every examples/*.php and CLI/*.php script's
-     * own hello()/login()/logout() pattern -- only call this from handlers that
-     * actually need a live registry round-trip.
+     * Connect-per-request, so only call it from a handler that actually needs
+     * a live registry round-trip.
      *
      * @param callable $fn function(Client $nic, Session $session)
      * @param bool $debug turn on EPP diagnostics for everything built from this
@@ -69,14 +64,8 @@ final class EppSession
     }
 
     /**
-     * How to build a Client for the password rotation.
-     *
-     * A seam, not a configuration point: the rotation's interesting behaviour
-     * is what it does when the registry answers unexpectedly, and production
-     * cannot be made to answer unexpectedly on request. Only the test suite
-     * sets this; production leaves it null and gets a fresh Client per call,
-     * which is what the rotation needs anyway -- it makes up to three separate
-     * logins, and a Client carries one session's state.
+     * A test seam, not a configuration point: production leaves it null and
+     * gets a fresh Client per call, which the rotation needs anyway.
      *
      * @var callable():Client|null
      */

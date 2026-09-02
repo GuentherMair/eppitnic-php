@@ -6,13 +6,9 @@ use Eppitnic\Selftest\Naming;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The names a self-test run gives what it creates.
- *
- * Two things rest on these. A run must not collide with the objects an earlier
- * one left behind -- and something is always left behind, because a contact
- * attached to a domain is not free for another week. And `selftest reap` has
- * to be able to tell, from the name alone, which run made an object and when,
- * because that is the only record of it that survives a crashed run.
+ * The names a self-test run gives what it creates. A run must not collide with
+ * earlier leftovers, and something always is left; and `selftest reap` must tell
+ * from the name alone which run made an object and when.
  */
 final class SelftestNamingTest extends TestCase
 {

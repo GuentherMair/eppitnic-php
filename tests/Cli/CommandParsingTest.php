@@ -8,10 +8,9 @@ use Eppitnic\Cli\UsageError;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Option parsing and dispatch, which is where a CLI quietly does the wrong
- * thing: the scripts this replaces used getopt(), which cannot distinguish an
- * unknown switch from a positional argument, so a mistyped option was ignored
- * and the command ran anyway with the wrong inputs.
+ * Option parsing and dispatch, where a CLI quietly does the wrong thing: the
+ * scripts this replaces used getopt(), which cannot tell an unknown switch from
+ * a positional, so a mistyped option ran the command with the wrong inputs.
  */
 final class CommandParsingTest extends TestCase
 {

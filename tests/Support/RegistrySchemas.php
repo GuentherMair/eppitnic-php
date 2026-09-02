@@ -3,28 +3,16 @@
 namespace Eppitnic\Tests\Support;
 
 /**
- * The registry's XML schemas (xsd/), assembled into one validation context.
- *
- * Shared by the tests that validate generated requests and by those that
- * hand-build sample responses: a sample written from a schema is only worth
- * anything if it is checked back against that schema, otherwise a
- * misreading of the structure becomes a test that passes for the wrong reason.
+ * The registry's XML schemas (xsd/), assembled into one validation context and
+ * shared by the tests that validate generated requests and those that hand-build
+ * responses: a sample written from a schema is worth nothing unchecked.
  */
 final class RegistrySchemas
 {
     /**
-     * Exactly one file per namespace.
-     *
-     * domain-1.0 and rgp-1.0 are reached through nic.it's own
-     * domain-itnic.xsd / rgp-itnic.xsd, which <include> the IETF originals and
-     * add the global <domain:status> and <rgp:rgpStatus> declarations the
-     * registry's poll messages place directly inside <extdom:targetStatus>.
-     * Importing both a wrapper and the file it includes would make libxml
-     * treat one namespace as two and silently drop a schema.
-     *
-     * extdom-1.0 and extepp-1.0 exist in xsd/ but are absent here on purpose:
-     * the code and the live registry both speak the 2.0 versions. Historical
-     * 1.0 documents in the message queue are parsed, not validated.
+     * Exactly one file per namespace: importing both a wrapper and what it
+     * includes makes libxml treat one namespace as two and drop a schema.
+     * extdom/extepp-1.0 are absent on purpose -- both ends speak 2.0.
      */
     public const SCHEMAS = [
         'urn:ietf:params:xml:ns:epp-1.0'            => 'epp-1.0.xsd',
@@ -43,10 +31,9 @@ final class RegistrySchemas
     ];
 
     /**
-     * realpath()'d deliberately: the registry schemas import each other by
-     * relative location and libxml keys its "already imported" bookkeeping on
-     * the literal URI, so an unnormalised path makes it treat one schema as
-     * two and drop one with a warning that buries the real errors.
+     * realpath()'d deliberately: the schemas import each other relatively and
+     * libxml keys "already imported" on the literal URI, so an unnormalised path
+     * makes it treat one schema as two and drop one.
      */
     public static function dir(): string {
         return realpath(__DIR__ . '/../../xsd');

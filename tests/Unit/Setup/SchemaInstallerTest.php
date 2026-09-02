@@ -8,13 +8,9 @@ use PHPUnit\Framework\TestCase;
 use RedBeanPHP\R;
 
 /**
- * MariaDB-only, so this drives a real, disposable database rather than
- * sqlite::memory: -- Config::migrate()'s own `SHOW TABLES LIKE` and
- * config/mariadb-schema.sql's `ENGINE=InnoDB`/`CHECK (json_valid(...))` are
- * both MariaDB-specific, and state() intentionally uses the same `SHOW
- * TABLES` call rather than a portability shim this codebase has no other use
- * for. Per tests/bootstrap.php's contract, the suite must stay runnable with
- * no MariaDB reachable -- so every test here skips itself when it isn't.
+ * MariaDB-only, so this drives a real disposable database: `SHOW TABLES LIKE`,
+ * `ENGINE=InnoDB` and `json_valid()` are all MariaDB-specific. Per
+ * tests/bootstrap.php every test here skips itself when none is reachable.
  */
 final class SchemaInstallerTest extends TestCase
 {
@@ -37,10 +33,9 @@ final class SchemaInstallerTest extends TestCase
         $root->exec('DROP DATABASE IF EXISTS `' . self::DB_NAME . '`');
         $root->exec('CREATE DATABASE `' . self::DB_NAME . '`');
 
-        // RedBeanPHP refuses a second addDatabase() for the same key, so this
-        // registers 'setuptest' once per process and just reselects it after
-        // that -- the DROP/CREATE DATABASE pair above is what actually gives
-        // each test a clean slate.
+        // RedBeanPHP refuses a second addDatabase() for the same key, so
+        // 'setuptest' is registered once per process and reselected after --
+        // the DROP/CREATE pair above is what gives each test a clean slate
         if ( ! R::hasDatabase('setuptest')) {
             R::addDatabase('setuptest', 'mysql:host=localhost;dbname=' . self::DB_NAME . ';charset=utf8', get_current_user(), '');
         }

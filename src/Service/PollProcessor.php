@@ -95,13 +95,9 @@ class PollProcessor
   }
 
   /**
-   * reconcile domain transfer state: classify unarchived transfer-related
-   * poll messages, then handle outgoing transfers (deactivate locally),
-   * pending transfers (just note them), and open incoming transfer
-   * requests (complete, reject, or leave pending as appropriate).
-   *
-   * Requires an already logged-in session for the live transferStatus()
-   * fallback query and the update()/storeDB() calls it makes.
+   * Reconcile transfer state from the unarchived poll messages: outgoing
+   * transfers deactivate locally, pending ones are noted, and open incoming
+   * requests are completed, rejected or left. Needs a logged-in session.
    *
    * @return array human-readable log lines
    */
@@ -116,11 +112,9 @@ class PollProcessor
     foreach ($messages as $msg) {
       switch ($msg['type']) {
         case "serverApprovedTransfer":
-          // acID is the *acting* client -- per RFC 5731 that is the registrar
-          // that approved (or was timed out into approving) the transfer, i.e.
-          // the losing one. So acID being us means the domain left us; anything
-          // else means we are the gaining registrar and it came to us. (The
-          // comment here used to claim the opposite of what this code does.)
+          // acID is the *acting* client: per RFC 5731 the registrar that
+          // approved the transfer, i.e. the losing one. So acID being us means
+          // the domain left us; anything else means it came to us
           if ($msg['ac_id'] == $this->client->EPPCfg->username) {
             $transferOut[$msg['domain']] = $msg;
           } else {
@@ -172,13 +166,9 @@ class PollProcessor
     foreach ($transfers as $transfer) {
       $log[] = "verifying '{$transfer['domain']}' (transfer-in)";
 
-      // techc/dns are written serialize()d by POST /v1/domains/{name}/transfer,
-      // so they have to be decoded here -- exactly as GET /v1/domains/transfers
-      // already does (src/Api/Routes/domain.php). Casting the raw column with (array)
-      // instead wraps the serialized blob itself into a one-element array, which
-      // then gets pushed to the registry as a contact handle / nameserver.
-      // The '?: []' guards a corrupt column: unserialize() returns false there,
-      // and this runs unattended from cron, where a foreach warning goes unseen.
+      // techc/dns are stored serialize()d, so casting with (array) instead
+      // would push the blob itself to the registry as a handle. '?: []' guards
+      // a corrupt column, unserialize() returning false where nobody is looking
       $techc = empty($transfer['techc']) ? [] : (unserialize($transfer['techc']) ?: []);
       $dns   = empty($transfer['dns'])   ? [] : (unserialize($transfer['dns'])   ?: []);
 

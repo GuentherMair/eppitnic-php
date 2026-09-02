@@ -9,11 +9,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The one thing in the self-test that must never be wrong.
- *
- * Everything else it does is disposable by design. This is what keeps it that
- * way: the run registers, alters and deletes real objects, and against
- * production those are somebody's domains and somebody's invoice.
+ * The one thing in the self-test that must never be wrong. Everything else it
+ * does is disposable by design, and this is what keeps it so: the run deletes
+ * real objects, which against production are somebody's domains.
  */
 final class SelftestGuardTest extends TestCase
 {

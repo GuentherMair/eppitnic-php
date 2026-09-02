@@ -7,12 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\DomainService;
 
 /**
- * Register domains, or request a transfer for any already held elsewhere.
- *
- * Which of the two happens is the registry's answer, not the caller's choice:
- * the domain is checked first, and a name somebody else holds becomes a
- * transfer request rather than an error. Shares that decision with
- * POST /v1/domains through DomainService.
+ * Register domains, or request a transfer for any held elsewhere -- the
+ * registry's answer decides, not the caller: a name somebody else holds becomes
+ * a transfer request rather than an error. Shared with POST /v1/domains.
  */
 final class DomainCreateCommand extends Command
 {
@@ -82,12 +79,9 @@ final class DomainCreateCommand extends Command
     }
 
     /**
-     * One parameter set per domain.
-     *
-     * A --file may carry bare names, which take the contacts and nameservers
-     * from the options, or ';'-separated rows giving their own -- the two
-     * own -- a bulk registration with per-domain nameservers has no other
-     * reasonable shape.
+     * One parameter set per domain. A --file may carry bare names, taking their
+     * contacts and nameservers from the options, or ';'-separated rows giving
+     * their own -- a bulk registration has no other reasonable shape.
      *
      * @return array<int, array<string, mixed>>
      */

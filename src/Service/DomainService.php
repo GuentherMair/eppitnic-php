@@ -10,15 +10,9 @@ use Eppitnic\Persistence\History;
 use RedBeanPHP\R;
 
 /**
- * Domain operations that are more than one registry command, and that both the
- * REST API and the CLI need.
- *
- * These lived as closures inside route handlers, with the CLI scripts carrying
- * their own copy of the same sequence -- and the copies had already drifted.
- * Everything here takes an established session and returns data; deciding what
- * a caller is allowed to do, and how to report it, stays with the caller,
- * because a route answers that with an HTTP status and a command with an exit
- * code.
+ * Domain operations taking more than one registry command, needed by the API
+ * and the CLI alike -- previously a closure in each, already drifted. All take
+ * a session and return data; reporting stays with the caller.
  *
  * @category    Net
  * @package     Eppitnic\Service\DomainService
@@ -28,12 +22,9 @@ use RedBeanPHP\R;
 final class DomainService
 {
     /**
-     * Register a domain, or request a transfer of it if somebody already has it.
-     *
-     * The choice is the registry's to make, not the caller's: a <check> decides
-     * which of the two commands is even possible, so asking for "create" on a
-     * taken domain is answered by requesting its transfer rather than by an
-     * error. That is what makes one entry point right for both.
+     * Register a domain, or request its transfer if somebody already has it.
+     * The registry chooses, not the caller: a <check> decides which command is
+     * possible, so "create" on a taken domain requests a transfer instead.
      *
      * @param Client $nic a logged-in client
      * @param array $params domain, registrant, and optionally admin, tech[], ns[], authinfo
@@ -101,10 +92,9 @@ final class DomainService
         $results = [];
 
         foreach ($names as $name) {
-            // Each step reports its own outcome, and a step that was never
-            // reached says 'skipped' rather than sharing a value with one that
-            // ran and failed -- so the first non-'skipped' failure is where it
-            // stopped, and why.
+            // A step never reached says 'skipped' rather than sharing a value
+            // with one that ran and failed, so the first non-'skipped' failure
+            // is where it stopped
             $result = [
                 'domain'         => 'skipped',
                 'registrant'     => 'skipped',
@@ -157,21 +147,9 @@ final class DomainService
     }
 
     /**
-     * Move a domain to another local user, giving them their own copies of the
-     * contacts it hangs off.
-     *
-     * The two notions of ownership in this schema have to move together:
-     * `domains`.`user_id` says who owns the domain, and the registrant
-     * contact's own `user_id` says who owns the contact. Reassigning only the
-     * first is what lets them drift apart -- which `doctor ownership` then
-     * reports. So the registrant (and the admin contact, if set) are
-     * duplicated under the new owner rather than shared, and the domain is
-     * pointed at the copies.
-     *
-     * Multi-step and not atomic: the contacts are created at the registry
-     * before the domain is changed to use them, so a failure part-way leaves
-     * the new contacts existing but unused. That is recoverable -- rerunning
-     * makes another copy -- where the reverse order would not be.
+     * Move a domain to another local user with its own copies of the contacts:
+     * both ownerships must move together. Not atomic -- the contacts exist
+     * before the domain points at them, so a failure leaves them unused.
      *
      * @param Client $nic a logged-in client
      * @param string $name the domain to move

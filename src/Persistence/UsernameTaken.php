@@ -3,10 +3,9 @@
 namespace Eppitnic\Persistence;
 
 /**
- * $username is already in use. A distinct type rather than a message match,
- * so a caller (UserCreateCommand, Setup\Installer) can catch it precisely and
- * decide its own response -- a CLI exit code, an HTTP 400 -- without parsing
- * text.
+ * $username is already in use. Its own type rather than a message match, so a
+ * caller can decide its own response -- a CLI exit code, an HTTP 400 --
+ * without parsing text.
  *
  * @category    Net
  * @package     Eppitnic\Persistence\UsernameTaken

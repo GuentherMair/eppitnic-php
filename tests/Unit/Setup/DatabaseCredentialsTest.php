@@ -49,10 +49,9 @@ final class DatabaseCredentialsTest extends TestCase
     }
 
     public static function missingFieldProvider(): array {
-        // db_type/db_host/db_charset can never come out empty from
-        // fromArray() -- an empty string there falls back to that field's
-        // default, same as omitting it entirely (see fromArray()'s `?:`).
-        // Only db_name and db_user have no such fallback.
+        // db_type/db_host/db_charset can never come out empty: an empty string
+        // falls back to the field's default, same as omitting it. Only
+        // db_name and db_user have no such fallback
         return [
             'db_name missing' => [['db_user' => 'x'], 'db_name'],
             'db_user missing' => [['db_name' => 'x'], 'db_user'],

@@ -7,11 +7,9 @@ use Eppitnic\Setup\DatabaseCredentials;
 use PHPUnit\Framework\TestCase;
 
 /**
- * config/config.php is never actually touched here -- every test points
- * ConfigFile at a throwaway path via usePath(), which is the whole reason
- * that seam exists: this checkout has a real config/config.php holding real
- * credentials, and there is no other way to exercise the "file missing" or
- * "file written" branches without it.
+ * config/config.php is never touched here -- every test points ConfigFile at a
+ * throwaway path, which is why that seam exists: this checkout has a real one
+ * holding real credentials, leaving no other way to reach those branches.
  */
 final class ConfigFileTest extends TestCase
 {

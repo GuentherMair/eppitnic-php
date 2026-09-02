@@ -7,11 +7,9 @@ use Eppitnic\Selftest\ContactFactory;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * The contacts a self-test run creates have to be ones nic.it will accept.
- *
- * Their details are invented, but the registry validates the extcon registrant
- * block against rules that are not in any schema, so "plausible" is not enough
- * -- a self-test that cannot get past `contact create` tests nothing at all.
+ * The contacts a self-test run creates have to be ones nic.it will accept. The
+ * registry validates the extcon registrant block against rules in no schema, so
+ * invented details are not enough -- one refused at create tests nothing.
  */
 final class SelftestContactFactoryTest extends EppTestCase
 {
@@ -27,11 +25,9 @@ final class SelftestContactFactoryTest extends EppTestCase
     // ---------------------------------------------------------------
 
     /**
-     * The rule this exists for. nic.it refuses a company registrant that
-     * withholds consent to publication -- 2308, extended reason 8028,
-     * "consentForPublishing cannot be set to false if entity type != 1 and
-     * entity type != 3" -- because anyone other than a natural person or a
-     * freelancer is published by law.
+     * The rule this exists for: nic.it refuses a company registrant that
+     * withholds consent to publication (2308 / 8028), anyone but a natural
+     * person or a freelancer being published by law.
      */
     public function testACompanyRegistrantConsentsToPublication(): void {
         $contact = $this->filled(true);
@@ -80,9 +76,8 @@ final class SelftestContactFactoryTest extends EppTestCase
     // ---------------------------------------------------------------
 
     /**
-     * nic.it verifies the checksum and answers 2004 / 8027, "invalid reg
-     * code", for one that does not add up. The placeholder this used --
-     * 01234567890, which appears throughout the fixtures -- does not: its
+     * nic.it verifies the checksum and answers 2004 / 8027 for one that does not
+     * add up -- which the placeholder this used, 01234567890, does not: its
      * check digit should be 7.
      */
     public function testTheRegistrationCodeChecksumIsRight(): void {

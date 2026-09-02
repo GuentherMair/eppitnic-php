@@ -9,20 +9,9 @@ use Eppitnic\Service\RegistryPasswordChange;
 use Eppitnic\Support\Validate;
 
 /**
- * Change the shared EPP registry password, or -- with --force -- adopt one
- * already valid at the registry without changing it there.
- *
- * The one `epp` field that can't be a plain local write like `config
- * epp-set`'s: a mistyped `interface` fails the next EPP call with a clear
- * error, but a password this installation disagrees with the registry about
- * breaks every one of them. So this never writes a password it has not
- * itself verified against the registry first -- via RegistryPasswordChange,
- * the same machinery `poll process`'s automatic rotation and `doctor
- * epp-password`'s recovery already use.
- *
- * Cannot go through withSession(): the change (or the verification, for
- * --force) is carried by the EPP <login> command itself, so it has to *be*
- * the login, not something done inside a session already logged in.
+ * Change the shared EPP registry password, or with --force adopt one already
+ * valid there. Never a plain local write -- a password the registry disagrees
+ * with breaks every call -- and never through withSession(): it *is* the login.
  */
 final class ConfigEppPasswordCommand extends Command
 {
@@ -35,10 +24,9 @@ final class ConfigEppPasswordCommand extends Command
     }
 
     public function options(): array {
-        // not self::MUTATING_OPTIONS verbatim -- its --dry-run wording
-        // promises the real EPP XML domain/contact commands print; this
-        // never opens a session through withSession(), so it can only
-        // describe what it would do, not show the actual <login>
+        // not MUTATING_OPTIONS: its --dry-run promises the EPP XML other
+        // commands print, and this never opens a session, so it can only
+        // describe what it would do
         return [
             'force'   => 'do not change the password at the registry -- verify the given value is already ' .
                 'accepted there, and adopt it locally as-is',

@@ -47,17 +47,9 @@ final class ContactCreateCommand extends Command
     ];
 
     /**
-     * Extra format/value hints for fields whose plain name isn't enough on
-     * its own, keyed by option name. Source: nic.it's own technical
-     * guidelines (Linee Guida Tecniche Sincrone -- the extcon:entityType
-     * table, and the phone-number/province validation rules), not this
-     * codebase's own choice, so a code change here would be the registry
-     * changing the rule, not a preference.
-     *
-     * A method rather than a const: the entitytype entry is built with
-     * str_repeat() to align its continuation lines under usage()'s
-     * description column (25 characters in, from its "  %-22s %s" format),
-     * which a class constant's compile-time expression cannot call.
+     * Format hints for fields whose name is not enough, from nic.it's technical
+     * guidelines rather than a preference here. A method, not a const:
+     * entitytype's lines are aligned with str_repeat().
      */
     private static function hints(): array {
         $pad = str_repeat(' ', 25);

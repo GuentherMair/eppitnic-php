@@ -13,13 +13,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * The password rule holds wherever a password is set, and nowhere else.
- *
- * Three routes write to `users`.`password` and none of them used to look at
- * what they were given. The distinction that matters here is between *setting*
- * a password and *checking* one: applying the rule to POST /v1/users/authenticate
- * would lock out every account whose password predates it, which is exactly
- * the mistake this file exists to keep from coming back.
+ * The password rule holds wherever a password is set, and nowhere else. *Setting*
+ * is not *checking*: applying it to authenticate would lock out every account
+ * whose password predates the rule.
  */
 final class PasswordPolicyRoutesTest extends TestCase
 {
@@ -148,10 +144,9 @@ final class PasswordPolicyRoutesTest extends TestCase
     // ---------------------------------------------------------------
 
     /**
-     * The regression this file exists for. An account created before the rule
-     * still has to be able to log in -- judging the password at the door would
-     * lock out everybody at once, and with a message telling them exactly what
-     * their password looks like.
+     * The regression this file exists for: an account created before the rule
+     * still has to log in. Judging the password at the door locks everybody out
+     * at once, with a message describing their own password back to them.
      */
     public function testAnExistingWeakPasswordCanStillLogIn(): void {
         $app = $this->app();

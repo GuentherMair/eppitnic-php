@@ -8,19 +8,12 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
 /**
- * The audit trail, newest first, filtered by whatever the caller asks for.
+ * The audit trail, newest first, scoped by History::visibleTo(); filters narrow
+ * and never widen, so `object=security` as a non-admin returns nothing, not 403.
+ * Admins also get `outstanding`, for badging.
  *
- * What comes back is scoped to what the caller may see -- an admin sees
- * everything, everyone else sees the history of the objects they own. See
- * History::visibleTo(). Filters narrow that; they never widen it, so asking
- * for `object=security` as a non-admin returns nothing rather than 403: the
- * answer to "what security events are there" is, for them, none.
- *
- * Filters: object, object_id, action, network, acknowledged (0/1), since,
- * until, limit (max 500), offset.
- *
- * `outstanding` accompanies an admin's response: how many `security` entries
- * nobody has acknowledged, so a UI can badge them without a second request.
+ * Filters: object, object_id, action, network, acknowledged, since, until,
+ * limit (max 500), offset.
  */
 $app->get('/v1/history', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
@@ -39,15 +32,9 @@ $app->get('/v1/history', function (Request $request, Response $response, array $
 });
 
 /**
- * Mark one entry as reviewed.
- *
- * Records who and when rather than setting a flag: an entry that was dismissed
- * is worth being able to ask about later, and "somebody decided this was fine"
- * is not an answer.
- *
- * Acknowledging is not undoing -- the entry stays exactly as it was, and this
- * only says it has been read. Re-acknowledging an entry re-stamps it, which is
- * the honest thing: the last person to look at it is the one on record.
+ * Mark one entry as reviewed, recording who and when rather than a flag --
+ * "somebody decided this was fine" is not an answer. Not an undo, and
+ * re-acknowledging re-stamps it, so the last reader is the one on record.
  */
 $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response $response, array $args): Response {
     $user_id = Auth::requireAdmin($request);
@@ -70,12 +57,9 @@ $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response 
 });
 
 /**
- * What happened to one object -- the shorthand for the two filters people ask
- * for together most often.
- *
- * Scoped exactly as the listing is. It used to answer for any object anybody
- * named, which meant any valid token could read every user's history, and a
- * `users` snapshot carries an email address and an admin flag.
+ * What happened to one object, scoped exactly as the listing is. It used to
+ * answer for any object named, so any token could read every user's history --
+ * and a `users` snapshot carries an email address and an admin flag.
  */
 $app->get('/v1/history/{object}/{object_id}', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);

@@ -8,26 +8,11 @@ use Eppitnic\Service\PollProcessor;
 use Eppitnic\Service\RegistryPasswordChange;
 
 /**
- * The scheduled registry run: drain the poll queue, reconcile transfer state
- * against it, then act on any password reminder it turned up.
- *
- * None of this can wait for a user to open the API -- it has to happen on a
- * schedule regardless of whether anyone is looking. Suggested crontab entry,
- * every five minutes:
+ * The scheduled run: drain the poll queue, reconcile transfers, then act on a
+ * password reminder -- one verb because the reconcile reads what the drain
+ * stored and the rotation's fresh <login> invalidates their session. Never asks.
  *
  *   0-59/5 * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
- *
- * The three steps are one verb rather than three because their order is not
- * incidental. The reconcile reads what the drain stored, and the rotation must
- * come last and outside the session the first two share: EPP carries a new
- * password in the <login> command itself, so rotating means logging in again,
- * which invalidates the credential the earlier steps were using. A crontab
- * built from three separate verbs would put that ordering in the operator's
- * hands, where it is one edit away from being wrong.
- *
- * Unlike `poll drain`, this does not ask before acknowledging messages. It is
- * the scheduled job: there is nobody at the other end to ask, and refusing to
- * run unattended would defeat the point.
  */
 final class PollProcessCommand extends Command
 {

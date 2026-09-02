@@ -3,17 +3,9 @@
 namespace Eppitnic\Epp;
 
 /**
- * What the registry said about the availability of one or more objects.
- *
- * `check()` used to return `array|bool|int`: an array for several names, a
- * bool for one, and `-1` or `-2` for "the question was never answered" -- the
- * registry refused the command, or it was never sent. Every caller therefore
- * carried the sentinel table in its head, and one of them got it wrong:
- * `doctor inactive-domains` read a failed check as `available === false`, i.e.
- * "the registry still holds this domain", which is precisely the false report
- * that command exists to avoid.
- *
- * The three answers are unavailable, available, and don't know. This says so.
+ * What the registry said about one or more objects: unavailable, available, or
+ * don't know. check() used to return `array|bool|int` with sentinels, and
+ * `doctor inactive-domains` read a failed check as "still held".
  *
  * @category    Net
  * @package     Eppitnic\Epp\CheckResult
@@ -99,9 +91,8 @@ final class CheckResult
     private function entry(?string $name): ?array {
         if ($name === null) {
             // the single-object case: a caller that checked one name should not
-            // have to repeat it to read the answer
-            // not reset(): it takes its argument by reference, which a readonly
-            // property will not give it
+            // repeat it to read the answer. Not reset(), which takes its
+            // argument by reference and a readonly property will not give it
             return count($this->availability) === 1 ? array_values($this->availability)[0] : null;
         }
         return $this->availability[$name] ?? null;

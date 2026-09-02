@@ -11,13 +11,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * Failed logins are recorded, and enough of them from one network stop being
- * answered.
- *
- * The counting happens per network rather than per address, so these drive the
- * endpoint from several addresses inside one allocation and expect them to
- * share a budget -- which is the only version of this that an attacker with an
- * IPv6 /64 cannot walk straight around.
+ * Failed logins are recorded, and enough from one network stop being answered.
+ * Counted per network, so these drive several addresses in one allocation and
+ * expect a shared budget -- what an IPv6 /64 cannot walk around.
  */
 final class LoginRateLimitTest extends TestCase
 {

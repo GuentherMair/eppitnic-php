@@ -7,39 +7,11 @@ use Eppitnic\Config;
 use RedBeanPHP\R;
 
 /**
- * Apply pending DNS-sync events to a PowerDNS authoritative server.
- *
- * `reminder` rows with an `action` are written by the domain routes and by
- * PollProcessor as domains are created, changed and removed. This is the half
- * that acts on them, and it is the one part of the codebase that knows what
- * product is serving the zones -- hence its own verb rather than a switch on
- * some general `dns sync`. An installation running BIND, or nothing, simply
- * never schedules it.
- *
- * PowerDNS is driven through `pdnsutil` invocations, never a direct connection
- * to its backend database, so this works whichever backend PowerDNS itself is
- * configured with. `pdnsutil` must be on the PATH, or named by the
- * `pdnsutil_path` setting, with permission to manage zones -- a deployment
- * concern this cannot arrange for itself.
- *
- * The subcommands used (create-zone, delete-zone, add-record, delete-rrset)
- * are long-standing and documented, but argument shapes have shifted between
- * PowerDNS versions; check them against the target server before relying on
- * this. `--dry-run` prints the exact invocations without running any.
- *
- * Suggested crontab entry, every fifteen minutes:
+ * Apply pending DNS-sync events to PowerDNS through `pdnsutil`, which must be
+ * on the PATH or named by `pdnsutil_path`. create and update share one
+ * idempotent path; a delete waits `--delay-hours`, and archives on success.
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic pdns sync >> /var/log/eppitnic/pdns-sync.log 2>&1
- *
- * create and update share one path: ensure the zone exists, then reconcile its
- * apex NS set to match `domains`.`ns`. That is idempotent and correct whether
- * the zone was there already or not, so the two need no separate handling.
- *
- * A delete waits until the row is `--delay-hours` old (12 by default), a grace
- * period before a zone is torn down. Rows not yet due are left for a later run.
- *
- * Each row that succeeds is archived (`active` = 0). A row that fails stays
- * active, so the next run retries it.
  */
 final class PdnsSyncCommand extends Command
 {
@@ -183,12 +155,9 @@ final class PdnsSyncCommand extends Command
     }
 
     /**
-     * How long ago the row was written, by the database's own clock.
-     *
-     * Both times come from the database rather than one from PHP: `created_time`
-     * is a CURRENT_TIMESTAMP default, so comparing it against PHP's clock would
-     * make the grace period depend on the two agreeing about the timezone.
-     * Their difference does not care.
+     * How long ago the row was written, by the database's own clock at both
+     * ends: `created_time` is a CURRENT_TIMESTAMP default, so comparing it
+     * against PHP's would make the grace period a timezone question.
      *
      * @param array<string, mixed> $row
      * @return float|null null when the row has no timestamp that can be read

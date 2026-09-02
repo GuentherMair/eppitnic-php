@@ -12,14 +12,8 @@ use Eppitnic\Tests\Support\EppTestCase;
 
 /**
  * An uninstalled application answers the same way whichever verb was typed.
- *
- * Most verbs reach the database through Command::withSession(), which turns any
- * RuntimeException into a SessionError so that an unreachable registry reads as
- * one. ConfigMissing extends RuntimeException, so it was being caught there too:
- * `eppitnic poll list` said "Database configuration missing" and exited 4, while
- * `eppitnic domain info` said "Registry session unavailable" and exited 11 --
- * same condition, two answers, and the louder one sent the reader to look at
- * the network.
+ * ConfigMissing extends RuntimeException, so withSession() caught it too and
+ * `domain info` blamed the registry where `poll list` named the real fault.
  */
 final class SetupBootstrapTest extends EppTestCase
 {

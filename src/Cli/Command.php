@@ -10,16 +10,9 @@ use Eppitnic\Service\EppSession;
 use Eppitnic\Setup\ConfigMissing;
 
 /**
- * Base for every `bin/eppitnic` subcommand.
- *
- * Carries the parts every subcommand would otherwise repeat: option parsing, the hello/login/logout dance, reading domain or
- * contact lists from a file or the command line, and the difference between
- * "printed for a human" and "printed for a pipe".
- *
- * A subclass declares what it takes (options(), arguments(), describe()) and
- * implements run(). Anything needing a registry session wraps its work in
- * withSession(), which is EppSession::run() with the CLI's own error
- * reporting and exit codes around it.
+ * Base for every `bin/eppitnic` subcommand: option parsing, name lists, output
+ * modes, and withSession() -- EppSession::run() with the CLI's error reporting
+ * around it. A subclass declares what it takes and implements run().
  *
  * @category    Net
  * @package     Eppitnic\Cli
@@ -47,11 +40,9 @@ abstract class Command
     private ?DryRun $dryRun = null;
 
     /**
-     * How many items of a bulk run did not succeed -- see itemFailed().
-     *
-     * On the base class rather than a local in each run(): fifteen commands
-     * kept this counter, every one of them passing it into the withSession()
-     * closure by reference purely to get it back out again.
+     * How many items of a bulk run failed -- see itemFailed(). Here rather
+     * than a local, which fifteen commands passed into their withSession()
+     * closure by reference purely to get it back out.
      */
     protected int $failures = 0;
 
@@ -89,11 +80,9 @@ abstract class Command
     // ---------------------------------------------------------------
 
     /**
-     * Options every subcommand accepts.
-     *
-     * --dry-run and --yes are not here: they belong to the commands that
-     * change something. Advertising them globally would promise behaviour that
-     * reads do not have. A mutating command declares MUTATING_OPTIONS.
+     * Options every subcommand accepts. --dry-run and --yes are not among
+     * them: advertising those globally would promise behaviour a read does not
+     * have, so a mutating command declares MUTATING_OPTIONS instead.
      */
     public const GLOBAL_OPTIONS = [
         'verbose' => 'include the full EPP request/response in errors, and record every command to the database',
@@ -112,13 +101,9 @@ abstract class Command
     ];
 
     /**
-     * The same, for a command that changes something *locally* and never opens
-     * a registry session -- the `config` verbs.
-     *
-     * Its own const rather than MUTATING_OPTIONS: that one's --dry-run promises
-     * to print the EPP request, which a local settings write has none of. Five
-     * commands each hand-copied this pair for exactly that reason, which is one
-     * wording to keep in step in five places.
+     * The same for a command that only writes locally -- the `config` verbs.
+     * Its own const because MUTATING_OPTIONS's --dry-run promises to print the
+     * EPP request, which a settings write has none of.
      */
     public const LOCAL_MUTATING_OPTIONS = [
         'dry-run' => 'print what would change, without writing it',
@@ -151,12 +136,9 @@ abstract class Command
     }
 
     /**
-     * Long options only, in `--name` and `--name=value` form.
-     *
-     * getopt() is deliberately not used: it reads $argv itself, which makes a
-     * subcommand impossible to test without faking global state, and it cannot
-     * tell an unknown option from a positional argument -- so a typo like
-     * `--ns1` was silently ignored by the old scripts rather than reported.
+     * Long options only, as `--name` and `--name=value`. Not getopt(): it reads
+     * $argv itself, so a subcommand cannot be tested without faking global
+     * state, and it cannot tell a typo like `--ns1` from a positional argument.
      */
     private function parse(array $argv): void {
         $known = array_merge(self::GLOBAL_OPTIONS, $this->options());
@@ -208,12 +190,9 @@ abstract class Command
     }
 
     /**
-     * How results should be printed.
-     *
-     * --json is one document, which suits a command answering about one thing;
-     * --jsonl is one object per line, which stays greppable and streamable for
-     * a dump of thousands. A command may default to something else -- see
-     * DomainExportCommand, which defaults to CSV.
+     * How results should be printed. --json is one document, for a command
+     * answering about one thing; --jsonl is one object per line, greppable and
+     * streamable for thousands. A command may default elsewhere (CSV, export).
      */
     protected function format(): string {
         if ($this->hasOption('json') && $this->hasOption('jsonl')) {
@@ -256,12 +235,9 @@ abstract class Command
     }
 
     /**
-     * Ask before doing something that cannot be undone.
-     *
-     * Answers yes without asking when --yes was given, when the command is
-     * only printing what it would do, or when stdin is not a terminal -- a
-     * cron job has nobody to answer, and blocking there would hang the run
-     * rather than protect anything.
+     * Ask before doing something that cannot be undone. Answers yes without
+     * asking under --yes or --dry-run, and no when stdin is not a terminal --
+     * a cron job has nobody to answer, and blocking there protects nothing.
      *
      * @param string $question stated so that the consequence is visible
      * @return bool whether to proceed
@@ -282,10 +258,8 @@ abstract class Command
     }
 
     /**
-     * Ask for one value, moved here from the old Config::setupConfig() now
-     * that SetupCommand is the only interactive caller left. Kept on Command
-     * rather than local to that one subcommand so any future interactive
-     * command gets it for free instead of re-implementing it.
+     * Ask for one value. On Command rather than in SetupCommand, its only
+     * caller today, so a second interactive command need not re-implement it.
      *
      * @param string $label prompt text
      * @param string $default value used if the user just presses enter
@@ -324,11 +298,9 @@ abstract class Command
     }
 
     /**
-     * Names given as positional arguments, or one per line from --file.
-     *
-     * Both forms were supported by the old scripts through mutually exclusive
-     * -d and -f switches; here a file is just another way of supplying the
-     * same list, and blank lines and # comments are skipped.
+     * Names given as positional arguments, or one per line from --file -- a
+     * file is just another way of supplying the same list. Blank lines and
+     * '#' comments are skipped.
      *
      * @return string[]
      */
@@ -355,11 +327,9 @@ abstract class Command
     // ---------------------------------------------------------------
 
     /**
-     * Ensure the database is connected and migrated.
-     *
-     * Only needed by commands that read or write locally without opening a
-     * registry session: everything else gets the connection as a side effect
-     * of Client's constructor reading its settings.
+     * Ensure the database is connected and migrated. Only commands that work
+     * locally need it: the rest connect as a side effect of Client's
+     * constructor reading its settings.
      */
     protected function database(): void {
         Config::init();
@@ -388,13 +358,9 @@ abstract class Command
         try {
             $result = EppSession::run($fn, $this->isVerbose(), $client);
         } catch (ConfigMissing $e) {
-            // An uninstalled application is not a registry problem, and saying
-            // "Registry session unavailable" sends the reader looking at the
-            // network. It also has to keep its own exit code: this reaches the
-            // session only because Client's constructor is the first thing to
-            // ask for a setting, so the very same condition arrives here on
-            // `domain info` and at bin/eppitnic on `poll list`, and the two
-            // must not answer differently.
+            // Rethrown, not wrapped: an uninstalled application is not a
+            // registry problem, and it must keep its own exit code -- the same
+            // condition reaches bin/eppitnic directly on a local-only verb
             throw $e;
         } catch (\RuntimeException $e) {
             throw new SessionError($e->getMessage(), 0, $e);
@@ -449,11 +415,8 @@ abstract class Command
     }
 
     /**
-     * Something worth saying whatever the output mode -- warnings and errors
-     * go to stderr, so redirecting stdout to a file still shows them.
-     *
-     * Written straight to the stream rather than echoed, precisely so it is
-     * not swallowed by an output buffer along with stdout.
+     * Warnings and errors, on stderr so redirecting stdout still shows them.
+     * Written straight to the stream so an output buffer cannot swallow them.
      */
     protected function warn(string $text): void {
         fwrite($this->errorStream ?? STDERR, $text . "\n");
@@ -469,15 +432,9 @@ abstract class Command
     }
 
     /**
-     * One item of a bulk run did not succeed: say so, and count it.
-     *
-     * Every command that walks a list of names does the same two things on a
-     * failure and then `continue`s, so the caller reads as
-     * `if ( ! $ok) { $this->itemFailed($name, $obj->getError()); continue; }`.
-     *
-     * The empty-error fallback is the fetch case: an object that simply is not
-     * there answers with no error text at all, and "example.it: " on its own
-     * says nothing.
+     * One item of a bulk run failed: say so, and count it. The 'not found'
+     * fallback is the fetch case -- an object that is simply absent answers
+     * with no error text, and "example.it: " alone says nothing.
      *
      * @param string $item the domain, handle or other name being worked on
      * @param string $error what went wrong, from the object's getError()
@@ -497,11 +454,9 @@ abstract class Command
     }
 
     /**
-     * Split a ':'-separated option value into at most six entries.
-     *
-     * Six because that is the registry's own ceiling for both nameservers and
-     * technical contacts -- see domain:hostAttr and domain:contact in
-     * xsd/domain-1.0.xsd.
+     * Split a ':'-separated option value into at most six entries -- the
+     * registry's ceiling for nameservers and technical contacts alike
+     * (domain:hostAttr, domain:contact in xsd/domain-1.0.xsd).
      *
      * @return string[]
      */
@@ -517,11 +472,9 @@ abstract class Command
      * @param array $record the same thing as data
      */
     protected function record(string $text, array $record): void {
-        // A dry run against the registry has not done anything, so it must
-        // not report having done it -- the requests printed at the end are its
-        // entire output. Keyed on a faked session rather than on the option,
-        // because a local-only command may use --dry-run to mean "show me what
-        // you would change", and that output is the whole point of running it.
+        // Keyed on a faked session, not on the option: a local-only command
+        // uses --dry-run to mean "show me what you would change", and that
+        // output is the whole point of running it
         if ($this->dryRun !== null) {
             return;
         }

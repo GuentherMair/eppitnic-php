@@ -10,13 +10,9 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The first direct coverage of Config::connect()/loadConfig() this codebase
- * has had -- everything else reaches Config through loadForTesting(), which
- * bypasses both entirely.
- *
- * Both cases define() bogus DB_* constants, which is process-global and
- * irreversible, so both run in a separate process to avoid leaking those
- * constants into the rest of the suite.
+ * The first direct coverage of Config::connect()/loadConfig(), everything else
+ * reaching Config through loadForTesting(). Each case define()s bogus DB_*
+ * constants, process-global and irreversible, so each runs in its own process.
  */
 final class ConfigTest extends TestCase
 {
@@ -34,11 +30,9 @@ final class ConfigTest extends TestCase
     public function testConnectReachesTheRealConnectionAttemptOncePredefined(): void {
         ConfigFile::usePath(sys_get_temp_dir() . '/eppitnic-configtest-nonexistent-' . bin2hex(random_bytes(4)) . '.php');
 
-        // a bogus PDO driver name, not a missing constant -- proves
-        // loadConfig() got past the "nothing defined" check and connect()
-        // reached the real connection attempt. Deliberately not an
-        // unreachable *host*: PDO's connect timeout for that can run to
-        // several seconds, and "no such driver" fails immediately either way.
+        // a bogus driver name, not a missing constant: proves loadConfig() got
+        // past its check and connect() really tried. Not an unreachable host,
+        // whose PDO timeout runs to seconds for the same outcome
         define('DB_TYPE', 'eppitnic_test_bogus_driver');
         define('DB_HOST', 'localhost');
         define('DB_NAME', 'nonexistent');

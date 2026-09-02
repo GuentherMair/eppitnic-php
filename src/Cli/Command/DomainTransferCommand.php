@@ -100,13 +100,9 @@ final class DomainTransferCommand extends Command
     }
 
     /**
-     * Keep the local `transfers` table in step with what was just asked for.
-     *
-     * A request creates the pending row PollProcessor later acts on; approve
-     * and reject settle somebody else's claim and clear it. Cancel
-     * deliberately does not: it withdraws an outgoing request of our own, and
-     * the row is what records that we wanted the domain -- matching what
-     * POST /v1/domains/{name}/transfer/cancel does.
+     * Keep `transfers` in step: a request creates the pending row PollProcessor
+     * acts on, approve and reject settle someone else's claim and clear it.
+     * Cancel does not -- the row records that we wanted the domain.
      */
     private function recordLocally(string $operation, string $name, string $authinfo, int $userId): void {
         if ($operation === 'request') {

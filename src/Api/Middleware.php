@@ -45,19 +45,9 @@ final class Middleware
             return $handler->handle($request);
         });
 
-        // Add the ErrorMiddleware before the CORS middleware
-        // to ensure error responses contain all CORS headers.
-        //
-        // Slim's own handler renders a full HTML page, which is the wrong
-        // content type for every route in this application, so the default
-        // handler is replaced below with one that answers in JSON.
-        //
-        // Error details are off unless EPPITNIC_DEBUG is set: with them on,
-        // Slim puts the exception message, file, line and full stack trace in
-        // the response body, and an unauthenticated request is enough to get
-        // one. Read from the environment rather than from `settings` on
-        // purpose -- an unreachable database is exactly when this handler runs
-        // and exactly when Config::get() cannot answer.
+        // Before the CORS middleware, so errors carry its headers, with Slim's
+        // HTML handler replaced below by a JSON one. Details need EPPITNIC_DEBUG
+        // -- from the environment, since this runs when the database does not
         $displayErrorDetails = filter_var(getenv('EPPITNIC_DEBUG') ?: 'false', FILTER_VALIDATE_BOOL);
 
         $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
@@ -88,15 +78,9 @@ final class Middleware
         $app->add(function (Request $request, RequestHandler $handler) use ($app): Response {
             $origin = $request->getHeaderLine('Origin');
 
-            // A request without an Origin header is not a browser cross-origin
-            // request: curl, cron jobs and fixed-API-token clients all land here.
-            // CORS is something browsers enforce on top of an Origin, so with
-            // none present there is nothing to police, and an empty
-            // Access-Control-Allow-Origin header would be meaningless anyway.
-            // This used to be expressed by keeping "" in allowed_origins, which
-            // made a security-relevant behaviour hinge on an invisible empty
-            // string -- and broke every scripted client the moment an operator
-            // configured a real origin list over the placeholder.
+            // No Origin means no browser cross-origin request, so nothing to
+            // police. As "" in allowed_origins this hung on an invisible empty
+            // string and broke every scripted client once a real list arrived
             if ($origin === '') {
                 $response = $handler->handle($request);
                 if (ob_get_contents()) {

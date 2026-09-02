@@ -8,27 +8,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use Eppitnic\Tests\Support\RegistrySchemas;
 
 /**
- * A contact built without an explicit authinfo still has one.
- *
- * It did not. Contact's constructor generated one and then called
- * initValues(), which blanks every entry in FIELDS -- and authinfo is one of
- * them -- so every contact created without `--authinfo` went to the registry
- * with an empty `<contact:pw>`. Domain, whose initValues() sets each field by
- * name, was never affected.
- *
- * Note what this is *not*. An empty authinfo is perfectly valid against the
- * registry's own schemas, and nic.it accepted the contacts it was sent -- the
- * tests below pin both facts, because the tempting assumption is the opposite
- * one. `eppcom:pwAuthInfoType` is an unrestricted `normalizedString`; the
- * six-to-sixteen limit people remember belongs to `epp:pwType`, which governs
- * the `<login>` password and nothing else. So this was never a validation
- * failure waiting to happen: it was a credential that authorises a transfer,
- * shipped blank.
- *
- * Which is also why nothing caught it. Schema validation had no complaint, the
- * registry had no complaint, and every wire fixture sets an authinfo
- * explicitly -- exercising only the path that worked. It took a live run
- * printing `authinfo` with nothing after it.
+ * A contact built without an explicit authinfo still has one. It did not:
+ * initValues() blanked every FIELDS entry after the constructor generated one.
+ * Not a validation failure, so nothing caught it: a credential shipped blank.
  */
 final class ContactAuthinfoTest extends EppTestCase
 {
@@ -120,10 +102,9 @@ final class ContactAuthinfoTest extends EppTestCase
     }
 
     /**
-     * And an empty one is valid, which is the fact that makes this defect the
-     * kind only a live run finds. `eppcom:pwAuthInfoType` is an unrestricted
-     * `normalizedString` -- the min-6/max-16 rule is `epp:pwType`, a different
-     * type used for the `<login>` password.
+     * And an empty one is valid, which is what makes this the kind of defect only
+     * a live run finds: `pwAuthInfoType` is unrestricted, the min-6/max-16 rule
+     * belonging to `epp:pwType` and the `<login>` password.
      */
     public function testAnEmptyAuthInfoIsSchemaValid(): void {
         $this->transport->queue(CommandCatalog::OK_RESPONSE);

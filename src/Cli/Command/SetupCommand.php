@@ -9,13 +9,9 @@ use Eppitnic\Setup\DatabaseCredentials;
 use Eppitnic\Setup\Installer;
 
 /**
- * Create config/config.php, install the schema, and create the first admin
- * user -- interactively, or scripted via --db-name= and friends.
- *
- * The one command bin/eppitnic runs before any database exists to talk to,
- * so it never calls $this->database() the way every other command does --
- * Setup\Installer connects for itself, on credentials this command has not
- * committed to yet.
+ * Create config/config.php, install the schema and create the first admin. The
+ * one command that runs before a database exists, so it never calls
+ * $this->database(): Setup\Installer connects on credentials not committed yet.
  *
  * @category    Net
  * @package     Eppitnic\Cli\Command\SetupCommand

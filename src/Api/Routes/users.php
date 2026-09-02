@@ -159,9 +159,8 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     }
 
     // 400, not 401: the password was supplied, it is simply not good enough.
-    // Checked before the authorization test below only because that test is
-    // about *whose* password this is, and a caller changing their own still
-    // has to meet the rule.
+    // Before the authorization test, which is about *whose* password this is --
+    // a caller changing their own still has to meet the rule
     if ( ! PasswordPolicy::isAcceptable($password)) {
         return Json::response($response, ['error' => PasswordPolicy::explain($password)], 400);
     }
@@ -197,10 +196,9 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     $user_id = Auth::requireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
-    // load the row first: an unknown id is a 404 rather than a silent no-op, and
-    // every field the caller omits falls back to its current value instead of
-    // being overwritten with NULL (same spirit as password, which has always
-    // been omit-to-leave-unchanged here)
+    // load the row first: an unknown id is a 404 rather than a silent no-op,
+    // and an omitted field falls back to its current value instead of NULL --
+    // as password has always done here
     $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $args['id']]);
     if (empty($current)) {
         return Json::response($response, ['error' => 'User not found'], 404);

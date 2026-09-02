@@ -7,11 +7,9 @@ use Eppitnic\Config;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Base for tests that need a Client without a database or a network.
- *
- * The settings below are fixed values, not a copy of anyone's configuration:
- * a test that generates a different clTRID prefix or talks to a different
- * server every time cannot assert on the bytes it produced.
+ * Base for tests that need a Client without a database or a network. The
+ * settings below are fixed, not a copy of anyone's configuration: a test whose
+ * clTRID prefix varies per run cannot assert on the bytes it produced.
  */
 abstract class EppTestCase extends TestCase
 {
@@ -49,10 +47,9 @@ abstract class EppTestCase extends TestCase
         $this->transport = new FakeTransport();
         $this->nic->setTransport($this->transport);
 
-        // clTRID embeds time() and a random suffix, so it differs on every run.
-        // Fixture comparison normalizes it away (see normalize()) rather than
-        // freezing it: the generator's job is to place the element correctly,
-        // not to invent a specific id.
+        // clTRID embeds time() and a random suffix, so normalize() strips it
+        // rather than freezing it: the generator's job is to place the element
+        // correctly, not to invent a specific id
     }
 
     protected function tearDown(): void {
@@ -61,10 +58,9 @@ abstract class EppTestCase extends TestCase
     }
 
     /**
-     * Make a generated request comparable across runs: strip the volatile
-     * clTRID content and normalize insignificant whitespace, so the assertion
-     * is about element structure and values rather than the formatting a
-     * particular generator happens to emit.
+     * Make a generated request comparable across runs: strip the volatile clTRID
+     * and normalize whitespace, so the assertion is about structure and values
+     * rather than one generator's formatting.
      *
      * @param string $xml the raw request body
      * @return string a canonical form suitable for string comparison

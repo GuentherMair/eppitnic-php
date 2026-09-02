@@ -6,24 +6,9 @@ use Eppitnic\Config;
 use RedBeanPHP\R;
 
 /**
- * How many failed logins one network may make before it is turned away.
- *
- * Counted from the `history` table's own `security` rows rather than a counter
- * of its own: the failures have to be recorded anyway, and a second store
- * would be a second thing to keep in step with the first. It also means the
- * evidence behind a block is the same rows an operator reads to understand it.
- *
- * Counted per *network*, not per address -- see ClientIp::network(). A limit on
- * single addresses stops nobody who has a /64, which is what an ordinary IPv6
- * customer connection is.
- *
- * The window slides: it asks how many failures the network has produced in the
- * last `timespan` seconds, so a blocked network is let back in as the old
- * failures age out, with no lock to clear and nothing to expire on a schedule.
- *
- * A successful login does not reset the count. It would let anyone holding one
- * working account clear the evidence for the whole network before continuing to
- * guess at the others.
+ * How many failed logins one network may make, counted from `history`'s
+ * `security` rows. Per network, since a per-address limit stops nobody with a
+ * /64. A successful login does not reset it, which would wipe the evidence.
  *
  * @category    Net
  * @package     Eppitnic\Api\LoginRateLimit
@@ -135,11 +120,9 @@ final class LoginRateLimit
     }
 
     /**
-     * The start of the window, on the database's clock.
-     *
-     * Computed here rather than as `NOW() - INTERVAL n SECOND` so the query is
-     * the same statement on any engine, and read from the database rather than
-     * PHP so it cannot drift from the timestamps it is compared against.
+     * The start of the window, on the database's clock: not `NOW() - INTERVAL`,
+     * so the query is one statement on any engine, and not PHP's, so it cannot
+     * drift from the timestamps it is compared against.
      */
     private static function cutoff(int $timespan): string {
         return date('Y-m-d H:i:s', strtotime(self::databaseNow()) - $timespan);

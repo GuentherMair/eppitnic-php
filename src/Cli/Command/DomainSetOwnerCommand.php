@@ -7,16 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\DomainService;
 
 /**
- * Move domains to another local user.
- *
- * Not just a `domains`.`user_id` update: the registrant and admin contacts are
- * duplicated under the new owner and the domain repointed at the copies, so
- * that the domain's owner and its registrant's owner stay in step. Changing
- * only the column is what makes them drift, which is what `doctor ownership`
- * reports.
- *
- * Shares the whole sequence with POST /v1/domains/{name}/owner through
- * DomainService.
+ * Move domains to another local user. Not just a `domains`.`user_id` update:
+ * the registrant and admin contacts are copied under the new owner and the
+ * domain repointed, or the two ownerships drift. Shared with the owner route.
  */
 final class DomainSetOwnerCommand extends Command
 {
@@ -49,11 +42,9 @@ final class DomainSetOwnerCommand extends Command
             throw new UsageError('--new-owner must be a local user id');
         }
 
-        // Unlike create or transfer, what this sends is built from data only
-        // the registry has: the contacts it duplicates are copies of records a
-        // dry run cannot read. A preview would show the right shape with
-        // invented contents, which is worse than declining -- checked before
-        // the prompt, so nobody is asked to confirm something that will not run.
+        // What this sends is built from records only the registry has, so a
+        // preview would show the right shape with invented contents. Checked
+        // before the prompt, so nobody confirms something that will not run
         if ($this->isDryRun()) {
             throw new UsageError(
                 '--dry-run does not apply to set-owner: the contacts it creates are copies of'

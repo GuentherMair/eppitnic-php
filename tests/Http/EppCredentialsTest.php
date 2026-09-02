@@ -14,12 +14,8 @@ use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
  * GET /v1/session/epp/credentials returns the shared registry password, which
- * makes its authorization the whole feature rather than a detail of it.
- *
- * The password is rotated automatically, so after a run of `poll process` this
- * is the only way short of a SQL client to learn the current credential --
- * which is exactly why the guard on it has to be exercised rather than
- * assumed.
+ * makes its authorization the whole feature. Rotation is automatic, so this is
+ * the only way short of a SQL client to learn the current credential.
  */
 final class EppCredentialsTest extends TestCase
 {
@@ -151,10 +147,9 @@ final class EppCredentialsTest extends TestCase
     }
 
     /**
-     * A rotation that did not finish leaves two candidate passwords, and which
-     * one the registry holds is a question only the registry can answer. Both
-     * are returned, because withholding either leaves the operator locked out
-     * in the one case where they most need to get in.
+     * A rotation that did not finish leaves two candidates, and only the
+     * registry knows which it holds. Both are returned: withholding either locks
+     * the operator out in the one case where they most need in.
      */
     public function testAnUnfinishedRotationReturnsBothPasswords(): void {
         $app = $this->app(['pendingPassword' => 'the-candidate']);
@@ -220,10 +215,9 @@ final class EppCredentialsTest extends TestCase
     }
 
     /**
-     * The Authorization header is a live bearer token. Writing it here would
-     * put a working credential in a table read casually by more people than
-     * the password was shown to, and anyone with SELECT could then act as
-     * whoever was logged.
+     * The Authorization header is a live bearer token: writing it here puts a
+     * working credential in a table read more casually than the thing it is
+     * about, and anyone with SELECT could act as whoever was logged.
      *
      * @param string $header a header whose value is itself a credential
      */

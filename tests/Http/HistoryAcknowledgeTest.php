@@ -193,10 +193,9 @@ final class HistoryAcknowledgeTest extends TestCase
     // ---------------------------------------------------------------
 
     /**
-     * A non-admin asking for security events is answered, and told about none
-     * of them. Filters narrow what the caller may see; they never widen it, so
-     * this is an empty list rather than a 403 -- the honest answer to "what
-     * security events are there" is, for them, none.
+     * A non-admin asking for security events is answered, and told of none.
+     * Filters narrow and never widen, so this is an empty list rather than a
+     * 403 -- for them, none is the honest answer.
      */
     public function testANonAdminSeesNoSecurityEntries(): void {
         $app = $this->app();

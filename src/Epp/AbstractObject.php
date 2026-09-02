@@ -54,14 +54,9 @@ abstract class AbstractObject
   protected $client;
 
   /**
-   * Diagnostics for this object: include the full EPP request and response in
-   * getError(), and persist every command to `transactions`/`responses`.
-   *
-   * Off by default. Note what it costs when on: a row per command, holding the
-   * raw XML -- registrant names, addresses and authinfo codes included.
-   *
-   * Set per user by the `users`.`debug` column, carried here from the Client
-   * the object was constructed with (see Client::$debug).
+   * Diagnostics: the full request and response in getError(), and a row per
+   * command in `transactions`/`responses` -- raw XML, registrant names and
+   * authinfo included. Set per user by `users`.`debug`, via Client::$debug.
    */
   public bool $debug = false;
 
@@ -166,22 +161,9 @@ abstract class AbstractObject
   }
 
   /**
-   * authinfo generator
-   *
-   * An authinfo code is the credential that authorises a domain transfer away
-   * from this registrar, so it needs to be unguessable -- and it is the one
-   * credential here that a person copies off a screen and reads to somebody
-   * else, so it also needs to survive that.
-   *
-   * PasswordGenerator answers both: 16 characters drawn from a set with no
-   * l/I or O/0 to confuse and nothing a shell would eat. Those 16 characters
-   * carry about 95 bits, where the hex this used to return spent the same 16
-   * on 64.
-   *
-   * 16 by choice, not by rule. An authinfo is `eppcom:pwAuthInfoType`, an
-   * unrestricted normalizedString -- the min-6/max-16 `pwType` limit applies
-   * to the <login> password, not to this. Matching that ceiling anyway keeps
-   * one length for every credential the registry is sent.
+   * authinfo generator -- the credential authorising a transfer away, and the
+   * one here a person reads aloud, so PasswordGenerator's safe set. 16 by
+   * choice, not by rule: pwAuthInfoType is unrestricted.
    *
    * @return string 16-character random authinfo code
    */
@@ -237,14 +219,9 @@ abstract class AbstractObject
   }
 
   /**
-   * The object-specific part of a response, if the answer actually carries one.
-   *
-   * Every parser needs the same three things to be true before it can read a
-   * <resData>: the document parsed, it has a <resData>, and the namespace the
-   * caller is asking about is declared in it. Chaining into it without
-   * checking is what produced six separate faults in this codebase, because
-   * SimpleXML answers each missing step with an empty element rather than
-   * null, so the failure only surfaces as warnings much further down.
+   * The object-specific part of a response, if there is one. Three things must
+   * hold first -- parsed, has <resData>, declares the namespace -- and SimpleXML
+   * answers each missing step with an empty element, not null.
    *
    * @param string $prefix the namespace prefix wanted, e.g. 'domain'
    * @return \SimpleXMLElement|null the children in that namespace, or null
@@ -284,15 +261,9 @@ abstract class AbstractObject
   }
 
   /**
-   * Ask the registry which of $names are available.
-   *
-   * Contact and Domain ran the same thirty-odd lines for this: normalise the
-   * argument to a non-empty list, cap it at max_check, send the check, and
-   * read <chkData><cd> back into handle/name => [available, reason]. Only six
-   * values ever differed, and they are the parameters below. Keeping the two
-   * apart cost more than the parameters do -- the same class of bug had to be
-   * found and fixed twice, once in each (an argument cast to array before the
-   * emptiness test, so the test could never fire).
+   * Ask the registry which of $names are available. Contact and Domain ran the
+   * same thirty-odd lines for this, differing only in the six values below --
+   * and had the same bug found and fixed once in each.
    *
    * @param array|string|null $names what to check; null falls back to $fallback
    * @param string $fallback this object's own identity, for the no-argument call
@@ -356,12 +327,9 @@ abstract class AbstractObject
   }
 
   /**
-   * Validate a status change and apply it to $this->status.
-   *
-   * The half of updateStatus() that never differed between Contact and Domain:
-   * only the set of states each accepts does, and that is the parameter. The
-   * object's own identity check and the XML it then sends stay with the
-   * caller, which is where they actually differ.
+   * Validate a status change and apply it to $this->status -- the half of
+   * updateStatus() that never differed between Contact and Domain. The identity
+   * check and the XML stay with the caller, where they do differ.
    *
    * @param string[] $allowed the states this object type accepts
    * @param string $state the state to add or remove
@@ -415,10 +383,9 @@ abstract class AbstractObject
     $this->result = $this->client->sendRequest($this->xmlQuery);
     $this->xmlResult = $this->client->parseResponse($this->result->body);
 
-    // An unparseable answer must not reach the object parsers. SimpleXML
-    // answers a missing child with an empty element, so without this every
-    // one of them walks a chain of nothing and reports warnings and nulls
-    // instead of a failure.
+    // An unparseable answer must not reach the object parsers: SimpleXML
+    // answers a missing child with an empty element, so each would walk a chain
+    // of nothing and report warnings instead of a failure
     if ( ! $this->xmlResult instanceof \SimpleXMLElement) {
       $this->setError("The registry's answer could not be parsed as XML.");
       $this->storeResponse();

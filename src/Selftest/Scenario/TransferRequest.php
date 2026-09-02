@@ -7,17 +7,9 @@ use Eppitnic\Selftest\Run;
 use Eppitnic\Selftest\Scenario;
 
 /**
- * Claim a domain somebody else holds.
- *
- * Stands apart from the other scenarios, and is never part of a default run,
- * because it needs something this code cannot make for itself: a domain held
- * by another registrar, and the authinfo code its current holder issued. Both
- * have to be supplied.
- *
- * It also cannot clean up after itself. A requested transfer is not undone by
- * deleting anything -- it is withdrawn with `eppitnic domain transfer cancel`,
- * or it is left to be approved or to lapse. So this scenario stops after
- * confirming the request was registered, and says what to do about it.
+ * Claim a domain somebody else holds. Never part of a default run: it needs
+ * another registrar's domain and that holder's authinfo, and cannot clean up --
+ * a request is withdrawn with `domain transfer cancel`, not deleted.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Scenario\TransferRequest

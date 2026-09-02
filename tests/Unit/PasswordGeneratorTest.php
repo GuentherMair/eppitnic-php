@@ -6,11 +6,9 @@ use Eppitnic\Support\PasswordGenerator;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Generated credentials.
- *
- * A generator is hard to test directly -- the output is meant to be
- * unpredictable -- so these assert the properties that hold for every draw,
- * over enough draws that a systematic fault shows up.
+ * Generated credentials. A generator is hard to test directly, the output being
+ * meant to be unpredictable, so these assert the properties that hold for every
+ * draw, over enough draws that a systematic fault shows up.
  */
 final class PasswordGeneratorTest extends TestCase
 {

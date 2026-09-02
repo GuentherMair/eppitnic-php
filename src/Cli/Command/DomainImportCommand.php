@@ -8,10 +8,8 @@ use Eppitnic\Service\DomainService;
 
 /**
  * Copy domains the registry already holds into the local database.
- *
- * Reconciliation, not registration: nothing is created at the registry, and a
- * name the registry does not have is deactivated locally. Shares its steps
- * with POST /v1/domains/import through DomainService.
+ * Reconciliation, not registration: nothing is created there, and a name it does
+ * not have is deactivated locally. Shared with POST /v1/domains/import.
  */
 final class DomainImportCommand extends Command
 {

@@ -3,31 +3,9 @@
 namespace Eppitnic\Support;
 
 /**
- * Generates passwords from a mixed character set.
- *
- * Generation only, and no dependencies of its own -- which is why it sits in
- * Support rather than Service: the protocol layer needs it for authinfo codes
- * and clTRIDs, and a Service the Epp layer depends on would point the wrong
- * way. Setting the registry's password is RegistryPasswordChange.
- *
- * The registry credential used to be `bin2hex(random_bytes(8))`. That is a
- * perfectly good 64 bits, but it spends 16 characters saying it -- hex carries
- * 4 bits per character where the sets below carry close to 6, and EPP caps
- * this kind of credential at 16 characters (`pwType`, min 6, max 16), so those
- * characters are the scarce thing. The same 16 characters drawn from
- * SAFE_CHARSET carry about 95 bits.
- *
- * Characters are drawn with random_int(), the CSPRNG: the obvious
- * `$charset[rand() % strlen($charset)]` fails twice over -- rand() is not
- * cryptographically secure, and the modulo favours the characters at the start
- * of the set whenever the set length does not divide the generator's range.
- *
- * A candidate that does not meet the required character classes is discarded
- * and another drawn, rather than being patched up by forcing a character of
- * each class into a fixed position and shuffling. Rejection sampling keeps the
- * result uniform across the passwords that satisfy the rules; patching does
- * not, and the bias it introduces is in exactly the place an attacker would
- * look.
+ * Generates passwords from a mixed character set. In Support, not Service: the
+ * Epp layer needs it for authinfo and clTRIDs. EPP caps these at 16 characters,
+ * so SAFE_CHARSET carries ~95 bits there where hex carried 64.
  *
  * @category    Net
  * @package     Eppitnic\Support\PasswordGenerator
@@ -47,10 +25,8 @@ final class PasswordGenerator
     public const SAFE_CHARSET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ123456789@#_-';
 
     /**
-     * Enough attempts that a legitimate run never reaches the limit -- with
-     * the constructor's checks passed, the odds of needing even ten are
-     * negligible -- and few enough that a mistake surfaces as an exception
-     * rather than a process that never returns.
+     * High enough that a legitimate run never reaches it, low enough that a
+     * mistake raises an exception instead of never returning.
      */
     private const MAX_ATTEMPTS = 1000;
 
@@ -132,53 +108,32 @@ final class PasswordGenerator
     }
 
     /**
-     * A domain's authinfo: the credential that authorises a transfer away from
-     * this registrar.
-     *
-     * The one credential here that a person actually copies out and passes on,
-     * which is what the safe set is for.
-     *
-     * Drawn to the same 16 characters as the registry password, though nothing
-     * requires it to be: an authinfo is `eppcom:pwAuthInfoType`, an
-     * unrestricted normalizedString. `pwType`'s min 6 / max 16 governs the
-     * <login> password alone. One length for every credential is simply easier
-     * to reason about than two.
+     * A domain's authinfo: the transfer credential, and the one here a person
+     * copies out and passes on -- which is what the safe set is for. 16
+     * characters by choice, not by rule; pwAuthInfoType is unrestricted.
      */
     public static function forAuthinfo(): string {
         return self::forRegistry();
     }
 
     /**
-     * The EPP credential this codebase generates: the safe set, at the
-     * protocol's 16-character ceiling.
-     *
-     * All four character classes, not the constructor's default three. The
-     * registry's complexity policy is not published, and a rotation refused for
-     * having no digit would not lock the account out -- the old password stays
-     * good and it retries tomorrow -- but it would retry forever until someone
-     * read the log. Satisfying every plausible policy costs a fraction of a bit.
+     * The EPP credential: the safe set at pwType's 16-character ceiling, with
+     * all four character classes. The registry's complexity policy is not
+     * published, and a rotation refused for it would retry forever unseen.
      */
     public static function forRegistry(): string {
         return (new self(16, true, requireUpper: true, requireLower: true, requireNumber: true, requireSpecialChar: true))->get();
     }
 
     // ---------------------------------------------------------------
-    // credentials that are not passwords
-    //
-    // These are here so that every random credential in the codebase comes
-    // from one place, not because they are passwords. A password is short
-    // because a protocol or a person forces it to be, and the character set is
-    // what buys back the entropy that shortness costs. Nothing below is short,
-    // so none of it needs the character set -- and forcing one on them would
-    // trade real entropy for nothing.
+    // credentials that are not passwords -- here so every random credential
+    // comes from one place. A password is short because something forces it
+    // to be, and its character set buys that back; nothing below is short.
     // ---------------------------------------------------------------
 
     /**
-     * A bearer token or other opaque identifier, as hex.
-     *
-     * 32 bytes is 256 bits, which is the point: these are copied and pasted,
-     * never read aloud, so there is nothing to gain from a friendlier alphabet
-     * and a great deal to lose from the shorter length one would imply.
+     * A bearer token or other opaque identifier, as hex. Copied and pasted,
+     * never read aloud, so a friendlier alphabet would buy nothing.
      *
      * @param int $bytes how much entropy, before hex doubles the length
      */
@@ -187,12 +142,8 @@ final class PasswordGenerator
     }
 
     /**
-     * A signing key, as base64.
-     *
-     * `jwt_psk` is the HMAC key behind every token this API issues. It is
-     * never displayed and never typed, and its whole job is to be infeasible
-     * to guess, so it gets raw entropy in the most compact encoding rather
-     * than anything shaped for a reader.
+     * A signing key, as base64. `jwt_psk` is never displayed or typed, so it
+     * gets raw entropy in a compact encoding rather than a readable shape.
      *
      * @param int $bytes how much entropy
      */

@@ -6,15 +6,9 @@ use Eppitnic\Cli\Command;
 use RedBeanPHP\R;
 
 /**
- * Report rows where the two notions of local ownership disagree.
- *
- * There are two: `domains`.`user_id` / `transfers`.`user_id` (who owns the
- * domain, or requested the transfer-in) and `contacts`.`user_id` (who owns the
- * contact acting as its registrant). From 7.0.0 on they are expected to agree,
- * because every domain route scopes non-admins by the domain's own owner while
- * a registrant change reassigns the domain to the contact's owner -- so a
- * disagreement means a domain that answers to one user in the listings and
- * another in the renewals view.
+ * Report rows where `domains`/`transfers`.`user_id` and the registrant
+ * `contacts`.`user_id` disagree. They are expected to agree, so a disagreement
+ * is a domain answering to one user in the listings and another elsewhere.
  */
 final class DoctorOwnershipCommand extends Command
 {

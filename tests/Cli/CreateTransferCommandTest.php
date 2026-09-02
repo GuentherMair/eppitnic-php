@@ -10,11 +10,9 @@ use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * The verbs that share DomainService with the REST API.
- *
- * Everything here runs under --dry-run, which is what makes it possible at
- * all: create and transfer change registry state, so the only honest way to
- * test what they would send is to look at what they would send.
+ * The verbs that share DomainService with the REST API. Everything runs under
+ * --dry-run, which is what makes it possible: create and transfer change
+ * registry state, so the honest test is to look at what they would send.
  */
 final class CreateTransferCommandTest extends EppTestCase
 {
@@ -69,10 +67,8 @@ final class CreateTransferCommandTest extends EppTestCase
         $this->assertSame(1, preg_match('#<domain:pw>(.*)</domain:pw>#', $output, $m), 'no authinfo was generated');
 
         // whatever PasswordGenerator draws from, not a shape frozen here: the
-        // assertion is that the authinfo is the 16-character credential this
-        // codebase generates. The schema would take any length -- an authinfo
-        // is an unrestricted normalizedString -- so this pins our choice, not
-        // a rule of the protocol
+        // assertion is that this is the 16-character credential the codebase
+        // generates. An authinfo is unrestricted, so this pins our choice
         $this->assertSame(16, strlen($m[1]));
         $this->assertSame('', preg_replace(
             '/[' . preg_quote(PasswordGenerator::SAFE_CHARSET, '/') . ']/', '', $m[1]

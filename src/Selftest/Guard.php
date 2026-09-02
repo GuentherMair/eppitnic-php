@@ -5,22 +5,9 @@ namespace Eppitnic\Selftest;
 use Eppitnic\Config;
 
 /**
- * Refuses to let the self-test near production.
- *
- * The self-test registers, alters and deletes real objects. Against
- * `epp.nic.it` that is somebody's domain portfolio and a bill; against the
- * public test registry it is free and disposable. Nothing else in this
- * codebase distinguishes the two -- every other command is supposed to work
- * against both -- so the distinction has to be made here, before a session is
- * opened.
- *
- * The list is an *allowlist*. A denylist naming `epp.nic.it` would let any
- * endpoint nobody thought of through, including a second production host the
- * registry might add; this way an unrecognised endpoint is refused and
- * somebody has to say so deliberately.
- *
- * There is no flag to override it. An override is the only feature here that
- * could destroy data, and a self-test is never so urgent that it needs one.
+ * Refuses to let the self-test near production: it deletes real objects, free
+ * against the test registry and somebody's portfolio against epp.nic.it. An
+ * allowlist with no override -- an override is the only thing that could hurt.
  *
  * @category    Net
  * @package     Eppitnic\Selftest\Guard
@@ -30,22 +17,18 @@ use Eppitnic\Config;
 final class Guard
 {
     /**
-     * The endpoints the self-test may talk to, by host.
-     *
-     * Compared against the parsed host, never as a substring of the URL:
-     * `https://epp.nic.it/?see=epp.pubtest.nic.it` contains the test host and
-     * is production.
+     * The endpoints the self-test may talk to, by host -- compared against the
+     * parsed host, never a substring of the URL:
+     * `https://epp.nic.it/?see=epp.pubtest.nic.it` contains one and is not it.
      */
     public const TEST_HOSTS = [
         'epp.pubtest.nic.it',
     ];
 
     /**
-     * The EPP endpoint currently configured, as a URL.
-     *
-     * Read from the setting rather than from a Client: building one connects
-     * to nothing, but it does set the process timezone and read half a dozen
-     * further settings, and the guard should be answerable before any of that.
+     * The configured EPP endpoint. Read from the setting, not a Client:
+     * building one sets the process timezone and reads half a dozen more
+     * settings, and the guard should answer before any of that.
      *
      * @return string the `epp.server` setting, '' when unset
      */
@@ -79,12 +62,9 @@ final class Guard
     }
 
     /**
-     * Let the run proceed, or refuse it.
-     *
-     * Note this vouches for `epp.server` only. `epp.server_deleted` is a
-     * separate host reached by passing it to Client explicitly (see
-     * DomainRestoreCommand), and no scenario here touches it -- one that did
-     * would have to be guarded on that endpoint too.
+     * Let the run proceed, or refuse it. Vouches for `epp.server` only:
+     * `epp.server_deleted` is a separate host no scenario here touches, and one
+     * that did would have to be guarded on it too.
      *
      * @return string the endpoint the run may use
      * @throws RefusedError if it is not a known test endpoint

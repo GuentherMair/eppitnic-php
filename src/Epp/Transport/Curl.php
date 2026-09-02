@@ -74,13 +74,9 @@ class Curl implements Transport
     $this->_authName = $authName;
     $this->_authPass = $authPass;
 
-    // Thrown, not exit()ed. This runs from Client's constructor, which the API
-    // reaches inside a request: exiting here wrote a bare line of text over
-    // whatever the route was about to answer, so a JSON client got neither
-    // JSON nor a status code it could act on. As a \RuntimeException it lands
-    // in the handling both tiers already have for an unusable registry
-    // connection -- the routes' catch around EppSession::run() (502), and
-    // Cli\Command::withSession()'s SessionError (exit LOGIN_FAILED).
+    // Thrown, not exit()ed: this runs from Client's constructor inside a
+    // request, and exiting wrote plain text over whatever the route was about
+    // to answer. A \RuntimeException lands in the handling both tiers have
     if (file_exists($this->_cookieFileLocation)) {
       if ( ! is_writeable($this->_cookieFileLocation)) {
         throw new \RuntimeException(

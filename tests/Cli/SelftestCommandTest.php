@@ -11,11 +11,9 @@ use Eppitnic\Selftest\Leftovers;
 use PHPUnit\Framework\TestCase;
 
 /**
- * What the self-test verbs do before they reach the network.
- *
- * Every test here asserts on a path that stops short of a session, which is
- * also the point: the checks that matter -- am I allowed to run at all, and
- * was I given enough to run with -- have to happen before anything is sent.
+ * What the self-test verbs do before they reach the network. Every test stops
+ * short of a session, which is the point: am I allowed to run, and was I given
+ * enough to run with, both have to be answered before anything is sent.
  */
 final class SelftestCommandTest extends TestCase
 {
@@ -66,10 +64,9 @@ final class SelftestCommandTest extends TestCase
     // ---------------------------------------------------------------
 
     /**
-     * The test that matters most. Nothing below it protects production; this
-     * does, and it has to answer before a session is opened -- which is why a
-     * refusal is asserted with no transport configured at all: reaching the
-     * network here would be a connection attempt, not a passing test.
+     * The test that matters most: nothing else here protects production, and it
+     * must answer before a session opens -- which is why the refusal is asserted
+     * with no transport at all. Reaching the network would be the failure.
      */
     public function testTheRunRefusesProduction(): void {
         $this->configured(self::PRODUCTION);
@@ -224,10 +221,9 @@ final class SelftestCommandTest extends TestCase
     }
 
     /**
-     * The case that prompted the rework. A run that failed before creating its
-     * domain leaves contacts nothing is holding, and `reap` used to answer
-     * "no self-test run is 30 days old or more" and refuse to touch them --
-     * a wait invented for a blockage that did not exist.
+     * The case that prompted the rework: a run that failed before creating its
+     * domain leaves contacts nothing holds, and `reap` used to refuse them for
+     * 30 days -- a wait invented for a blockage that did not exist.
      */
     public function testContactsFromARunWithNoDomainAreOfferedImmediately(): void {
         $this->configured(self::TEST);
