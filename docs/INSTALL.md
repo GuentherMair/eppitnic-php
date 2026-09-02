@@ -52,6 +52,33 @@ Secrets (`jwt_psk`, the registry password) are never printed — `epp` reports
 `password_set`/`rotation_pending` instead, the same allow-list
 `GET /v1/session/epp` uses.
 
+To change the `epp` setting's plain fields (`server`/`server_deleted`/`port`
+have their own verb, see "Verifying against the live test registry" below):
+
+```
+bin/eppitnic config epp-set interface 203.0.113.5   # IPv4 only
+bin/eppitnic config epp-set lang it                 # 'it' or 'en'
+bin/eppitnic config epp-set cl_trid_prefix MYPREFIX  # 1-47 chars, no whitespace
+bin/eppitnic config epp-set username MYCOMPANY-REG   # 3-16 chars, ending '-REG'
+```
+
+`password` is deliberately not one of these — a value this installation and
+the registry disagree about breaks every EPP call, so it goes through the
+registry rather than a plain local write:
+
+```
+bin/eppitnic config epp-password NEW-PASSWORD           # changes it at the registry, then stores it
+bin/eppitnic config epp-password --force LIVE-PASSWORD  # verifies it against the registry, then adopts
+                                                          # it as-is -- no registry change is sent
+```
+
+Both are 6 to 16 characters (EPP `pwType`), verified with a real login before
+anything is written — a refused password changes nothing locally either.
+`lastPasswordUpdate`, `password_set` and `rotation_pending` (see `config
+show epp`) update the same way `poll process`'s automatic rotation and
+`doctor epp-password` already do, because this goes through the same
+`RegistryPasswordChange` machinery.
+
 Once set up, run `bin/eppitnic` to see what it can do, and see
 [COOKBOOK.md](COOKBOOK.md) for using the library directly from PHP.
 

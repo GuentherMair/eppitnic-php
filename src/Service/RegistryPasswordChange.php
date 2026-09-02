@@ -192,6 +192,33 @@ final class RegistryPasswordChange
     }
 
     /**
+     * Adopt $password as the credential of record without changing anything
+     * at the registry -- for `eppitnic config epp-password --force`, when an
+     * operator already knows the live password (recovering from an
+     * out-of-band change, or a rotation resolved by other means) and wants
+     * this installation's `epp` setting to agree with it.
+     *
+     * Verified with a real login first, the same as reconcile() verifies a
+     * candidate: the alternative is a local setting the registry silently
+     * disagrees with, which breaks every EPP call until someone notices.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    public static function adopt(string $password): array {
+        if ( ! self::passwordWorks($password)) {
+            return ['ok' => false, 'error' => 'the registry did not accept this password -- nothing was changed locally'];
+        }
+
+        $epp = Config::get('epp');
+        $epp['password'] = $password;
+        $epp['lastPasswordUpdate'] = time();
+        unset($epp['pendingPassword']);
+        Config::set('epp', $epp);
+
+        return ['ok' => true, 'error' => ''];
+    }
+
+    /**
      * Work out which password the registry is holding, after a rotation that
      * did not finish.
      *

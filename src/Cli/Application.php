@@ -2,7 +2,9 @@
 
 namespace Eppitnic\Cli;
 
+use Eppitnic\Cli\Command\ConfigEppPasswordCommand;
 use Eppitnic\Cli\Command\ConfigEppServerCommand;
+use Eppitnic\Cli\Command\ConfigEppSetCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
 use Eppitnic\Cli\Command\ConfigShowCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
@@ -96,6 +98,8 @@ final class Application
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,
             'config epp-server'       => ConfigEppServerCommand::class,
+            'config epp-set'          => ConfigEppSetCommand::class,
+            'config epp-password'     => ConfigEppPasswordCommand::class,
             'config show'             => ConfigShowCommand::class,
         ];
     }

@@ -184,6 +184,52 @@ final class PasswordRotationTest extends EppTestCase
     }
 
     /**
+     * adopt() -- config epp-password --force. Verified with a real login,
+     * never a registry change: a password known good some other way still
+     * has to prove it here before this installation trusts it.
+     */
+    public function testAdoptStoresAVerifiedPasswordWithoutChangingIt(): void {
+        $this->seedEpp(['password' => 'old-password']);
+        $this->livePassword = 'known-good';
+
+        $outcome = RegistryPasswordChange::adopt('known-good');
+
+        $this->assertTrue($outcome['ok']);
+        $this->assertSame('known-good', Config::get('epp')['password']);
+        // adopt() only ever logs in with the password it was given -- never
+        // a <newPW>, which is what would make this a change rather than a check
+        $this->assertSame(['known-good'], $this->attempted);
+    }
+
+    public function testAdoptStampsLastPasswordUpdate(): void {
+        $this->seedEpp(['password' => 'old-password', 'lastPasswordUpdate' => 0]);
+        $this->livePassword = 'known-good';
+
+        RegistryPasswordChange::adopt('known-good');
+
+        $this->assertGreaterThan(0, Config::get('epp')['lastPasswordUpdate']);
+    }
+
+    public function testAdoptClearsAStalePendingPassword(): void {
+        $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'abandoned-candidate']);
+        $this->livePassword = 'known-good';
+
+        RegistryPasswordChange::adopt('known-good');
+
+        $this->assertArrayNotHasKey('pendingPassword', Config::get('epp'));
+    }
+
+    public function testAdoptRefusesAndChangesNothingWhenTheRegistryDisagrees(): void {
+        $this->seedEpp(['password' => 'old-password']);
+        $this->livePassword = 'old-password';
+
+        $outcome = RegistryPasswordChange::adopt('not-the-real-password');
+
+        $this->assertFalse($outcome['ok']);
+        $this->assertSame('old-password', Config::get('epp')['password'], 'adopt() changed the password despite a refused login');
+    }
+
+    /**
      * @param array<string, mixed> $overrides merged over the base epp setting
      */
     private function seedEpp(array $overrides): void {
