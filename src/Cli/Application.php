@@ -4,6 +4,7 @@ namespace Eppitnic\Cli;
 
 use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
+use Eppitnic\Cli\Command\ConfigShowCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
 use Eppitnic\Cli\Command\ContactCreateCommand;
 use Eppitnic\Cli\Command\ContactDeleteCommand;
@@ -95,6 +96,7 @@ final class Application
             'user token'              => UserTokenCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,
             'config epp-server'       => ConfigEppServerCommand::class,
+            'config show'             => ConfigShowCommand::class,
         ];
     }
 

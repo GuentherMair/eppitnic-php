@@ -127,6 +127,22 @@ final class Config
     }
 
     /**
+     * Every setting key currently seeded, unredacted.
+     *
+     * For `eppitnic config show` -- get() rightly requires a key, so a typo
+     * fails loudly rather than reading as "unset", but that means there was
+     * no way to enumerate what exists at all. Callers still own redacting
+     * secrets (jwt_psk, epp.password/pendingPassword) before display; this
+     * is the same in-process cache get() already reads from, not a new
+     * trust boundary.
+     *
+     * @return array<string, mixed> key => value
+     */
+    public static function all(): array {
+        return self::instance()->settings;
+    }
+
+    /**
      * persist + keep the in-process cache consistent (used by EPP password rotation)
      *
      * @param string $key setting name

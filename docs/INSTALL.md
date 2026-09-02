@@ -41,6 +41,17 @@ doesn't exist yet at all. To add a future migration: drop a new
 `config/mariadb-schema-upgrade-{current}-to-{next}.sql` file and bump
 `SCHEMA_VERSION`; nothing else changes.
 
+To see what's currently configured:
+
+```
+bin/eppitnic config show          # every setting
+bin/eppitnic config show epp      # just one
+```
+
+Secrets (`jwt_psk`, the registry password) are never printed — `epp` reports
+`password_set`/`rotation_pending` instead, the same allow-list
+`GET /v1/session/epp` uses.
+
 Once set up, run `bin/eppitnic` to see what it can do, and see
 [COOKBOOK.md](COOKBOOK.md) for using the library directly from PHP.
 
