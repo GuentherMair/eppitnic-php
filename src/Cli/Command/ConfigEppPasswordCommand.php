@@ -6,6 +6,7 @@ use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 use Eppitnic\Service\RegistryPasswordChange;
+use Eppitnic\Support\Validate;
 
 /**
  * Change the shared EPP registry password, or -- with --force -- adopt one
@@ -54,12 +55,11 @@ final class ConfigEppPasswordCommand extends Command
             throw new UsageError('give the new password');
         }
 
-        // epp:pwType (xsd/epp-1.0.xsd): 6 to 16 characters, for both <pw>
-        // and <newPW> -- the registry's own ceiling, not this codebase's
-        // PasswordPolicy, which governs local admin-account passwords only
-        $len = strlen($password);
-        if ($len < 6 || $len > 16) {
-            throw new UsageError('password must be 6 to 16 characters (EPP pwType)');
+        // the registry's own rule (epp:pwType), shared with first-run setup
+        // and POST /v1/session/change-password rather than stated three
+        // times -- see Support\Validate::eppField()
+        if ($error = Validate::eppField('password', $password)) {
+            throw new UsageError($error);
         }
 
         $force = $this->hasOption('force');

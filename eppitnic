@@ -19,7 +19,7 @@ set -eu
 #   ./eppitnic -T alpha domain delete example.it --yes   # unattended: -T (no
 #                                                         # TTY) and --yes both
 #                                                         # required, or Command::confirm()
-#                                                         # refuses -- see README
+#                                                         # refuses -- see docs/DOCKER.md
 
 compose_file="${EPPITNIC_COMPOSE_FILE:-compose.yaml}"
 

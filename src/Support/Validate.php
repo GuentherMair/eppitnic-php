@@ -99,4 +99,67 @@ final class Validate
     public static function isDomain(string $domain): bool {
         return (bool) preg_match('/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.it$/i', $domain);
     }
+
+    // -----------------------------------------------------------------
+    // `epp` setting fields
+    // -----------------------------------------------------------------
+
+    /**
+     * The rules below come from the registry's own schemas, not from a
+     * preference here, so they hold wherever a value is accepted: first-run
+     * setup (Setup\Installer), `eppitnic config epp-set` and `eppitnic config
+     * epp-password` all validate through this one place. They used to live
+     * only in the CLI, which meant a value the CLI refused could still be
+     * seeded by the web installer and then fail at every `<login>`.
+     *
+     * Each returns the error to show, or null when the value is acceptable.
+     *
+     * @param string $field one of the FIELD_VALIDATORS keys
+     * @return string|null a validation error, or null if $value is acceptable
+     */
+    public static function eppField(string $field, string $value): ?string {
+        if (trim($value) !== $value || preg_match('/\s/', $value) === 1) {
+            return "{$field} must not contain whitespace";
+        }
+
+        return match ($field) {
+            'interface' => filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+                ? 'interface must be an IPv4 address'
+                : null,
+
+            'lang' => in_array($value, ['it', 'en'], true)
+                ? null
+                : "lang must be 'it' or 'en'",
+
+            // Client::set_clTRID() appends "-{unix timestamp}-{5 chars}"
+            // (17 characters) to build the full clTRID, and
+            // epp:trIDStringType (xsd/epp-1.0.xsd) caps that whole string at
+            // 64 -- so the prefix itself must leave room for the rest.
+            'cl_trid_prefix' => ($value !== '' && strlen($value) <= 47)
+                ? null
+                : 'cl_trid_prefix must be 1 to 47 characters',
+
+            // eppcom:clIDType (xsd/eppcom-1.0.xsd): 3 to 16 characters. The
+            // '-REG' suffix is nic.it's own registrar-account convention, not
+            // a schema rule, but every real account has it, so a value
+            // without one is almost certainly a mistake.
+            'username' => match (true) {
+                strlen($value) < 3, strlen($value) > 16 =>
+                    'username must be 3 to 16 characters (EPP clIDType)',
+                ! str_ends_with($value, '-REG') =>
+                    "username must end in '-REG' (nic.it's registrar account convention)",
+                default => null,
+            },
+
+            // epp:pwType (xsd/epp-1.0.xsd): 6 to 16 characters, for both <pw>
+            // and <newPW> -- the registry's own ceiling, not this codebase's
+            // Support\PasswordPolicy, which governs local admin-account
+            // passwords only.
+            'password' => (strlen($value) < 6 || strlen($value) > 16)
+                ? 'password must be 6 to 16 characters (EPP pwType)'
+                : null,
+
+            default => null,
+        };
+    }
 }

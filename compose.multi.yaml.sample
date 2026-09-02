@@ -6,7 +6,7 @@
 # `docker compose -f compose.multi.yaml.sample up`.
 #
 # Each instance needs its own web + scheduler pair -- the scheduler is not
-# optional, see README's "Scheduled jobs": without it that instance's EPP
+# optional, see docs/INSTALL.md's "Scheduled jobs": without it that instance's EPP
 # password reminder is never acted on. Every service carries
 #   extra_hosts: ["host.docker.internal:host-gateway"]
 # so DB_HOST=host.docker.internal reaches a database on the Docker host (see

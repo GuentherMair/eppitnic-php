@@ -1,14 +1,11 @@
 # eppitnic REST API
 
-Handoff reference for building the frontend client. This documents what is
-**actually implemented** in `public/index.php` + `src/Api/Routes/*.php` today, not
-the original design (`backend-api-plan.md`/`storagedb-disentangle-plan.md`,
-both retired once their work landed — some routes below deviate from that
-original plan; this file is the source of truth).
+Handoff reference for building the frontend client, and the source of truth
+for the API: it documents what is **actually implemented** in
+`public/index.php` + `src/Api/Routes/*.php`.
 
-The API is a thin JSON/HTTP adapter (Slim 4) in front of the `Net_EPP_IT_*`
-registry classes and a MariaDB local database (via RedBeanPHP's `R::`
-facade). It replaces the legacy PHP/Smarty/jQuery web interface entirely.
+The API is a thin JSON/HTTP adapter (Slim 4) in front of the `Eppitnic\Epp\*`
+registry classes and a MariaDB local database (via RedBeanPHP's `R::` facade).
 
 ## Base URL & content type
 
@@ -30,7 +27,7 @@ falls back to an HTML error page if it doesn't see `application/json`. See
 `GET /v1/setup`, `POST /v1/setup/verify` and `POST /v1/setup` are reachable
 only while `config/config.php` does not exist; each answers `404` once it
 does. No auth — there is nothing to authenticate against yet, and the file's
-absence is the gate (see the README's Installation section). They're served
+absence is the gate (see [INSTALL.md](INSTALL.md)). They're served
 from a separate, database-free Slim instance (`Eppitnic\Api\SetupApp`), not
 from the route list below: `public/index.php` runs one or the other, never
 both in the same request.

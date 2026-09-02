@@ -1,6 +1,6 @@
 # One eppitnic instance: the web tier, its scheduler sidecar, and a CLI
-# service that never starts on its own. See README.md's Docker section for
-# the reasoning; compose.multi.yaml.sample is the same shape run twice, for
+# service that never starts on its own. See docs/DOCKER.md for the
+# reasoning; compose.multi.yaml.sample is the same shape run twice, for
 # two installations on one host.
 #
 # EPPITNIC_CONFIG_DIR and EPPITNIC_VAR_DIR are baked into the image (see the
@@ -40,7 +40,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"   # Linux; a no-op where the engine already provides it
     # environment:
-    #   EPPITNIC_DEBUG: "true"   # never in production -- see README's Web server section
+    #   EPPITNIC_DEBUG: "true"   # never in production -- see docs/INSTALL.md's "Web server"
     restart: unless-stopped
 
   # `poll process` every 5 minutes is not optional -- it's the only thing

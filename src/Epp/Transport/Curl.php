@@ -65,19 +65,33 @@ class Curl implements Transport
   protected $_body;
   protected $_error;
 
+  /**
+   * @throws \RuntimeException if the cookie jar cannot be written
+   */
   public function __construct(string $url, string $authName = '', string $authPass = '', string $cookie_dir = '/tmp') {
     $this->_url = $url;
     $this->_cookieFileLocation = $cookie_dir.'/url_'.md5($url).'-uid_'.posix_getuid().'-cookie.txt';
     $this->_authName = $authName;
     $this->_authPass = $authPass;
 
+    // Thrown, not exit()ed. This runs from Client's constructor, which the API
+    // reaches inside a request: exiting here wrote a bare line of text over
+    // whatever the route was about to answer, so a JSON client got neither
+    // JSON nor a status code it could act on. As a \RuntimeException it lands
+    // in the handling both tiers already have for an unusable registry
+    // connection -- the routes' catch around EppSession::run() (502), and
+    // Cli\Command::withSession()'s SessionError (exit LOGIN_FAILED).
     if (file_exists($this->_cookieFileLocation)) {
       if ( ! is_writeable($this->_cookieFileLocation)) {
-        exit("FATAL ERROR: cookie file '".$this->_cookieFileLocation."' exists and is NOT writeable\n");
+        throw new \RuntimeException(
+          "cookie file '".$this->_cookieFileLocation."' exists and is not writeable"
+        );
       }
     } else {
       if ( ! is_writeable(dirname($this->_cookieFileLocation))) {
-        exit("FATAL ERROR: cookie file FOLDER '".dirname($this->_cookieFileLocation)."' is NOT writeable\n");
+        throw new \RuntimeException(
+          "cookie file folder '".dirname($this->_cookieFileLocation)."' is not writeable"
+        );
       }
     }
   }
@@ -95,11 +109,16 @@ class Curl implements Transport
     $this->_interface = $interface;
   }
 
+  /**
+   * @throws \RuntimeException if the debug file cannot be written
+   */
   public function setDebugFile(string $file): void {
     if (is_writeable((file_exists($file) ? $file : dirname($file)))) {
       $this->_debugFile = fopen($file, 'a+');
     } else {
-      exit("FATAL ERROR: debug file '".$file."' is NOT writeable\n");
+      // same reasoning as the constructor's: also reached from Client's
+      // constructor, whenever the `debugfile` setting is non-empty
+      throw new \RuntimeException("debug file '".$file."' is not writeable");
     }
   }
 

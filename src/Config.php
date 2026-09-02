@@ -249,7 +249,13 @@ final class Config
      * until Setup\Installer (or a direct settings edit) fills them in.
      */
     private function setupSettings(): void {
-        if ($this->settings['jwt_psk'] === '') {
+        // `?? ''` rather than a bare read: the row is seeded by
+        // config/mariadb-schema.sql, but a settings table assembled some other
+        // way (a partial restore, a hand-run migration) can be missing it
+        // entirely -- and then a bare read warns and evaluates to null, which
+        // is not '', so the key silently never gets generated and every JWT
+        // operation fails later instead. Treat absent and placeholder alike.
+        if (($this->settings['jwt_psk'] ?? '') === '') {
             $this->persistSetting('jwt_psk', PasswordGenerator::signingKey());
         }
     }

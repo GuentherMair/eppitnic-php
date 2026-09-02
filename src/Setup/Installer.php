@@ -5,6 +5,7 @@ namespace Eppitnic\Setup;
 use Eppitnic\Config;
 use Eppitnic\Persistence\User;
 use Eppitnic\Support\PasswordPolicy;
+use Eppitnic\Support\Validate;
 use PDO;
 
 /**
@@ -97,6 +98,66 @@ final class Installer
     }
 
     /**
+     * The clTRID prefix to store: the one given, or the registrar part of the
+     * EPP username when none was ("ABCD-REG" -> "ABCD"). Its own method only
+     * so that validateEpp() checks the value install() will actually store,
+     * rather than a second expression that could drift from it.
+     *
+     * @param array<string, mixed> $input every requirements() field, snake_case
+     */
+    private static function clTridPrefix(array $input, string $eppUsername): string {
+        // `?? ''` rather than a bare read: the field is optional and an API
+        // client that simply leaves it out is normal, so the key's absence is
+        // not a programming error to warn about
+        return (string) (($input['epp_cl_trid_prefix'] ?? '') ?: (strtok($eppUsername, '-') ?: $eppUsername));
+    }
+
+    /**
+     * Reject an EPP credential the registry itself would not accept.
+     *
+     * These fields were previously stored exactly as given: the browser
+     * installer asks for them on the same form as the database credentials
+     * and nothing looked at them, so an over-long username or password was
+     * written happily and then failed at every single `<login>` -- with an
+     * error from the registry, about a value entered days earlier, in a place
+     * that gives no hint where it came from. `eppitnic config epp-set` and
+     * `config epp-password` have always checked; this is the same check, from
+     * the same place (Support\Validate::eppField()), so the two front ends
+     * cannot disagree about what is acceptable.
+     *
+     * All three fields stay optional -- an install that seeds no EPP
+     * credential at all is still normal, and only what was actually supplied
+     * is judged.
+     *
+     * @param array<string, mixed> $input every requirements() field, snake_case
+     * @throws \InvalidArgumentException on a value the registry would refuse
+     */
+    private static function validateEpp(array $input): void {
+        $username = (string) ($input['epp_username'] ?? '');
+        if ($username === '') {
+            return; // nothing is seeded without one -- see install()'s step 7
+        }
+
+        $candidates = [
+            'username'       => $username,
+            'password'       => (string) ($input['epp_password'] ?? ''),
+            'cl_trid_prefix' => self::clTridPrefix($input, $username),
+        ];
+
+        foreach ($candidates as $field => $value) {
+            // an omitted password is left at the schema placeholder, same as
+            // an install that seeds no EPP block at all; only a supplied one
+            // has to satisfy epp:pwType
+            if ($field === 'password' && $value === '') {
+                continue;
+            }
+            if ($error = Validate::eppField($field, $value)) {
+                throw new \InvalidArgumentException('epp_' . $error);
+            }
+        }
+    }
+
+    /**
      * @param array<string, mixed> $input every requirements() field, snake_case
      * @throws \InvalidArgumentException on a missing required field
      * @throws \RuntimeException if already installed, the database is
@@ -128,6 +189,14 @@ final class Installer
         if ($confirm !== null && (string) $confirm !== $adminPassword) {
             throw new \InvalidArgumentException('The two admin passwords do not match.');
         }
+
+        // Here, and not down at step 7 where these are actually stored: step 6
+        // creates the first admin, and User::create() refuses a username that
+        // already exists -- so a throw after it would make the retry this
+        // method is designed for fail on the previous attempt's own admin
+        // account instead. Nothing below this point is rejected for its
+        // content.
+        self::validateEpp($input);
 
         // 1. probe credentials (raw PDO) -- nothing committed yet
         $creds = DatabaseCredentials::fromArray($input);
@@ -167,7 +236,7 @@ final class Installer
             $epp = Config::get('epp');
             $epp['username']       = (string) $input['epp_username'];
             $epp['password']       = (string) ($input['epp_password'] ?? '');
-            $epp['cl_trid_prefix'] = (string) ($input['epp_cl_trid_prefix'] ?: (strtok($epp['username'], '-') ?: $epp['username']));
+            $epp['cl_trid_prefix'] = self::clTridPrefix($input, $epp['username']);
             Config::set('epp', $epp);
         }
 

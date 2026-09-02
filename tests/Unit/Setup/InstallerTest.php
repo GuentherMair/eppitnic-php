@@ -6,6 +6,7 @@ use Eppitnic\Config;
 use Eppitnic\Setup\ConfigFile;
 use Eppitnic\Setup\Installer;
 use PDO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use RedBeanPHP\R;
@@ -89,6 +90,99 @@ final class InstallerTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessageMatches('/already exists/');
         Installer::install(['admin_username' => 'admin', 'admin_password' => 'secret']);
+    }
+
+    // -----------------------------------------------------------------
+    // EPP credentials -- the registry's rules, not this codebase's
+    // -----------------------------------------------------------------
+
+    /**
+     * These fields were stored exactly as given until now: the CLI's `config
+     * epp-set`/`config epp-password` checked them, and this -- the path the
+     * browser installer takes, and the one most installations go through --
+     * did not. The mismatch only showed at `<login>`, days later.
+     *
+     * Checked before the database is touched at all, like the admin fields
+     * above: the DSN here would fail loudly if reached.
+     *
+     * @return array<string, array{0: array<string, string>, 1: string}>
+     */
+    public static function unacceptableEppInput(): array {
+        return [
+            'username over clIDType\'s 16'  => [['epp_username' => 'MYLONGCOMPANY-REG'], 'epp_username'],
+            'username without -REG'         => [['epp_username' => 'MYCOMPANY'], 'epp_username'],
+            'password over pwType\'s 16'    => [
+                ['epp_username' => 'TEST-REG', 'epp_password' => 'far-too-long-a-password'],
+                'epp_password',
+            ],
+            'password under pwType\'s 6'    => [
+                ['epp_username' => 'TEST-REG', 'epp_password' => 'short'],
+                'epp_password',
+            ],
+            'prefix leaving no room'        => [
+                ['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => str_repeat('A', 48)],
+                'epp_cl_trid_prefix',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $epp
+     */
+    #[DataProvider('unacceptableEppInput')]
+    public function testInstallRefusesEppCredentialsTheRegistryWouldNot(array $epp, string $field): void {
+        $this->useThrowawayConfigPath();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageMatches('/' . preg_quote($field, '/') . '/');
+        Installer::install($this->minimalInput() + $epp);
+    }
+
+    /**
+     * The complement, and the reason the check is per-field rather than a
+     * blanket "epp block must be complete": seeding no EPP credential at all
+     * is a normal install, and so is one with a username but no password
+     * (filled in later by `eppitnic config epp-password`). Neither may be
+     * turned into a validation error -- both get past this and fail on the
+     * unreachable database below instead.
+     *
+     * @return array<string, array{0: array<string, string>}>
+     */
+    public static function acceptableEppInput(): array {
+        return [
+            'no epp block at all'      => [[]],
+            'username, no password'    => [['epp_username' => 'TEST-REG']],
+            'username and password'    => [['epp_username' => 'TEST-REG', 'epp_password' => 'good-enough']],
+            // derived from the username when omitted -- "TEST-REG" -> "TEST"
+            'prefix left to derive'    => [['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => '']],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $epp
+     */
+    #[DataProvider('acceptableEppInput')]
+    public function testInstallDoesNotRefuseAnAcceptableEppBlock(array $epp): void {
+        $this->useThrowawayConfigPath();
+
+        // past validation, install() goes on to the database, which this
+        // input cannot reach -- so anything but InvalidArgumentException means
+        // the EPP block was accepted, which is what is being asserted
+        $this->expectException(\RuntimeException::class);
+        Installer::install($this->minimalInput() + $epp);
+    }
+
+    /**
+     * Enough to get past the admin checks, with a DSN nothing can connect to.
+     *
+     * @return array<string, string>
+     */
+    private function minimalInput(): array {
+        return [
+            'db_type' => 'mysql', 'db_host' => '127.0.0.1', 'db_port' => '1',
+            'db_name' => 'x', 'db_user' => 'x', 'db_password' => 'x',
+            'admin_username' => 'admin', 'admin_password' => 'Setup-Admin-42!',
+        ];
     }
 
     private function useThrowawayConfigPath(): string {

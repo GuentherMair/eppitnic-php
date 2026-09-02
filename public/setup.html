@@ -115,7 +115,7 @@
         + 'not being handed to index.php -- so PHP never sees them. Add "FallbackResource '
         + '/index.php" (Apache) or "try_files $uri /index.php$is_args$args" (nginx) to the '
         + 'configuration for this document root; config/apache-vhost.sample and '
-        + 'config/nginx.sample in the checkout are working examples.';
+        + 'config/nginx-vhost.sample in the checkout are working examples.';
     }
     return 'The server answered ' + response.status + ' with '
       + (body.trim() === '' ? 'an empty body' : 'something that is not JSON')

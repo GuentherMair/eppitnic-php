@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
+use Eppitnic\Support\Validate;
 
 /**
  * Set one plain `epp` field: interface, lang, cl_trid_prefix, or username.
@@ -38,50 +39,6 @@ final class ConfigEppSetCommand extends Command
         ];
     }
 
-    /**
-     * @return string|null a validation error, or null if $value is acceptable
-     */
-    private function validate(string $field, string $value): ?string {
-        if (trim($value) !== $value || preg_match('/\s/', $value) === 1) {
-            return "{$field} must not contain whitespace";
-        }
-
-        switch ($field) {
-            case 'interface':
-                return filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
-                    ? 'interface must be an IPv4 address'
-                    : null;
-
-            case 'lang':
-                return in_array($value, ['it', 'en'], true) ? null : "lang must be 'it' or 'en'";
-
-            case 'cl_trid_prefix':
-                // Client::set_clTRID() appends "-{unix timestamp}-{5 chars}"
-                // (17 characters) to build the full clTRID, and
-                // epp:trIDStringType (xsd/epp-1.0.xsd) caps that whole string
-                // at 64 -- so the prefix itself must leave room for the rest.
-                return ($value !== '' && strlen($value) <= 47)
-                    ? null
-                    : 'cl_trid_prefix must be 1 to 47 characters';
-
-            case 'username':
-                // eppcom:clIDType (xsd/eppcom-1.0.xsd): 3 to 16 characters.
-                // The '-REG' suffix is nic.it's own registrar-account
-                // convention, not a schema rule, but every real account has
-                // it, so a value without one is almost certainly a mistake.
-                $len = strlen($value);
-                if ($len < 3 || $len > 16) {
-                    return 'username must be 3 to 16 characters (EPP clIDType)';
-                }
-                return str_ends_with($value, '-REG')
-                    ? null
-                    : "username must end in '-REG' (nic.it's registrar account convention)";
-
-            default:
-                return null; // unreachable -- run() already checked FIELDS
-        }
-    }
-
     public function run(): int {
         $this->database();
 
@@ -97,7 +54,9 @@ final class ConfigEppSetCommand extends Command
             );
         }
 
-        if ($error = $this->validate($field, $value)) {
+        // the registry's own rules, shared with first-run setup rather than
+        // stated twice -- see Support\Validate::eppField()
+        if ($error = Validate::eppField($field, $value)) {
             throw new UsageError($error);
         }
 

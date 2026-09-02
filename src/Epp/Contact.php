@@ -232,10 +232,11 @@ class Contact extends AbstractObject
    * 6 - altri soggetti
    * 7 - soggetti stranieri equiparati ai precedenti escluso le persone fisiche
    *
-   * Per nic.it's current technical guidelines (Linee Guida Tecniche
-   * Sincrone): individual enterprises used to be category 2, reclassified
-   * into category 3 alongside freelancers -- see also
-   * Cli\Command\ContactCreateCommand::ENTITY_TYPES.
+   * The classification is nic.it's, from its technical guidelines (Linee
+   * Guida Tecniche Sincrone), so a change here would be the registry
+   * changing the rule. Cli\Command\ContactCreateCommand::ENTITY_TYPES
+   * carries the same list in English, for `contact create --help`; the two
+   * have to stay in step.
    *
    * @param int $type entity type
    * @return bool status

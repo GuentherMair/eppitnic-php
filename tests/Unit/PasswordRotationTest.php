@@ -184,6 +184,25 @@ final class PasswordRotationTest extends EppTestCase
     }
 
     /**
+     * apply()'s second argument is what every deliberate, operator-driven
+     * change has to pass: `lastPasswordUpdate` is not just a display field,
+     * it is the once-per-24h guard rotateOnReminder() reads, so a manual
+     * change that leaves it untouched can be followed moments later by an
+     * automatic rotation. POST /v1/session/change-password used to omit it.
+     */
+    public function testApplyStampsTheAttemptOnlyWhenAskedTo(): void {
+        $this->seedEpp(['password' => 'old-password', 'lastPasswordUpdate' => 0]);
+        $this->livePassword = 'first-password';
+
+        RegistryPasswordChange::apply('first-password');
+        $this->assertSame(0, Config::get('epp')['lastPasswordUpdate']);
+
+        $this->livePassword = 'second-password';
+        RegistryPasswordChange::apply('second-password', true);
+        $this->assertGreaterThan(0, Config::get('epp')['lastPasswordUpdate']);
+    }
+
+    /**
      * adopt() -- config epp-password --force. Verified with a real login,
      * never a registry change: a password known good some other way still
      * has to prove it here before this installation trusts it.

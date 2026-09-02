@@ -15,6 +15,19 @@ apt install uidmap docker-ce docker-ce-cli containerd.io docker-buildx-plugin do
 **Note:** setting the `DB_HOST` to `host.docker.internal` will not work; either
 use a hostname from DNS or an IP address when connecting.
 
+**Note:** `./data` looks unowned from the host. `docker/entrypoint.sh` chowns
+it to the container's `www-data`, and rootless mode maps that through
+`/etc/subuid` to a host id far outside your own — so `ls -l` shows a bare
+number and you cannot read the files without `sudo`. That is correct, not
+damage. Recovering a `./data` salvaged from elsewhere only needs it readable
+by the container's user before the first start:
+
+```
+chown -R $(id -u):$(id -g) ./data
+```
+
+The entrypoint takes it from there on every start.
+
 ## Prerequisites
 
 Docker Engine plus the **Compose v2** and **Buildx** plugins. On Ubuntu, the

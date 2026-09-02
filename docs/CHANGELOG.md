@@ -17,7 +17,7 @@ Domain and Session persistence now talk to RedBeanPHP's `R::` facade
 directly, and configuration moved out of `config.xml`: the database
 credentials live in `config/config.php` (the one thing that must be a file,
 since it is needed to reach the database at all) and everything else in the
-`settings` table, read through `Net\EPP\Config`. `eppitnic config migrate`
+`settings` table, read through `Eppitnic\Config`. `eppitnic config migrate`
 converts an existing `config.xml` into both. As part of this, DNS-sync
 notifications end up in, and will be waiting to be consumed from, the
 `reminder` queue.
@@ -76,7 +76,7 @@ docblocks here confused the two and now say which is which.
 Everything runnable now lives behind one entry point, `bin/eppitnic`: the
 `CLI/`, `examples/` and `cronjobs/` folders are gone, absorbed into verbs.
 The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
-see "Scheduled jobs" in the README for crontab lines.
+see "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
 
 The `changelog` table is now `history`, because not everything it records is a
 change: it gained a `security` object type and `read`, `login` and `denied`
@@ -181,7 +181,7 @@ simply re-run rather than left half-configured.
 `docker compose up -d` now brings up a whole instance: nginx and php-fpm in
 one container (`Dockerfile`, `docker/`), a scheduler sidecar running the same
 image for `poll process`, and a `eppitnic-cli` service for one-shot verbs like
-`setup` or `doctor ownership` — see the README's "Docker" section, and
+`setup` or `doctor ownership` — see [DOCKER.md](DOCKER.md), and
 `compose.multi.yaml.sample` for running more than one instance on the same
 host. `config/config.php` and the self-test notes move outside the image
 entirely, to whatever `EPPITNIC_CONFIG_DIR`/`EPPITNIC_VAR_DIR` point at
@@ -191,6 +191,74 @@ on every request and every `Config` construction. `composer.json` now also
 declares `ext-pdo_mysql`, the one extension the image needed to add on top of
 `php:8.5-fpm-alpine`; every DSN this codebase builds is `mysql:` regardless, so
 its absence is now a Composer error instead of a runtime one.
+
+That image was then run against a fresh server, which is where the rest of it
+was found. The `web` container publishes on `127.0.0.1:8080` rather than `:80`,
+so port 80 is left for a host webserver — either the existing
+`config/nginx-vhost.sample`/`config/apache-vhost.sample` (the former renamed
+from `config/nginx.sample`, to pair with the Apache one) standing alone on a
+bare-metal install, or the new `config/nginx-proxy.sample` /
+`config/apache-proxy.sample`, which terminate TLS and forward to the
+container. Both proxy samples call out the trap that makes them worth having:
+a request proxied to a published container port does not arrive with a source
+address of `127.0.0.1`, so `trusted_proxies` set to that value silently
+ignores `X-Forwarded-For` and puts every client in one rate-limit bucket.
+Only the `web` service declares `build:` now — three services building the
+same `Dockerfile` to the same tag race on the export step, even under
+Buildx — and the image no longer runs `docker-php-ext-enable opcache`, which
+this base image compiles into the core rather than shipping as a module.
+
+Two failures in that image made the difference between "down" and "answering
+wrongly", which is the worse of the two. `php:8.5-fpm-alpine` ships pool files
+(`docker.conf`, `zz-docker.conf`) defining an incomplete `[www]` pool
+alongside this image's own `[eppitnic]` one, and php-fpm refuses to start at
+all if *any* pool lacks a `user` while running as root — so the container came
+up with nginx alone, returning 502 indefinitely, because `docker/start-web.sh`
+used a bare `wait`, which blocks until *every* child exits rather than the
+first. Both pool files are now removed at build time, and `start-web.sh` polls
+both children and takes the survivor down with the casualty, so
+`restart: unless-stopped` actually restarts.
+
+`Epp\Transport\Curl` now throws instead of calling `exit()` when its cookie
+jar or debug file is not writable. It is reached from `Client`'s constructor,
+inside a request: exiting wrote a line of plain text over whatever the route
+was about to answer, so a JSON client got neither JSON nor a status code. As a
+`\RuntimeException` it lands in the handling both tiers already have for an
+unusable registry connection — 502 from the API, `LOGIN_FAILED` from the CLI.
+
+New CLI verbs for the settings that previously had no route but a SQL client:
+`config show [<key>]` prints the `settings` table, redacting `jwt_psk` and the
+EPP credential through the same allow-list `GET /v1/session/epp` uses;
+`config epp-server [production|test|toggle]` moves between `https://epp.nic.it`
+and `https://epp.pubtest.nic.it`; `config epp-set <field> <value>` sets
+`interface`, `lang`, `cl_trid_prefix` or `username`; and `config epp-password`
+changes the shared registry credential, or with `--force` adopts one already
+valid there (verified by a real login first, never written on the strength of
+being typed twice). The group lists `show` first and the one-time `migrate`
+last.
+
+Those checks now also apply to first-run setup, which had none: `epp_username`,
+`epp_password` and `epp_cl_trid_prefix` were stored exactly as given, so the
+browser installer could seed a username longer than `eppcom:clIDType` allows,
+or a password over `epp:pwType`'s 16 characters, and the mismatch only showed
+at the next `<login>` — with an error from the registry, about a value entered
+days earlier. `Support\Validate::eppField()` is the one place holding those
+rules now, shared by setup, both `config epp-*` verbs and
+`POST /v1/session/change-password`, and setup runs them before it creates the
+admin user, so a rejected install is still re-runnable. That endpoint also
+stamps `lastPasswordUpdate` like every other deliberate change: it feeds the
+once-per-24h guard in `RegistryPasswordChange::rotateOnReminder()`, so leaving
+it untouched let an automatic rotation start moments after an operator had
+changed the credential by hand.
+
+`contact create` no longer dies with a fatal error when `--authinfo` is
+omitted — it read a protected property from outside the class to decide
+whether to generate one — and `Epp\Contact::setEntityType()`'s range check
+was `($tmp < 1) && ($tmp > 7)`, which no value satisfies, so nothing was ever
+rejected. `contact create --help` now spells out the entity types 1–7, and the
+expected format for `--province`, `--voice`, `--countrycode` and
+`--nationalitycode`; `domain create --help` states that `--admin`, `--tech`
+(1–6) and `--ns` (2–6) are required and how many of each the registry accepts.
 
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an

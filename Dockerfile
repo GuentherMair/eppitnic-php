@@ -1,8 +1,8 @@
 # Builds and serves eppitnic's REST API from one image: nginx in front,
-# php-fpm behind it over a unix socket, both under tini. See README.md's
-# Docker section for how the pieces (this file, compose.yaml, docker/) fit
-# together, and the plan this was built from for the measurements behind a
-# few choices below that would otherwise look arbitrary.
+# php-fpm behind it over a unix socket, both under tini. See docs/DOCKER.md
+# for how the pieces (this file, compose.yaml, docker/) fit together, and
+# for the measurements behind a few choices below that would otherwise look
+# arbitrary.
 
 # One stage for the PHP platform, shared by the two below, so that the image
 # resolving the dependencies is the image that will run them. Building in the
