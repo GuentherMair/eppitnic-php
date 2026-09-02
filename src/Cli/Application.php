@@ -96,11 +96,11 @@ final class Application
             'setup'                   => SetupCommand::class,
             'user create'             => UserCreateCommand::class,
             'user token'              => UserTokenCommand::class,
-            'config migrate'          => ConfigMigrateCommand::class,
+            'config show'             => ConfigShowCommand::class,
             'config epp-server'       => ConfigEppServerCommand::class,
             'config epp-set'          => ConfigEppSetCommand::class,
             'config epp-password'     => ConfigEppPasswordCommand::class,
-            'config show'             => ConfigShowCommand::class,
+            'config migrate'          => ConfigMigrateCommand::class,
         ];
     }
 
