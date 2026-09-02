@@ -20,9 +20,7 @@ final class ContactCheckCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file=' => 'read handles from this file, one per line',
-        ];
+        return self::fileOption('handles');
     }
 
     public function run(): int {

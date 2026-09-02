@@ -56,17 +56,14 @@ final class DomainUpdateCommand extends Command
             return 0;
         }
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($rows, &$failures) {
+        $this->withSession(function ($nic) use ($rows) {
             foreach ($rows as $row) {
                 $domain = new Domain($nic);
 
                 // update() sends the difference against what was fetched, so
                 // the read is what makes an add or a removal meaningful
                 if ( ! $domain->fetch($row['domain'])) {
-                    $failures++;
-                    $this->warn("{$row['domain']}: " . ($domain->getError() ?: 'not found'));
+                    $this->itemFailed($row['domain'], $domain->getError());
                     continue;
                 }
 
@@ -111,8 +108,7 @@ final class DomainUpdateCommand extends Command
                 $changes = $domain->changedFields();
 
                 if ( ! $domain->update()) {
-                    $failures++;
-                    $this->warn("{$row['domain']}: " . $domain->getError());
+                    $this->itemFailed($row['domain'], $domain->getError());
                     continue;
                 }
 
@@ -131,7 +127,7 @@ final class DomainUpdateCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_UPDATE_FAILED : 0;
+        return $this->outcome(DOMAIN_UPDATE_FAILED);
     }
 
     /**
@@ -143,11 +139,11 @@ final class DomainUpdateCommand extends Command
      */
     private function rows(): array {
         $defaults = [
-            'add_ns'   => $this->split((string) $this->option('add-ns', '')),
-            'rem_ns'   => $this->split((string) $this->option('rem-ns', '')),
-            'add_tech' => $this->split((string) $this->option('add-tech', '')),
-            'rem_tech' => $this->split((string) $this->option('rem-tech', '')),
-            'tech'     => $this->hasOption('tech') ? $this->split((string) $this->option('tech')) : null,
+            'add_ns'   => $this->splitList((string) $this->option('add-ns', '')),
+            'rem_ns'   => $this->splitList((string) $this->option('rem-ns', '')),
+            'add_tech' => $this->splitList((string) $this->option('add-tech', '')),
+            'rem_tech' => $this->splitList((string) $this->option('rem-tech', '')),
+            'tech'     => $this->hasOption('tech') ? $this->splitList((string) $this->option('tech')) : null,
             'admin'    => $this->hasOption('admin') ? (string) $this->option('admin') : null,
             'authinfo' => $this->hasOption('authinfo') ? (string) $this->option('authinfo') : null,
         ];
@@ -162,17 +158,11 @@ final class DomainUpdateCommand extends Command
             $fields = array_map('trim', explode(';', $line));
             $rows[] = [
                 'domain' => $fields[0],
-                'add_ns' => isset($fields[1]) ? $this->split($fields[1]) : $defaults['add_ns'],
-                'rem_ns' => isset($fields[2]) ? $this->split($fields[2]) : $defaults['rem_ns'],
+                'add_ns' => isset($fields[1]) ? $this->splitList($fields[1]) : $defaults['add_ns'],
+                'rem_ns' => isset($fields[2]) ? $this->splitList($fields[2]) : $defaults['rem_ns'],
             ] + $defaults;
         }
         return $rows;
     }
 
-    /**
-     * @return string[] the registry accepts at most six of either
-     */
-    private function split(string $value): array {
-        return array_slice(array_values(array_filter(array_map('trim', explode(':', $value)))), 0, 6);
-    }
 }

@@ -46,6 +46,15 @@ abstract class Command
     /** set while a --dry-run session is in flight */
     private ?DryRun $dryRun = null;
 
+    /**
+     * How many items of a bulk run did not succeed -- see itemFailed().
+     *
+     * On the base class rather than a local in each run(): fifteen commands
+     * kept this counter, every one of them passing it into the withSession()
+     * closure by reference purely to get it back out again.
+     */
+    protected int $failures = 0;
+
     // ---------------------------------------------------------------
     // what a subcommand declares about itself
     // ---------------------------------------------------------------
@@ -101,6 +110,33 @@ abstract class Command
         'dry-run' => 'print the EPP request that would be sent, and send nothing',
         'yes'     => 'do not ask for confirmation',
     ];
+
+    /**
+     * The same, for a command that changes something *locally* and never opens
+     * a registry session -- the `config` verbs.
+     *
+     * Its own const rather than MUTATING_OPTIONS: that one's --dry-run promises
+     * to print the EPP request, which a local settings write has none of. Five
+     * commands each hand-copied this pair for exactly that reason, which is one
+     * wording to keep in step in five places.
+     */
+    public const LOCAL_MUTATING_OPTIONS = [
+        'dry-run' => 'print what would change, without writing it',
+        'yes'     => 'do not ask for confirmation',
+    ];
+
+    /**
+     * The --file option, whose text differs only in what the lines hold.
+     *
+     * @param string $noun what one line carries, e.g. 'domain names'
+     * @param string $qualifier appended in brackets, for the one command where
+     *                          --file only applies in a particular mode
+     * @return array<string, string> to merge into options()
+     */
+    protected static function fileOption(string $noun, string $qualifier = ''): array {
+        $text = "read {$noun} from this file, one per line";
+        return ['file=' => $qualifier === '' ? $text : "{$text} ({$qualifier})"];
+    }
 
     public const FORMAT_TEXT  = 'text';
     public const FORMAT_JSON  = 'json';
@@ -430,6 +466,47 @@ abstract class Command
      */
     public function useErrorStream($stream): void {
         $this->errorStream = $stream;
+    }
+
+    /**
+     * One item of a bulk run did not succeed: say so, and count it.
+     *
+     * Every command that walks a list of names does the same two things on a
+     * failure and then `continue`s, so the caller reads as
+     * `if ( ! $ok) { $this->itemFailed($name, $obj->getError()); continue; }`.
+     *
+     * The empty-error fallback is the fetch case: an object that simply is not
+     * there answers with no error text at all, and "example.it: " on its own
+     * says nothing.
+     *
+     * @param string $item the domain, handle or other name being worked on
+     * @param string $error what went wrong, from the object's getError()
+     */
+    protected function itemFailed(string $item, string $error = ''): void {
+        $this->failures++;
+        $this->warn("{$item}: " . ($error !== '' ? $error : 'not found'));
+    }
+
+    /**
+     * The exit code for a bulk run: $failureCode if anything failed, else 0.
+     *
+     * @param int $failureCode the command's own code, from config/constants.php
+     */
+    protected function outcome(int $failureCode): int {
+        return $this->failures > 0 ? $failureCode : 0;
+    }
+
+    /**
+     * Split a ':'-separated option value into at most six entries.
+     *
+     * Six because that is the registry's own ceiling for both nameservers and
+     * technical contacts -- see domain:hostAttr and domain:contact in
+     * xsd/domain-1.0.xsd.
+     *
+     * @return string[]
+     */
+    protected function splitList(string $value): array {
+        return array_slice(array_values(array_filter(array_map('trim', explode(':', $value)))), 0, 6);
     }
 
     /**

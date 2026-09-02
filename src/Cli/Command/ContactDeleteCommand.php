@@ -24,8 +24,7 @@ final class ContactDeleteCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='   => 'read handles from this file, one per line',
+        return self::fileOption('handles') + [
             'prefix=' => 'delete every locally active contact whose handle starts with this',
         ] + self::MUTATING_OPTIONS;
     }
@@ -57,15 +56,13 @@ final class ContactDeleteCommand extends Command
         }
 
         $dryRun = $this->isDryRun();
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($handles, $dryRun, &$failures) {
+        $this->withSession(function ($nic) use ($handles, $dryRun) {
             $contact = new Contact($nic);
 
             foreach ($handles as $handle) {
                 if ( ! $contact->delete($handle)) {
-                    $failures++;
-                    $this->warn("{$handle}: " . $contact->getError());
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
 
@@ -79,6 +76,6 @@ final class ContactDeleteCommand extends Command
             }
         });
 
-        return $failures > 0 ? CONTACT_DELETE_FAILED : 0;
+        return $this->outcome(CONTACT_DELETE_FAILED);
     }
 }

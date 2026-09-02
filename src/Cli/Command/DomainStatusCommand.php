@@ -28,9 +28,7 @@ final class DomainStatusCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file=' => 'read domain names from this file, one per line',
-        ] + self::MUTATING_OPTIONS;
+        return self::fileOption('domain names') + self::MUTATING_OPTIONS;
     }
 
     public function run(): int {
@@ -57,23 +55,19 @@ final class DomainStatusCommand extends Command
             return 0;
         }
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($names, $action, $state, &$failures) {
+        $this->withSession(function ($nic) use ($names, $action, $state) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
                 // updateStatus() works off the object's own status list, so the
                 // domain has to be read before it can be changed
                 if ( ! $domain->fetch($name)) {
-                    $failures++;
-                    $this->warn("{$name}: " . ($domain->getError() ?: 'not found'));
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
                 if ( ! $domain->updateStatus($state, $action)) {
-                    $failures++;
-                    $this->warn("{$name}: " . $domain->getError());
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -84,6 +78,6 @@ final class DomainStatusCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_UPDATE_FAILED : 0;
+        return $this->outcome(DOMAIN_UPDATE_FAILED);
     }
 }

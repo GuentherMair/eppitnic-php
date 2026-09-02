@@ -78,6 +78,12 @@ class Domain extends AbstractObject
    */
   private const FIELDS_WITH_ADDERS = array('ns', 'tech', 'dnssec');
 
+  /** the client-side states a domain accepts, for updateStatus() */
+  private const CLIENT_STATES = array(
+    'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited',
+    'clientHold', 'clientLock',
+  );
+
   protected $user_id;           // use just in case of an updateRegistrant + change of agent
   protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;            // -
@@ -103,9 +109,6 @@ class Domain extends AbstractObject
   protected $trStatus;
   protected $reID;
   protected $acID;
-
-  // max checks allowed
-  protected $max_check;
 
   // infContacts
   protected $infcontacts;
@@ -149,7 +152,6 @@ class Domain extends AbstractObject
     $this->dnssec            = array();
     $this->dnssec_initial    = array();
     $this->clearChanges();
-    $this->max_check         = 5;
     $this->crDate            = date("Y-m-d");
     $this->exDate            = date("Y-m-d", strtotime("+1 year"));
     $this->trStatus          = "";
@@ -199,6 +201,66 @@ class Domain extends AbstractObject
       $this->markChanged($var);
     }
     return $this->$var;
+  }
+
+  /**
+   * Take the current field values as the new baseline: no pending changes, and
+   * the four collections update() diffs against are what they are right now.
+   *
+   * Called wherever this object has just been brought into agreement with the
+   * registry or the database -- create(), fetch(), update(), loadDB(). It is
+   * one method because it was four copies, and one of them had drifted:
+   * update()'s left out dnssec_initial, so a second update() on the same
+   * object diffed DNSSEC against pre-first-update state and re-sent changes
+   * the registry had already taken. A field added to the snapshot now reaches
+   * every caller by construction.
+   */
+  private function resetChangeTracking(): void {
+    $this->clearChanges();
+    $this->ns_initial     = $this->ns;
+    $this->admin_initial  = $this->admin;
+    $this->tech_initial   = $this->tech;
+    $this->dnssec_initial = $this->dnssec;
+  }
+
+  /**
+   * One <extdom:infContactsData> entry -- the registrant, or one of the
+   * admin/tech contacts -- flattened into the shape infcontacts holds.
+   *
+   * Both callers read exactly the same eighteen fields out of exactly the
+   * same two namespaced children; only where the entry came from and what to
+   * call its type ever differed. As two copies, a field added to one was
+   * simply absent from the other half of the answer.
+   *
+   * @param \SimpleXMLElement $entry the <registrant> or <contact> element
+   * @param string $type 'registrant', or the <contact type="..."> attribute
+   * @param array<string, string> $ns the response's namespace map
+   * @return array<string, string>
+   */
+  private static function linkedContact(\SimpleXMLElement $entry, string $type, array $ns): array {
+    $infContact = $entry->infContact->children($ns['contact']);
+    $extInfo    = $entry->extInfo->children($ns['extcon']);
+
+    return array(
+      'type'                 => $type,
+      'id'                   => (string)$infContact->id,
+      'name'                 => (string)$infContact->postalInfo->name,
+      'org'                  => (string)$infContact->postalInfo->org,
+      'street'               => (string)$infContact->postalInfo->addr->street[0],
+      'street2'              => (string)$infContact->postalInfo->addr->street[1],
+      'street3'              => (string)$infContact->postalInfo->addr->street[2],
+      'city'                 => (string)$infContact->postalInfo->addr->city,
+      'province'             => (string)$infContact->postalInfo->addr->sp,
+      'postalcode'           => (string)$infContact->postalInfo->addr->pc,
+      'countrycode'          => (string)$infContact->postalInfo->addr->cc,
+      'voice'                => (string)$infContact->voice,
+      'fax'                  => (string)$infContact->fax,
+      'email'                => (string)$infContact->email,
+      'consentforpublishing' => (string)$extInfo->consentForPublishing,
+      'nationalitycode'      => (string)$extInfo->registrant->nationalityCode,
+      'entitytype'           => (string)$extInfo->registrant->entityType,
+      'regcode'              => (string)$extInfo->registrant->regCode,
+    );
   }
 
   /**
@@ -434,45 +496,19 @@ class Domain extends AbstractObject
    * @return CheckResult the registry's answer, or a failure -- see CheckResult
    */
   public function check(array|string|null $domain = null): CheckResult {
-    if ($domain === null) {
-      $domain = $this->domain;
-    }
-    if (!is_array($domain)) {
-      $domain = array($domain);
-    }
-    // checked after the array cast, so it has to test the cast value: the old
-    // `$domain == ""` compared an array against a string and was never true
-    $domain = array_values(array_filter($domain, fn($d) => (string)$d !== ""));
-    if (empty($domain)) {
-      $this->setError("Operation not allowed, set a domain name first!");
-      return CheckResult::failure($this->getError());
-    }
-
-    $this->xmlQuery = XmlBuilder::domainCheck(
-      $this->client->set_clTRID(),
-      array_slice($domain, 0, $this->max_check)
+    $result = $this->checkAvailability(
+      $domain,
+      $this->domain,
+      "Operation not allowed, set a domain name first!",
+      'domain',
+      'name',
+      fn(string $clTRID, array $names) => XmlBuilder::domainCheck($clTRID, $names)
     );
 
-    if ( ! $this->ExecuteQuery("domain-check", implode(";", $domain))) {
-      return CheckResult::failure($this->getError());
-    }
-
-    $tmp = $this->responseData('domain');
-    if ($tmp === null || ! isset($tmp->chkData->cd)) {
-      $this->setError("The registry accepted the check but returned no availability data.");
-      return CheckResult::failure($this->getError());
-    }
-
-    $availability = [];
-    foreach ($tmp->chkData->cd as $cd) {
-      $available = (string)$cd->name->attributes()->avail === "true";
-      $availability[(string)$cd->name] = [
-        'available' => $available,
-        'reason'    => $available ? 'OK' : (string)$cd->reason,
-      ];
-    }
-
-    // kept for callers reading it after a single-name check
+    // The one thing Contact's check does not do, so it stays here rather than
+    // in the shared method: kept for callers reading svMsg after a single-name
+    // check.
+    $availability = $result->all();
     if (count($availability) === 1) {
       $only = array_values($availability)[0];
       if ( ! $only['available']) {
@@ -480,7 +516,7 @@ class Domain extends AbstractObject
       }
     }
 
-    return CheckResult::of($availability);
+    return $result;
   }
 
   /**
@@ -502,12 +538,8 @@ class Domain extends AbstractObject
 
     // query server and return answer (no handling of special return values)
     if ($this->ExecuteQuery("domain-create", $this->domain)) {
-      $this->clearChanges();
+      $this->resetChangeTracking();
       $this->status = array('ok');
-      $this->ns_initial = $this->ns;
-      $this->admin_initial = $this->admin;
-      $this->tech_initial = $this->tech;
-      $this->dnssec_initial = $this->dnssec;
       return TRUE;
     } else {
       return FALSE;
@@ -615,63 +647,17 @@ class Domain extends AbstractObject
         // fetch contact information
         $this->infcontacts = array();
         if (@is_object($tmp->infContactsData->registrant)) {
-          $infContact = $tmp->infContactsData->registrant->infContact->children($ns['contact']);
-          $extInfo = $tmp->infContactsData->registrant->extInfo->children($ns['extcon']);
-          $this->infcontacts[] = array(
-            'type'                 => 'registrant',
-            'id'                   => (string)$infContact->id,
-            'name'                 => (string)$infContact->postalInfo->name,
-            'org'                  => (string)$infContact->postalInfo->org,
-            'street'               => (string)$infContact->postalInfo->addr->street[0],
-            'street2'              => (string)$infContact->postalInfo->addr->street[1],
-            'street3'              => (string)$infContact->postalInfo->addr->street[2],
-            'city'                 => (string)$infContact->postalInfo->addr->city,
-            'province'             => (string)$infContact->postalInfo->addr->sp,
-            'postalcode'           => (string)$infContact->postalInfo->addr->pc,
-            'countrycode'          => (string)$infContact->postalInfo->addr->cc,
-            'voice'                => (string)$infContact->voice,
-            'fax'                  => (string)$infContact->fax,
-            'email'                => (string)$infContact->email,
-            'consentforpublishing' => (string)$extInfo->consentForPublishing,
-            'nationalitycode'      => (string)$extInfo->registrant->nationalityCode,
-            'entitytype'           => (string)$extInfo->registrant->entityType,
-            'regcode'              => (string)$extInfo->registrant->regCode,
-          );
+          $this->infcontacts[] = self::linkedContact($tmp->infContactsData->registrant, 'registrant', $ns);
         }
         if (@is_object($tmp->infContactsData->contact[0])) {
           foreach ($tmp->infContactsData->contact as $contact) {
-            $infContact = $contact->infContact->children($ns['contact']);
-            $extInfo = $contact->extInfo->children($ns['extcon']);
-            $this->infcontacts[] = array(
-              'type'                 => (string)$contact->attributes()->type,
-              'id'                   => (string)$infContact->id,
-              'name'                 => (string)$infContact->postalInfo->name,
-              'org'                  => (string)$infContact->postalInfo->org,
-              'street'               => (string)$infContact->postalInfo->addr->street[0],
-              'street2'              => (string)$infContact->postalInfo->addr->street[1],
-              'street3'              => (string)$infContact->postalInfo->addr->street[2],
-              'city'                 => (string)$infContact->postalInfo->addr->city,
-              'province'             => (string)$infContact->postalInfo->addr->sp,
-              'postalcode'           => (string)$infContact->postalInfo->addr->pc,
-              'countrycode'          => (string)$infContact->postalInfo->addr->cc,
-              'voice'                => (string)$infContact->voice,
-              'fax'                  => (string)$infContact->fax,
-              'email'                => (string)$infContact->email,
-              'consentforpublishing' => (string)$extInfo->consentForPublishing,
-              'nationalitycode'      => (string)$extInfo->registrant->nationalityCode,
-              'entitytype'           => (string)$extInfo->registrant->entityType,
-              'regcode'              => (string)$extInfo->registrant->regCode,
-            );
+            $this->infcontacts[] = self::linkedContact($contact, (string)$contact->attributes()->type, $ns);
           }
         }
       }
 
       // reset changes at the bottom
-      $this->clearChanges();
-      $this->ns_initial = $this->ns;
-      $this->admin_initial = $this->admin;
-      $this->tech_initial = $this->tech;
-      $this->dnssec_initial = $this->dnssec;
+      $this->resetChangeTracking();
       return TRUE;
     } else {
       return FALSE;
@@ -793,14 +779,7 @@ class Domain extends AbstractObject
 
     // query server
     if ($this->ExecuteQuery("domain-update", $this->domain)) {
-      $this->clearChanges();
-      $this->ns_initial = $this->ns;
-      $this->admin_initial = $this->admin;
-      $this->tech_initial = $this->tech;
-      // dnssec_initial belongs with the others: create(), fetch() and loadDB()
-      // all maintain it, and without it a second update() on the same object
-      // diffs DNSSEC against pre-first-update state and re-sends stale changes
-      $this->dnssec_initial = $this->dnssec;
+      $this->resetChangeTracking();
       return TRUE;
     } else {
       return FALSE;
@@ -857,29 +836,8 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    switch ($state) {
-      case "clientDeleteProhibited":
-      case "clientUpdateProhibited":
-      case "clientTransferProhibited":
-      case "clientHold":
-      case "clientLock":
-        break;
-      default:
-        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited', 'clientHold', 'clientLock'.");
-        return FALSE;
-    }
-
-    switch ($adddel) {
-      case "add":
-        $this->status = array_merge($this->status, array($state));
-        break;
-      case "rem":
-        $this->status = array_diff($this->status, array($state));
-        break;
-      default:
-        $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
-        return FALSE;
-        break;
+    if ( ! $this->applyStatusChange(self::CLIENT_STATES, $state, $adddel)) {
+      return FALSE;
     }
 
     $this->xmlQuery = XmlBuilder::domainStatus($this->client->set_clTRID(), $this->domain, $adddel, $state);
@@ -986,11 +944,7 @@ class Domain extends AbstractObject
     $this->storageHydrate($row, $serialized);
 
     // initialize data
-    $this->clearChanges();
-    $this->ns_initial = $this->ns;
-    $this->admin_initial = $this->admin;
-    $this->tech_initial = $this->tech;
-    $this->dnssec_initial = $this->dnssec;
+    $this->resetChangeTracking();
     return TRUE;
   }
 

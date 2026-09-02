@@ -49,6 +49,25 @@ use RedBeanPHP\R;
  */
 final class Config
 {
+    /**
+     * The `epp` setting's fields safe to show a caller.
+     *
+     * An allow-list, not a deny-list of secrets: the shared registry password
+     * lives in the same setting, and so might whatever secret is added next.
+     * Naming what is safe means a new field defaults to *not* being published,
+     * rather than leaking until somebody remembers to exclude it.
+     *
+     * Here rather than in each consumer because there are two of them --
+     * GET /v1/session/epp and `eppitnic config show` -- and they were kept in
+     * agreement by a comment in each pointing at the other. That works exactly
+     * until someone adds a field to one list, which is the case the allow-list
+     * exists to survive.
+     */
+    public const EPP_PUBLIC_FIELDS = [
+        'server', 'server_deleted', 'port', 'interface',
+        'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
+    ];
+
     private static ?self $instance = null;
     private array $settings = [];
 

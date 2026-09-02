@@ -25,8 +25,7 @@ final class DomainSetRegistrantCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='       => 'read domain names from this file, one per line',
+        return self::fileOption('domain names') + [
             'registrant=' => 'the new registrant contact handle (required)',
             'authinfo='   => 'the new authinfo code (generated when omitted)',
         ] + self::MUTATING_OPTIONS;
@@ -50,15 +49,12 @@ final class DomainSetRegistrantCommand extends Command
             return 0;
         }
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($names, $registrant, &$failures) {
+        $this->withSession(function ($nic) use ($names, $registrant) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
                 if ( ! $domain->fetch($name)) {
-                    $failures++;
-                    $this->warn("{$name}: " . ($domain->getError() ?: 'not found'));
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -68,8 +64,7 @@ final class DomainSetRegistrantCommand extends Command
                 $domain->set('authinfo', (string) $this->option('authinfo', $domain->authinfo()));
 
                 if ( ! $domain->updateRegistrant()) {
-                    $failures++;
-                    $this->warn("{$name}: " . $domain->getError());
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -85,6 +80,6 @@ final class DomainSetRegistrantCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_UPDATE_FAILED : 0;
+        return $this->outcome(DOMAIN_UPDATE_FAILED);
     }
 }

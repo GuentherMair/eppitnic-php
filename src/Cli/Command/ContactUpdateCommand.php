@@ -30,8 +30,7 @@ final class ContactUpdateCommand extends Command
     }
 
     public function options(): array {
-        $options = [
-            'file='          => 'read handles from this file, one per line',
+        $options = self::fileOption('handles') + [
             'registrant-of=' => 'act on the registrants of these domains instead, colon-separated',
         ];
         foreach (self::FIELDS as $field) {
@@ -76,17 +75,15 @@ final class ContactUpdateCommand extends Command
         $store = $this->hasOption('store');
         $userId = $this->userId();
         $dryRun = $this->isDryRun();
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($handles, $registrantOf, $changes, $publish, $unpublish, $store, $userId, $dryRun, &$failures) {
+        $this->withSession(function ($nic) use ($handles, $registrantOf, $changes, $publish, $unpublish, $store, $userId, $dryRun) {
             // --registrant-of names domains; the contacts to change are
             // whichever registrants they currently have, which only the
             // registry can say
             foreach ($registrantOf as $name) {
                 $domain = new \Eppitnic\Epp\Domain($nic);
                 if ( ! $domain->fetch($name)) {
-                    $failures++;
-                    $this->warn("{$name}: " . ($domain->getError() ?: 'not found'));
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
                 $handles[] = $domain->get('registrant');
@@ -99,8 +96,7 @@ final class ContactUpdateCommand extends Command
                 // the registry only accepts a change against what it currently
                 // holds, and update() diffs against the fetched state
                 if ( ! $contact->fetch($handle)) {
-                    $failures++;
-                    $this->warn("{$handle}: " . ($contact->getError() ?: 'not found'));
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
 
@@ -117,8 +113,7 @@ final class ContactUpdateCommand extends Command
                 }
 
                 if ( ! $contact->update()) {
-                    $failures++;
-                    $this->warn("{$handle}: " . $contact->getError());
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
 
@@ -130,6 +125,6 @@ final class ContactUpdateCommand extends Command
             }
         });
 
-        return $failures > 0 ? CONTACT_UPDATE_FAILED : 0;
+        return $this->outcome(CONTACT_UPDATE_FAILED);
     }
 }

@@ -70,9 +70,8 @@ final class DomainTransferCommand extends Command
 
         $userId = $this->userId();
         $dryRun = $this->isDryRun();
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($targets, $operation, $userId, $dryRun, &$failures) {
+        $this->withSession(function ($nic) use ($targets, $operation, $userId, $dryRun) {
             foreach ($targets as $name => $authinfo) {
                 $domain = new Domain($nic);
 
@@ -84,8 +83,7 @@ final class DomainTransferCommand extends Command
                 };
 
                 if ( ! $ok) {
-                    $failures++;
-                    $this->warn("{$name}: " . $domain->getError());
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -98,7 +96,7 @@ final class DomainTransferCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_TRANSFER_FAILED : 0;
+        return $this->outcome(DOMAIN_TRANSFER_FAILED);
     }
 
     /**

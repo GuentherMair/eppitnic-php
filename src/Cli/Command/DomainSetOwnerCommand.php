@@ -29,8 +29,7 @@ final class DomainSetOwnerCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='      => 'read domain names from this file, one per line',
+        return self::fileOption('domain names') + [
             'new-owner=' => 'the local user id to move the domains to (required)',
         ] + self::MUTATING_OPTIONS;
     }
@@ -70,15 +69,12 @@ final class DomainSetOwnerCommand extends Command
             return 0;
         }
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($names, $newOwnerId, &$failures) {
+        $this->withSession(function ($nic) use ($names, $newOwnerId) {
             foreach ($names as $name) {
                 $result = DomainService::changeOwner($nic, $name, $newOwnerId);
 
                 if ( ! $result['ok']) {
-                    $failures++;
-                    $this->warn("{$name}: " . $result['error']);
+                    $this->itemFailed($name, $result['error']);
                     continue;
                 }
 
@@ -95,6 +91,6 @@ final class DomainSetOwnerCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_UPDATE_FAILED : 0;
+        return $this->outcome(DOMAIN_UPDATE_FAILED);
     }
 }

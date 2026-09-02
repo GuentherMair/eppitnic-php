@@ -71,6 +71,9 @@ class Contact extends AbstractObject
     'schoolcode',
   );
 
+  /** the client-side states a contact accepts, for updateStatus() */
+  private const CLIENT_STATES = array('clientDeleteProhibited', 'clientUpdateProhibited');
+
   /** the seven fields that together make up <contact:addr> */
   private const ADDRESS_FIELDS = array(
     'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode',
@@ -113,8 +116,6 @@ class Contact extends AbstractObject
   protected $regcode;
   protected $schoolcode;
 
-  protected $max_check;
-
   /**
    * Class constructor
    *
@@ -134,7 +135,6 @@ class Contact extends AbstractObject
     $this->status    = array();
     $this->handle    = "";
     $this->clearChanges();
-    $this->max_check = 5;
 
     foreach (self::FIELDS as $field) {
       $this->$field = self::FIELD_DEFAULTS[$field] ?? "";
@@ -290,45 +290,16 @@ class Contact extends AbstractObject
    * @return CheckResult the registry's answer, or a failure -- see CheckResult
    */
   public function check(array|string|null $contact = null): CheckResult {
-    if ($contact === null) {
-      $contact = $this->handle;
-    }
-    if ( ! is_array($contact)) {
-      $contact = array($contact);
-    }
-    // array($null) / array("") is a one-element array, so the plain empty()
-    // check below never fired for the case it was meant to catch
-    $contact = array_values(array_filter($contact, fn($c) => (string)$c !== ""));
-    if (empty($contact)) {
-      $this->setError("Operation not allowed, set a handle!");
-      return CheckResult::failure($this->getError());
-    }
-
-    $this->xmlQuery = XmlBuilder::contactCheck(
-      $this->client->set_clTRID(),
-      array_slice($contact, 0, $this->max_check)
+    // contacts come back under <cd><id>, domains under <cd><name> -- otherwise
+    // this is AbstractObject::checkAvailability() unchanged
+    return $this->checkAvailability(
+      $contact,
+      $this->handle,
+      "Operation not allowed, set a handle!",
+      'contact',
+      'id',
+      fn(string $clTRID, array $handles) => XmlBuilder::contactCheck($clTRID, $handles)
     );
-
-    if ( ! $this->ExecuteQuery("contact-check", implode(";", $contact))) {
-      return CheckResult::failure($this->getError());
-    }
-
-    $tmp = $this->responseData('contact');
-    if ($tmp === null || ! isset($tmp->chkData->cd)) {
-      $this->setError("The registry accepted the check but returned no availability data.");
-      return CheckResult::failure($this->getError());
-    }
-
-    $availability = [];
-    foreach ($tmp->chkData->cd as $cd) {
-      $available = (string)$cd->id->attributes()->avail === "true";
-      $availability[(string)$cd->id] = [
-        'available' => $available,
-        'reason'    => $available ? 'OK' : (string)$cd->reason,
-      ];
-    }
-
-    return CheckResult::of($availability);
   }
 
   /**
@@ -582,26 +553,8 @@ class Contact extends AbstractObject
       return FALSE;
     }
 
-    switch ($state) {
-      case "clientDeleteProhibited":
-      case "clientUpdateProhibited":
-        break;
-      default:
-        $this->setError("State '".$state."' not allowed, expecting one of 'clientDeleteProhibited' or 'clientUpdateProhibited'.");
-        return FALSE;
-    }
-
-    switch ($adddel) {
-      case "add":
-        $this->status = array_merge($this->status, array($state));
-        break;
-      case "rem":
-        $this->status = array_diff($this->status, array($state));
-        break;
-      default:
-        $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
-        return FALSE;
-        break;
+    if ( ! $this->applyStatusChange(self::CLIENT_STATES, $state, $adddel)) {
+      return FALSE;
     }
 
     $this->xmlQuery = XmlBuilder::contactStatus($this->client->set_clTRID(), $this->handle, $adddel, $state);

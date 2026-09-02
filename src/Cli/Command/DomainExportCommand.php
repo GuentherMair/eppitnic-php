@@ -42,7 +42,7 @@ final class DomainExportCommand extends Command
             'source='   => "'local' (default) reads the database, 'registry' fetches each domain live",
             'csv'       => 'write CSV (the default for this command)',
             'output='   => 'write to this file instead of standard output',
-            'file='     => 'read domain names from this file (--source=registry)',
+        ] + self::fileOption('domain names', '--source=registry') + [
             'all-users' => 'export every user\'s domains, not just --user\'s',
         ];
     }

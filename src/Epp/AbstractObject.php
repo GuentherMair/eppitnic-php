@@ -76,6 +76,13 @@ abstract class AbstractObject
   public    $extValueReason;
 
   /**
+   * How many names one <check> may carry, per nic.it's technical guidelines.
+   * Here rather than in each subclass, which set the same 5: checkAvailability()
+   * is what reads it, and it is the registry's limit, not a per-object one.
+   */
+  protected int $max_check = 5;
+
+  /**
    * Class constructor
    *
    * @param Client $client client class
@@ -274,6 +281,112 @@ abstract class AbstractObject
 
     $children = $this->xmlResult->response->extension->children($ns[$prefix]);
     return (count($children) > 0) ? $children : null;
+  }
+
+  /**
+   * Ask the registry which of $names are available.
+   *
+   * Contact and Domain ran the same thirty-odd lines for this: normalise the
+   * argument to a non-empty list, cap it at max_check, send the check, and
+   * read <chkData><cd> back into handle/name => [available, reason]. Only six
+   * values ever differed, and they are the parameters below. Keeping the two
+   * apart cost more than the parameters do -- the same class of bug had to be
+   * found and fixed twice, once in each (an argument cast to array before the
+   * emptiness test, so the test could never fire).
+   *
+   * @param array|string|null $names what to check; null falls back to $fallback
+   * @param string $fallback this object's own identity, for the no-argument call
+   * @param string $emptyError what to say when nothing checkable was given
+   * @param string $prefix the object's namespace prefix, 'contact' or 'domain'
+   *                       -- also the first half of the clTRType
+   * @param string $idElement the <cd> child carrying the identifier: contacts
+   *                          answer with <id>, domains with <name>
+   * @param callable $buildXml function(string $clTRID, array $names): string
+   * @return CheckResult availability per name, or a failure carrying getError()
+   */
+  protected function checkAvailability(
+    array|string|null $names,
+    string $fallback,
+    string $emptyError,
+    string $prefix,
+    string $idElement,
+    callable $buildXml
+  ): CheckResult {
+    if ($names === null) {
+      $names = $fallback;
+    }
+    if ( ! is_array($names)) {
+      $names = array($names);
+    }
+
+    // filtered after the cast, and the emptiness tested on the result: array(null)
+    // and array("") are one-element arrays, so a check against the argument as
+    // given never fired for the case it was meant to catch
+    $names = array_values(array_filter($names, fn($n) => (string)$n !== ""));
+    if (empty($names)) {
+      $this->setError($emptyError);
+      return CheckResult::failure($this->getError());
+    }
+
+    $this->xmlQuery = $buildXml(
+      $this->client->set_clTRID(),
+      array_slice($names, 0, $this->max_check)
+    );
+
+    if ( ! $this->ExecuteQuery("{$prefix}-check", implode(";", $names))) {
+      return CheckResult::failure($this->getError());
+    }
+
+    $tmp = $this->responseData($prefix);
+    if ($tmp === null || ! isset($tmp->chkData->cd)) {
+      $this->setError("The registry accepted the check but returned no availability data.");
+      return CheckResult::failure($this->getError());
+    }
+
+    $availability = [];
+    foreach ($tmp->chkData->cd as $cd) {
+      $available = (string)$cd->$idElement->attributes()->avail === "true";
+      $availability[(string)$cd->$idElement] = [
+        'available' => $available,
+        'reason'    => $available ? 'OK' : (string)$cd->reason,
+      ];
+    }
+
+    return CheckResult::of($availability);
+  }
+
+  /**
+   * Validate a status change and apply it to $this->status.
+   *
+   * The half of updateStatus() that never differed between Contact and Domain:
+   * only the set of states each accepts does, and that is the parameter. The
+   * object's own identity check and the XML it then sends stay with the
+   * caller, which is where they actually differ.
+   *
+   * @param string[] $allowed the states this object type accepts
+   * @param string $state the state to add or remove
+   * @param string $adddel 'add' or 'rem'
+   * @return bool false with the error already set, so the caller can return it
+   */
+  protected function applyStatusChange(array $allowed, string $state, string $adddel): bool {
+    if ( ! in_array($state, $allowed, true)) {
+      $this->setError(
+        "State '".$state."' not allowed, expecting one of '" . implode("', '", $allowed) . "'."
+      );
+      return FALSE;
+    }
+
+    switch ($adddel) {
+      case "add":
+        $this->status = array_merge($this->status, array($state));
+        return TRUE;
+      case "rem":
+        $this->status = array_diff($this->status, array($state));
+        return TRUE;
+      default:
+        $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");
+        return FALSE;
+    }
   }
 
   /**

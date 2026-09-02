@@ -58,15 +58,12 @@ final class ContactFixEmailPrivacyCommand extends Command
             return 0;
         }
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($registrants, $userId, &$failures) {
+        $this->withSession(function ($nic) use ($registrants, $userId) {
             foreach ($registrants as $handle => $theirDomains) {
                 $contact = new Contact($nic);
 
                 if ( ! $contact->fetch($handle)) {
-                    $failures++;
-                    $this->warn("{$handle}: " . ($contact->getError() ?: 'not found'));
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
 
@@ -88,8 +85,7 @@ final class ContactFixEmailPrivacyCommand extends Command
                 }
 
                 if ( ! $contact->update()) {
-                    $failures++;
-                    $this->warn("{$handle}: " . $contact->getError());
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
                 $contact->updateDB($handle, $userId, true);
@@ -102,6 +98,6 @@ final class ContactFixEmailPrivacyCommand extends Command
             }
         });
 
-        return $failures > 0 ? CONTACT_UPDATE_FAILED : 0;
+        return $this->outcome(CONTACT_UPDATE_FAILED);
     }
 }

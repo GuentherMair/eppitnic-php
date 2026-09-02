@@ -33,10 +33,7 @@ final class ConfigEppSetCommand extends Command
         // not self::MUTATING_OPTIONS verbatim -- its --dry-run wording talks
         // about the EPP request that would be sent, and this command never
         // opens a registry session at all, only writes a local setting
-        return [
-            'dry-run' => 'print what would change, without writing it',
-            'yes'     => 'do not ask for confirmation',
-        ];
+        return self::LOCAL_MUTATING_OPTIONS;
     }
 
     public function run(): int {

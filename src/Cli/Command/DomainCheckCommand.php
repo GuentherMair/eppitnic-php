@@ -20,9 +20,7 @@ final class DomainCheckCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file=' => 'read domain names from this file, one per line',
-        ];
+        return self::fileOption('domain names');
     }
 
     public function run(): int {

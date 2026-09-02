@@ -20,8 +20,7 @@ final class DomainInfoCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='     => 'read domain names from this file, one per line',
+        return self::fileOption('domain names') + [
             'authinfo=' => 'authinfo code, for a domain sponsored by another registrar',
             'contacts=' => "also fetch linked contacts: all, registrant, admin or tech",
             'store'     => 'write what was fetched to the local database',
@@ -43,17 +42,14 @@ final class DomainInfoCommand extends Command
         $store = $this->hasOption('store');
         $userId = $this->userId();
 
-        $failures = 0;
-
-        $this->withSession(function ($nic) use ($names, $authinfo, $contacts, $store, $userId, &$failures) {
+        $this->withSession(function ($nic) use ($names, $authinfo, $contacts, $store, $userId) {
             foreach ($names as $name) {
                 // a fresh object per domain: fetch() re-initialises, but
                 // reusing one across names has bitten this codebase before
                 $domain = new Domain($nic);
 
                 if ( ! $domain->fetch($name, $authinfo ?: null, $contacts)) {
-                    $failures++;
-                    $this->warn("{$name}: " . ($domain->getError() ?: 'not found'));
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -79,14 +75,14 @@ final class DomainInfoCommand extends Command
                     if ($domain->storeDB($userId)) {
                         $this->line('  stored locally');
                     } else {
-                        $failures++;
+                        $this->failures++;
                         $this->warn("{$name}: not stored (" . $domain->getError() . ')');
                     }
                 }
             }
         });
 
-        return $failures > 0 ? DOMAIN_FETCH_FAILED : 0;
+        return $this->outcome(DOMAIN_FETCH_FAILED);
     }
 
     /**

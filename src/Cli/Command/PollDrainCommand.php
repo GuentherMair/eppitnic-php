@@ -43,9 +43,8 @@ final class PollDrainCommand extends Command
         }
 
         $drained = 0;
-        $failures = 0;
 
-        $this->withSession(function ($nic, $session) use ($limit, $peek, &$drained, &$failures) {
+        $this->withSession(function ($nic, $session) use ($limit, $peek, &$drained) {
             /** @var Session $session */
             $waiting = $session->pollMessageCount();
 
@@ -61,7 +60,7 @@ final class PollDrainCommand extends Command
                 // poll 'req' stores the message; 'ack' removes it from the
                 // registry's queue and uncovers the next
                 if ( ! $session->poll(true, 'req', $id)) {
-                    $failures++;
+                    $this->failures++;
                     $this->warn("message {$id}: " . $session->getError());
                     return;
                 }
@@ -78,7 +77,7 @@ final class PollDrainCommand extends Command
                 }
 
                 if ( ! $session->poll(false, 'ack', $id)) {
-                    $failures++;
+                    $this->failures++;
                     $this->warn("message {$id}: not acknowledged (" . $session->getError() . ')');
                     return;
                 }
@@ -92,6 +91,6 @@ final class PollDrainCommand extends Command
         $this->line('');
         $this->line("{$drained} message(s) read");
 
-        return $failures > 0 ? POLL_FAILED : 0;
+        return $this->outcome(POLL_FAILED);
     }
 }

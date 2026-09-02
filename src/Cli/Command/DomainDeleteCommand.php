@@ -20,8 +20,7 @@ final class DomainDeleteCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='     => 'read domain names from this file, one per line',
+        return self::fileOption('domain names') + [
             'all-users' => 'operate on any user\'s domains, not just --user\'s',
         ] + self::MUTATING_OPTIONS;
     }
@@ -39,15 +38,13 @@ final class DomainDeleteCommand extends Command
 
         $userId = $this->userId();
         $isAdmin = $this->hasOption('all-users');
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($names, $userId, $isAdmin, &$failures) {
+        $this->withSession(function ($nic) use ($names, $userId, $isAdmin) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
                 if ( ! $domain->delete($name)) {
-                    $failures++;
-                    $this->warn("{$name}: " . $domain->getError());
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -61,6 +58,6 @@ final class DomainDeleteCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_DELETE_FAILED : 0;
+        return $this->outcome(DOMAIN_DELETE_FAILED);
     }
 }

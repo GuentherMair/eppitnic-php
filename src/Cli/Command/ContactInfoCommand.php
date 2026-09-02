@@ -20,8 +20,7 @@ final class ContactInfoCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file=' => 'read handles from this file, one per line',
+        return self::fileOption('handles') + [
             'store' => 'write what was fetched to the local database',
         ];
     }
@@ -34,15 +33,13 @@ final class ContactInfoCommand extends Command
 
         $store = $this->hasOption('store');
         $userId = $this->userId();
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($handles, $store, $userId, &$failures) {
+        $this->withSession(function ($nic) use ($handles, $store, $userId) {
             foreach ($handles as $handle) {
                 $contact = new Contact($nic);
 
                 if ( ! $contact->fetch($handle)) {
-                    $failures++;
-                    $this->warn("{$handle}: " . ($contact->getError() ?: 'not found'));
+                    $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
 
@@ -73,14 +70,14 @@ final class ContactInfoCommand extends Command
                     if ($contact->storeDB($userId)) {
                         $this->line('  stored locally');
                     } else {
-                        $failures++;
+                        $this->failures++;
                         $this->warn("{$handle}: not stored (" . $contact->getError() . ')');
                     }
                 }
             }
         });
 
-        return $failures > 0 ? CONTACT_FETCH_FAILED : 0;
+        return $this->outcome(CONTACT_FETCH_FAILED);
     }
 
     private function render(array $c): string {

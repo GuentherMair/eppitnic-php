@@ -54,17 +54,15 @@ final class DomainCreateCommand extends Command
 
         $userId = $this->userId();
         $dryRun = $this->isDryRun();
-        $failures = 0;
 
-        $this->withSession(function ($nic) use ($rows, $userId, $dryRun, &$failures) {
+        $this->withSession(function ($nic) use ($rows, $userId, $dryRun) {
             foreach ($rows as $row) {
                 // a dry run must not write the local row, so persistence is
                 // switched off rather than the result being discarded after
                 $result = DomainService::createOrTransfer($nic, $row, $userId, ! $dryRun);
 
                 if ( ! $result['ok']) {
-                    $failures++;
-                    $this->warn("{$row['domain']}: " . $result['error']);
+                    $this->itemFailed($row['domain'], $result['error']);
                     continue;
                 }
 
@@ -80,7 +78,7 @@ final class DomainCreateCommand extends Command
             }
         });
 
-        return $failures > 0 ? DOMAIN_CREATE_FAILED : 0;
+        return $this->outcome(DOMAIN_CREATE_FAILED);
     }
 
     /**
@@ -97,8 +95,8 @@ final class DomainCreateCommand extends Command
         $defaults = [
             'registrant' => (string) $this->option('registrant', ''),
             'admin'      => (string) $this->option('admin', ''),
-            'tech'       => $this->split((string) $this->option('tech', '')),
-            'ns'         => $this->split((string) $this->option('ns', '')),
+            'tech'       => $this->splitList((string) $this->option('tech', '')),
+            'ns'         => $this->splitList((string) $this->option('ns', '')),
         ];
         if ($this->hasOption('authinfo')) {
             $defaults['authinfo'] = (string) $this->option('authinfo');
@@ -118,17 +116,11 @@ final class DomainCreateCommand extends Command
                 // the old format had no separate admin column: the registrant
                 // stood in for it
                 'admin'      => $fields[1] ?? $defaults['admin'],
-                'tech'       => isset($fields[2]) ? $this->split($fields[2]) : $defaults['tech'],
-                'ns'         => isset($fields[3]) ? $this->split($fields[3]) : $defaults['ns'],
+                'tech'       => isset($fields[2]) ? $this->splitList($fields[2]) : $defaults['tech'],
+                'ns'         => isset($fields[3]) ? $this->splitList($fields[3]) : $defaults['ns'],
             ] + $defaults;
         }
         return $rows;
     }
 
-    /**
-     * @return string[] the registry accepts at most six of either
-     */
-    private function split(string $value): array {
-        return array_slice(array_values(array_filter(array_map('trim', explode(':', $value)))), 0, 6);
-    }
 }

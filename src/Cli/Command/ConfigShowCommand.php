@@ -15,18 +15,6 @@ use Eppitnic\Config;
  */
 final class ConfigShowCommand extends Command
 {
-    /**
-     * The `epp` setting's fields safe to print, mirroring
-     * GET /v1/session/epp's own allow-list exactly -- an allow-list, not a
-     * blacklist of secrets, for the same reason stated there: a new field
-     * added to `epp` later defaults to hidden here too, rather than leaking
-     * until somebody remembers to add it to a deny-list.
-     */
-    private const EPP_PUBLIC_FIELDS = [
-        'server', 'server_deleted', 'port', 'interface',
-        'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
-    ];
-
     public function describe(): string {
         return 'show the current settings (config/config.php holds only the database credentials)';
     }
@@ -67,7 +55,8 @@ final class ConfigShowCommand extends Command
         }
 
         if ($key === 'epp' && is_array($value)) {
-            $public = array_intersect_key($value, array_flip(self::EPP_PUBLIC_FIELDS));
+            // the same allow-list GET /v1/session/epp answers from
+            $public = array_intersect_key($value, array_flip(Config::EPP_PUBLIC_FIELDS));
             // same reasoning as GET /v1/session/epp: report whether a
             // credential/rotation is present, never the credential itself
             $public['password_set'] = ($value['password'] ?? '') !== '';

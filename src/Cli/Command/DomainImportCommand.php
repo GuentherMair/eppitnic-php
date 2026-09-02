@@ -24,9 +24,7 @@ final class DomainImportCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file=' => 'read domain names from this file, one per line',
-        ] + self::MUTATING_OPTIONS;
+        return self::fileOption('domain names') + self::MUTATING_OPTIONS;
     }
 
     public function run(): int {
@@ -47,11 +45,10 @@ final class DomainImportCommand extends Command
             fn($nic) => DomainService::import($nic, $names, $userId)
         );
 
-        $failures = 0;
         foreach ($results as $name => $steps) {
             $ok = $steps['domain_stored'] === 'stored';
             if ( ! $ok) {
-                $failures++;
+                $this->failures++;
             }
 
             $this->record(
@@ -67,6 +64,6 @@ final class DomainImportCommand extends Command
             );
         }
 
-        return $failures > 0 ? DOMAIN_IMPORT_FAILED : 0;
+        return $this->outcome(DOMAIN_IMPORT_FAILED);
     }
 }

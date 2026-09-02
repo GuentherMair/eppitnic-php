@@ -14,28 +14,13 @@ use RedBeanPHP\R;
 $app->get('/v1/session/epp', function (Request $request, Response $response, array $args): Response {
     Auth::requireAdmin($request);
 
-    /**
-     * the `epp` setting's fields that may be exposed over the API.
-     *
-     * An allow-list, not a blacklist of secrets: the shared registry password
-     * lives in the same setting, and so might whatever secret gets added next.
-     * Listing what is safe means a new field defaults to *not* being published,
-     * rather than leaking until somebody remembers to exclude it. Add new
-     * non-secret fields here deliberately.
-     *
-     * Scoped to this closure rather than a file-level const: route files are
-     * `require`d, not `require_once`d, and redeclaring a constant is a warning
-     * today and an error in PHP 9.
-     */
-    $publicFields = [
-        'server', 'server_deleted', 'port', 'interface',
-        'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
-    ];
-
     $epp = Config::get('epp');
 
+    // Config::EPP_PUBLIC_FIELDS is the allow-list, shared with `eppitnic
+    // config show` so that a field added to `epp` is hidden from both by
+    // default rather than from whichever one was remembered.
     $public = [];
-    foreach ($publicFields as $field) {
+    foreach (Config::EPP_PUBLIC_FIELDS as $field) {
         $public[$field] = $epp[$field] ?? null;
     }
     // never the password itself -- this only reports whether one is configured,

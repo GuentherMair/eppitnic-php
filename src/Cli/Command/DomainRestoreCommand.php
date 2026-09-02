@@ -22,8 +22,7 @@ final class DomainRestoreCommand extends Command
     }
 
     public function options(): array {
-        return [
-            'file='     => 'read domain names from this file, one per line',
+        return self::fileOption('domain names') + [
             'all-users' => 'operate on any user\'s domains, not just --user\'s',
         ] + self::MUTATING_OPTIONS;
     }
@@ -48,19 +47,17 @@ final class DomainRestoreCommand extends Command
 
         $userId = $this->userId();
         $allUsers = $this->hasOption('all-users');
-        $failures = 0;
 
         $this->line("using {$endpoint}");
 
         // a client of its own: restores are served from a different host than
         // every other command, so this session cannot be the ordinary one
-        $this->withSession(function ($nic) use ($names, $userId, $allUsers, &$failures) {
+        $this->withSession(function ($nic) use ($names, $userId, $allUsers) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
                 if ( ! $domain->restore($name)) {
-                    $failures++;
-                    $this->warn("{$name}: " . $domain->getError());
+                    $this->itemFailed($name, $domain->getError());
                     continue;
                 }
 
@@ -72,6 +69,6 @@ final class DomainRestoreCommand extends Command
             }
         }, new Client($endpoint));
 
-        return $failures > 0 ? DOMAIN_RESTORE_FAILED : 0;
+        return $this->outcome(DOMAIN_RESTORE_FAILED);
     }
 }
