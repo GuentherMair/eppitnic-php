@@ -6,7 +6,7 @@ Docker Engine plus the **Compose v2** and **Buildx** plugins. On Ubuntu, the
 `docker.io` apt package ships neither — install both explicitly:
 
 ```
-sudo apt install docker-compose-v2 docker-buildx
+apt install docker-compose-v2 docker-buildx
 ```
 
 Without Compose v2, `docker compose` isn't a recognized command at all (older
@@ -32,6 +32,11 @@ database; every service carries `extra_hosts: ["host.docker.internal:host-gatewa
 so `DB_HOST=host.docker.internal` in `config.php` reaches one on the Docker
 host — or point `DB_HOST` at another compose service's name if the database
 is a container too.
+
+## Rootless mode
+
+Please consider running the images in rootless mode. For more details see the
+[official documentation](https://docs.docker.com/engine/security/rootless/).
 
 ## Reaching a database on the host
 
