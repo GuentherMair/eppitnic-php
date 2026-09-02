@@ -1,5 +1,20 @@
 # Docker
 
+## Rootless mode
+
+Please consider running the images in rootless mode. For more details see the
+[official documentation](https://docs.docker.com/engine/security/rootless/).
+
+If so, you will need to configure the official Docker repository and might want
+to install these packages instead of those indicated in the following section:
+
+```
+apt install uidmap docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+**Note:** setting the `DB_HOST` to `host.docker.internal` will not work; either
+use a hostname from DNS or an IP address when connecting.
+
 ## Prerequisites
 
 Docker Engine plus the **Compose v2** and **Buildx** plugins. On Ubuntu, the
@@ -32,11 +47,6 @@ database; every service carries `extra_hosts: ["host.docker.internal:host-gatewa
 so `DB_HOST=host.docker.internal` in `config.php` reaches one on the Docker
 host — or point `DB_HOST` at another compose service's name if the database
 is a container too.
-
-## Rootless mode
-
-Please consider running the images in rootless mode. For more details see the
-[official documentation](https://docs.docker.com/engine/security/rootless/).
 
 ## Reaching a database on the host
 
