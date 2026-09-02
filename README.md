@@ -21,6 +21,17 @@ from an existing installation in case of upgrade. Please read the Upgrading
 documentation for more details!
 
 
+# Why using such a library instead of a client with direct access?
+
+Here is a list of a few very simple reasons:
+
+1. Saving messages from the polling queue
+2. Automatic password rotation
+3. Automatic DNS server updates (post transfer-in)
+4. Usage history (who did what and when?)
+5. User management (multiple distinct operators, resellers)
+
+
 # Detailed instructions
 
 Detailed instructions can be found in:
