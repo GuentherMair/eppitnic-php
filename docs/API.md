@@ -27,6 +27,30 @@ the value for truth. The exceptions are values a handler casts on the way out �
 the login claims, and the `total`/`outstanding` counters — which are real JSON
 numbers and booleans.
 
+**Payloads are enveloped.** A response body is an object with the data under a
+named key — never the data itself:
+
+| Route(s) | Body |
+|---|---|
+| `GET /v1/domains`, `.../expiring`, `.../autocomplete` | `{"domains": [...]}` |
+| `GET /v1/domains/transfers` | `{"transfers": [...]}` |
+| `GET /v1/domains/{name}` | `{"domain": {...}, "stale": bool}` |
+| `POST /v1/domains`, `PATCH /v1/domains/{name}`, `.../registrant`, `.../status`, `.../owner` | `{"domain": {...}}` — no `stale` |
+| `GET /v1/contacts` | `{"contacts": [...]}` |
+| `GET /v1/contacts/{handle}` | `{"contact": {...}, "stale": bool}` |
+| `POST /v1/contacts`, `PATCH /v1/contacts/{handle}` | `{"contact": {...}}` |
+| `GET /v1/users`, `GET /v1/users/{id}` | `{"users": [...]}` |
+| `GET /v1/reminders`, `GET /v1/domains/{name}/reminders` | `{"reminders": [...]}` |
+| `GET /v1/poll-queue` / `{id}` | `{"messages": [...]}` / `{"message": {...}}` |
+| `GET /v1/history`, `/v1/history/{object}/{object_id}` | `{"history": [...], "total": n}` |
+| `POST /v1/users/authenticate`, `GET /v1/users/renew-token`, `GET /v1/users/me` | **not enveloped** — the claims are the body |
+
+Two traps in that table. `POST /v1/domains/{name}/transfer` answers
+`{"requested": true, "domain": "example.it"}`, where `domain` is the **name as
+a string**, not the object it is everywhere else. And `GET /v1/users/{id}`
+answers `{"users": [row]}` — a one-element **array** under the plural key, and
+an empty array rather than a `404` when the id doesn't exist.
+
 ## Setup
 
 `GET /v1/setup`, `POST /v1/setup/verify` and `POST /v1/setup` are reachable
@@ -384,14 +408,15 @@ refusal there stays the generic `Wrong username or password` whatever the reason
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug, has_totp`. Never returns password hashes |
-| `GET /v1/users/{id}` | user | same field set, single row (also unscoped — any logged-in user can look up any other user by id) |
+| `GET /v1/users/{id}` | user | same field set, but still `{"users": [row]}` — a one-element array, and `[]` rather than `404` for an unknown id. Also unscoped: any logged-in user can look up any other by id |
 | `POST /v1/users` | admin | create. Required: `username`, `password`. Optional: `description`, `email`, `max_operations` (daily domain-create quota, `0` = unlimited), `active` (default `1`), `admin` (default `0`), `max_token_age`, `max_idle_time`, `debug`. `400` if a required field is missing or if `username` is already taken |
 | `PUT /v1/users/{id}` | admin | update of the same field set. **Every field is optional** — anything omitted keeps its current value (this includes `password`, as before). `404` if the id doesn't exist, `400` on a `username` collision with another row |
 | `DELETE /v1/users/{id}` | admin | soft-delete (`active = 0`) — does **not** block deleting id `1`, unlike the original plan's intent; be careful in the UI |
 
 ### Domains
 
-`domainToArray()` response shape used by every single-domain response
+`domainToArray()` — the shape of the object **inside** the `domain` envelope
+(see "Payloads are enveloped" above), used by every single-domain response
 below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authinfo, dnssec, cr_date, ex_date }`. `tech`/`ns` are flattened to plain string arrays (keys of the underlying assoc maps) — no per-NS IP or per-tech metadata comes through this shape.
 
 | Method & path | Auth | Notes |
@@ -417,7 +442,8 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 
 ### Contacts
 
-`contactToArray()` shape: `{ handle, status, name, org, street, street2, street3, city, province, postalcode, countrycode, voice, fax, email, authinfo, consentforpublishing, nationalitycode, entitytype, regcode, schoolcode }`.
+`contactToArray()` — the shape of the object **inside** the `contact`
+envelope: `{ handle, status, name, org, street, street2, street3, city, province, postalcode, countrycode, voice, fax, email, authinfo, consentforpublishing, nationalitycode, entitytype, regcode, schoolcode }`.
 
 | Method & path | Auth | Notes |
 |---|---|---|
