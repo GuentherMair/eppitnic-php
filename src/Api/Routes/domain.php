@@ -5,6 +5,7 @@ use Eppitnic\Api\Json;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\Service\DomainService;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Support\Csv;
@@ -132,6 +133,15 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
             d.registrant = c.handle AND
             " . implode(' AND ', $where) . "
         ORDER BY d.ex_date ASC", $params);
+
+    // raw SQL, so nothing has turned these back into arrays yet -- shipping
+    // them as stored would put PHP's serialize() format in a JSON response
+    foreach ($domains as &$row) {
+        foreach (['ns', 'tech', 'status', 'dnssec'] as $column) {
+            $row[$column] = SerializedColumn::toArray($row[$column] ?? null);
+        }
+    }
+    unset($row);
 
     return Json::response($response, ['domains' => $domains]);
 });

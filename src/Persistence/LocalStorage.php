@@ -105,7 +105,10 @@ trait LocalStorage
             $column = strtolower($column);
 
             if (in_array($column, $serialized, true)) {
-                $this->$column = empty($value) ? [] : unserialize($value);
+                // via SerializedColumn, not unserialize(): 6.x rows carry a
+                // base64 envelope a bare call answers false to, leaving every
+                // one of these columns not-an-array
+                $this->$column = SerializedColumn::toArray($value);
             } elseif (property_exists($this, $column)) {
                 $this->$column = $value;
             }
