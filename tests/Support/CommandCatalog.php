@@ -9,8 +9,8 @@ use Eppitnic\Epp\Session;
 
 /**
  * Every EPP request this codebase can generate, and how to make it generate one
- * -- the single list the wire snapshot test iterates. Each entry drives the real
- * API with fixed inputs and leaves the request in $xmlQuery.
+ * -- the single list the wire snapshot test iterates. Each entry drives the
+ * real API with fixed inputs and leaves the request in $xmlQuery.
  */
 final class CommandCatalog
 {
@@ -38,9 +38,9 @@ final class CommandCatalog
     XML;
 
     /**
-     * PROVISIONAL: reconstructions, not captures. Enough to exercise the parsing
-     * paths, but NOT evidence that the parsers handle what the registry sends.
-     * Replace with captures once test credentials exist.
+     * PROVISIONAL: reconstructions, not captures. Enough to exercise the
+     * parsing paths, but NOT evidence that the parsers handle what the registry
+     * sends. Replace with captures once test credentials exist.
      */
     public const DOMAIN_CHECK_RESPONSE = <<<'XML'
     <?xml version="1.0" encoding="UTF-8" standalone="no"?>

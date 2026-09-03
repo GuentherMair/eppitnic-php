@@ -11,7 +11,8 @@ use RedBeanPHP\R;
  * Delete contacts at the registry, and deactivate them locally.
  *
  * With --prefix, deletes every locally active contact whose handle starts with
- * it -- the bulk cleanup for the 'DUP' handles Contact::duplicate() leaves behind.
+ * it -- the bulk cleanup for the 'DUP' handles Contact::duplicate() leaves
+ * behind.
  */
 final class ContactDeleteCommand extends Command
 {

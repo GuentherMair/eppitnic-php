@@ -11,7 +11,8 @@ use Eppitnic\Tests\Support\EppTestCase;
 /**
  * How a run decides what a step's outcome means -- the reason the self-test can
  * be run repeatedly. A contact still attached to a deleted domain cannot be
- * removed for a week, so that refusal is not a failure; else every run ends red.
+ * removed for a week, so that refusal is not a failure; else every run ends
+ * red.
  */
 final class SelftestRunTest extends EppTestCase
 {
@@ -238,9 +239,10 @@ final class SelftestRunTest extends EppTestCase
      * worth knowing about, and the answer to "which part" is on the line.
      */
     /**
-     * The note is written from what is still outstanding, so anything the run did
-     * delete must drop out of it -- otherwise `selftest reap` retries it for
-     * weeks against "object does not exist", reporting problems it invented.
+     * The note is written from what is still outstanding, so anything the run
+     * did delete must drop out of it -- otherwise `selftest reap` retries it
+     * for weeks against "object does not exist", reporting problems it
+     * invented.
      */
     public function testWhatWasDeletedIsNoLongerOutstanding(): void {
         $run = $this->newRun();

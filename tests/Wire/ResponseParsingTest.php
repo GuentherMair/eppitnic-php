@@ -10,8 +10,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Feeds real registry responses, captured and anonymised by
- * tests/capture-responses.php, through the real parsers. Validating what we send
- * proves it well-formed; only these prove what nic.it sends back is understood.
+ * tests/capture-responses.php, through the real parsers. Validating what we
+ * send proves it well-formed; only these prove what nic.it sends back is
+ * understood.
  */
 final class ResponseParsingTest extends EppTestCase
 {
@@ -101,9 +102,9 @@ final class ResponseParsingTest extends EppTestCase
     }
 
     /**
-     * Poll messages, one per document shape seen in the queue -- both extdom-1.0
-     * and 2.0 on purpose, nic.it having reused element names while changing
-     * structure. Handling either alone silently drops the other.
+     * Poll messages, one per document shape seen in the queue -- both
+     * extdom-1.0 and 2.0 on purpose, nic.it having reused element names while
+     * changing structure. Handling either alone silently drops the other.
      *
      * @return array<string, array{0: string, 1: string, 2: bool}>
      *         fixture => [fixture, expected type, carries a domain]
@@ -153,7 +154,8 @@ final class ResponseParsingTest extends EppTestCase
     /**
      * A message about a specific domain must carry that domain through:
      * PollProcessor, the DNS-sync queue and the reminders view all key off
-     * messages.domain, so one parsed without it is a failure nobody hears about.
+     * messages.domain, so one parsed without it is a failure nobody hears
+     * about.
      */
     #[DataProvider('pollFixtures')]
     public function testDomainScopedPollMessagesCarryTheirDomain(string $fixture, string $expectedType, bool $hasDomain): void {

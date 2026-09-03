@@ -9,8 +9,8 @@ use RedBeanPHP\R;
 
 /**
  * The audit trail, newest first, scoped by History::visibleTo(); filters narrow
- * and never widen, so `object=security` as a non-admin returns nothing, not 403.
- * Admins also get `outstanding`, for badging.
+ * and never widen, so `object=security` as a non-admin returns nothing, not
+ * 403. Admins also get `outstanding`, for badging.
  *
  * Filters: object, object_id, action, network, acknowledged, since, until,
  * limit (max 500), offset.

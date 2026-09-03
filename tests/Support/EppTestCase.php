@@ -58,9 +58,9 @@ abstract class EppTestCase extends TestCase
     }
 
     /**
-     * Make a generated request comparable across runs: strip the volatile clTRID
-     * and normalize whitespace, so the assertion is about structure and values
-     * rather than one generator's formatting.
+     * Make a generated request comparable across runs: strip the volatile
+     * clTRID and normalize whitespace, so the assertion is about structure and
+     * values rather than one generator's formatting.
      *
      * @param string $xml the raw request body
      * @return string a canonical form suitable for string comparison

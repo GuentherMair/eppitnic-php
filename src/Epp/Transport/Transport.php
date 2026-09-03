@@ -31,7 +31,8 @@ interface Transport
     public function getHttpHeaders(): string;
 
     /**
-     * @return string the transport-level error of the last query(), or '' if it succeeded
+     * @return string the transport-level error of the last query(), or '' if it
+     *                succeeded
      */
     public function getHttpError(): string;
 }

@@ -7,9 +7,9 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Contact;
 
 /**
- * Change fields on existing contacts. Every option given applies to every handle
- * named, which is what makes a bulk correction -- one e-mail address across a
- * set of contacts -- a single command.
+ * Change fields on existing contacts. Every option given applies to every
+ * handle named, which is what makes a bulk correction -- one e-mail address
+ * across a set of contacts -- a single command.
  */
 final class ContactUpdateCommand extends Command
 {

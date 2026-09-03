@@ -11,9 +11,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * Error responses, dispatched through the real application. Slim's stock handler
- * renders HTML with a stack trace in it -- the wrong content type for every
- * route, and a call stack an unauthenticated request can have.
+ * Error responses, dispatched through the real application. Slim's stock
+ * handler renders HTML with a stack trace in it -- the wrong content type for
+ * every route, and a call stack an unauthenticated request can have.
  */
 final class ErrorResponseTest extends TestCase
 {
@@ -30,8 +30,8 @@ final class ErrorResponseTest extends TestCase
         }
 
         // Route *files* need no database to load; those that do reach for it
-        // inside their closures, past the auth check these stop at. Settings are
-        // installed anyway, for anything touching Config during setup
+        // inside their closures, past the auth check these stop at. Settings
+        // are installed anyway, for anything touching Config during setup
         Config::loadForTesting([
             'allowed_origins' => ['https://app.example.com'],
             'allowed_headers' => ['Authorization', 'Content-Type'],

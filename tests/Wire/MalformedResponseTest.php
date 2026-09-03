@@ -12,8 +12,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Every parser, against responses that are not what it expects. SimpleXML
- * answers a missing child with an empty element, so an unexpected document gives
- * warnings and nulls rather than an error -- six such sites, found one by one.
+ * answers a missing child with an empty element, so an unexpected document
+ * gives warnings and nulls rather than an error -- six such sites, found one by
+ * one.
  */
 final class MalformedResponseTest extends EppTestCase
 {
@@ -168,9 +169,9 @@ final class MalformedResponseTest extends EppTestCase
     }
 
     /**
-     * The invariant for every parser and every bad answer: no PHP diagnostic and
-     * no fatal. The suite runs with failOnWarning, so one warning fails this --
-     * and a warning is how each of the six faults first showed itself.
+     * The invariant for every parser and every bad answer: no PHP diagnostic
+     * and no fatal. The suite runs with failOnWarning, so one warning fails
+     * this -- and a warning is how each of the six faults first showed itself.
      */
     #[DataProvider('everyCombination')]
     public function testParserRaisesNoDiagnostic(callable $call, string $response): void {

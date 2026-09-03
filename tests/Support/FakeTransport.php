@@ -5,9 +5,9 @@ namespace Eppitnic\Tests\Support;
 use Eppitnic\Epp\Transport\Transport;
 
 /**
- * A Transport that never leaves the process: it records every request body it is
- * handed and answers from a queue of canned responses. Recording is the point --
- * the wire tests assert on what the code *generated*.
+ * A Transport that never leaves the process: it records every request body it
+ * is handed and answers from a queue of canned responses. Recording is the
+ * point -- the wire tests assert on what the code *generated*.
  */
 final class FakeTransport implements Transport
 {
@@ -37,7 +37,8 @@ final class FakeTransport implements Transport
      * answer depends on what was sent -- a registry accepting one password and
      * refusing another -- which a fixed queue cannot express.
      *
-     * @param \Closure(string): string $responder given the request body, returns the response body
+     * @param \Closure(string): string $responder given the request body,
+     *                       returns the response body
      */
     public function queueCallback(\Closure $responder, int $status = 200): self {
         $this->responses[] = ['body' => $responder, 'status' => $status, 'headers' => $this->headers];

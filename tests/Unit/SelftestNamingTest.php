@@ -7,8 +7,8 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * The names a self-test run gives what it creates. A run must not collide with
- * earlier leftovers, and something always is left; and `selftest reap` must tell
- * from the name alone which run made an object and when.
+ * earlier leftovers, and something always is left; and `selftest reap` must
+ * tell from the name alone which run made an object and when.
  */
 final class SelftestNamingTest extends TestCase
 {

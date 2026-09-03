@@ -6,9 +6,9 @@
  *
  *     php tests/capture-responses.php [--dry-run]
  *
- * The parsers can only be as correct as the documents they are fed. These tables
- * hold names, addresses and authInfo codes and fixtures are committed, so a
- * value surviving the denylist fails the run.
+ * The parsers can only be as correct as the documents they are fed. These
+ * tables hold names, addresses and authInfo codes and fixtures are committed,
+ * so a value surviving the denylist fails the run.
  */
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
@@ -168,9 +168,9 @@ function scrubElement(\DOMElement $el): void {
         $replacement = null;
 
         if (str_contains($text, "\n")) {
-            // Multi-line free text here is a raw DNS transcript no parser reads,
-            // so it is risk with no test value. Replaced wholesale: a blob is
-            // where a targeted scrubber misses something
+            // Multi-line free text here is a raw DNS transcript no parser
+            // reads, so it is risk with no test value. Replaced wholesale: a
+            // blob is where a targeted scrubber misses something
             $replacement = '[dns transcript removed]';
         } elseif ($local === 'name') {
             // domain:name / extdom:name carry a domain; contact:name a person
@@ -185,8 +185,9 @@ function scrubElement(\DOMElement $el): void {
         } elseif ($local === 'hostName') {
             $replacement = 'ns1.' . fakeDomain($text);
         } elseif ($local === 'hostAddr' || $local === 'address') {
-            // 'address' is extdom-2.0's nameserver IP -- this is the registrar's
-            // own DNS infrastructure, not something to publish in fixtures
+            // 'address' is extdom-2.0's nameserver IP -- this is the
+            // registrar's own DNS infrastructure, not something to publish in
+            // fixtures
             $replacement = str_contains($text, ':') ? '2001:db8::1' : '192.0.2.1';
         } elseif ($local === 'validationId') {
             $replacement = '00000000-0000-4000-8000-000000000000';

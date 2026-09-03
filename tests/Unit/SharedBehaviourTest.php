@@ -12,8 +12,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * The behaviour several classes now share, rather than each holding a copy. The
- * copies were the risk: one had drifted into a real bug and another had the same
- * bug fixed twice. A test on the shared thing tests every caller of it.
+ * copies were the risk: one had drifted into a real bug and another had the
+ * same bug fixed twice. A test on the shared thing tests every caller of it.
  */
 final class SharedBehaviourTest extends EppTestCase
 {
@@ -24,7 +24,8 @@ final class SharedBehaviourTest extends EppTestCase
     /**
      * The bug found and fixed twice, once per copy: the argument is cast to an
      * array before it is tested, so array(null) is a one-element array and the
-     * test never fires. Both must refuse rather than send a <check> for nothing.
+     * test never fires. Both must refuse rather than send a <check> for
+     * nothing.
      *
      * @return array<string, array{0: mixed}>
      */
@@ -199,9 +200,9 @@ final class SharedBehaviourTest extends EppTestCase
     // -----------------------------------------------------------------
 
     /**
-     * The allow-list's whole purpose: a field added to `epp` stays withheld until
-     * named here. Asserting the constant's contents is the point -- a credential
-     * quietly joining it should fail a test, not depend on review.
+     * The allow-list's whole purpose: a field added to `epp` stays withheld
+     * until named here. Asserting the constant's contents is the point -- a
+     * credential quietly joining it should fail a test, not depend on review.
      */
     public function testTheEppAllowListNamesOnlyNonSecretFields(): void {
         $this->assertSame([

@@ -193,8 +193,8 @@ final class DomainLifecycle implements Scenario
         }
 
         // The whole target set, not a remove/add pair: the registry reports no
-        // nameserver until it passes DNS checks, so fetch() often finds none and
-        // remNS/addNS against nothing leaves one -- refused as 9005
+        // nameserver until it passes DNS checks, so fetch() often finds none
+        // and remNS/addNS against nothing leaves one -- refused as 9005
         $swapped = count($this->nameservers) >= 3;
         $target = $swapped
             ? [$this->nameservers[0], $this->nameservers[2]]

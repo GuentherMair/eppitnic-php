@@ -34,7 +34,8 @@ final class EppFieldValidationTest extends TestCase
      */
     public static function refused(): array {
         return [
-            // the field is specifically an IPv4 address: curl's CURLOPT_INTERFACE
+            // the field is specifically an IPv4 address: curl's
+            // CURLOPT_INTERFACE
             'IPv6 interface'          => ['interface', '2001:db8::1'],
             'not an address at all'   => ['interface', 'eth0'],
             'unsupported language'    => ['lang', 'fr'],

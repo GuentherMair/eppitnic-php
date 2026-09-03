@@ -60,7 +60,8 @@ final class ClientIp
      * A bare address with no `/bits` counts as a full-length prefix, so
      * '127.0.0.1' and '127.0.0.1/32' mean the same thing.
      *
-     * @param string $cidr e.g. '127.0.0.1/32', '10.0.0.0/8', '2001:db8::/32', '::1'
+     * @param string $cidr e.g. '127.0.0.1/32', '10.0.0.0/8', '2001:db8::/32',
+     *               '::1'
      */
     public static function matches(string $ip, string $cidr): bool {
         $packedIp = @inet_pton($ip);
@@ -135,7 +136,8 @@ final class ClientIp
     }
 
     /**
-     * @return string[] the X-Forwarded-For chain, left to right, valid entries only
+     * @return string[] the X-Forwarded-For chain, left to right, valid entries
+     *                  only
      */
     private static function forwardedFor(): array {
         $headers = function_exists('apache_request_headers') ? apache_request_headers() : [];

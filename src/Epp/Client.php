@@ -68,8 +68,9 @@ class Client
    *  - read configuration from the `settings` DB table (via Config::get())
    *  - initialize the HTTP client
    *
-   * @param string $serverOverride optional server URL to use instead of epp.server (eg.
-   *                    nic.it's "-deleted" endpoint for restoring domains)
+   * @param string $serverOverride optional server URL to use instead of
+   *               epp.server (eg. nic.it's "-deleted" endpoint for restoring
+   *               domains)
    */
   public function __construct(?string $serverOverride = null) {
     $epp = Config::get('epp');
@@ -132,7 +133,8 @@ class Client
    * request generation and parsing without a registry; production already has
    * a fully configured Curl instance.
    *
-   * @param Transport $transport the transport to send subsequent requests through
+   * @param Transport $transport the transport to send subsequent requests
+   *                  through
    */
   public function setTransport(Transport $transport): void {
     $this->httpClient = $transport;
@@ -190,7 +192,8 @@ class Client
    * convert an xml response to an object
    *
    * @param string $xml the xml string to parse
-   * @return \SimpleXMLElement|false the parsed document, or false if it wasn't well-formed
+   * @return \SimpleXMLElement|false the parsed document, or false if it wasn't
+   *                       well-formed
    */
   public function parseResponse(string $xml): \SimpleXMLElement|false {
     return @simplexml_load_string($xml);

@@ -54,9 +54,11 @@ final class Config
     /**
      * Install a settings array as the singleton's state, touching no database.
      * Test suite only: production get()/set() would then answer from a cache
-     * nothing backs, and set() would REPLACE INTO a table it never connected to.
+     * nothing backs, and set() would REPLACE INTO a table it never connected
+     * to.
      *
-     * @param array $settings the complete settings map, as get() should answer it
+     * @param array $settings the complete settings map, as get() should answer
+     *              it
      */
     public static function loadForTesting(array $settings): void {
         $instance = (new \ReflectionClass(self::class))->newInstanceWithoutConstructor();
@@ -93,7 +95,8 @@ final class Config
     }
 
     /**
-     * persist + keep the in-process cache consistent (used by EPP password rotation)
+     * persist + keep the in-process cache consistent (used by EPP password
+     * rotation)
      *
      * @param string $key setting name
      * @param mixed $value new value
@@ -112,7 +115,8 @@ final class Config
      * calls it with define()d candidates before that file exists.
      *
      * @throws ConfigMissing if neither the file nor the six constants exist
-     * @throws \RuntimeException if the config is incomplete or the connect fails
+     * @throws \RuntimeException if the config is incomplete or the connect
+     *                       fails
      */
     public static function connect(): void {
         self::loadConfig();
@@ -205,8 +209,9 @@ final class Config
         } else {
             $current = R::getCell("SELECT `value` FROM settings WHERE `key` = 'schema_version'");
             if ($current === null || $current === false) {
-                // `settings` existed already but predates this versioning feature --
-                // its shape already matches SCHEMA_VERSION, just stamp it
+                // `settings` existed already but predates this versioning
+                // feature -- its shape already matches SCHEMA_VERSION, just
+                // stamp it
                 R::exec('REPLACE INTO settings (`key`, `value`) VALUES (?, ?)', ['schema_version', json_encode(SCHEMA_VERSION)]);
                 return;
             }

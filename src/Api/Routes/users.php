@@ -290,7 +290,8 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':username'       => $params['username'],
         ':password'       => password_hash($params['password'], PASSWORD_DEFAULT),
         ':email'          => $params['email'] ?? null,
-        // 0 means "no quota" -- see the max_operations check in src/Api/Routes/domain.php
+        // 0 means "no quota" -- see the max_operations check in
+        // src/Api/Routes/domain.php
         ':max_operations' => (int) ($params['max_operations'] ?? 0),
         ':active'         => (int) ($params['active'] ?? 1),
         ':admin'          => (int) ($params['admin'] ?? 0),
@@ -445,7 +446,8 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     // absolute unix timestamp; 0 = no expiry (infinite)
     $expires = isset($params['expires']) ? (int) $params['expires'] : 0;
 
-    // 32 random bytes as an opaque hex token -- stored only as a hash, same as passwords
+    // 32 random bytes as an opaque hex token -- stored only as a hash, same as
+    // passwords
     $token = PasswordGenerator::token();
     R::exec("UPDATE users SET api_token = :token, api_token_expires = :expires WHERE id = :id", [
         ':token'   => hash('sha256', $token),

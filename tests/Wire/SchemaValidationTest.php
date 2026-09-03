@@ -8,16 +8,17 @@ use Eppitnic\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Validates every generated request against the registry's own schemas -- order,
- * cardinality, facets and namespaces, the mistake that otherwise arrives as a
- * 2001. A request with no schema on disk is skipped by name, never passed.
+ * Validates every generated request against the registry's own schemas --
+ * order, cardinality, facets and namespaces, the mistake that otherwise arrives
+ * as a 2001. A request with no schema on disk is skipped by name, never passed.
  */
 final class SchemaValidationTest extends EppTestCase
 {
     /**
-     * Compile the catalog alone and report what libxml made of it: otherwise one
-     * unresolvable type reference fails every request, and 27 identical failures
-     * say nothing. XMLReader::setSchema() compiles without also validating.
+     * Compile the catalog alone and report what libxml made of it: otherwise
+     * one unresolvable type reference fails every request, and 27 identical
+     * failures say nothing. XMLReader::setSchema() compiles without also
+     * validating.
      *
      * @return string[] compile errors; empty when the schema set is sound
      */
@@ -43,8 +44,9 @@ final class SchemaValidationTest extends EppTestCase
         $reader->close();
         unlink($file);
 
-        // "this document isn't valid against the schema" is expected -- <probe/>
-        // is not an EPP document. Only schema-construction problems matter here.
+        // "this document isn't valid against the schema" is expected --
+        // <probe/> is not an EPP document. Only schema-construction problems
+        // matter here.
         $errors = array_values(array_filter(
             $errors,
             fn($e) => ! str_contains($e, "No matching global declaration available for the validation root")

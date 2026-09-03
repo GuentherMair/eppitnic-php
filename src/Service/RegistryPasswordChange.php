@@ -43,11 +43,12 @@ final class RegistryPasswordChange
     }
 
     /**
-     * Rotate the password when `passwdReminder` says it is near expiry -- as the
-     * <login> itself, so call it after any session work. The candidate is
+     * Rotate the password when `passwdReminder` says it is near expiry -- as
+     * the <login> itself, so call it after any session work. The candidate is
      * written before it is sent, and one attempt per 24h.
      *
-     * @return array human-readable log lines, in the same style as PollProcessor
+     * @return array human-readable log lines, in the same style as
+     *               PollProcessor
      */
     public static function rotateOnReminder(): array {
         $log = [];

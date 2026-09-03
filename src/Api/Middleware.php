@@ -26,14 +26,15 @@ final class Middleware
 
     /**
      * register the app's global middleware stack: body-parsing, trailing-slash
-     * normalization, error handling, and CORS. Called once from public/index.php
-     * right after $app is constructed.
+     * normalization, error handling, and CORS. Called once from
+     * public/index.php right after $app is constructed.
      *
      * @param App $app the Slim application instance
      */
     public static function register(App $app): void {
-        // Add the BodyParsingMiddleware in order to automatically parse the Request-Body
-        // and provide it as a PHP array/object through $request->getParsedBody()
+        // Add the BodyParsingMiddleware in order to automatically parse the
+        // Request-Body and provide it as a PHP array/object through
+        // $request->getParsedBody()
         $app->addBodyParsingMiddleware();
 
         $app->add(function (Request $request, RequestHandler $handler): Response {
@@ -46,15 +47,17 @@ final class Middleware
         });
 
         // Before the CORS middleware, so errors carry its headers, with Slim's
-        // HTML handler replaced below by a JSON one. Details need EPPITNIC_DEBUG
-        // -- from the environment, since this runs when the database does not
+        // HTML handler replaced below by a JSON one. Details need
+        // EPPITNIC_DEBUG -- from the environment, since this runs when the
+        // database does not
         $displayErrorDetails = filter_var(getenv('EPPITNIC_DEBUG') ?: 'false', FILTER_VALIDATE_BOOL);
 
         $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
         $errorMiddleware->setDefaultErrorHandler(
             function (Request $request, \Throwable $exception, bool $displayErrorDetails) use ($app): Response {
                 // an HttpException carries the status the route intended
-                // (401/403/404/405); anything else escaped a handler and is a 500
+                // (401/403/404/405); anything else escaped a handler and is a
+                // 500
                 $status = ($exception instanceof HttpException) ? $exception->getCode() : 500;
 
                 $body = ['error' => $exception->getMessage()];
@@ -98,7 +101,8 @@ final class Middleware
                 if (!$isAllowed) {
                     $response = $app->getResponseFactory()->createResponse(403);
                     $response->getBody()->write(json_encode(['error' => "CORS: Origin [{$origin}] not allowed"]));
-                    // by NOT calling $handler->handle() the middleware-chain is broken and no further routes will be executed
+                    // by NOT calling $handler->handle() the middleware-chain is
+                    // broken and no further routes will be executed
                     return $response->withHeader('Content-Type', 'application/json');
                 }
                 $response = $handler->handle($request);

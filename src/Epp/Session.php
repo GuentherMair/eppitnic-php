@@ -396,7 +396,8 @@ class Session extends AbstractObject
       );
     }
 
-    // dnsErrorMsgData, extdom-2.0 shape: <domain> as an element, tests under <tests>
+    // dnsErrorMsgData, extdom-2.0 shape: <domain> as an element, tests under
+    // <tests>
     if ($extdom !== null && isset($extdom->dnsErrorMsgData->domain)) {
       $error = $extdom->dnsErrorMsgData;
       $outcomes = $this->dnsTestOutcomes($error);

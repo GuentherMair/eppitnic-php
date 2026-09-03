@@ -40,7 +40,8 @@ final class EppCredentialsTest extends TestCase
     ];
 
     /**
-     * @param array<string, mixed> $epp overrides merged over the base epp setting
+     * @param array<string, mixed> $epp overrides merged over the base epp
+     *                       setting
      */
     private function app(array $epp = []): \Slim\App {
         Config::loadForTesting(['epp' => $epp + self::SETTINGS['epp']] + self::SETTINGS);
@@ -82,7 +83,8 @@ final class EppCredentialsTest extends TestCase
     }
 
     /**
-     * @return array<int, array<string, mixed>> the security rows written, decoded
+     * @return array<int, array<string, mixed>> the security rows written,
+     *                       decoded
      */
     private static function securityRows(): array {
         $rows = R::getAll("SELECT * FROM history WHERE object = 'security' ORDER BY id");
@@ -148,8 +150,8 @@ final class EppCredentialsTest extends TestCase
 
     /**
      * A rotation that did not finish leaves two candidates, and only the
-     * registry knows which it holds. Both are returned: withholding either locks
-     * the operator out in the one case where they most need in.
+     * registry knows which it holds. Both are returned: withholding either
+     * locks the operator out in the one case where they most need in.
      */
     public function testAnUnfinishedRotationReturnsBothPasswords(): void {
         $app = $this->app(['pendingPassword' => 'the-candidate']);

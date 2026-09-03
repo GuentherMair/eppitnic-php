@@ -33,7 +33,8 @@ final class Auth
      *
      * @param Request $request the incoming HTTP request
      * @return array{id: int, isAdmin: bool, debug: bool}
-     * @throws HttpUnauthorizedException if the request carries no usable credential
+     * @throws HttpUnauthorizedException if the request carries no usable
+     *                       credential
      */
     public static function actor(Request $request): array {
         $decoded = self::verify($request);
@@ -54,7 +55,8 @@ final class Auth
      * Null lets callers fall through. MFA is bypassed: no human is present.
      *
      * @param string $token the raw bearer token from the Authorization header
-     * @return object|null synthesized decoded-claims object, or null if not a valid fixed token
+     * @return object|null synthesized decoded-claims object, or null if not a
+     *                     valid fixed token
      */
     private static function verifyFixedApiToken(string $token): ?object {
         $user = R::getRow("
@@ -86,8 +88,10 @@ final class Auth
      * decoding fails for any reason
      *
      * @param Request $request the incoming HTTP request
-     * @return object decoded claims, shaped identically regardless of which auth mechanism matched
-     * @throws HttpUnauthorizedException if neither a valid JWT nor a valid fixed token is found
+     * @return object decoded claims, shaped identically regardless of which
+     *                auth mechanism matched
+     * @throws HttpUnauthorizedException if neither a valid JWT nor a valid
+     *                       fixed token is found
      */
     public static function verify(Request $request): object {
         $authHeader = $request->getHeaderLine('Authorization');
@@ -134,7 +138,8 @@ final class Auth
     }
 
     /**
-     * require that MFA, if enabled for this user, has already been verified this session
+     * require that MFA, if enabled for this user, has already been verified
+     * this session
      *
      * @param Request $request the incoming HTTP request
      * @return object decoded JWT claims
@@ -153,7 +158,8 @@ final class Auth
      *
      * @param Request $request the incoming HTTP request
      * @return int the authenticated admin's user id
-     * @throws HttpForbiddenException if not an admin, or MFA is enabled but not yet verified
+     * @throws HttpForbiddenException if not an admin, or MFA is enabled but not
+     *                       yet verified
      */
     public static function requireAdmin(Request $request): int {
         $decoded = self::verify($request);
@@ -171,7 +177,8 @@ final class Auth
      * from $data['max_token_age'], in minutes, spelled like the users column;
      * null or non-positive means the default, since 0 would already be expired.
      *
-     * @param array $data claims to embed (may include 'max_token_age', in minutes, defaulting to 240)
+     * @param array $data claims to embed (may include 'max_token_age', in
+     *              minutes, defaulting to 240)
      * @return array $data merged with the signed 'token' string
      */
     public static function issueToken(array $data): array {
@@ -231,7 +238,8 @@ final class Auth
      */
     public static function totpVerify(string $secret, string $code): bool {
         try {
-            // leeway in seconds; 29 = just under one 30s period, giving practical ±1-window tolerance
+            // leeway in seconds; 29 = just under one 30s period, giving
+            // practical ±1-window tolerance
             return TOTP::createFromSecret($secret)->verify($code, null, 29);
         } catch (\Throwable $e) {
             return false;

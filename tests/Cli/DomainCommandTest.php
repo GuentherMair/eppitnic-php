@@ -13,7 +13,8 @@ use Eppitnic\Tests\Support\FakeTransport;
 /**
  * The two read commands, driven end to end against canned registry responses.
  * The transport is substituted through the Client the commands build for
- * themselves, so this is the real path from argv to output, not a rearrangement.
+ * themselves, so this is the real path from argv to output, not a
+ * rearrangement.
  */
 final class DomainCommandTest extends EppTestCase
 {

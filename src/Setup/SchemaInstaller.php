@@ -8,7 +8,8 @@ use RedBeanPHP\R;
 /**
  * Decides whether the database is empty, already eppitnic, or something else,
  * and applies config/mariadb-schema.sql when empty -- which nothing did before,
- * so an empty one fell into the '060700' baseline and failed on its first ALTER.
+ * so an empty one fell into the '060700' baseline and failed on its first
+ * ALTER.
  *
  * @category    Net
  * @package     Eppitnic\Setup\SchemaInstaller
@@ -51,7 +52,8 @@ final class SchemaInstaller
                 );
             default: // self::EPPITNIC
                 // a `settings` table already exists -- Config::init(), called
-                // next by Installer, walks its own upgrade chain via Config::migrate()
+                // next by Installer, walks its own upgrade chain via
+                // Config::migrate()
                 return;
         }
     }

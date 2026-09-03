@@ -30,8 +30,9 @@ final class PasswordRotationTest extends EppTestCase
         parent::setUp();
 
         // Config::set() writes through, so this needs a database -- in-memory
-        // SQLite, the ordering of the writes being what is tested. RedBean holds
-        // its connection globally, so it is made once and the tables rebuilt
+        // SQLite, the ordering of the writes being what is tested. RedBean
+        // holds its connection globally, so it is made once and the tables
+        // rebuilt
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }

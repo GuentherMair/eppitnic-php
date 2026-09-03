@@ -27,7 +27,8 @@ final class DomainService
      * possible, so "create" on a taken domain requests a transfer instead.
      *
      * @param Client $nic a logged-in client
-     * @param array $params domain, registrant, and optionally admin, tech[], ns[], authinfo
+     * @param array $params domain, registrant, and optionally admin, tech[],
+     *              ns[], authinfo
      * @param int $userId the local owner to record
      * @param bool $persist write the result to the local database
      * @return array{ok: bool, action?: string, domain?: Domain, error?: string}

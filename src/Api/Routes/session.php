@@ -37,9 +37,10 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
 });
 
 /**
- * The registry credential itself, as its own request rather than part of
- * GET /v1/session/epp: one arriving while a settings screen renders ends up in
- * caches and screenshots. Admin only, and refused on an incomplete TOTP session.
+ * The registry credential itself, as its own request rather than part of GET
+ * /v1/session/epp: one arriving while a settings screen renders ends up in
+ * caches and screenshots. Admin only, and refused on an incomplete TOTP
+ * session.
  */
 $app->get('/v1/session/epp/credentials', function (Request $request, Response $response, array $args): Response {
     $user_id = Auth::requireAdmin($request);

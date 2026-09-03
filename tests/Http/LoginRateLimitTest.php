@@ -25,7 +25,8 @@ final class LoginRateLimitTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $rateLimit overrides for the login_ratelimit setting
+     * @param array<string, mixed> $rateLimit overrides for the login_ratelimit
+     *                       setting
      */
     private function app(array $rateLimit = []): \Slim\App {
         Config::loadForTesting([

@@ -55,7 +55,8 @@ final class Validate
     /**
      * @param array $params request parameters
      * @param array $fields required field names
-     * @return string|null error message listing every missing field, or null if none are missing
+     * @return string|null error message listing every missing field, or null if
+     *                     none are missing
      */
     public static function requireFields(array $params, array $fields): ?string {
         $missing = [];
@@ -73,7 +74,8 @@ final class Validate
     /**
      * @param array $params request parameters
      * @param array $maxLengths field => max character length
-     * @return string|null error message for the first field exceeding its limit, or null if none do
+     * @return string|null error message for the first field exceeding its
+     *                     limit, or null if none do
      */
     public static function maxLength(array $params, array $maxLengths): ?string {
         foreach ($maxLengths as $field => $max) {

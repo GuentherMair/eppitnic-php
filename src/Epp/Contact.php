@@ -271,7 +271,8 @@ class Contact extends AbstractObject
   /**
    * check whether contact handles are free to be created
    *
-   * @param array|string|null $contact one handle, several, or null for the one set
+   * @param array|string|null $contact one handle, several, or null for the one
+   *                       set
    * @return CheckResult the registry's answer, or a failure -- see CheckResult
    */
   public function check(array|string|null $contact = null): CheckResult {
@@ -544,11 +545,11 @@ class Contact extends AbstractObject
   }
 
   /**
-   * Store contact to DB, upserting: no delete-then-insert like Domain::storeDB(),
-   * domains.registrant being a foreign key onto contacts.handle. On an existing
-   * row two columns are left alone:
-   * - `user_id`, so re-importing does not reassign somebody else's contact
-   * - `active`, so an import does not resurrect a deliberate deactivation
+   * Store contact to DB, upserting: no delete-then-insert like
+   * Domain::storeDB(), domains.registrant being a foreign key onto
+   * contacts.handle. On an existing row two columns are left alone: -
+   * `user_id`, so re-importing does not reassign somebody else's contact -
+   * `active`, so an import does not resurrect a deliberate deactivation
    *
    * @param int $user_id user ACL, applied to newly created rows only
    * @return bool status

@@ -82,8 +82,9 @@ final class ConfigMigrateCommand extends Command
             'lc_monetary' => 'it_IT',    // no config.xml source
             'lc_time'     => 'italian',  // no config.xml source
           ],
-          // jwt_psk is a signing secret, not just another placeholder -- generate a
-          // real one rather than leaving something that might accidentally go live
+          // jwt_psk is a signing secret, not just another placeholder --
+          // generate a real one rather than leaving something that might
+          // accidentally go live
           'jwt_psk' => PasswordGenerator::signingKey(),
           // no config.xml source -- seeded with the same placeholder
           // config/mariadb-schema.sql uses; review and adjust by hand
@@ -104,8 +105,9 @@ final class ConfigMigrateCommand extends Command
             'lang'           => self::xmlStr($xml->lang),
             'cl_trid_prefix' => self::xmlStr($xml->clTRIDprefix),
             // config.xml's passwordexpiry* are not carried over: nothing read
-            // them. Rotation now follows the registry's passwdReminder, and this
-            // timestamp rate-limits it to one attempt per 24h. 0 means never
+            // them. Rotation now follows the registry's passwdReminder, and
+            // this timestamp rate-limits it to one attempt per 24h. 0 means
+            // never
             'lastPasswordUpdate' => 0,
           ],
           'dnssec' => [

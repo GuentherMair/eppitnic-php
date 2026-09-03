@@ -72,8 +72,9 @@ abstract class AbstractObject
 
   /**
    * How many names one <check> may carry, per nic.it's technical guidelines.
-   * Here rather than in each subclass, which set the same 5: checkAvailability()
-   * is what reads it, and it is the registry's limit, not a per-object one.
+   * Here rather than in each subclass, which set the same 5:
+   * checkAvailability() is what reads it, and it is the registry's limit, not a
+   * per-object one.
    */
   protected int $max_check = 5;
 
@@ -220,8 +221,8 @@ abstract class AbstractObject
 
   /**
    * The object-specific part of a response, if there is one. Three things must
-   * hold first -- parsed, has <resData>, declares the namespace -- and SimpleXML
-   * answers each missing step with an empty element, not null.
+   * hold first -- parsed, has <resData>, declares the namespace -- and
+   * SimpleXML answers each missing step with an empty element, not null.
    *
    * @param string $prefix the namespace prefix wanted, e.g. 'domain'
    * @return \SimpleXMLElement|null the children in that namespace, or null
@@ -266,7 +267,8 @@ abstract class AbstractObject
    * and had the same bug found and fixed once in each.
    *
    * @param array|string|null $names what to check; null falls back to $fallback
-   * @param string $fallback this object's own identity, for the no-argument call
+   * @param string $fallback this object's own identity, for the no-argument
+   *               call
    * @param string $emptyError what to say when nothing checkable was given
    * @param string $prefix the object's namespace prefix, 'contact' or 'domain'
    *                       -- also the first half of the clTRType
@@ -290,9 +292,9 @@ abstract class AbstractObject
       $names = array($names);
     }
 
-    // filtered after the cast, and the emptiness tested on the result: array(null)
-    // and array("") are one-element arrays, so a check against the argument as
-    // given never fired for the case it was meant to catch
+    // filtered after the cast, and the emptiness tested on the result:
+    // array(null) and array("") are one-element arrays, so a check against the
+    // argument as given never fired for the case it was meant to catch
     $names = array_values(array_filter($names, fn($n) => (string)$n !== ""));
     if (empty($names)) {
       $this->setError($emptyError);

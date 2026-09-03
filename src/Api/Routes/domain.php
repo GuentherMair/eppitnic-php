@@ -203,7 +203,8 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
 
     // scoped by who REQUESTED it (transfers.user_id), matching the
     // transfer/cancel authorization check -- otherwise a user is shown a
-    // pending transfer they may not cancel. The joined user is the requester too
+    // pending transfer they may not cancel. The joined user is the requester
+    // too
     $where = ['t.registrant = c.handle', 't.user_id = u.id'];
     $bind = [];
     if ($registrant !== '') {
@@ -256,7 +257,8 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
 
     // registry lookup failed: serve the last known local state, flagged as
     // possibly stale. loadDB() scopes by user_id, so a domain the caller does
-    // not own is simply not found. (via a variable: Domain takes it by reference)
+    // not own is simply not found. (via a variable: Domain takes it by
+    // reference)
     $nic = new Client();
     $domain = new Domain($nic);
     if ( ! $domain->loadDB($name, $user_id, $isAdmin)) {
@@ -352,14 +354,15 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
             }
 
-            // registrant changes are a distinct EPP operation (Domain::updateRegistrant(),
-            // which requires authinfo to change alongside it and ignores ns/tech) --
-            // handled by the dedicated POST /domains/{name}/registrant endpoint instead
+            // registrant changes are a distinct EPP operation
+            // (Domain::updateRegistrant(), which requires authinfo to change
+            // alongside it and ignores ns/tech) -- handled by the dedicated
+            // POST /domains/{name}/registrant endpoint instead
             if (array_key_exists('admin', $params)) $domain->set('admin', $params['admin']);
             if (array_key_exists('authinfo', $params)) $domain->set('authinfo', $params['authinfo']);
 
-            // diffed add/remove: caller sends the full target NS/tech/DNSSEC list,
-            // we add what's missing and remove what's no longer present
+            // diffed add/remove: caller sends the full target NS/tech/DNSSEC
+            // list, we add what's missing and remove what's no longer present
             if (array_key_exists('ns', $params)) {
                 $current = array_keys((array) $domain->get('ns'));
                 $target = array_map(fn($ns) => $ns['name'] ?? $ns, (array) $params['ns']);
@@ -382,7 +385,8 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
                 foreach (array_diff($current, $target) as $rem) $domain->remDNSSEC($rem);
             }
 
-            // update() resets this to 0 on success, so it must be captured beforehand
+            // update() resets this to 0 on success, so it must be captured
+            // beforehand
             $changes = $domain->changedFields();
 
             if ( ! $domain->update()) {
@@ -429,8 +433,9 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             }
 
             $domain->set('registrant', $params['registrant']);
-            // updateRegistrant() requires authinfo to change alongside registrant --
-            // rotate it (caller-supplied, or freshly generated) as part of the change
+            // updateRegistrant() requires authinfo to change alongside
+            // registrant -- rotate it (caller-supplied, or freshly generated)
+            // as part of the change
             $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
 
             if ( ! $domain->updateRegistrant()) {

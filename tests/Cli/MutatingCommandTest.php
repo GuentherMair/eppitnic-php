@@ -8,9 +8,10 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * The two mechanisms only mutating commands have: --dry-run and the confirmation
- * gate. Both are safety features, so what matters is that they fail closed -- a
- * dry run that quietly sent something would be worse than neither.
+ * The two mechanisms only mutating commands have: --dry-run and the
+ * confirmation gate. Both are safety features, so what matters is that they
+ * fail closed -- a dry run that quietly sent something would be worse than
+ * neither.
  */
 final class MutatingCommandTest extends EppTestCase
 {

@@ -38,9 +38,10 @@ final class SessionPollCoverageTest extends TestCase
     }
 
     /**
-     * Which declared elements are poll messages -- '...MsgData' or '...Reminder'
-     * upstream, plus remappedIdnData, which carries no suffix. The convention is
-     * not trusted alone: the test below fails on any change to the declared set.
+     * Which declared elements are poll messages -- '...MsgData' or
+     * '...Reminder' upstream, plus remappedIdnData, which carries no suffix.
+     * The convention is not trusted alone: the test below fails on any change
+     * to the declared set.
      *
      * @return string[]
      */
@@ -96,8 +97,9 @@ final class SessionPollCoverageTest extends TestCase
 
     /**
      * A snapshot of every top-level element the extension schemas declare, for
-     * the types the convention cannot recognise: a revised schema fails this with
-     * its exact additions. Innocent updates fail it too -- the review is cheap.
+     * the types the convention cannot recognise: a revised schema fails this
+     * with its exact additions. Innocent updates fail it too -- the review is
+     * cheap.
      *
      * @return array<string, string[]>
      */

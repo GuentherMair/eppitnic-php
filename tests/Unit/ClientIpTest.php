@@ -8,9 +8,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Which address a request is attributed to, and which network it is in. Both are
- * load-bearing: `safe_networks` skips MFA for what it recognises and the rate
- * limit counts per network, so an answer the client can choose gives away both.
+ * Which address a request is attributed to, and which network it is in. Both
+ * are load-bearing: `safe_networks` skips MFA for what it recognises and the
+ * rate limit counts per network, so an answer the client can choose gives away
+ * both.
  */
 final class ClientIpTest extends TestCase
 {
@@ -49,9 +50,9 @@ final class ClientIpTest extends TestCase
     }
 
     /**
-     * The fault this exists for: X-Forwarded-For is written by whoever sends the
-     * request, so believing it lets anyone claim a safe_network and skip MFA, or
-     * spread a password guess across as many "networks" as they invent.
+     * The fault this exists for: X-Forwarded-For is written by whoever sends
+     * the request, so believing it lets anyone claim a safe_network and skip
+     * MFA, or spread a password guess across as many "networks" as they invent.
      */
     public function testAForwardedHeaderFromAnUntrustedPeerIsIgnored(): void {
         $this->request('203.0.113.5', '127.0.0.1');

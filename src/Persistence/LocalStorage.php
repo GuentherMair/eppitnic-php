@@ -50,7 +50,8 @@ trait LocalStorage
     /**
      * Run a write, reporting a SQL failure the way every caller expects.
      *
-     * @param string $action what failed, for the message ('deactivate', 'store', ...)
+     * @param string $action what failed, for the message ('deactivate',
+     *               'store', ...)
      * @return bool false with the error set, true on success
      */
     private function storageWrite(string $sql, array $params, string $action, string $key): bool {
@@ -78,7 +79,8 @@ trait LocalStorage
     /**
      * One row, scoped to the user unless acting as an admin.
      *
-     * @return array|null the row, or null when it does not exist or is not theirs
+     * @return array|null the row, or null when it does not exist or is not
+     *                    theirs
      */
     private function storageFind(string $key, int $userId, bool $isAdmin): ?array {
         $params = [':key' => $key];

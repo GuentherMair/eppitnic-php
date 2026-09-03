@@ -15,7 +15,8 @@ namespace Eppitnic\Epp;
 final class HttpResponse
 {
     /**
-     * @param string $body the response body, empty when the request failed outright
+     * @param string $body the response body, empty when the request failed
+     *               outright
      * @param int $code the HTTP status
      * @param string $headers the raw response headers
      * @param string $error the transport's own error, empty when there was none

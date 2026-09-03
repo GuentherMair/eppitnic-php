@@ -176,7 +176,8 @@ final class XmlBuilder
         $command = $builder->command();
         $check = $builder->element($command, 'check', null, self::EPP);
 
-        // no schemaLocation here, matching what the registry's own examples show
+        // no schemaLocation here, matching what the registry's own examples
+        // show
         $contact = $builder->element($check, 'contact:check', null, self::CONTACT);
         foreach ($handles as $handle) {
             $builder->element($contact, 'contact:id', (string) $handle, self::CONTACT);
@@ -227,8 +228,8 @@ final class XmlBuilder
 
     /**
      * @param array $data id, name, org, street[], city, sp, pc, cc, voice, fax,
-     *                    email, authinfo, consentForPublishing, and for a
-     *                    registrant nationalityCode/entityType/regCode/schoolCode
+     *              email, authinfo, consentForPublishing, and for a registrant
+     *              nationalityCode/entityType/regCode/schoolCode
      */
     public static function contactCreate(string $clTRID, array $data): string {
         $builder = new self();

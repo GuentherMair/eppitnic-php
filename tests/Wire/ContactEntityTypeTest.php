@@ -6,9 +6,10 @@ use Eppitnic\Epp\Contact;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * Contact::setEntityType()'s range check used to read `($tmp < 1) && ($tmp > 7)`
- * -- never true, so nothing outside the registry's 1-7 range was reset to the
- * entityType-0 default; it reached the registry, to be refused by the schema.
+ * Contact::setEntityType()'s range check used to read `($tmp < 1) && ($tmp >
+ * 7)` -- never true, so nothing outside the registry's 1-7 range was reset to
+ * the entityType-0 default; it reached the registry, to be refused by the
+ * schema.
  */
 final class ContactEntityTypeTest extends EppTestCase
 {

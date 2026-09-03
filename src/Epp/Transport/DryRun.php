@@ -3,9 +3,10 @@
 namespace Eppitnic\Epp\Transport;
 
 /**
- * A transport that answers everything itself, so `--dry-run` works offline, with
- * no credentials, unable to modify anything. It gives up registry validation --
- * tests/Wire covers schema validity; this answers "what would go out".
+ * A transport that answers everything itself, so `--dry-run` works offline,
+ * with no credentials, unable to modify anything. It gives up registry
+ * validation -- tests/Wire covers schema validity; this answers "what would go
+ * out".
  *
  * @category    Net
  * @package     Eppitnic\Cli

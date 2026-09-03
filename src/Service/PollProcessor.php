@@ -208,8 +208,9 @@ class PollProcessor
             if ( ! in_array($existing, $tech)) $this->domain->remTECH($existing);
           }
 
-          // reconcile nameservers to the set requested at transfer time
-          // (dns rows are [{name, ip}, ...], matching the shape used elsewhere in this codebase)
+          // reconcile nameservers to the set requested at transfer time (dns
+          // rows are [{name, ip}, ...], matching the shape used elsewhere in
+          // this codebase)
           $allNS = [];
           $currentNS = array_keys((array) $this->domain->get('ns'));
           foreach ($dns as $newNS) {
@@ -224,7 +225,8 @@ class PollProcessor
 
           $this->domain->update();
 
-          // transfer-in completing counts as a DNS-sync 'create' event (storeDB() fires it)
+          // transfer-in completing counts as a DNS-sync 'create' event
+          // (storeDB() fires it)
           $this->domain->storeDB((int) $transfer['transfer_user_id']);
 
           if ($archiveMsg !== false) {

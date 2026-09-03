@@ -14,7 +14,8 @@ use RedBeanPHP\R;
 /**
  * requirements()'s shape and install()'s validation are plain unit tests. The
  * full happy path needs a real database throughout, so it is gated like
- * SchemaInstallerTest: skipped when no local MariaDB is reachable, never failed.
+ * SchemaInstallerTest: skipped when no local MariaDB is reachable, never
+ * failed.
  */
 final class InstallerTest extends TestCase
 {
@@ -51,9 +52,10 @@ final class InstallerTest extends TestCase
     }
 
     public function testRequiredTracksWhatActuallyBlocksInstall(): void {
-        // db_type/db_host/db_charset default in DatabaseCredentials::fromArray()
-        // and db_password may be blank, so none of those block install();
-        // db_name/db_user have no fallback and the admin fields are checked
+        // db_type/db_host/db_charset default in
+        // DatabaseCredentials::fromArray() and db_password may be blank, so
+        // none of those block install(); db_name/db_user have no fallback and
+        // the admin fields are checked
         $required = ['db_name', 'db_user', 'admin_username', 'admin_password'];
 
         foreach (Installer::requirements() as $field) {
@@ -93,7 +95,8 @@ final class InstallerTest extends TestCase
     /**
      * These fields were stored exactly as given until now: the `config epp-*`
      * verbs checked them and the browser installer's path did not, so the
-     * mismatch only showed at `<login>`. Checked before the database is touched.
+     * mismatch only showed at `<login>`. Checked before the database is
+     * touched.
      *
      * @return array<string, array{0: array<string, string>, 1: string}>
      */

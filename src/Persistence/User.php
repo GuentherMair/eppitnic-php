@@ -19,7 +19,8 @@ final class User
 {
     /**
      * @throws UsernameTaken if $username is already in use
-     * @throws \InvalidArgumentException if $password does not meet PasswordPolicy
+     * @throws \InvalidArgumentException if $password does not meet
+     *                       PasswordPolicy
      * @return int the new row's id
      */
     public static function create(

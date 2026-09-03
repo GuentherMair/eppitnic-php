@@ -76,8 +76,8 @@ final class SelftestContactFactoryTest extends EppTestCase
     // ---------------------------------------------------------------
 
     /**
-     * nic.it verifies the checksum and answers 2004 / 8027 for one that does not
-     * add up -- which the placeholder this used, 01234567890, does not: its
+     * nic.it verifies the checksum and answers 2004 / 8027 for one that does
+     * not add up -- which the placeholder this used, 01234567890, does not: its
      * check digit should be 7.
      */
     public function testTheRegistrationCodeChecksumIsRight(): void {

@@ -10,7 +10,8 @@ use Eppitnic\Tests\Support\EppTestCase;
 /**
  * Values reach the registry as themselves. The object layer used to run
  * everything through htmlspecialchars() and emit it raw, filling the database
- * with entities. These assert what replaced it: escaped once, by the serializer.
+ * with entities. These assert what replaced it: escaped once, by the
+ * serializer.
  */
 final class EscapingTest extends EppTestCase
 {

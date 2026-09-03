@@ -13,9 +13,9 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * The password rule holds wherever a password is set, and nowhere else. *Setting*
- * is not *checking*: applying it to authenticate would lock out every account
- * whose password predates the rule.
+ * The password rule holds wherever a password is set, and nowhere else.
+ * *Setting* is not *checking*: applying it to authenticate would lock out every
+ * account whose password predates the rule.
  */
 final class PasswordPolicyRoutesTest extends TestCase
 {

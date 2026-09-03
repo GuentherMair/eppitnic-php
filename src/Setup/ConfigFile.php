@@ -5,7 +5,8 @@ namespace Eppitnic\Setup;
 /**
  * The only thing that reads, writes or locates config/config.php, whose
  * existence is the "installed" flag -- kept trustworthy by write()'s
- * refuse-if-exists guard. One owner, so the redirect seam has somewhere to live.
+ * refuse-if-exists guard. One owner, so the redirect seam has somewhere to
+ * live.
  *
  * @category    Net
  * @package     Eppitnic\Setup\ConfigFile

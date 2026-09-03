@@ -9,8 +9,8 @@ use Eppitnic\Tests\Support\EppTestCase;
 
 /**
  * The note a run leaves behind, and what a later reap makes of it -- the only
- * record that survives the run. A contact attached to a domain cannot be deleted
- * for a week, so the cleanup is a different process on a different day.
+ * record that survives the run. A contact attached to a domain cannot be
+ * deleted for a week, so the cleanup is a different process on a different day.
  */
 final class SelftestLeftoversTest extends EppTestCase
 {

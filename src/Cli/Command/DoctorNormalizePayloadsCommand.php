@@ -7,9 +7,10 @@ use Eppitnic\Persistence\StoredPayload;
 use RedBeanPHP\R;
 
 /**
- * Rewrite 6.x's `__SERIALIZED:` columns as the plain bodies they hold. Optional,
- * since StoredPayload::decode() reads either shape; undecodable rows are counted
- * and left alone, a damaged envelope being the only copy of what it holds.
+ * Rewrite 6.x's `__SERIALIZED:` columns as the plain bodies they hold.
+ * Optional, since StoredPayload::decode() reads either shape; undecodable rows
+ * are counted and left alone, a damaged envelope being the only copy of what it
+ * holds.
  */
 final class DoctorNormalizePayloadsCommand extends Command
 {

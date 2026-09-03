@@ -10,7 +10,8 @@ use Eppitnic\Service\RegistryPasswordChange;
 /**
  * The scheduled run: drain the poll queue, reconcile transfers, then act on a
  * password reminder -- one verb because the reconcile reads what the drain
- * stored and the rotation's fresh <login> invalidates their session. Never asks.
+ * stored and the rotation's fresh <login> invalidates their session. Never
+ * asks.
  *
  *   0-59/5 * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
  */

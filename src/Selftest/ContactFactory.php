@@ -76,8 +76,9 @@ final class ContactFactory
 
     /**
      * A partita IVA for entity type 2, computed rather than picked: nic.it
-     * verifies the checksum, which `01234567890` fails. Derived from the handle,
-     * so the run's two registrants differ and a re-run asks the same twice.
+     * verifies the checksum, which `01234567890` fails. Derived from the
+     * handle, so the run's two registrants differ and a re-run asks the same
+     * twice.
      *
      * @param string $handle the contact this code is for
      * @return string eleven digits

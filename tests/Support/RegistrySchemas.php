@@ -4,8 +4,9 @@ namespace Eppitnic\Tests\Support;
 
 /**
  * The registry's XML schemas (xsd/), assembled into one validation context and
- * shared by the tests that validate generated requests and those that hand-build
- * responses: a sample written from a schema is worth nothing unchecked.
+ * shared by the tests that validate generated requests and those that
+ * hand-build responses: a sample written from a schema is worth nothing
+ * unchecked.
  */
 final class RegistrySchemas
 {
@@ -32,8 +33,8 @@ final class RegistrySchemas
 
     /**
      * realpath()'d deliberately: the schemas import each other relatively and
-     * libxml keys "already imported" on the literal URI, so an unnormalised path
-     * makes it treat one schema as two and drop one.
+     * libxml keys "already imported" on the literal URI, so an unnormalised
+     * path makes it treat one schema as two and drop one.
      */
     public static function dir(): string {
         return realpath(__DIR__ . '/../../xsd');

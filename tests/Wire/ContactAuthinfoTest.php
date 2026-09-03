@@ -102,9 +102,9 @@ final class ContactAuthinfoTest extends EppTestCase
     }
 
     /**
-     * And an empty one is valid, which is what makes this the kind of defect only
-     * a live run finds: `pwAuthInfoType` is unrestricted, the min-6/max-16 rule
-     * belonging to `epp:pwType` and the `<login>` password.
+     * And an empty one is valid, which is what makes this the kind of defect
+     * only a live run finds: `pwAuthInfoType` is unrestricted, the min-6/max-16
+     * rule belonging to `epp:pwType` and the `<login>` password.
      */
     public function testAnEmptyAuthInfoIsSchemaValid(): void {
         $this->transport->queue(CommandCatalog::OK_RESPONSE);

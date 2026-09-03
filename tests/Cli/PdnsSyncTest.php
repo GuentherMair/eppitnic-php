@@ -8,9 +8,10 @@ use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
 /**
- * Applying DNS-sync events to PowerDNS. `pdnsutil` is reached through a setting,
- * so a stub script exercises the real exec() path -- what runs, in what order,
- * and what a non-zero exit does -- with no PowerDNS server anywhere.
+ * Applying DNS-sync events to PowerDNS. `pdnsutil` is reached through a
+ * setting, so a stub script exercises the real exec() path -- what runs, in
+ * what order, and what a non-zero exit does -- with no PowerDNS server
+ * anywhere.
  */
 final class PdnsSyncTest extends EppTestCase
 {

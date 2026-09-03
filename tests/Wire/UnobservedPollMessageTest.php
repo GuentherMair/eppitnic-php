@@ -8,9 +8,10 @@ use Eppitnic\Tests\Support\RegistrySchemas;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The poll message types that have branches but no captured traffic: three never
- * occurred here, so the samples are hand-built from the schemas -- and validated
- * against them first, or a misreading matches the parser for the wrong reason.
+ * The poll message types that have branches but no captured traffic: three
+ * never occurred here, so the samples are hand-built from the schemas -- and
+ * validated against them first, or a misreading matches the parser for the
+ * wrong reason.
  */
 final class UnobservedPollMessageTest extends EppTestCase
 {
@@ -59,7 +60,8 @@ final class UnobservedPollMessageTest extends EppTestCase
                 XML,
                 'Refund renews for bulk transfer',
                 'refundRenewsForBulkTransferMsgData',
-                // a bulk operation spans many domains: there is no single one to record
+                // a bulk operation spans many domains: there is no single one
+                // to record
                 '',
             ],
 

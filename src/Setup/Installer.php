@@ -21,9 +21,9 @@ use PDO;
 final class Installer
 {
     /**
-     * The field list every front end renders from. `required` tracks what blocks
-     * install(), not what is shown: the db_* fields default or may be blank, so
-     * marking those would demand a value install() supplies anyway.
+     * The field list every front end renders from. `required` tracks what
+     * blocks install(), not what is shown: the db_* fields default or may be
+     * blank, so marking those would demand a value install() supplies anyway.
      *
      * @return list<array{name: string, label: string, default: string, secret: bool, group: string, required: bool}>
      */
@@ -55,7 +55,8 @@ final class Installer
     /**
      * Probe candidate credentials with a plain PDO connection, dropped straight
      * after. Not RedBeanPHP: R::setup() is process-global and cannot be
-     * un-called, so a retried candidate would inherit the first attempt's state.
+     * un-called, so a retried candidate would inherit the first attempt's
+     * state.
      *
      * @throws \RuntimeException if the connection fails
      * @return array{server_version: string}
@@ -156,8 +157,8 @@ final class Installer
         }
 
         // Here, not at step 7 where these are stored: step 6 creates the admin,
-        // and User::create() refuses an existing username -- so a throw after it
-        // would make the retry fail on the previous attempt's own account
+        // and User::create() refuses an existing username -- so a throw after
+        // it would make the retry fail on the previous attempt's own account
         self::validateEpp($input);
 
         // 1. probe credentials (raw PDO) -- nothing committed yet

@@ -105,7 +105,8 @@ final class Leftovers
     /**
      * Every note on file, oldest run first. Nothing is filtered: one note may
      * hold free and blocked objects alike, and only the caller knows how long
-     * it will wait. `ripe_in_days` is what the linked ones still owe, 0 if none.
+     * it will wait. `ripe_in_days` is what the linked ones still owe, 0 if
+     * none.
      *
      * @return array<int, array{stamp: string, path: string, age_days: int,
      *               domains: string[], contacts: string[], linked: string[],

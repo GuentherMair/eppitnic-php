@@ -65,8 +65,9 @@ final class SelftestCommandTest extends TestCase
 
     /**
      * The test that matters most: nothing else here protects production, and it
-     * must answer before a session opens -- which is why the refusal is asserted
-     * with no transport at all. Reaching the network would be the failure.
+     * must answer before a session opens -- which is why the refusal is
+     * asserted with no transport at all. Reaching the network would be the
+     * failure.
      */
     public function testTheRunRefusesProduction(): void {
         $this->configured(self::PRODUCTION);

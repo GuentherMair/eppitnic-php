@@ -252,7 +252,8 @@ class Domain extends AbstractObject
   /**
    * remove a DNSSEC data set
    *
-   * @param string $digest the digest value identifying which DNSSEC record to remove
+   * @param string $digest the digest value identifying which DNSSEC record to
+   *               remove
    * @return string|false the digest on success, false on failure
    */
   public function remDNSSEC(string $digest): string|false {
@@ -413,7 +414,8 @@ class Domain extends AbstractObject
       $dns1 = $addr;
     }
 
-    // if a nameserver by this name was already set and IPs didn't change stop here
+    // if a nameserver by this name was already set and IPs didn't change stop
+    // here
     if (isset($this->ns[$name])) {
       // every address on this NS record. 'ip' is absent for a glueless
       // nameserver -- the ordinary case -- so re-adding one warned twice and
@@ -431,7 +433,8 @@ class Domain extends AbstractObject
         $ip_changed = TRUE;
       }
 
-      // if any new IP was added, remove the NS record first, then procede else there was no change and we bail out
+      // if any new IP was added, remove the NS record first, then procede else
+      // there was no change and we bail out
       if ($ip_changed) {
         $this->remNS($name);
       } else {
@@ -530,8 +533,10 @@ class Domain extends AbstractObject
    * fetch domain through EPP
    *
    * @param string $domain domain to load
-   * @param string $authinfo authinfo string (domain sponsored by other registrar)
-   * @param string $infContacts restrict linked-contact info to this type ('all', 'registrant', 'admin', 'tech', or blank for none)
+   * @param string $authinfo authinfo string (domain sponsored by other
+   *               registrar)
+   * @param string $infContacts restrict linked-contact info to this type
+   *               ('all', 'registrant', 'admin', 'tech', or blank for none)
    * @return bool status
    */
   public function fetch(?string $domain = null, ?string $authinfo = null, string $infContacts = ''): bool {
@@ -806,7 +811,8 @@ class Domain extends AbstractObject
   /**
    * update domain status
    *
-   * @param string $state clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock
+   * @param string $state clientDeleteProhibited, clientUpdateProhibited,
+   *               clientTransferProhibited, clientHold, clientLock
    * @param string $adddel add, rem (optional, defaults to add)
    * @return bool status
    */
@@ -884,7 +890,8 @@ class Domain extends AbstractObject
     History::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
 
     if ($notifyDNS) {
-      // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the zone
+      // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the
+      // zone
       R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$this->domain, 'domain created']);
     }
 
@@ -1192,7 +1199,8 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come back
+    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come
+    // back
     R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$domain, 'domain restored']);
 
     return TRUE;

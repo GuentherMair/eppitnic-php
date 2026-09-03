@@ -7,13 +7,13 @@ if ( ! defined('EPPITNIC_ROOT')) define('EPPITNIC_ROOT', dirname(__DIR__));
 
 // current DB schema version this codebase expects -- compared against the
 // `settings` table's 'schema_version' row by Config's auto-migration step
-// (src/Config.php). Zero-padded MMmmrr (2-digit major/minor/release,
-// e.g. 7.0.0 -> '070000', 7.1.2 -> '070102') rather than a dotted string --
-// fixed-width so plain string/int comparison sorts correctly (a dotted
-// "7.10" would otherwise sort before "7.2"). Bump this and drop a matching
+// (src/Config.php). Zero-padded MMmmrr (2-digit major/minor/release, e.g. 7.0.0
+// -> '070000', 7.1.2 -> '070102') rather than a dotted string -- fixed-width so
+// plain string/int comparison sorts correctly (a dotted "7.10" would otherwise
+// sort before "7.2"). Bump this and drop a matching
 // config/mariadb-schema-upgrade-{old}-to-{new}.sql file when adding a
-// migration; each file bridges exactly one version to the next one in the
-// chain -- Config applies them iteratively, it never jumps versions in one file.
+// migration; each file bridges exactly one version to the next one in the chain
+// -- Config applies them iteratively, it never jumps versions in one file.
 if ( ! defined('SCHEMA_VERSION')) define('SCHEMA_VERSION', '070000');
 
 // generic exit codes (1-9), returned by bin/eppitnic subcommands

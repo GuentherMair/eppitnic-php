@@ -7,9 +7,9 @@ use Eppitnic\Tests\Support\EppTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * Snapshot test over every EPP request the codebase generates: the generator may
- * be replaced wholesale as long as these bytes do not move. To regenerate, then
- * *read the diff* -- an unreviewed regeneration is a rubber stamp:
+ * Snapshot test over every EPP request the codebase generates: the generator
+ * may be replaced wholesale as long as these bytes do not move. To regenerate,
+ * then *read the diff* -- an unreviewed regeneration is a rubber stamp:
  *
  *     UPDATE_FIXTURES=1 vendor/bin/phpunit --testsuite wire
  */

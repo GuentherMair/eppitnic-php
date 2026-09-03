@@ -7,8 +7,8 @@ use Eppitnic\Selftest\Scenario\DomainLifecycle;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
- * Bringing a domain's nameservers to a target set. The update used to remove one
- * and add another against what fetch() found -- which is nothing for a
+ * Bringing a domain's nameservers to a target set. The update used to remove
+ * one and add another against what fetch() found -- which is nothing for a
  * delegation that does not resolve, leaving one nameserver, refused as 9005.
  */
 final class SelftestNameserverTest extends EppTestCase
@@ -77,9 +77,9 @@ final class SelftestNameserverTest extends EppTestCase
     }
 
     /**
-     * No wait unless a real domain was named: a generated name can never resolve,
-     * so there is nothing to verify and nothing to wait for -- a pause there is
-     * ten seconds on a foregone conclusion, twice per run.
+     * No wait unless a real domain was named: a generated name can never
+     * resolve, so there is nothing to verify and nothing to wait for -- a pause
+     * there is ten seconds on a foregone conclusion, twice per run.
      */
     public function testNoVerificationWaitWithoutASuppliedDomain(): void {
         $scenario = new DomainLifecycle(['ns1.example.it', 'ns2.example.it'], null, 0);
@@ -99,8 +99,8 @@ final class SelftestNameserverTest extends EppTestCase
 
     /**
      * Re-adding a nameserver already there must be silent: addNS() compared
-     * against `$this->ns[$name]['ip']`, absent for a glueless one, so the second
-     * add warned twice. failOnWarning is what asserts it.
+     * against `$this->ns[$name]['ip']`, absent for a glueless one, so the
+     * second add warned twice. failOnWarning is what asserts it.
      */
     public function testReAddingAGluelessNameserverIsSilent(): void {
         $domain = new Domain($this->nic);

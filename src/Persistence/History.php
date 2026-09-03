@@ -34,9 +34,11 @@ final class History
      * record an audit-trail entry
      *
      * @param string $object contacts/domains/users/security
-     * @param int $object_id the object's DB row id; for `security`, the acting user
+     * @param int $object_id the object's DB row id; for `security`, the acting
+     *            user
      * @param string $action create/update/delete/read
-     * @param array $data changed fields (or a minimal identifying set, for create/delete)
+     * @param array $data changed fields (or a minimal identifying set, for
+     *              create/delete)
      * @param int|null $user_id acting user
      */
     public static function record(

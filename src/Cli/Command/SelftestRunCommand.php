@@ -16,9 +16,10 @@ use Eppitnic\Selftest\Step;
 use Eppitnic\Support\Validate;
 
 /**
- * Exercise the library against the live test registry: the unit suite proves the
- * XML is generated and parsed, not that the registry accepts it. Runs nowhere
- * but `epp.pubtest.nic.it` -- see Guard. `--verbose` adds request and response.
+ * Exercise the library against the live test registry: the unit suite proves
+ * the XML is generated and parsed, not that the registry accepts it. Runs
+ * nowhere but `epp.pubtest.nic.it` -- see Guard. `--verbose` adds request and
+ * response.
  *
  * @category    Net
  * @package     Eppitnic\Cli\Command\SelftestRunCommand
