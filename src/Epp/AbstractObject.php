@@ -413,9 +413,10 @@ abstract class AbstractObject
     $tracksSession = $this->keepalive && ! in_array($clTRType, self::SESSION_LIFECYCLE_TYPES, true);
 
     // Serialises against every other process sharing the kept-alive session --
-    // see SessionLock. A no-op when keepalive is off: with no shared session,
-    // there is nothing to serialise against.
-    return SessionLock::around($this->keepalive, function () use ($tracksSession) {
+    // see SessionLock -- only when `session_serialize` opts into it. A no-op
+    // when keepalive is off: with no shared session, there is nothing to
+    // serialise against.
+    return SessionLock::around($this->keepalive && SessionState::serializeEnabled(), function () use ($tracksSession) {
       $return_code = $this->sendAndParse($tracksSession);
 
       if ( ! $tracksSession || ! $this->hasResultCode()) {

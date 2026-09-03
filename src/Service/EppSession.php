@@ -71,11 +71,11 @@ final class EppSession
         $session = new Session($nic);
 
         if ($nic->keepalive) {
-            // Locked so two workers racing a stale timestamp cannot both
-            // decide to open a session -- isFresh() is re-checked inside the
-            // lock, not just before it, so the second one in just resumes
-            // what the first opened.
-            SessionLock::around(true, function () use ($nic, $session) {
+            // Locked (when `session_serialize` opts into it) so two workers
+            // racing a stale timestamp cannot both decide to open a session --
+            // isFresh() is re-checked inside the lock, not just before it, so
+            // the second one in just resumes what the first opened.
+            SessionLock::around(SessionState::serializeEnabled(), function () use ($nic, $session) {
                 if (SessionState::isFresh()) {
                     $nic->seedCookies(SessionState::cookies());
                     return;

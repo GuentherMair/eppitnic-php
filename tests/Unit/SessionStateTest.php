@@ -16,9 +16,10 @@ use RedBeanPHP\R;
  */
 final class SessionStateTest extends TestCase
 {
-    private function withTimestamp(int $timestamp, bool $enabled = true): void {
+    private function withTimestamp(int $timestamp, bool $enabled = true, bool $serialize = false): void {
         Config::loadForTesting([
             'keepalive'         => $enabled,
+            'session_serialize' => $serialize,
             'session_cookies'   => ['JSESSIONID' => 'abc'],
             'session_timestamp' => $timestamp,
         ]);
@@ -31,6 +32,7 @@ final class SessionStateTest extends TestCase
         R::exec('DROP TABLE IF EXISTS settings');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
         R::exec('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['keepalive', 'true']);
+        R::exec('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['session_serialize', 'false']);
         R::exec('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['session_cookies', '{"JSESSIONID":"abc"}']);
         R::exec('INSERT INTO settings (`key`, `value`) VALUES (?, ?)', ['session_timestamp', (string) $timestamp]);
 
@@ -48,6 +50,14 @@ final class SessionStateTest extends TestCase
 
         $this->withTimestamp(0, enabled: false);
         $this->assertFalse(SessionState::enabled());
+    }
+
+    public function testSerializeEnabledReflectsTheSetting(): void {
+        $this->withTimestamp(0, serialize: false);
+        $this->assertFalse(SessionState::serializeEnabled());
+
+        $this->withTimestamp(0, serialize: true);
+        $this->assertTrue(SessionState::serializeEnabled());
     }
 
     public function testZeroTimestampIsNeverFreshOrDueForRefresh(): void {

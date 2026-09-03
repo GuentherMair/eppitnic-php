@@ -61,10 +61,13 @@ final class EppSessionKeepaliveTest extends EppTestCase
     /**
      * @param int $timestamp local unix time SessionState should report as the
      *            last good response; 0 means no session at all
+     * @param bool $serialize the `session_serialize` setting -- off by
+     *             default, same as the schema
      */
-    private function keepaliveOn(int $timestamp): void {
+    private function keepaliveOn(int $timestamp, bool $serialize = false): void {
         Config::loadForTesting([
             'keepalive'         => true,
+            'session_serialize' => $serialize,
             'session_cookies'   => ['JSESSIONID' => 'abc123'],
             'session_timestamp' => $timestamp,
         ] + static::SETTINGS);
@@ -83,6 +86,22 @@ final class EppSessionKeepaliveTest extends EppTestCase
 
     public function testFreshSessionSendsNeitherHelloNorLoginAndNoLogout(): void {
         $this->keepaliveOn(time());
+        $this->transport->queue(CommandCatalog::OK_RESPONSE);
+
+        $this->assertTrue($this->runOnePoll());
+
+        $this->assertCount(1, $this->transport->requests);
+        $this->assertStringContainsString('<poll', $this->transport->requests[0]);
+    }
+
+    /**
+     * `session_serialize` on: SessionLock actually attempts GET_LOCK, which
+     * this suite's sqlite backend doesn't have -- proving the fail-open path
+     * (see SessionLock) still lets the same command through unlocked, rather
+     * than turning serialization on breaking keepalive outright.
+     */
+    public function testSessionSerializeOnStillCompletesTheRequest(): void {
+        $this->keepaliveOn(time(), serialize: true);
         $this->transport->queue(CommandCatalog::OK_RESPONSE);
 
         $this->assertTrue($this->runOnePoll());

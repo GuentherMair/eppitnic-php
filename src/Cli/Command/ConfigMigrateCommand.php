@@ -123,6 +123,7 @@ final class ConfigMigrateCommand extends Command
           // no config.xml source -- 6.x never held a session open between
           // requests. Off until explicitly turned on with 'config keepalive on'
           'keepalive'         => false,
+          'session_serialize' => false,
           'session_cookies'   => [],
           'session_timestamp' => 0,
           'pdnsutil_path'   => null, // no config.xml source

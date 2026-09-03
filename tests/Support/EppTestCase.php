@@ -18,7 +18,7 @@ abstract class EppTestCase extends TestCase
 
     /**
      * settings Client's constructor reads -- see Client::__construct() --
-     * plus the three keepalive settings EppSession::run() reads via
+     * plus the four keepalive settings EppSession::run() reads via
      * SessionState regardless: Config::get() throws on an unknown key, and
      * every test through withSession()/EppSession::run() would fail on it
      * otherwise. Off, matching the schema's own defaults, so this changes no
@@ -41,6 +41,7 @@ abstract class EppTestCase extends TestCase
         'debugfile'         => '',
         'dnssec'            => ['active' => 1, 'algorithm' => 10, 'digesttype' => 2],
         'keepalive'         => false,
+        'session_serialize' => false,
         'session_cookies'   => [],
         'session_timestamp' => 0,
     ];

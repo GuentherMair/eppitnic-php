@@ -7,8 +7,8 @@ use RedBeanPHP\R;
 /**
  * Serialises EPP commands sent through the shared, kept-alive session -- see
  * SessionState. Whether nic.it tolerates overlapping commands on one
- * authenticated session is unknown, so this removes the question rather than
- * assume either answer.
+ * authenticated session is unknown, so this is opt-in via the
+ * `session_serialize` setting (off by default) rather than assumed either way.
  *
  * A MariaDB advisory lock (`GET_LOCK`), not a PHP-level mutex: the thing being
  * protected is spread across every PHP-FPM worker and every CLI/cron process
@@ -36,14 +36,14 @@ final class SessionLock
     /**
      * Run $fn with the shared session's advisory lock held, if it is not
      * already held by an outer call in this process. Takes a caller-supplied
-     * flag rather than reading SessionState::enabled() itself, so that a
-     * process where keepalive is off -- the default, and every request that
-     * never joins the shared session -- never has to have `keepalive` seeded
-     * in the settings it can see at all.
+     * flag rather than reading SessionState itself, so that a process where
+     * keepalive (or session_serialize) is off -- the default, and every
+     * request that never joins the shared session -- never has to have those
+     * settings seeded in the settings it can see at all.
      *
      * @template T
-     * @param bool $enabled whether a shared session is in play; false skips
-     *             locking entirely
+     * @param bool $enabled whether to lock -- keepalive and session_serialize
+     *             both on; false skips locking entirely
      * @param callable(): T $fn
      * @return T whatever $fn returns
      */

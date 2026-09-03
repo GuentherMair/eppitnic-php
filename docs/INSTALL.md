@@ -211,6 +211,22 @@ password rotation machinery never join the shared session regardless of this
 setting: a different host, or a login `poll process` deliberately expects to
 fail, must never touch what other requests share.
 
+## Session serialization
+
+Whether nic.it tolerates overlapping commands on one shared session is
+unconfirmed, so locking them against each other is opt-in and off by
+default — only meaningful with `keepalive` on:
+
+```
+bin/eppitnic config session-serialize on
+bin/eppitnic config session-serialize off
+```
+
+With both on, every command takes a MariaDB advisory lock (`GET_LOCK`,
+scoped to this installation's database) before it runs. A lock not obtained
+within 10s, or a database with no `GET_LOCK` at all, is treated the same:
+the command proceeds unlocked rather than blocking forever.
+
 ## Login rate limiting
 
 Logins are recorded in `history` as `security` rows (address, network,

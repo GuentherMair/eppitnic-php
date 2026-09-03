@@ -30,6 +30,7 @@ Here is a list of a few very simple reasons:
 3. Automatic DNS server updates (post transfer-in)
 4. Usage history (who did what and when?)
 5. User management (multiple distinct operators, resellers)
+6. DB driven session keepalive
 
 
 # Detailed instructions

@@ -6,11 +6,12 @@ use Eppitnic\Config;
 
 /**
  * The shared, kept-alive registry session's state -- the only thing that
- * reads or writes the `keepalive`, `session_cookies` and `session_timestamp`
- * settings. `session_timestamp` is the single freshness oracle: there is no
- * `session` table in the schema to consult instead, and it holds local
- * `time()`, not anything the registry sent, so the arithmetic below stays
- * correct regardless of any clock skew against nic.it.
+ * reads or writes the `keepalive`, `session_serialize`, `session_cookies`
+ * and `session_timestamp` settings. `session_timestamp` is the single
+ * freshness oracle: there is no `session` table in the schema to consult
+ * instead, and it holds local `time()`, not anything the registry sent, so
+ * the arithmetic below stays correct regardless of any clock skew against
+ * nic.it.
  *
  * @category    Net
  * @package     Eppitnic\Service\SessionState
@@ -34,6 +35,17 @@ final class SessionState
      */
     public static function enabled(): bool {
         return (bool) Config::get('keepalive');
+    }
+
+    /**
+     * Whether commands on the shared session should be serialised against
+     * each other -- see SessionLock. Off by default: whether nic.it actually
+     * needs this is unconfirmed, so it is opt-in rather than assumed.
+     *
+     * @return bool the `session_serialize` setting
+     */
+    public static function serializeEnabled(): bool {
+        return (bool) Config::get('session_serialize');
     }
 
     /**

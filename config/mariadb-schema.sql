@@ -203,6 +203,7 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- logging out per request; refreshed by `session keepalive` before the
   -- registry's 300s timeout. session_* hold that session's state (code-only).
   ('keepalive', 'false'),
+  ('session_serialize', 'false'),
   ('session_cookies', '{}'),
   ('session_timestamp', '0'),
   ('pdnsutil_path', 'null'),
