@@ -14,13 +14,18 @@ check, not JSON). Send `Content-Type: application/json` on request bodies;
 responses are `application/json; charset=utf-8` unless noted otherwise
 (`GET /v1/domains/export` returns `text/csv`).
 
-**Always send `Accept: application/json`.** Errors that are thrown before a
-route handler runs its own logic — auth failures (401/403), 404 on unknown
-routes, 405 on wrong methods, uncaught 500s — are produced by Slim's own
-error middleware, which content-negotiates off the `Accept` header and
-falls back to an HTML error page if it doesn't see `application/json`. See
-"Error shapes" below — these responses look different from routes' own
-`{"error": "..."}` JSON.
+Every response is JSON, including every error, whatever the request's `Accept`
+header says: `Middleware::register()` replaces Slim's own error handler with a
+JSON one, so there is no content negotiation and no HTML error page to fall
+back to. See "Error shapes" below.
+
+**Anything read straight from the database arrives as a string**, integers and
+booleans included — RedBeanPHP leaves `PDO::ATTR_STRINGIFY_FETCHES` on and
+nothing here turns it off. So a row's `id` is `"3"` and its `admin` flag is
+`"0"`, which is *truthy* in JavaScript; compare explicitly rather than testing
+the value for truth. The exceptions are values a handler casts on the way out —
+the login claims, and the `total`/`outstanding` counters — which are real JSON
+numbers and booleans.
 
 ## Setup
 
@@ -104,7 +109,7 @@ that setting every request appears to come from the proxy, which means one
 shared rate-limit bucket for all clients and no client ever matching
 `safe_networks`.
 
-Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
+Success response — `Auth::issueToken()`'s output, i.e. every field passed in plus a
 `token`:
 ```json
 {
@@ -115,7 +120,7 @@ Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
   "has_totp": true,
   "needs_totp": true,
   "totp_verified": true,
-  "debug_level": null,
+  "debug": false,
   "max_token_age": null,
   "max_idle_time": null
 }
@@ -128,7 +133,7 @@ Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
   (the code was just checked); it exists because the same claims shape is
   reused for `renew-token`, where it can be false (see MFA gate below).
 - `max_token_age` — minutes until expiry, default `240` (4h) if the user
-  record doesn't set one; feeds `jwtBuild()`'s `exp` claim. `null`, `0` and
+  record doesn't set one; feeds `Auth::issueToken()`'s `exp` claim. `null`, `0` and
   negative values all mean "use the default" (`0` would otherwise mint an
   already-expired token). `renew-token` re-signs the same claim, so a renewed
   token keeps the user's lifetime rather than reverting to the default.
@@ -140,7 +145,7 @@ Success response — `jwtBuild()`'s output, i.e. every field passed in plus a
   `{"error": "MFA code required"}` / `{"error": "Invalid MFA code"}`.
 
 `GET /v1/users/renew-token` (auth: any valid token) — re-issues a fresh JWT
-from the current token's own claims (`jwtBuild((array) $decoded->data)`),
+from the current token's own claims (`Auth::issueToken((array) $decoded->data)`),
 same response shape as login. Use this to keep a session alive without
 re-prompting for a password; it does **not** re-check TOTP, so a token that
 was minted without MFA verification stays that way until re-login.
@@ -148,7 +153,7 @@ was minted without MFA verification stays that way until re-login.
 `GET /v1/users/me` (auth: any valid token) — returns the decoded claims
 as-is (no `token` field).
 
-### MFA gate (`jwtRequireMfa`)
+### MFA gate (`Auth::requireMfa()`)
 
 Certain sensitive routes require the *current* token to have
 `totp_verified` (not just any valid token) or they 403 with `"MFA
@@ -157,7 +162,7 @@ verification required"`: `PUT /v1/changepassword/{id}`,
 for a has-TOTP account without the code (not currently possible through
 `authenticate`, but relevant if that changes).
 
-`jwtRequireAdmin` implies the same MFA check, in addition to requiring
+`Auth::requireAdmin()` implies the same MFA check, in addition to requiring
 `admin === 1`.
 
 ### TOTP (MFA) setup, per-user
@@ -183,7 +188,7 @@ for a has-TOTP account without the code (not currently possible through
 - Send it exactly like a JWT: `Authorization: Bearer <token>`. It never
   expires unless `expires` was set, never carries `has_totp`/MFA (MFA is
   meaningless for headless callers), and is otherwise indistinguishable to
-  route handlers from a JWT-derived identity (`jwtVerify()` synthesizes the
+  route handlers from a JWT-derived identity (`Auth::verify()` synthesizes the
   same claims shape).
 
 ### Password change (per-user login password)
@@ -197,7 +202,7 @@ which contradicted every other authorization refusal in the API.
 ## Authorization model
 
 - `admin` claim `=== 1` → unrestricted, sees/manages every user's data, can
-  hit `jwtRequireAdmin`-gated routes.
+  hit `Auth::requireAdmin()`-gated routes.
 - Everyone else is scoped to their own `user_id` — every list/read/write
   handler that isn't admin-only filters
   its query by the caller's id. There is no per-resource ACL table; it's a
@@ -250,29 +255,41 @@ mark the payload `"stale": true`. Every other EPP-backed route still 502s.
 
 ## Error shapes
 
-Two different shapes exist depending on where a request failed:
+One shape, wherever the request failed — a route's own validation or EPP
+rejection, and equally the errors raised before a handler runs (missing,
+invalid or expired token → 401; wrong `admin`/MFA state → 403; unknown route →
+404; wrong method → 405; uncaught exception → 500):
 
-**Route-level errors** (validation, EPP rejection, not-found inside a
-handler that got that far) — flat, always just a string message, no error
-code field:
 ```json
 { "error": "Domain 'example.it' not found" }
 ```
-Status code varies by route (see below); there is **no** stable `code`
-enum like the original plan sketched — match on the message text or the
-HTTP status if the frontend needs to branch on failure type.
 
-**Framework-level errors** (missing/invalid/expired token → 401; wrong
-`admin`/MFA state → 403; unknown route → 404; wrong HTTP method → 405;
-uncaught exception → 500) — Slim's `JsonErrorRenderer` (only if
-`Accept: application/json` was sent, see above):
-```json
-{ "message": "Forbidden." }
-```
-With `displayErrorDetails` on (currently enabled — this is a
-pre-production/internal tool), 500s additionally include an `exception`
-array with `type`/`code`/`message`/`file`/`line` — **don't surface that to
-end users**, and expect it to be locked down before any public launch.
+Always a string, never nested, and there is **no** stable `code` enum like the
+original plan sketched — branch on the HTTP status. Matching the message text
+works but is brittle; the one place it is unavoidable today is telling an
+expired token (`"Token has expired: ..."`) from an absent one, since both are
+401. A client that needs that distinction is better off reading `exp` from the
+claims (`GET /v1/users/me`) and renewing before it passes.
+
+`Middleware::register()` (`src/Api/Middleware.php`) installs this via
+`setDefaultErrorHandler()`, replacing Slim's `ErrorHandler` and its renderers
+outright — which is why `Accept` plays no part. The status comes from the
+exception: `HttpException::getCode()` when a handler threw one, 500 otherwise.
+Error responses are produced *inside* the CORS middleware, so they carry the
+`Access-Control-Allow-*` headers too — a browser can read its own 401 rather
+than seeing an opaque network failure (`tests/Http/ErrorResponseTest.php`).
+
+**Details are off by default.** `displayErrorDetails` is read from the
+`EPPITNIC_DEBUG` environment variable — from the environment, not the
+`settings` table, since the error handler has to work when the database is
+unreachable. With it off, a 500's real message is replaced by
+`{"error": "Internal server error"}` and only the server log gets the detail;
+4xx keep their own messages. With it on, responses additionally carry
+`exception` (the class name), `file`, `line` and `trace` — **never enable it on
+anything public.**
+
+`GET /v1/domains/export` is the one route whose *success* is not JSON
+(`text/csv`); its failures still are.
 
 ## CORS
 
@@ -295,6 +312,19 @@ clients without touching scripted ones. Note this is a behaviour change: the
 seeds previously contained a single empty-string entry, which is what let
 origin-less requests through, and configuring a real origin list silently
 revoked that.
+
+Three details that matter to a browser client:
+
+- `Access-Control-Expose-Headers: Content-Disposition` is set, so a
+  cross-origin caller can read the filename `GET /v1/domains/export` supplies.
+  That download needs the `Authorization` header, so it cannot be a plain
+  link — fetch it and turn the response into a blob.
+- `Access-Control-Allow-Credentials: true` is set unconditionally, but the API
+  keeps no cookies and no session state; auth is the bearer header alone.
+  Leave `credentials`/`withCredentials` alone — turning it on buys nothing.
+- `Access-Control-Max-Age` is never sent, so browsers fall back to a very short
+  preflight cache and re-`OPTIONS` almost every authenticated request. Serving
+  the SPA from the API's own origin avoids this (and CORS) altogether.
 
 ## Pagination convention
 
@@ -353,9 +383,9 @@ refusal there stays the generic `Wrong username or password` whatever the reason
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug_level, has_totp`. Never returns password hashes |
+| `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug, has_totp`. Never returns password hashes |
 | `GET /v1/users/{id}` | user | same field set, single row (also unscoped — any logged-in user can look up any other user by id) |
-| `POST /v1/users` | admin | create. Required: `username`, `password`. Optional: `description`, `email`, `max_operations` (daily domain-create quota, `0` = unlimited), `active` (default `1`), `admin` (default `0`), `max_token_age`, `max_idle_time`, `debug_level`. `400` if a required field is missing or if `username` is already taken |
+| `POST /v1/users` | admin | create. Required: `username`, `password`. Optional: `description`, `email`, `max_operations` (daily domain-create quota, `0` = unlimited), `active` (default `1`), `admin` (default `0`), `max_token_age`, `max_idle_time`, `debug`. `400` if a required field is missing or if `username` is already taken |
 | `PUT /v1/users/{id}` | admin | update of the same field set. **Every field is optional** — anything omitted keeps its current value (this includes `password`, as before). `404` if the id doesn't exist, `400` on a `username` collision with another row |
 | `DELETE /v1/users/{id}` | admin | soft-delete (`active = 0`) — does **not** block deleting id `1`, unlike the original plan's intent; be careful in the UI |
 
@@ -469,3 +499,14 @@ headers, with `Authorization`, `Cookie` and `Proxy-Authorization` stored as
 - Domain/contact write endpoints don't return `422`-style field-level
   validation errors — `requireFields()`/`maxLength()` return a single
   string naming the first problem found, not a structured per-field list.
+- An expired token and an absent one are both `401` carrying only a message,
+  so a client wanting to renew rather than bounce to the login screen has to
+  match the message text or track `exp` itself.
+- `allowed_headers` is seeded with `X-Api-Key`, which nothing in the codebase
+  ever reads — a fixed API token goes in `Authorization` like a JWT. Harmless,
+  but it implies a header that does not work.
+- `POST /v1/contacts` only requires `name`, while the registry rejects a
+  contact lacking any of `name`, `street`, `city`, `province`, `postalcode`,
+  `countrycode`, `voice`, `email` (the list `contact create` enforces, in
+  `src/Cli/Command/ContactCreateCommand.php`). The API defers those eight to a
+  round-trip that comes back `400`, so a form should require them client-side.
