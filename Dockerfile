@@ -37,10 +37,10 @@ FROM base AS runtime
 # tini: a minimal init as PID 1, so `docker stop` reaches start-web.sh as a
 #   real signal instead of only stopping tini itself.
 # su-exec: drops from root to www-data before running one-shot CLI verbs
-#   (see the eppitnic-cli-* compose services) -- config.php, the EPP cookie
-#   jar and selftest notes then end up owned the same as the web/cron
-#   processes that read them back, rather than root-owned and unreadable to
-#   the www-data worker that needs them next.
+#   (see the eppitnic-cli-* compose services) -- config.php and selftest notes
+#   then end up owned the same as the web/cron processes that read them back,
+#   rather than root-owned and unreadable to the www-data worker that needs
+#   them next.
 #
 # No docker-php-ext-enable opcache here: on this base image OPcache is
 # compiled into the core binary, not a separate loadable .so -- there is

@@ -56,11 +56,21 @@ class Client
    */
   public bool $debug = false;
 
+  /**
+   * Whether this client shares the one kept-alive registry session rather than
+   * logging in and out per request -- see Eppitnic\Service\SessionState and
+   * EppSession::run(), the only place that sets it true. Same shape as $debug:
+   * AbstractObject copies it at construction, so it reaches everything built
+   * from this client. False for a client on a different host (the
+   * server_deleted restore endpoint) or one built outside EppSession::run()
+   * (registry password rotation), which must never touch the shared session.
+   */
+  public bool $keepalive = false;
+
   private $clTRID;
   private $headers = array('content-type' => 'text/xml; charset=UTF-8');
 
   protected $httpClient;
-  protected $curl_cookie_dir;
 
   /**
    * Class constructor
@@ -86,18 +96,14 @@ class Client
       'cl_trid_prefix'  => $epp['cl_trid_prefix'],
       'certificatefile' => Config::get('certificatefile'),
       'debugfile'       => Config::get('debugfile'),
-      'cookie_dir'      => Config::get('cookie_dir'),
       'dnssec'          => (object)Config::get('dnssec'),
     ];
 
     // setup default time zone
     date_default_timezone_set($this->EPPCfg->timezone ?: "Europe/Rome");
 
-    // configure temporary folder for storing curl's cookies
-    $this->curl_cookie_dir = (@empty($this->EPPCfg->cookie_dir)) ? '/tmp' : $this->EPPCfg->cookie_dir;
-
     // initialize httpClient
-    $this->httpClient = new Curl($this->EPPCfg->server, '', '', $this->curl_cookie_dir);
+    $this->httpClient = new Curl($this->EPPCfg->server, '', '');
     $this->httpClient->setHeaders($this->headers);
 
     // set server port
@@ -141,12 +147,24 @@ class Client
   }
 
   /**
-   * reset curl connection by removing the curl cookie file
+   * Seed the transport's cookie jar -- from a session kept alive across
+   * processes, via Eppitnic\Service\SessionState. Called before the first
+   * request of a process that resumes rather than opens a session.
    *
-   * @return bool
+   * @param array<string, string> $cookies name => value
    */
-  public function resetHttpClientCookie(): bool {
-    return unlink($this->httpClient->getCookieFileLocation());
+  public function seedCookies(array $cookies): void {
+    $this->httpClient->setCookies($cookies);
+  }
+
+  /**
+   * The transport's cookie jar as it stands right now -- what was seeded plus
+   * anything a request since received. What SessionState::remember() persists.
+   *
+   * @return array<string, string> name => value
+   */
+  public function currentCookies(): array {
+    return $this->httpClient->getCookies();
   }
 
   /**

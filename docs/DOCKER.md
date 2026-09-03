@@ -55,7 +55,9 @@ owns it, and the rest just start from the result.
 `docker compose up -d` brings up one instance: nginx + php-fpm in one
 container serving `public/` on `127.0.0.1:8080`, plus a scheduler sidecar on the
 same image running `poll process` every five minutes (see "Scheduled jobs" in
-[INSTALL.md](INSTALL.md) — it can't be skipped). Neither container provides a
+[INSTALL.md](INSTALL.md) — it can't be skipped) and `session keepalive` every
+minute (a no-op unless the `keepalive` setting is on). Neither container
+provides a
 database; every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`
 so `DB_HOST=host.docker.internal` in `config.php` reaches one on the Docker
 host — or point `DB_HOST` at another compose service's name if the database

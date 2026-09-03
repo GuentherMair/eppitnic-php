@@ -48,7 +48,15 @@ class Curl implements Transport
   protected $_certFile;
   protected $_authName;
   protected $_authPass;
-  protected $_cookieFileLocation;
+
+  /**
+   * The cookie jar, in process memory rather than a file -- see the class
+   * docblock. name => value, seeded via setCookies() and grown by every
+   * Set-Cookie a query() receives.
+   *
+   * @var array<string, string>
+   */
+  protected array $_cookies = [];
 
   protected $_referer;
   protected $_postHeaders = array('Expect:');
@@ -65,31 +73,10 @@ class Curl implements Transport
   protected $_body;
   protected $_error;
 
-  /**
-   * @throws \RuntimeException if the cookie jar cannot be written
-   */
-  public function __construct(string $url, string $authName = '', string $authPass = '', string $cookie_dir = '/tmp') {
+  public function __construct(string $url, string $authName = '', string $authPass = '') {
     $this->_url = $url;
-    $this->_cookieFileLocation = $cookie_dir.'/url_'.md5($url).'-uid_'.posix_getuid().'-cookie.txt';
     $this->_authName = $authName;
     $this->_authPass = $authPass;
-
-    // Thrown, not exit()ed: this runs from Client's constructor inside a
-    // request, and exiting wrote plain text over whatever the route was about
-    // to answer. A \RuntimeException lands in the handling both tiers have
-    if (file_exists($this->_cookieFileLocation)) {
-      if ( ! is_writeable($this->_cookieFileLocation)) {
-        throw new \RuntimeException(
-          "cookie file '".$this->_cookieFileLocation."' exists and is not writeable"
-        );
-      }
-    } else {
-      if ( ! is_writeable(dirname($this->_cookieFileLocation))) {
-        throw new \RuntimeException(
-          "cookie file folder '".dirname($this->_cookieFileLocation)."' is not writeable"
-        );
-      }
-    }
   }
 
   public function __destruct() {
@@ -130,12 +117,12 @@ class Curl implements Transport
     $this->_referer = $referer;
   }
 
-  public function setCookieFileLocation(string $path): void {
-    $this->_cookieFileLocation = $path;
+  public function setCookies(array $cookies): void {
+    $this->_cookies = $cookies;
   }
 
-  public function getCookieFileLocation(): string {
-    return $this->_cookieFileLocation;
+  public function getCookies(): array {
+    return $this->_cookies;
   }
 
   public function setBinaryTransfer(bool $binaryTransfer): void {
@@ -178,9 +165,10 @@ class Curl implements Transport
     if ( ! ini_get('safe_mode') && ! ini_get('open_basedir')) {
       curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
     }
-    curl_setopt($ch, CURLOPT_COOKIEJAR, $this->_cookieFileLocation);
-    curl_setopt($ch, CURLOPT_COOKIEFILE, $this->_cookieFileLocation);
-    curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent); 
+    if ( ! empty($this->_cookies)) {
+      curl_setopt($ch, CURLOPT_COOKIE, Cookies::header($this->_cookies));
+    }
+    curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent);
     curl_setopt($ch, CURLOPT_POST, $this->_post);
     if ($postFields != null) {
       curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
@@ -216,6 +204,10 @@ class Curl implements Transport
     $this->_headers = substr($response, 0, $header_size);
     $this->_body = substr($response, $header_size);
     $this->_error = ($response === false) ? curl_error($ch) : "";
+    // grow the jar with whatever this response set, rather than replace it --
+    // a registry that only refreshes one of several cookies must not lose the
+    // others
+    $this->_cookies = array_merge($this->_cookies, Cookies::parse($this->_headers));
     $header_out = curl_getinfo($ch, CURLINFO_HEADER_OUT);
     // no curl_close(): a no-op since PHP 8.0 (CurlHandle is freed by the GC)
     // and deprecated outright since 8.5, where calling it warns on every query

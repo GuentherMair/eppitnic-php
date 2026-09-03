@@ -5,6 +5,8 @@ namespace Eppitnic\Tests\Cli;
 use Eppitnic\Cli\Command\DomainDeleteCommand;
 use Eppitnic\Cli\Command\DomainStatusCommand;
 use Eppitnic\Cli\UsageError;
+use Eppitnic\Config;
+use Eppitnic\Service\SessionState;
 use Eppitnic\Tests\Support\EppTestCase;
 
 /**
@@ -104,5 +106,28 @@ final class MutatingCommandTest extends EppTestCase
     public function testStatusRejectsAnUnknownAction(): void {
         $this->expectException(UsageError::class);
         (new DomainStatusCommand(['toggle', 'clientHold', 'example-one.it']))->run();
+    }
+
+    /**
+     * withSession()'s --dry-run client answers from DryRun's canned "1000"
+     * responses, never a real session -- Command::withSession() forces
+     * keepalive false on it for exactly this reason. Without that, a dry run
+     * under a globally-on keepalive would mark a session that was never
+     * authenticated as fresh, and the next real command would skip login
+     * and walk straight into a 2002.
+     */
+    public function testDryRunNeverTouchesTheSharedSessionState(): void {
+        Config::loadForTesting([
+            'keepalive'         => true,
+            'session_cookies'   => [],
+            'session_timestamp' => 0,
+        ] + static::SETTINGS);
+
+        $command = new DomainDeleteCommand(['--dry-run', 'example-one.it']);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+        $this->capture(fn() => $command->run());
+
+        $this->assertSame(0, SessionState::timestamp());
+        $this->assertSame([], SessionState::cookies());
     }
 }

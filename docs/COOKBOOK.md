@@ -17,8 +17,11 @@ use Eppitnic\Epp\Session;
 
 ## A session
 
-`EppSession::run()` opens a session, hands you a logged-in client, and
-logs out afterwards — including when your callback throws.
+`EppSession::run()` opens a session and hands you a logged-in client. With
+the `keepalive` setting off — the default — it logs out afterwards, including
+when your callback throws; with it on, it reuses whatever session
+`eppitnic session keepalive` is already keeping fresh and never logs out (see
+docs/INSTALL.md's "Session keep-alive").
 
 ```php
 $credit = EppSession::run(function (Client $nic, Session $session) {

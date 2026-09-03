@@ -120,7 +120,11 @@ final class ConfigMigrateCommand extends Command
           // what turns on cURL wire logging
           'debugfile'       => self::xmlStr($xml->debugfile),
           'certificatefile' => null, // no config.xml source
-          'cookie_dir'      => self::xmlStr($xml->cookie_dir) !== '' ? self::xmlStr($xml->cookie_dir) : null,
+          // no config.xml source -- 6.x never held a session open between
+          // requests. Off until explicitly turned on with 'config keepalive on'
+          'keepalive'         => false,
+          'session_cookies'   => [],
+          'session_timestamp' => 0,
           'pdnsutil_path'   => null, // no config.xml source
           'pdnsutil_ttl'    => 3600, // no config.xml source
         ];

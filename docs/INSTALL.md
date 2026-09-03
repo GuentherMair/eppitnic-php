@@ -164,6 +164,7 @@ suppresses output and keeps the exit code.
 ```
 0-59/5  * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
 0-59/15 * * * *  /path/to/bin/eppitnic pdns sync   >> /var/log/eppitnic/pdns-sync.log 2>&1
+* * * * *        /path/to/bin/eppitnic session keepalive >> /var/log/eppitnic/keepalive.log 2>&1
 ```
 
 `poll process` drains the registry's message queue into `messages`,
@@ -176,7 +177,39 @@ and `--no-transfers` drop a step. It never prompts.
 serves your zones. Zone deletions wait out `--delay-hours` (12 by default);
 `--dry-run` prints the `pdnsutil` invocations without running them.
 
-Both are ordinary verbs, runnable by hand any time.
+`session keepalive` only does anything when `keepalive` is on (see "Session
+keep-alive" below) — schedule it unconditionally, since it prints nothing and
+exits `0` while the setting is off.
+
+All three are ordinary verbs, runnable by hand any time.
+
+## Session keep-alive
+
+By default every EPP operation is connect-per-request: hello, login, the
+operation, logout. Turning `keepalive` on holds one authenticated session open
+across processes instead, reusing it while it's fresh and refreshing it from
+cron before nic.it's own idle timeout:
+
+```
+bin/eppitnic config keepalive on
+bin/eppitnic config keepalive off
+```
+
+With it on, `session keepalive` (scheduled above) sends `hello` once the
+session is more than 230 seconds old — nic.it documents `hello` for exactly
+this, "to keep the session active and prevent the client from being
+disconnected due to timeout" — comfortably inside the 300 second limit, so one
+missed run is still survivable. If the registry drops the session anyway (a
+restart, maintenance), the next real operation notices, logs in again once,
+and replays that one command — nothing bulk ever replays.
+
+Turning it off closes the open session (logging out, if the registry is
+reachable) before flipping the setting, so nothing is left idling.
+
+A server override — `domain restore`'s `-deleted` endpoint — and the registry
+password rotation machinery never join the shared session regardless of this
+setting: a different host, or a login `poll process` deliberately expects to
+fail, must never touch what other requests share.
 
 ## Login rate limiting
 

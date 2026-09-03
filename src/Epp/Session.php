@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Epp;
 
+use Eppitnic\Service\SessionState;
 use RedBeanPHP\R;
 
 /**
@@ -104,6 +105,14 @@ class Session extends AbstractObject
     if ((substr((string)($this->result?->code ?? ''), 0, 1) == "2")
         && $this->xmlResult instanceof \SimpleXMLElement
         && isset($this->xmlResult->greeting)) {
+      // ExecuteQuery() excludes session-hello from its generic keepalive
+      // bookkeeping -- see AbstractObject::SESSION_LIFECYCLE_TYPES -- because
+      // hello has no result code for it to key on. nic.it documents hello as
+      // the in-session keepalive itself, so a greeting is exactly the signal
+      // to refresh on.
+      if ($this->keepalive) {
+        SessionState::remember($this->client->currentCookies());
+      }
       return TRUE;
     } else {
       return FALSE;
@@ -147,7 +156,16 @@ class Session extends AbstractObject
       isset($this->client->EPPCfg->dnssec->active) && (int)$this->client->EPPCfg->dnssec->active === 1
     );
 
-    return $this->loginout("session-login");
+    $ok = $this->loginout("session-login");
+
+    // session-login is excluded from ExecuteQuery()'s generic keepalive
+    // bookkeeping -- retrying a failed login by logging in again would
+    // recurse -- so this is the session's own record of whether it opened
+    if ($this->keepalive) {
+      $ok ? SessionState::remember($this->client->currentCookies()) : SessionState::forget();
+    }
+
+    return $ok;
   }
 
   /**

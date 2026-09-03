@@ -336,12 +336,16 @@ abstract class Command
     }
 
     /**
-     * Run $fn against a logged-in registry session.
+     * Run $fn against a logged-in registry session -- the shared, kept-alive
+     * one when `keepalive` is on and $override is not given (EppSession::run()
+     * decides that from a fresh Client; a Client passed in here keeps
+     * whatever $keepalive it already carries).
      *
      * @param callable $fn function(Client $nic, Session $session)
      * @param Client|null $override talk to this client instead of a default
      *                    one -- for the restore endpoint, which is a different
-     *                    host. Ignored under --dry-run, which answers locally.
+     *                    host. Ignored under --dry-run, which answers locally
+     *                    and never joins the shared session.
      * @return mixed whatever $fn returns
      * @throws SessionError if the registry is unreachable or rejects the login
      */
@@ -353,6 +357,11 @@ abstract class Command
             // network, so this needs neither credentials nor connectivity
             $client = new Client();
             $client->setTransport($this->dryRun = new DryRun());
+            // Explicit, though already the default: DryRun's canned "1000"
+            // answers must never be mistaken for a real session and written
+            // to SessionState -- the next real command would then skip
+            // login and open against a session that was never authenticated.
+            $client->keepalive = false;
         }
 
         try {
@@ -398,6 +407,17 @@ abstract class Command
      */
     public function useClient(Client $client): void {
         $this->client = $client;
+    }
+
+    /**
+     * A Client for a command that talks to the registry directly, outside
+     * withSession()'s hello + login + $fn + logout shape -- `session
+     * keepalive`'s own hello, and `config keepalive off`'s logout of the
+     * session it is closing. Honours useClient(), the same test seam
+     * withSession() reads.
+     */
+    protected function client(): Client {
+        return $this->client ?? new Client();
     }
 
     // ---------------------------------------------------------------

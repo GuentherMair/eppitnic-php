@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Tests\Support;
 
+use Eppitnic\Epp\Transport\Cookies;
 use Eppitnic\Epp\Transport\Transport;
 
 /**
@@ -21,14 +22,23 @@ final class FakeTransport implements Transport
     private string $headers = "HTTP/1.1 200 OK\r\nContent-Type: text/xml; charset=UTF-8\r\n\r\n";
     private string $error = '';
 
+    /** @var array<string, string> mirrors Curl's in-memory jar -- see its class docblock */
+    private array $cookies = [];
+
     /**
      * queue one response to be returned by the next query()
      *
      * @param string $body the response body to answer with
      * @param int $status the HTTP status to report
+     * @param string|null $headers raw header block, e.g. carrying a
+     *               Set-Cookie -- defaults to a plain 200 with no cookie
      */
-    public function queue(string $body, int $status = 200): self {
-        $this->responses[] = ['body' => $body, 'status' => $status, 'headers' => $this->headers];
+    public function queue(string $body, int $status = 200, ?string $headers = null): self {
+        $this->responses[] = [
+            'body'    => $body,
+            'status'  => $status,
+            'headers' => $headers ?? "HTTP/1.1 200 OK\r\nContent-Type: text/xml; charset=UTF-8\r\n\r\n",
+        ];
         return $this;
     }
 
@@ -77,6 +87,8 @@ final class FakeTransport implements Transport
 
         $this->status = $response['status'];
         $this->headers = $response['headers'];
+        // mirrors Curl::query(): grow the jar with whatever this response set
+        $this->cookies = array_merge($this->cookies, Cookies::parse($this->headers));
 
         return $response['body'] instanceof \Closure
             ? ($response['body'])((string) $postFields)
@@ -93,5 +105,13 @@ final class FakeTransport implements Transport
 
     public function getHttpError(): string {
         return $this->error;
+    }
+
+    public function setCookies(array $cookies): void {
+        $this->cookies = $cookies;
+    }
+
+    public function getCookies(): array {
+        return $this->cookies;
     }
 }

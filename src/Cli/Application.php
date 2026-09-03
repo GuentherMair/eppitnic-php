@@ -5,6 +5,7 @@ namespace Eppitnic\Cli;
 use Eppitnic\Cli\Command\ConfigEppPasswordCommand;
 use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigEppSetCommand;
+use Eppitnic\Cli\Command\ConfigKeepaliveCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
 use Eppitnic\Cli\Command\ConfigShowCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
@@ -38,6 +39,7 @@ use Eppitnic\Cli\Command\SelftestReapCommand;
 use Eppitnic\Cli\Command\SelftestRunCommand;
 use Eppitnic\Cli\Command\SessionCreditCommand;
 use Eppitnic\Cli\Command\SessionHelloCommand;
+use Eppitnic\Cli\Command\SessionKeepaliveCommand;
 use Eppitnic\Cli\Command\SetupCommand;
 use Eppitnic\Cli\Command\UserCreateCommand;
 use Eppitnic\Cli\Command\UserTokenCommand;
@@ -78,6 +80,7 @@ final class Application
             'contact fix-email-privacy' => ContactFixEmailPrivacyCommand::class,
             'session hello'           => SessionHelloCommand::class,
             'session credit'          => SessionCreditCommand::class,
+            'session keepalive'       => SessionKeepaliveCommand::class,
             'poll list'               => PollListCommand::class,
             'poll drain'              => PollDrainCommand::class,
             'poll process'            => PollProcessCommand::class,
@@ -96,6 +99,7 @@ final class Application
             'config epp-server'       => ConfigEppServerCommand::class,
             'config epp-set'          => ConfigEppSetCommand::class,
             'config epp-password'     => ConfigEppPasswordCommand::class,
+            'config keepalive'        => ConfigKeepaliveCommand::class,
             'config migrate'          => ConfigMigrateCommand::class,
         ];
     }

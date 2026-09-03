@@ -144,4 +144,13 @@ final class DryRun implements Transport
     public function getHttpError(): string {
         return '';
     }
+
+    // Nothing is ever sent, so there is no session to carry a cookie across --
+    // Client::seedCookies() may still call setCookies(), and this just drops it.
+    public function setCookies(array $cookies): void {
+    }
+
+    public function getCookies(): array {
+        return [];
+    }
 }

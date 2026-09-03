@@ -3,8 +3,8 @@
 namespace Eppitnic\Epp\Transport;
 
 /**
- * The HTTP round-trip Client depends on, narrowed to the four methods it calls,
- * so the test suite can substitute one. Not a general-purpose abstraction:
+ * The HTTP round-trip Client depends on, narrowed to the methods it calls, so
+ * the test suite can substitute one. Not a general-purpose abstraction:
  * everything else Curl offers is set at construction and never consulted again.
  *
  * @category    Net
@@ -35,4 +35,18 @@ interface Transport
      *                succeeded
      */
     public function getHttpError(): string;
+
+    /**
+     * Seed the cookie jar a query() sends, e.g. from a session kept alive
+     * across processes -- see Eppitnic\Service\SessionState.
+     *
+     * @param array<string, string> $cookies name => value
+     */
+    public function setCookies(array $cookies): void;
+
+    /**
+     * @return array<string, string> the current jar, name => value -- what was
+     *         seeded via setCookies() plus anything a query() since received
+     */
+    public function getCookies(): array;
 }

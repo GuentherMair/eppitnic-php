@@ -19,31 +19,24 @@ CREATE TABLE `users` (
   UNIQUE KEY (`api_token`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Not only changes: `security` rows record events that alter nothing, such as
--- an admin retrieving the registry credential, which is why this is `history`
--- rather than `changelog`. Those carry `action` = 'read'.
+-- Also holds `security` rows for non-mutating events (e.g. credential
+-- reads, action='read') -- hence `history`, not `changelog`.
 CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
-  -- nullable: a login attempt at a username that does not exist has nobody
-  -- to attribute it to, and defaulting it to user 1 would put a false entry
-  -- in the trail
+  -- nullable: a login against a nonexistent username has no user to
+  -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
   `action`                enum('create','update','delete','read','login','denied') NOT NULL,
-  -- the client's address masked to its rate-limiting prefix, for `security`
-  -- rows only. Its own column rather than a field inside `data` because the
-  -- login rate limit reads it on every authentication attempt, and an index
-  -- cannot reach inside JSON.
+  -- client address masked to its rate-limit prefix (`security` rows only);
+  -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
-  -- Who has reviewed this and when; NULL means nobody yet. Only `security`
-  -- rows are meant to be worked through, but the columns live here rather than
-  -- in a table of their own -- as `network` does -- because one sparse column
-  -- pair is cheaper than a join, at this size. A timestamp and a user rather
-  -- than a flag: for a security log, who dismissed an alert matters as much as
-  -- that somebody did. Matches `messages`.`archived_time`.
+  -- who reviewed this and when; NULL = not yet (security rows only, kept
+  -- sparse here rather than a table of their own, at this size). Timestamp
+  -- + user, not a flag: who acted matters too. Matches messages.archived_time.
   `acknowledged_time`     datetime DEFAULT NULL,
   `acknowledged_user_id`  bigint unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -188,29 +181,29 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
-  -- Proxies whose X-Forwarded-For is believed. Empty means none: the header is
-  -- client-supplied, and this decides both who counts as being on a
-  -- safe_network (which skips MFA) and which network a failed login is counted
-  -- against. List your reverse proxy here, and nothing else.
+  -- Proxies whose X-Forwarded-For is trusted; empty = none (else
+  -- client-supplied). Also decides safe_network membership (skips MFA)
+  -- and rate-limit attribution. List only your reverse proxy here.
   ('trusted_proxies', '[]'),
-  -- Failed logins allowed per network per timespan (seconds) before the login
-  -- endpoint answers 429. Counted per network rather than per address: an IPv6
-  -- customer gets a whole allocation, so a per-address limit would stop nobody.
-  -- /48 is the usual end-site assignment and is what an attacker would have to
-  -- rotate within; /56 or /64 narrow the bucket if blocking a whole site is too
-  -- blunt for your users. max_failures of 0 disables the limit.
+  -- Failed logins per network per timespan (s) before 429; per-network
+  -- since IPv6 makes per-address limits useless. /48 is the usual
+  -- end-site allocation (narrow via ipv4/6_prefix). 0 disables the limit.
   ('login_ratelimit', '{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":48}'),
   ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
-  -- lastPasswordUpdate is a unix timestamp, maintained by the passwdReminder
-  -- handler run by `eppitnic poll process`: it records when an automated
-  -- registry-password rotation was last attempted, so at most one is tried per
-  -- 24 hours. 0 means "never attempted".
+  -- epp.lastPasswordUpdate: unix time of the last automatic password
+  -- rotation attempt (via `eppitnic poll process`), capping it to once
+  -- per 24h. 0 = never attempted.
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
-  ('cookie_dir', 'null'),
+  -- keepalive: hold one registry session open across processes instead of
+  -- logging out per request; refreshed by `session keepalive` before the
+  -- registry's 300s timeout. session_* hold that session's state (code-only).
+  ('keepalive', 'false'),
+  ('session_cookies', '{}'),
+  ('session_timestamp', '0'),
   ('pdnsutil_path', 'null'),
   ('pdnsutil_ttl', '3600');

@@ -229,15 +229,19 @@ which contradicted every other authorization refusal in the API.
 ## Talking to the registry (EPP)
 
 Handlers that need a live round-trip to the .it registry wrap their EPP
-calls in `EppSession::run()` (`src/Service/EppSession.php`): connect, `hello()`+
-`login()`, run the callback, always `logout()` — one registry session per
-HTTP request, nothing pooled. If `hello()`/`login()` fails, the route
-returns **502** with `{"error": "EPP session unavailable: ..."}` — this is
-distinct from a `400`, which means the registry responded but rejected the
-operation (bad input, business-rule violation, etc.). Routes that only
-touch the local DB (`GET /v1/domains`, `.../expiring`, `.../autocomplete`,
-`.../export`, `.../transfers`, most of `contacts`/`reminders`)
-never pay this cost.
+calls in `EppSession::run()` (`src/Service/EppSession.php`). With the
+`keepalive` setting off — the default — that's one session per HTTP request:
+connect, `hello()`+`login()`, run the callback, always `logout()`, nothing
+pooled. With it on, requests share one session that `eppitnic session
+keepalive` refreshes from cron (see docs/INSTALL.md's "Session keep-alive");
+a request opens it only when there is none fresh, and never logs out. Either
+way, if the session can't be opened, or (`keepalive` only) the registry turns
+out to be unreachable mid-request, the route returns **502** with
+`{"error": "EPP session unavailable: ..."}` — this is distinct from a `400`,
+which means the registry responded but rejected the operation (bad input,
+business-rule violation, etc.). Routes that only touch the local DB
+(`GET /v1/domains`, `.../expiring`, `.../autocomplete`, `.../export`,
+`.../transfers`, most of `contacts`/`reminders`) never pay this cost.
 
 The two single-object reads — `GET /v1/domains/{name}` and
 `GET /v1/contacts/{handle}` — are the exception to the 502 rule: rather than

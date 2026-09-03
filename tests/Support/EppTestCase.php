@@ -17,7 +17,12 @@ abstract class EppTestCase extends TestCase
     protected FakeTransport $transport;
 
     /**
-     * settings Client's constructor reads -- see Client::__construct()
+     * settings Client's constructor reads -- see Client::__construct() --
+     * plus the three keepalive settings EppSession::run() reads via
+     * SessionState regardless: Config::get() throws on an unknown key, and
+     * every test through withSession()/EppSession::run() would fail on it
+     * otherwise. Off, matching the schema's own defaults, so this changes no
+     * existing test's behaviour.
      */
     protected const SETTINGS = [
         'region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
@@ -32,10 +37,12 @@ abstract class EppTestCase extends TestCase
             'cl_trid_prefix'     => 'TEST',
             'lastPasswordUpdate' => 0,
         ],
-        'certificatefile' => null,
-        'debugfile'       => '',
-        'cookie_dir'      => null,
-        'dnssec'          => ['active' => 1, 'algorithm' => 10, 'digesttype' => 2],
+        'certificatefile'   => null,
+        'debugfile'         => '',
+        'dnssec'            => ['active' => 1, 'algorithm' => 10, 'digesttype' => 2],
+        'keepalive'         => false,
+        'session_cookies'   => [],
+        'session_timestamp' => 0,
     ];
 
     protected function setUp(): void {

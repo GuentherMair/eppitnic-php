@@ -2,6 +2,8 @@
 
 namespace Eppitnic\Epp;
 
+use Eppitnic\Service\SessionLock;
+use Eppitnic\Service\SessionState;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
@@ -60,6 +62,12 @@ abstract class AbstractObject
    */
   public bool $debug = false;
 
+  /**
+   * Whether this object's commands ride the shared, kept-alive registry
+   * session -- see Client::$keepalive, which this copies.
+   */
+  public bool $keepalive = false;
+
   public    $xmlQuery;  // xml query string
   public    ?HttpResponse $result = null;   // the last exchange with the registry
   public    $xmlResult; // parsed reponse (SimpleXMLElement may be incomplete)
@@ -84,8 +92,9 @@ abstract class AbstractObject
    * @param Client $client client class
    */
   public function __construct(Client $client) {
-    $this->client  = $client;
-    $this->debug   = $client->debug;
+    $this->client    = $client;
+    $this->debug     = $client->debug;
+    $this->keepalive = $client->keepalive;
   }
 
   /**
@@ -360,15 +369,30 @@ abstract class AbstractObject
   }
 
   /**
+   * The three commands Session itself uses to open/close a session. Excluded
+   * from the keepalive bookkeeping below: hello() and login() maintain
+   * SessionState themselves (see Session.php), and none of the three may
+   * trigger the retry -- that retry is a hello + login, so login retrying
+   * itself on its own failure would recurse. session-poll is a normal command
+   * and gets the same generic treatment as domain and contact commands.
+   */
+  private const SESSION_LIFECYCLE_TYPES = ['session-hello', 'session-login', 'session-logout'];
+
+  /**
    * execute ever returning queries to the server
    *
    * @param string $clTRType client transaction type
    * @param string $clTRObject client transaction object
    * @return bool status
+   * @throws \RuntimeException if this is not session-hello/login/logout,
+   *         $this->keepalive, and the transport failed outright -- see
+   *         sendAndParse()
    */
   protected function ExecuteQuery(string $clTRType, string $clTRObject): bool {
     // store request -- only under $debug; see the property's own note on what
-    // ends up in these tables
+    // ends up in these tables. Logged once even if the keepalive retry below
+    // resends it: it is the same $this->xmlQuery both times, so a second row
+    // would say nothing a first didn't
     if ($this->debug) {
       R::exec("
         INSERT INTO transactions (cl_trid, cl_trtype, cl_trobject, cl_trdata)
@@ -381,8 +405,77 @@ abstract class AbstractObject
       ]);
     }
 
-    // send request + parse response
+    // Locking is keyed on $this->keepalive alone, not $tracksSession below:
+    // a standalone hello() from `session keepalive` or `config keepalive off`
+    // still shares the registry session and must not interleave with another
+    // process's command, even though its own retry/remember bookkeeping is
+    // handled by Session.php rather than the generic path here.
+    $tracksSession = $this->keepalive && ! in_array($clTRType, self::SESSION_LIFECYCLE_TYPES, true);
+
+    // Serialises against every other process sharing the kept-alive session --
+    // see SessionLock. A no-op when keepalive is off: with no shared session,
+    // there is nothing to serialise against.
+    return SessionLock::around($this->keepalive, function () use ($tracksSession) {
+      $return_code = $this->sendAndParse($tracksSession);
+
+      if ( ! $tracksSession || ! $this->hasResultCode()) {
+        return $return_code;
+      }
+
+      if ($this->sessionLost()) {
+        // 2002 (used out of session), 2200 (authentication), 2201
+        // (authorization): the registry no longer recognises this session.
+        // It provably never ran this command, so resending it once, after a
+        // fresh login, is safe in a way replaying a whole bulk operation (a
+        // `domain create --file=...` loop, say) would not be -- rows already
+        // created would be recreated and reported a second time.
+        SessionState::forget();
+        $session = new Session($this->client);
+        if ($session->hello() && $session->login() !== FALSE) {
+          $return_code = $this->sendAndParse($tracksSession);
+        }
+      }
+
+      // 2303 (object does not exist), 2304 (status prohibits) and every 1xxx
+      // are content outcomes, not session ones, and refresh the session same
+      // as a plain success
+      if ($this->hasResultCode() && ! $this->sessionLost()) {
+        SessionState::remember($this->client->currentCookies());
+      }
+
+      return $return_code;
+    });
+  }
+
+  /**
+   * One attempt: send $this->xmlQuery, parse the answer, store it under
+   * $debug. Its own method so the keepalive retry in ExecuteQuery() can run
+   * it a second time without duplicating the parsing.
+   *
+   * @param bool $throwOnTransportFailure whether a curl error or an empty
+   *        body should throw rather than fall through to "unparseable" below.
+   *        Pass $tracksSession: true for a real command sent on the
+   *        assumption the shared session is fresh (no hello/login went out
+   *        this time to fail instead) -- see the @throws note. False for
+   *        session-hello/login/logout, whose callers already treat a plain
+   *        `false` return as "unreachable" (Session::hello()'s "no greeting",
+   *        EppSession::run()'s own openSession()) and never expected this to
+   *        throw for them.
+   * @throws \RuntimeException if $throwOnTransportFailure and the transport
+   *         failed outright (a curl error, or no body at all) -- the same
+   *         exception EppSession::run() throws when hello() can't reach the
+   *         registry, so every route still answers 502 rather than a content
+   *         error. Keepalive skips hello() on a fresh session, so without
+   *         this a down registry would otherwise only surface as an
+   *         unparseable response below.
+   */
+  private function sendAndParse(bool $throwOnTransportFailure): bool {
     $this->result = $this->client->sendRequest($this->xmlQuery);
+
+    if ($throwOnTransportFailure && ($this->result->error !== '' || $this->result->body === '')) {
+      throw new \RuntimeException('EPP session unavailable: connection failed');
+    }
+
     $this->xmlResult = $this->client->parseResponse($this->result->body);
 
     // An unparseable answer must not reach the object parsers: SimpleXML
@@ -433,6 +526,25 @@ abstract class AbstractObject
     $this->storeResponse();
 
     return $return_code;
+  }
+
+  /**
+   * Whether the last sendAndParse() got a genuine EPP <result> -- false for an
+   * unparseable answer, a greeting (hello's has none), or a <response> with
+   * none. None of those says anything trustworthy about the session, so
+   * ExecuteQuery() gates its keepalive bookkeeping on this.
+   */
+  private function hasResultCode(): bool {
+    return $this->xmlResult instanceof \SimpleXMLElement && isset($this->xmlResult->response->result);
+  }
+
+  /**
+   * Whether the last response means the registry no longer recognises this
+   * session, per svCode: 2002 (command used out of session), 2200
+   * (authentication error), 2201 (authorization error).
+   */
+  private function sessionLost(): bool {
+    return in_array($this->svCode, ['2002', '2200', '2201'], true);
   }
 
   /**

@@ -50,6 +50,18 @@ class, in whichever form its consumer actually needs. The unused `debug`,
 `epp.passwordexpirydays` and `epp.passwordexpirynext` settings, and the unused
 `users.dns` column, have been dropped.
 
+EPP sessions can now be kept alive across requests instead of the previous
+connect-per-request hello/login/logout on every operation. The new
+`keepalive` setting (`bin/eppitnic config keepalive on|off`) is off by
+default; turned on, `EppSession::run()` reuses one authenticated session
+while it is fresh and never logs out, `eppitnic session keepalive` refreshes
+it from cron before nic.it's own idle timeout, and any EPP command that finds
+the shared session gone logs in again and retries automatically. The cURL
+cookie jar backing every session, shared or not, moved from a file
+(`cookie_dir`, now removed) to process memory, which also fixes concurrent
+requests silently stepping on each other's cookies through that file. See
+docs/INSTALL.md's "Session keep-alive" for the operational detail.
+
 `Domain->get('tech')` now always returns an array (keyed handle => handle).
 It previously returned a bare string whenever the domain had exactly one
 technical contact — the common case — which silently corrupted callers that
@@ -219,10 +231,10 @@ first. Both pool files are now removed at build time, and `start-web.sh` polls
 both children and takes the survivor down with the casualty, so
 `restart: unless-stopped` actually restarts.
 
-`Epp\Transport\Curl` now throws instead of calling `exit()` when its cookie
-jar or debug file is not writable. It is reached from `Client`'s constructor,
-inside a request: exiting wrote a line of plain text over whatever the route
-was about to answer, so a JSON client got neither JSON nor a status code. As a
+`Epp\Transport\Curl` now throws instead of calling `exit()` when its debug
+file is not writable. It is reached from `Client`'s constructor, inside a
+request: exiting wrote a line of plain text over whatever the route was about
+to answer, so a JSON client got neither JSON nor a status code. As a
 `\RuntimeException` it lands in the handling both tiers already have for an
 unusable registry connection — 502 from the API, `LOGIN_FAILED` from the CLI.
 

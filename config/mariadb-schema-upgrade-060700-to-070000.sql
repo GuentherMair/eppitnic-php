@@ -3,52 +3,41 @@
 --            utf8mb4 / utf8mb4_unicode_ci
 --
 -- IMPORTANT:
---   * Take a full backup before running this. CONVERT TO CHARACTER SET
---     rebuilds every text column and is not reversible by re-running.
---   * THIS SCRIPT DESTROYS DATA, deliberately, in two places: tbl_accounting
---     is dropped in full (PART 2) and users.billingID is dropped (PART 3).
---     Invoicing has left this codebase; export both first if you want them.
---   * Text columns are rewritten to decode the HTML entities 6.x stored (see
---     PART 3): "Rossi &amp; Figli" becomes "Rossi & Figli".
---   * Run this via a non-interactive client that stops on the first error,
---     e.g.:  mysql -u USER -p DBNAME < migrate_rename_charset.sql
---     (this is the default `mysql` CLI behaviour; do NOT pass --force)
+--   * Take a full backup: CONVERT TO CHARACTER SET rebuilds every text
+--     column and is not reversible by re-running.
+--   * DESTROYS DATA: tbl_accounting (PART 2, dropped in full) and
+--     users.billingID (PART 3) go, since invoicing has left this codebase.
+--     Export first if you want them.
+--   * Decodes the HTML entities 6.x stored in text columns (PART 3):
+--     "Rossi &amp; Figli" becomes "Rossi & Figli".
+--   * Run via a non-interactive client that stops on the first error, e.g.
+--     mysql -u USER -p DBNAME < file.sql (the default; do NOT pass --force).
 --   * Test on a staging copy first.
---   * Tables are converted with FOREIGN_KEY_CHECKS=0 so that the temporary
---     charset mismatch between a not-yet-converted child and an
---     already-converted parent doesn't block the ALTER. No FK checks are
---     skipped that would let bad data in -- no rows are inserted/deleted
---     by this script, only column/table metadata + rebuild.
---   * `handleID` (MyISAM, utf8mb3) is NOT touched anywhere in this script --
---     it isn't part of any target schema seen so far. Confirm whether it's
---     legacy/dead or still needed before deciding what to do with it.
+--   * Runs with FOREIGN_KEY_CHECKS=0 so a not-yet-converted child's
+--     temporary charset mismatch with an already-converted parent doesn't
+--     block the ALTER -- no rows are inserted/deleted, so no bad data gets in.
+--   * `handleID` (MyISAM, utf8mb3) is untouched -- not part of any target
+--     schema seen so far. Confirm whether it's legacy or still needed.
 -- ============================================================================
 
 
 -- ----------------------------------------------------------------------------
 -- PART 1: PRE-FLIGHT CHECKS
 --
--- Everything in this part is read-only (SELECTs only) until the final
--- SIGNAL/no-op decision -- an abort here leaves the database completely
--- untouched. Covers two kinds of risk:
+-- Read-only (SELECTs only) until the final SIGNAL/no-op decision -- an
+-- abort here leaves the database untouched. Covers two risks:
 --
---   (a) Case-insensitive collisions in UNIQUE text columns moving from a
---       case-sensitive collation to a case-insensitive one. Of the columns
---       checked, only tbl_domains.domain is actually at risk in the current
---       dump -- its table default is utf8mb3_bin (case-sensitive) and
---       `domain` has no column-level override. tbl_contacts.handle and
---       tbl_transfers.domain are already utf8mb3_general_ci (case-
---       insensitive) today, so converting them to utf8mb4_unicode_ci changes
---       nothing about their case-sensitivity -- those two checks are kept
---       anyway as cheap, harmless insurance.
+--   (a) Case-insensitive collisions in UNIQUE text columns moving to a
+--       case-insensitive collation. Only tbl_domains.domain is actually at
+--       risk (utf8mb3_bin, case-sensitive); the other two checks are cheap
+--       insurance since they're already case-insensitive today.
 --
---   (b) Data that would violate PART 3's stricter shape for `reminder`
---       (TEXT -> VARCHAR(255), nullable `date` -> NOT NULL) or would make
---       PART 3's new `reminder.domain -> domains.domain` FK impossible to
---       add (orphaned domain values).
+--   (b) Data violating PART 3's stricter `reminder` shape (TEXT ->
+--       VARCHAR(255), nullable `date` -> NOT NULL) or blocking its new
+--       reminder.domain -> domains.domain FK (orphaned values).
 --
--- If any check fails, it SIGNALs an error, which -- under default `mysql`
--- CLI settings -- halts the script immediately, before PART 2 runs.
+-- Any failing check SIGNALs an error, halting the script (default `mysql`
+-- CLI behaviour) before PART 2 runs.
 -- ----------------------------------------------------------------------------
 
 DROP PROCEDURE IF EXISTS `_migration_preflight_checks`;
@@ -133,10 +122,9 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
     END IF;
 
-    -- tbl_contacts.userID / tbl_domains.userID: PART 3 restores the FKs to
-    -- users.id that the target schema declares (config/mariadb-schema.sql).
-    -- A dump whose rows point at a user that no longer exists would make
-    -- those ADD CONSTRAINTs fail.
+    -- tbl_contacts.userID / tbl_domains.userID: PART 3 restores their FKs
+    -- to users.id. A row pointing at a nonexistent user would make that
+    -- ADD CONSTRAINT fail.
     SELECT COUNT(*) INTO cnt
     FROM tbl_contacts c
     LEFT JOIN tbl_users u ON u.id = c.userID
@@ -174,37 +162,25 @@ DROP PROCEDURE `_migration_preflight_checks`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Drop the 3 FK constraints whose referenced/referencing TEXT column is
--- about to be rebuilt by CONVERT TO CHARACTER SET below. MariaDB refuses to
--- change such a column in place (error 1833: "Cannot change column ...: used
--- in a foreign key constraint") regardless of FOREIGN_KEY_CHECKS, so the
--- constraint has to be removed first, not just have validation disabled.
---   * tbl_domains_ibfk_2 and tbl_transfers_ibfk_1 are recreated further down,
---     once contacts.handle has its new charset -- the relationship itself
---     isn't changing, only the physical column's charset underneath it.
+-- Drops the 3 FK constraints on a TEXT column CONVERT TO CHARACTER SET is
+-- about to rebuild -- MariaDB's error 1833 blocks that in place regardless
+-- of FOREIGN_KEY_CHECKS. tbl_domains_ibfk_2 and tbl_transfers_ibfk_1 are
+-- recreated further down, once contacts.handle has its new charset.
 ALTER TABLE tbl_domains DROP FOREIGN KEY tbl_domains_ibfk_2;
 ALTER TABLE tbl_transfers DROP FOREIGN KEY tbl_transfers_ibfk_1;
 
 -- ############################################################################
--- DESTRUCTIVE: tbl_accounting is DROPPED, with every row in it.
---
--- Invoicing has been taken out of this codebase and will be reimplemented
--- elsewhere: no target schema has an accounting table and nothing reads one.
---
--- EXPORT IT FIRST IF YOU STILL WANT IT. There is no way back from here short
--- of the backup this script's header told you to take.
---
--- Dropping the table also removes tbl_accounting_ibfk_1, which has to go
--- regardless: users.billingID is dropped in PART 3, and MariaDB refuses to
--- rebuild a TEXT column that a foreign key references (error 1833).
+-- DESTRUCTIVE: tbl_accounting is DROPPED in full -- invoicing has left
+-- this codebase and no target schema keeps it. EXPORT FIRST IF YOU WANT
+-- IT; unrecoverable short of the backup already taken. Also drops
+-- tbl_accounting_ibfk_1: users.billingID goes in PART 3, and a referenced
+-- TEXT column can't be rebuilt (error 1833).
 -- ############################################################################
 DROP TABLE IF EXISTS tbl_accounting;
 
--- tbl_contacts_ibfk_1 (contacts.userID -> users.id) and tbl_domains_ibfk_1
--- (domains.userID -> users.id) are deliberately left alone: both sides are
--- BIGINT, and CONVERT TO CHARACTER SET only rewrites char/text-type columns
--- -- id/userID are never touched by it, so there's nothing for error 1833
--- to trip over there.
+-- tbl_contacts_ibfk_1 and tbl_domains_ibfk_1 (userID -> users.id) are left
+-- alone: both sides are BIGINT, which CONVERT TO CHARACTER SET never
+-- touches, so error 1833 can't trip over them.
 
 ALTER TABLE tbl_users
   RENAME TO users,
@@ -218,9 +194,8 @@ ALTER TABLE tbl_domains
   RENAME TO domains,
   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Drop the 4 DNSSEC-related columns from domains, now that it has been
--- renamed. Combined into a single ALTER TABLE so it's one metadata
--- operation rather than four separate table rebuilds.
+-- Drops domains' 4 DNSSEC columns in one ALTER TABLE -- one metadata
+-- operation instead of four separate rebuilds.
 ALTER TABLE domains
   DROP COLUMN dsAlgorithm,
   DROP COLUMN dsDigest,
@@ -250,9 +225,8 @@ ALTER TABLE tbl_messages
 ALTER TABLE messages
   DROP COLUMN archived;
 
--- tbl_reminder holds real data, so it is renamed + converted like the other
--- tables rather than created fresh, which would strand every existing row
--- under the old name.
+-- tbl_reminder holds real data, so it's renamed + converted like the other
+-- tables, not created fresh (which would strand existing rows).
 ALTER TABLE tbl_reminder
   RENAME TO reminder,
   CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -273,20 +247,17 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ----------------------------------------------------------------------------
 -- PART 3: COLUMN NAME CORRECTIONS + STRUCTURAL FIXES
 --
--- Renames columns from the original camelCase names to the corrected
--- lower_snake_case names, per the target schema supplied, and brings
--- reminder the rest of the way to its target shape.
+-- Renames columns from camelCase to lower_snake_case per the target
+-- schema, and brings reminder the rest of the way to its target shape.
 --
--- CHANGE COLUMN requires the full column definition, not just the new name,
--- so each clause restates the existing type/nullability/default. Text
--- columns explicitly restate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
--- so the rename can't accidentally regress the charset work done in Part 2.
--- Existing indexes (UNIQUE, PRIMARY KEY, FOREIGN KEY) automatically follow a
--- renamed column -- they do not need to be, and must not be, redeclared here.
+-- CHANGE COLUMN needs the full definition, not just the new name -- text
+-- columns restate their charset so the rename can't regress Part 2's
+-- work. Indexes follow a renamed column automatically and must not be
+-- redeclared here.
 -- ----------------------------------------------------------------------------
 
--- `billingID` is dropped, not renamed: nothing reads a billing identifier any
--- more. PART 2 already dropped tbl_accounting and with it the FK on this column.
+-- `billingID` is dropped, not renamed: nothing reads it, and PART 2
+-- already dropped tbl_accounting along with the FK on this column.
 ALTER TABLE users
   DROP COLUMN `billingID`,
   CHANGE COLUMN `maxOperations` `max_operations` INT DEFAULT 0;
@@ -336,15 +307,11 @@ ALTER TABLE messages
   CHANGE COLUMN `archivedTime` `archived_time` DATETIME DEFAULT NULL,
   CHANGE COLUMN `createdTime` `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- `reminder` pre-dates this migration (unlike history) and already holds
--- data, so -- unlike history -- it's altered in place here rather than
--- created fresh; PART 2 only renamed + converted its charset, this finishes
--- the job: reorders columns to match the target layout, narrows `notice`
--- from TEXT to VARCHAR(255) and makes `date` NOT NULL (both pre-flight
--- checked in PART 1), adds `action`/`created_time`, adds a real PRIMARY KEY
--- (it only had a UNIQUE KEY before), and adds the domain -> domains.domain
--- FK (orphans also pre-flight checked in PART 1, so this should succeed
--- cleanly under FOREIGN_KEY_CHECKS=1, already restored by PART 2).
+-- `reminder` pre-dates this migration and holds real data, so it's
+-- altered in place, not recreated (PART 2 only renamed + converted its
+-- charset). Reorders columns, narrows `notice` to VARCHAR(255), makes
+-- `date` NOT NULL, adds `action`/`created_time`, a real PRIMARY KEY, and
+-- the domain -> domains.domain FK (all pre-flight checked in PART 1).
 ALTER TABLE reminder
   MODIFY COLUMN `domain` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL AFTER `id`,
   MODIFY COLUMN `date` DATE NOT NULL AFTER `domain`,
@@ -358,16 +325,11 @@ ALTER TABLE reminder
   ADD KEY `action` (`action`),
   ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- The two ownership FKs the target schema declares (contacts.user_id and
--- domains.user_id -> users.id). A 6.7 dump may or may not carry them, so
--- each is added only if absent.
---
--- The check is on the column pair, not a constraint name: an existing one
--- carries whatever name InnoDB generated, so IF NOT EXISTS on a name chosen
--- here would miss it and add a second, redundant constraint.
---
--- Orphan rows are pre-flight checked in PART 1, so these apply cleanly under
--- FOREIGN_KEY_CHECKS=1.
+-- The two ownership FKs the target schema declares (contacts/domains
+-- .user_id -> users.id), added only if a 6.7 dump doesn't already carry
+-- them. Checked on the column pair, not a constraint name -- an existing
+-- one carries whatever name InnoDB generated. Orphans are pre-flight
+-- checked in PART 1, so this applies cleanly.
 SET @fk_contacts_user := (
   SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND COLUMN_NAME = 'user_id'
@@ -390,25 +352,16 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 -- ----------------------------------------------------------------------------
 -- Decode the HTML entities in stored text.
 --
--- Contact::set() and Domain::set() used to run every value through
--- htmlspecialchars() before storing it, so 6.x data holds entities rather than
--- the characters themselves: an organisation named
+-- Contact::set()/Domain::set() ran every value through htmlspecialchars()
+-- before storing it, so 6.x data holds entities instead of characters --
+-- e.g. "Rossi & Figli S.r.l." is stored as "Rossi &amp; Figli S.r.l.".
+-- Wrong layer anyway: these go to the registry as XML, now escaped once
+-- at serialization instead.
 --
---     Rossi & Figli S.r.l.
---
--- is stored as "Rossi &amp; Figli S.r.l." and comes back that way from every
--- read. It was the wrong escaping for the job as well -- these values are sent
--- to the registry as XML, which is now escaped at serialization instead,
--- exactly once.
---
--- Order matters: &amp; is decoded LAST. Doing it first would turn a literal
--- "&amp;lt;" -- somebody who really typed "&lt;" -- into "<". Decoding the
--- others first and & last is the exact inverse of one htmlspecialchars() pass,
--- which is what was applied. ENT_COMPAT was used, which encodes & < > and "
--- but not the single quote, so there is no &#039; to undo.
---
--- A no-op on data that has no entities: every REPLACE() simply matches
--- nothing.
+-- Order matters: &amp; is decoded LAST, the exact inverse of one
+-- htmlspecialchars() pass (ENT_COMPAT: no &#039; to undo). Decoding it
+-- first would turn a literal "&amp;lt;" (someone who typed "&lt;") into
+-- "<". A no-op where there are no entities to replace.
 -- ----------------------------------------------------------------------------
 
 UPDATE contacts SET
@@ -434,44 +387,33 @@ UPDATE domains SET
 -- ----------------------------------------------------------------------------
 -- PART 4: NEW TABLE - history
 --
--- Unlike reminder, history has no equivalent in the dump -- there is no
--- tbl_changelog -- so this genuinely is a fresh CREATE TABLE. It records more
--- than changes: `security` rows note events that alter nothing, such as an
--- admin retrieving the registry credential.
--- Depends on `users` existing under its final name (created in Part 2), so
--- this must run after Part 2. Not dependent on Part 3's column renames.
+-- Unlike reminder, history has no equivalent in the dump, so this is a
+-- fresh CREATE TABLE. It also holds `security` rows for non-mutating
+-- events (e.g. credential reads). Must run after Part 2 (needs `users`
+-- under its final name); independent of Part 3's renames.
 --
--- Note: `data` uses utf8mb4_bin (not utf8mb4_unicode_ci like the rest of the
--- schema) as given -- a sensible choice here since it stores raw JSON, where
--- case-insensitive comparison/collation isn't meaningful. The CHECK
--- (json_valid(`data`)) constraint requires MariaDB 10.4.3+ (or MySQL
--- 8.0.16+, using JSON_VALID) for CHECK constraints to actually be enforced
--- rather than silently parsed-and-ignored -- your dump's server version
--- (11.8.8-MariaDB) comfortably supports this.
+-- `data` uses utf8mb4_bin, not utf8mb4_unicode_ci: it's raw JSON, where
+-- case-insensitive collation is meaningless. Its CHECK (json_valid())
+-- needs MariaDB 10.4.3+/MySQL 8.0.16+ to be enforced -- your dump's
+-- 11.8.8-MariaDB comfortably qualifies.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
-  -- nullable: a login attempt at a username that does not exist has nobody
-  -- to attribute it to, and defaulting it to user 1 would put a false entry
-  -- in the trail
+  -- nullable: a login against a nonexistent username has no user to
+  -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
   `action`                enum('create','update','delete','read','login','denied') NOT NULL,
-  -- the client's address masked to its rate-limiting prefix, for `security`
-  -- rows only. Its own column rather than a field inside `data` because the
-  -- login rate limit reads it on every authentication attempt, and an index
-  -- cannot reach inside JSON.
+  -- client address masked to its rate-limit prefix (`security` rows only);
+  -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,
   `data`                  longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`data`)),
-  -- Who has reviewed this and when; NULL means nobody yet. Only `security`
-  -- rows are meant to be worked through, but the columns live here rather than
-  -- in a table of their own -- as `network` does -- because one sparse column
-  -- pair is cheaper than a join, at this size. A timestamp and a user rather
-  -- than a flag: for a security log, who dismissed an alert matters as much as
-  -- that somebody did. Matches `messages`.`archived_time`.
+  -- who reviewed this and when; NULL = not yet (security rows only, kept
+  -- sparse here rather than a table of their own, at this size). Timestamp
+  -- + user, not a flag: who acted matters too. Matches messages.archived_time.
   `acknowledged_time`     datetime DEFAULT NULL,
   `acknowledged_user_id`  bigint unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -486,15 +428,12 @@ CREATE TABLE `history` (
 -- ----------------------------------------------------------------------------
 -- PART 5: EXTEND users TABLE
 --
--- Widens `password` (32 -> 255 chars -- needed for modern hash formats like
--- bcrypt/argon2, which don't fit in 32 chars) and adds 9 new columns
--- (active/admin flags, TOTP 2FA secrets, session/token limits, debug level,
--- API token + its expiry), inserted with AFTER so the physical column order
--- matches the new schema.
+-- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 9
+-- columns (active/admin flags, TOTP secrets, session/token limits, debug
+-- level, API token + expiry), each AFTER to match the new column order.
 --
--- `dns` is dropped: it is a leftover of the legacy web interface and nothing in
--- this codebase ever reads or writes it (its sibling `techc` is still used, by
--- POST /v1/domains/{name}/owner).
+-- `dns` is dropped: a legacy-UI leftover nothing reads (its sibling
+-- `techc` is still used, by POST /v1/domains/{name}/owner).
 -- ----------------------------------------------------------------------------
 
 ALTER TABLE users
@@ -516,10 +455,9 @@ ALTER TABLE users
 -- PART 6: POST-MIGRATION VERIFICATION
 -- ----------------------------------------------------------------------------
 
--- 6a. Confirm every renamed table now reports utf8mb4 / utf8mb4_unicode_ci
---     at both the table default and per-column level. (history is
---     excluded from the per-column check below since `data` is
---     intentionally utf8mb4_bin, not utf8mb4_unicode_ci.)
+-- 6a. Confirm every renamed table reports utf8mb4/utf8mb4_unicode_ci at
+--     both table and column level (history's `data` is excluded: it's
+--     intentionally utf8mb4_bin).
 SELECT TABLE_NAME, CCSA.CHARACTER_SET_NAME, T.TABLE_COLLATION
 FROM information_schema.TABLES T
 JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
@@ -537,8 +475,7 @@ WHERE TABLE_SCHEMA = DATABASE()
                       'reminder')
   AND CHARACTER_SET_NAME IS NOT NULL
   AND (CHARACTER_SET_NAME <> 'utf8mb4' OR COLLATION_NAME <> 'utf8mb4_unicode_ci');
--- ^ this query should return ZERO rows. Any row returned means a column
---   was missed and still has an old charset/collation.
+-- ^ expect ZERO rows; a row means a column still has an old charset.
 
 -- 6b. Confirm the 4 DNSSEC columns are actually gone from domains.
 SELECT COLUMN_NAME
@@ -556,7 +493,7 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND COLUMN_NAME = 'archived';
 -- ^ this query should return ZERO rows.
 
--- 6d. Confirm no old camelCase column names remain anywhere across the 10
+-- 6d. Confirm no old camelCase column names remain across the 10
 --     migrated tables.
 SELECT TABLE_NAME, COLUMN_NAME
 FROM information_schema.COLUMNS
@@ -565,12 +502,10 @@ WHERE TABLE_SCHEMA = DATABASE()
                       'transactions','responses','msgqueue','messages',
                       'reminder')
   AND BINARY COLUMN_NAME REGEXP '[A-Z]';
--- ^ this query should return ZERO rows (no upper-case characters left in
---   any column name across these 10 tables).
+-- ^ expect ZERO rows.
 
--- 6e. Confirm history/reminder exist with the expected shape:
---     PKs, secondary indexes, and history's data column
---     charset/collation/CHECK constraint.
+-- 6e. Confirm history/reminder's shape: PKs, secondary indexes, and
+--     history's data column charset/collation/CHECK constraint.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
@@ -583,10 +518,8 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('history','reminder')
 ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
 -- ^ expect: history: PRIMARY (id), object_lookup (object, object_id)
---           reminder:  PRIMARY (id), id (id, the pre-existing redundant
---                      UNIQUE KEY -- harmless, matches the pattern already
---                      present on every other original table), domain
---                      (domain), action (action)
+--           reminder:  PRIMARY (id), id (pre-existing redundant UNIQUE
+--                      KEY, harmless), domain (domain), action (action)
 
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
@@ -594,8 +527,8 @@ WHERE CONSTRAINT_SCHEMA = DATABASE()
   AND TABLE_NAME = 'history';
 -- ^ expect one row enforcing json_valid(`data`)
 
--- 6f. Confirm users picked up the new columns, in the expected order, and
---     that password was actually widened to 255.
+-- 6f. Confirm users' new columns are present, in order, and password
+--     was widened to 255.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
@@ -631,29 +564,20 @@ WHERE TABLE_SCHEMA = DATABASE()
 SELECT handle, name, org
 FROM contacts
 WHERE name LIKE '%&amp;%' OR org LIKE '%&amp;%' OR street LIKE '%&amp;%' OR city LIKE '%&amp;%';
--- ^ a row here was encoded more than once before the migration ran. Decode it
---   again by hand after checking what it should read.
+-- ^ a row means it was double-encoded before migration; decode it again
+--   by hand after checking what it should read.
 
--- 6h. DATA coherence, not schema shape: report any domain whose registrant
---     contact belongs to a different local user than the domain itself.
+-- 6h. DATA coherence: domains whose registrant contact belongs to a
+--     different local user than the domain itself.
 --
---     There are two independent notions of ownership in this schema --
---     domains.user_id (who owns the domain) and contacts.user_id (who owns the
---     contact acting as its registrant) -- and the legacy 6.x code never kept
---     them in step. From 7.0.0 on they are expected to agree:
+--     domains.user_id (the domain's owner) and contacts.user_id (the
+--     registrant's owner) are independent, and 6.x never kept them in
+--     step; from 7.0.0 they're expected to agree, since routes scope by
+--     domains.user_id and the API refuses a registrant the caller
+--     doesn't own -- so a mismatch can't be fixed by re-saving.
 --
---       * every domain list/read/write route scopes non-admins by
---         domains.user_id, so a row where the two disagree is visible and
---         editable to the domain's owner but attributed to somebody else;
---       * the API refuses to set a registrant the caller does not own
---         (canUseAsRegistrant(), src/Api/Routes/domain.php), so an inherited mismatch
---         cannot be repaired by simply re-saving the domain -- its owner is not
---         allowed to name that contact, and the contact's owner is not allowed
---         to touch the domain.
---
---     This is deliberately a report, not a pre-flight abort: it describes data
---     that was already inconsistent before the migration, and nothing about the
---     migration itself fails because of it. Fix the rows afterwards.
+--     A report, not an abort: pre-existing data, and nothing here fails
+--     because of it. Fix the rows afterwards.
 SELECT
     d.domain,
     d.user_id     AS domain_owner,
@@ -663,41 +587,29 @@ FROM domains d
 JOIN contacts c ON c.handle = d.registrant
 WHERE d.user_id <> c.user_id
 ORDER BY d.domain;
--- ^ expect ZERO rows.
---   For each row that does come back, decide which user should really own the
---   domain and then either
---     (a) duplicate the registrant contact under the domain's owner and point
---         the domain at the copy -- POST /v1/domains/{name}/owner does exactly
---         this (contact duplication + registrant change + reassignment), or
---     (b) hand the domain to the registrant's owner:
---           UPDATE domains SET user_id = <registrant_owner> WHERE domain = '<domain>';
---   Option (b) is a single statement but moves the domain out of its current
---   owner's listings, so confirm the intent before running it.
+-- ^ expect ZERO rows. For each one, decide who should own the domain:
+--     (a) duplicate the registrant contact under the domain's owner and
+--         repoint the domain at the copy (POST /v1/domains/{name}/owner
+--         does exactly this), or
+--     (b) UPDATE domains SET user_id = <owner> WHERE domain = '<domain>';
+--         -- moves it out of the current owner's listings, confirm first.
 
 
 -- ----------------------------------------------------------------------------
 -- PART 7: SETTINGS TABLE + SCHEMA VERSION STAMP
 --
--- The `settings` table (key/value, value JSON-validated) holds every piece
--- of application configuration except database credentials themselves (see
--- config/config.php) -- introduced after this migration was first written,
--- which is why it's appended here rather than folded into PART 4 with the
--- other new tables.
+-- The `settings` table (key/value, JSON-validated) holds all config
+-- except DB credentials (config/config.php); appended here since it
+-- postdates this migration, not folded into PART 4.
 --
--- The 'schema_version' row is what Config (helpers/config.php) checks on
--- every initialization to decide whether any further
--- config/mariadb-schema-upgrade-{from}-to-{to}.sql files need to run. The
--- `settings` table not existing at all is how Config detects there's no
--- stamp yet; it then assumes the legacy pre-versioning baseline '060700'
--- and looks up config/mariadb-schema-upgrade-060700-to-*.sql -- i.e. this
--- file -- through the exact same filename-convention lookup every other
--- migration goes through, no special-casing of this file's name.
+-- 'schema_version' is what Config checks to decide whether further
+-- upgrade files need to run. No `settings` table at all means no stamp
+-- yet, so Config assumes baseline '060700' and finds this file by the
+-- same filename convention every migration uses.
 --
--- The explicit INSERT below is redundant with Config's own post-migration
--- stamp (it stamps every migration file's target version after running it,
--- this one included) -- kept anyway so running this file by hand via the
--- `mysql` CLI, without Config involved at all, still leaves `settings`
--- correctly stamped.
+-- The explicit INSERT is redundant with Config's own post-migration
+-- stamp -- kept so running this file by hand (no Config involved)
+-- still leaves `settings` correctly stamped.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS `settings` (
@@ -713,34 +625,33 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT","lc_time":"italian"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
-  -- Proxies whose X-Forwarded-For is believed. Empty means none: the header is
-  -- client-supplied, and this decides both who counts as being on a
-  -- safe_network (which skips MFA) and which network a failed login is counted
-  -- against. List your reverse proxy here, and nothing else.
+  -- Proxies whose X-Forwarded-For is trusted; empty = none (else
+  -- client-supplied). Also decides safe_network membership (skips MFA)
+  -- and rate-limit attribution. List only your reverse proxy here.
   ('trusted_proxies', '[]'),
-  -- Failed logins allowed per network per timespan (seconds) before the login
-  -- endpoint answers 429. Counted per network rather than per address: an IPv6
-  -- customer gets a whole allocation, so a per-address limit would stop nobody.
-  -- /48 is the usual end-site assignment and is what an attacker would have to
-  -- rotate within; /56 or /64 narrow the bucket if blocking a whole site is too
-  -- blunt for your users. max_failures of 0 disables the limit.
+  -- Failed logins per network per timespan (s) before 429; per-network
+  -- since IPv6 makes per-address limits useless. /48 is the usual
+  -- end-site allocation (narrow via ipv4/6_prefix). 0 disables the limit.
   ('login_ratelimit', '{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":48}'),
   ('allowed_origins', '[]'),
   ('allowed_headers', '["Authorization","Content-Type","X-Api-Key","Content-Disposition"]'),
   ('allowed_methods', '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'),
-  -- lastPasswordUpdate is a unix timestamp, maintained by the passwdReminder
-  -- handler run by `eppitnic poll process`: it records when an automated
-  -- registry-password rotation was last attempted, so at most one is tried per
-  -- 24 hours. 0 means "never attempted".
+  -- epp.lastPasswordUpdate: unix time of the last automatic password
+  -- rotation attempt (via `eppitnic poll process`), capping it to once
+  -- per 24h. 0 = never attempted.
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
   ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
-  ('cookie_dir', 'null'),
+  -- keepalive: hold one registry session open across processes instead of
+  -- logging out per request; refreshed by `session keepalive` before the
+  -- registry's 300s timeout. session_* hold that session's state (code-only).
+  ('keepalive', 'false'),
+  ('session_cookies', '{}'),
+  ('session_timestamp', '0'),
   ('pdnsutil_path', 'null'),
   ('pdnsutil_ttl', '3600')
-  -- keep the seed idempotent: a partially populated `settings` table (a half
-  -- finished earlier run, or a hand-seeded one) would otherwise abort the whole
-  -- migration on the first duplicate key. Existing values win -- this seeds
-  -- defaults, it must never overwrite something an operator has configured.
+  -- idempotent: a half-finished or hand-seeded `settings` table would
+  -- otherwise abort on the first duplicate key. Existing values win --
+  -- this seeds defaults, never overwrites an operator's configuration.
   ON DUPLICATE KEY UPDATE `value` = `settings`.`value`;

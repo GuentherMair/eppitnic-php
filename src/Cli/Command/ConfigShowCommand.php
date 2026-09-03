@@ -44,11 +44,18 @@ final class ConfigShowCommand extends Command
     }
 
     /**
-     * Withhold the two secrets this table holds. Everything else here is
-     * plain configuration (paths, toggles, limits) with nothing to protect.
+     * Withhold the secrets this table holds. Everything else here is plain
+     * configuration (paths, toggles, limits) with nothing to protect.
      */
     private function redact(string $key, mixed $value): mixed {
         if ($key === 'jwt_psk') {
+            return '[redacted]';
+        }
+
+        // A live bearer credential for the shared registry session -- the
+        // same class of thing jwt_psk is withheld for, not a toggle or a
+        // limit like the rest of this table.
+        if ($key === 'session_cookies') {
             return '[redacted]';
         }
 
