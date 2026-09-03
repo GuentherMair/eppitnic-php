@@ -39,6 +39,7 @@ Detailed instructions can be found in:
 * [UPGRADING.md](docs/UPGRADING.md)
 * [INSTALL.md](docs/INSTALL.md)
 * [DOCKER.md](docs/DOCKER.md)
+* [TESTING.md](docs/TESTING.md)
 
 
 # Quick Start
