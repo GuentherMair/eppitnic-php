@@ -69,11 +69,11 @@ final class ClientIp
             return false;
         }
 
-        [$network, $bits] = array_pad(explode('/', trim($cidr), 2), 2, null);
-        $packedNetwork = @inet_pton((string) $network);
-        if ($packedNetwork === false) {
+        $parsed = self::parseCidr($cidr);
+        if ($parsed === null) {
             return false;
         }
+        [$packedNetwork, $bits] = $parsed;
 
         // an IPv4 address is never inside an IPv6 range, or the other way
         // round: their packed forms are not even the same length
@@ -81,12 +81,50 @@ final class ClientIp
             return false;
         }
 
-        $bits = $bits === null ? strlen($packedIp) * 8 : (int) $bits;
-        if ($bits < 0 || $bits > strlen($packedIp) * 8) {
-            return false;
+        return self::mask($packedIp, $bits) === self::mask($packedNetwork, $bits);
+    }
+
+    /**
+     * $cidr with its host bits cleared and its prefix length spelled out, so
+     * that '10.0.0.5/24' and '10.0.0.0/24' are one entry and the stored form
+     * says what it actually matches.
+     *
+     * @return string|null null if $cidr is not a network
+     */
+    public static function canonicalCidr(string $cidr): ?string {
+        $parsed = self::parseCidr($cidr);
+        if ($parsed === null) {
+            return null;
+        }
+        [$packed, $bits] = $parsed;
+
+        $network = @inet_ntop(self::mask($packed, $bits));
+        return $network === false ? null : "{$network}/{$bits}";
+    }
+
+    /**
+     * A network as packed bytes plus its prefix length. A bare address counts
+     * as a full-length prefix, so '127.0.0.1' means '127.0.0.1/32'.
+     *
+     * @return array{0: string, 1: int}|null null if $cidr is not a network
+     */
+    private static function parseCidr(string $cidr): ?array {
+        [$network, $bits] = array_pad(explode('/', trim($cidr), 2), 2, null);
+
+        $packed = @inet_pton((string) $network);
+        if ($packed === false) {
+            return null;
         }
 
-        return self::mask($packedIp, $bits) === self::mask($packedNetwork, $bits);
+        // ctype_digit rather than a cast: '/oops' casts to 0, and a /0 prefix
+        // matches every address -- a typo would silently trust the internet
+        if ($bits !== null && ! ctype_digit($bits)) {
+            return null;
+        }
+
+        $width = strlen($packed) * 8;
+        $bits = $bits === null ? $width : (int) $bits;
+        return $bits <= $width ? [$packed, $bits] : null;
     }
 
     /**

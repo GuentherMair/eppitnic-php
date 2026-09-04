@@ -7,6 +7,7 @@ use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigEppSetCommand;
 use Eppitnic\Cli\Command\ConfigKeepaliveCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
+use Eppitnic\Cli\Command\ConfigSafeNetworksCommand;
 use Eppitnic\Cli\Command\ConfigSessionSerializeCommand;
 use Eppitnic\Cli\Command\ConfigShowCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
@@ -102,6 +103,7 @@ final class Application
             'config epp-password'       => ConfigEppPasswordCommand::class,
             'config keepalive'          => ConfigKeepaliveCommand::class,
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
+            'config safe-networks'      => ConfigSafeNetworksCommand::class,
             'config migrate'            => ConfigMigrateCommand::class,
         ];
     }

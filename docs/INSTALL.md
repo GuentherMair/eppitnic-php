@@ -227,6 +227,28 @@ scoped to this installation's database) before it runs. A lock not obtained
 within 10s, or a database with no `GET_LOCK` at all, is treated the same:
 the command proceeds unlocked rather than blocking forever.
 
+## Safe networks
+
+Logins from a `safe_networks` range skip the MFA code -- the password alone is
+enough. It ships as `["127.0.0.1/32"]`, so a login from the machine itself is
+never asked for one:
+
+```
+bin/eppitnic config safe-networks
+bin/eppitnic config safe-networks add 10.0.0.0/8
+bin/eppitnic config safe-networks remove 10.0.0.0/8
+bin/eppitnic config safe-networks clear
+```
+
+Both address families work, and a bare address counts as a full-length prefix
+(`203.0.113.7` means `203.0.113.7/32`). Host bits are cleared before an entry
+is stored, so `10.1.2.3/8` becomes `10.0.0.0/8` -- what it actually matches. An
+empty list means every account with MFA is always asked for its code.
+
+Behind a reverse proxy this rests on `trusted_proxies` below: the address
+compared is the one `ClientIp` resolves, so a range listed here that covers the
+proxy would exempt every request reaching it.
+
 ## Login rate limiting
 
 Logins are recorded in `history` as `security` rows (address, network,
