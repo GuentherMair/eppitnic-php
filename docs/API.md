@@ -447,9 +447,9 @@ envelope: `{ handle, status, name, org, street, street2, street3, city, province
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/contacts?active=1\|0` | user | local DB only, scoped rows: `{handle, org, name, user_id}` (not the full `contactToArray()` shape — fetch by handle for full detail) |
+| `GET /v1/contacts?active=1\|0` | user | local DB only, scoped rows: `{handle, org, name, entitytype, user_id}` (not the full `contactToArray()` shape — fetch by handle for full detail) |
 | `GET /v1/contacts/{handle}` | user (+ownership/attachment check) | registry-first, same contract as `GET /v1/domains/{name}`: live EPP `fetch()` returned with `"stale": false`, falling back to the local row with `"stale": true` when the registry can't answer. 403 if `canAccessContact()` fails, 404 when neither source has it. No longer returns 502 |
-| `POST /v1/contacts` | user | body: any of the `contactToArray()` fields except `status`/`consentforpublishing` (server-managed), plus optional `handle` (16 random hex chars, registry-checked for uniqueness, if omitted) and `authinfo` (server-generated if omitted). `name` is required. `201` + full contact on success |
+| `POST /v1/contacts` | user | body: any of the `contactToArray()` fields except `status` (server-managed), plus optional `handle` (16 random hex chars, registry-checked for uniqueness, if omitted) and `authinfo` (server-generated if omitted). `consentforpublishing` is a boolean (or `1`/`0`); the registry refuses withdrawing it for entity types other than 1 and 3. `name` is required. `201` + full contact on success |
 | `PATCH /v1/contacts/{handle}` | user (+ownership/attachment check) | same field allow-list as create, partial update |
 | `DELETE /v1/contacts/{handle}` | user | **no `canAccessContact()` check** — only succeeds if the registry itself allows the delete (i.e. the contact isn't attached to any domain there), but there's no local ownership gate before attempting it. Treat as a gap if tightening auth later |
 

@@ -124,7 +124,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
                 if ($key === 'handle') {
                     continue; // handled explicitly below
                 }
-                if (in_array($key, ['name', 'org', 'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode', 'voice', 'fax', 'email', 'authinfo', 'nationalitycode', 'entitytype', 'regcode', 'schoolcode'])) {
+                if (in_array($key, ['name', 'org', 'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode', 'voice', 'fax', 'email', 'authinfo', 'consentforpublishing', 'nationalitycode', 'entitytype', 'regcode', 'schoolcode'])) {
                     $contact->set($key, $value);
                 }
             }
@@ -171,7 +171,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
                 return ['ok' => false, 'status' => 404, 'error' => "Contact '{$handle}' not found"];
             }
             foreach ($params as $key => $value) {
-                if (in_array($key, ['name', 'org', 'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode', 'voice', 'fax', 'email', 'authinfo', 'nationalitycode', 'entitytype', 'regcode', 'schoolcode'])) {
+                if (in_array($key, ['name', 'org', 'street', 'street2', 'street3', 'city', 'province', 'postalcode', 'countrycode', 'voice', 'fax', 'email', 'authinfo', 'consentforpublishing', 'nationalitycode', 'entitytype', 'regcode', 'schoolcode'])) {
                     $contact->set($key, $value);
                 }
             }

@@ -675,7 +675,7 @@ class Contact extends AbstractObject
     if ($activeOnly) {
       $where[] = 'active = 1';
     }
-    return R::getAll("SELECT handle, org, name, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
+    return R::getAll("SELECT handle, org, name, entitytype, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
   }
 
   /**
