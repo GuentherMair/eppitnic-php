@@ -173,6 +173,25 @@ final class Auth
     }
 
     /**
+     * The caller, for something that belongs to user $userId: their own, or an
+     * admin's to reach into. Acting for someone else is as privileged as any
+     * other admin action, so it needs a verified MFA too.
+     *
+     * @param Request $request the incoming HTTP request
+     * @param int $userId whose data is being touched
+     * @return array{id: int, isAdmin: bool, debug: bool} the caller
+     * @throws HttpForbiddenException if it is someone else's and the caller is
+     *                       not an MFA-verified admin
+     */
+    public static function actorFor(Request $request, int $userId): array {
+        $actor = self::actor($request);
+        if ($actor['id'] !== $userId) {
+            self::requireAdmin($request);
+        }
+        return $actor;
+    }
+
+    /**
      * Sign a new JWT for $data, adding the standard claims. The lifetime comes
      * from $data['max_token_age'], in minutes, spelled like the users column;
      * null or non-positive means the default, since 0 would already be expired.

@@ -22,6 +22,12 @@ converts an existing `config.xml` into both. As part of this, DNS-sync
 notifications end up in, and will be waiting to be consumed from, the
 `reminder` queue.
 
+Users gained defaults for new contacts and domains: `countrycode`, a list of
+technical contacts in `techc` (a single handle there still reads as a list of
+one), and named sets of nameservers in `nssets` with the default one in
+`dnsset`. They are read and written per user through
+`/v1/users/{id}/settings` and `/v1/users/{id}/nssets`.
+
 Invoicing has been removed from this codebase along with the `InvoicingCDR`
 class: the `/v1/accounting` routes, the `accounting` table and the
 `users.billing_id` column are all gone. It will be reimplemented differently.

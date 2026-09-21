@@ -192,18 +192,17 @@ final class DomainService
             }
         }
 
-        // tech: the new owner's own default tech contact (users.techc) if they
-        // have one on file, otherwise a duplicate of the domain's current one
-        $newTechHandle = null;
-        if ( ! empty($newOwner['techc'])) {
-            $newTechHandle = trim($newOwner['techc']);
-        } else {
+        // tech: the new owner's own default tech contacts (users.techc) if they
+        // have any on file, otherwise a duplicate of the domain's current one
+        $newTechHandles = UserSettings::decodeTech($newOwner['techc']);
+        if ($newTechHandles === []) {
             $currentTech = (array) $domain->get('tech');
             $firstTech = reset($currentTech);
             if ( ! empty($firstTech)) {
                 $oldTech = new Contact($nic);
                 if ($oldTech->fetch($firstTech)) {
-                    $newTechHandle = $oldTech->duplicate($nic, $newOwnerId);
+                    $duplicate = $oldTech->duplicate($nic, $newOwnerId);
+                    $newTechHandles = $duplicate === false ? [] : [$duplicate];
                 }
             }
         }
@@ -221,11 +220,13 @@ final class DomainService
         if ($newAdminHandle !== null) {
             $domain->set('admin', $newAdminHandle);
         }
-        if ($newTechHandle !== null) {
+        if ($newTechHandles !== []) {
             foreach ((array) $domain->get('tech') as $existingTech) {
                 $domain->remTECH($existingTech);
             }
-            $domain->addTECH($newTechHandle);
+            foreach ($newTechHandles as $newTechHandle) {
+                $domain->addTECH($newTechHandle);
+            }
         }
         if ($domain->hasChanges() && ! $domain->update()) {
             return ['ok' => false, 'status' => 400, 'error' => 'admin/tech change failed: ' . $domain->getError()];

@@ -428,18 +428,23 @@ CREATE TABLE `history` (
 -- ----------------------------------------------------------------------------
 -- PART 5: EXTEND users TABLE
 --
--- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 9
--- columns (active/admin flags, TOTP secrets, session/token limits, debug
--- level, API token + expiry), each AFTER to match the new column order.
+-- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 12
+-- columns (default country, NS sets and the default set, active/admin flags,
+-- TOTP secrets, session/token limits, debug level, API token + expiry), each
+-- AFTER to match the new column order.
 --
--- `dns` is dropped: a legacy-UI leftover nothing reads (its sibling
--- `techc` is still used, by POST /v1/domains/{name}/owner).
+-- `dns` is dropped: a legacy-UI leftover nothing reads. Its sibling `techc`
+-- is used: it now holds a JSON list of default technical contacts, so the
+-- single handle 6.x kept there becomes a one-element list below.
 -- ----------------------------------------------------------------------------
 
 ALTER TABLE users
   MODIFY COLUMN `password` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   DROP COLUMN `dns`,
-  ADD COLUMN `active` TINYINT DEFAULT 1 AFTER `techc`,
+  ADD COLUMN `countrycode` VARCHAR(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `techc`,
+  ADD COLUMN `nssets` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `countrycode`,
+  ADD COLUMN `dnsset` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `nssets`,
+  ADD COLUMN `active` TINYINT DEFAULT 1 AFTER `dnsset`,
   ADD COLUMN `admin` TINYINT DEFAULT 0 AFTER `active`,
   ADD COLUMN `totp_secret` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `admin`,
   ADD COLUMN `totp_secret_pending` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `totp_secret`,
@@ -449,6 +454,11 @@ ALTER TABLE users
   ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug`,
   ADD COLUMN `api_token_expires` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `api_token`,
   ADD UNIQUE KEY (`api_token`);
+
+-- techc: one bare handle -> a JSON list; blank -> NULL
+UPDATE users SET techc = NULL WHERE techc IS NOT NULL AND TRIM(techc) = '';
+UPDATE users SET techc = JSON_ARRAY(TRIM(techc))
+WHERE techc IS NOT NULL AND LEFT(TRIM(techc), 1) <> '[';
 
 
 -- ----------------------------------------------------------------------------
@@ -534,9 +544,10 @@ FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'users'
 ORDER BY ORDINAL_POSITION;
--- ^ expect password as varchar(255), followed by active, admin, totp_secret,
---   totp_secret_pending, max_token_age, max_idle_time, debug,
---   api_token, api_token_expires (in that order after techc), and no `dns`.
+-- ^ expect password as varchar(255), followed by countrycode, nssets, dnsset,
+--   active, admin, totp_secret, totp_secret_pending, max_token_age,
+--   max_idle_time, debug, api_token, api_token_expires (in that order after
+--   techc), and no `dns`.
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the
 --     new names, including history's and reminder's FKs.

@@ -413,6 +413,32 @@ refusal there stays the generic `Wrong username or password` whatever the reason
 | `PUT /v1/users/{id}` | admin | update of the same field set. **Every field is optional** — anything omitted keeps its current value (this includes `password`, as before). `404` if the id doesn't exist, `400` on a `username` collision with another row |
 | `DELETE /v1/users/{id}` | admin | soft-delete (`active = 0`) — does **not** block deleting id `1`, unlike the original plan's intent; be careful in the UI |
 
+#### Defaults and NS sets
+
+What a user starts new contacts and domains from, kept on their `users` row.
+All of it is the user's own to read and change (an MFA-verified admin may act
+for anyone), and every route answers with the whole current state:
+`{"settings": {"countrycode", "techc", "dnsset", "nssets"}}`.
+
+- `countrycode` — a two-letter ISO 3166-1 code (stored upper-case), or `""`.
+- `techc` — a list of up to six contact handles. Rows written before it was a
+  list hold one bare handle, which reads as a one-element list;
+  `POST /v1/domains/{name}/owner` uses the whole list.
+- `nssets` — named sets `{"name", "ns": [...]}`. A name is unique per user
+  ignoring case, at most 64 characters, without a slash. `ns` holds 2 to 6
+  hostnames, lower-cased; addresses are refused, since only a single domain's
+  glue records ever need them.
+- `dnsset` — the name of the set new domains start with, or `""`. It follows
+  a renamed set and is cleared when its set is removed.
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/users/{id}/settings` | self or admin | `404` for an unknown user |
+| `PUT /v1/users/{id}/settings` | self or admin | body: any of `countrycode`, `techc`, `dnsset`; what is omitted stays. `dnsset` must name one of the user's sets |
+| `POST /v1/users/{id}/nssets` | self or admin | body `{"name", "ns"}`; `201` |
+| `PUT /v1/users/{id}/nssets/{name}` | self or admin | body `{"name"?, "ns"}` — replaces the nameservers, and renames the set if `name` differs. `404` for an unknown set |
+| `DELETE /v1/users/{id}/nssets/{name}` | self or admin | `404` for an unknown set |
+
 ### Domains
 
 `domainToArray()` — the shape of the object **inside** the `domain` envelope

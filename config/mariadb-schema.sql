@@ -5,7 +5,13 @@ CREATE TABLE `users` (
   `password`              varchar(255),
   `email`                 varchar(64),
   `max_operations`        int DEFAULT 0,
+  -- what new contacts and domains start from (see Service\UserSettings):
+  -- techc is a JSON list of handles, nssets a JSON list of {name, ns[]}, and
+  -- dnsset the name of the set new domains start with
   `techc`                 text,
+  `countrycode`           varchar(2),
+  `nssets`                text,
+  `dnsset`                varchar(64),
   `active`                tinyint DEFAULT 1,
   `admin`                 tinyint DEFAULT 0,
   `totp_secret`           varchar(64),
