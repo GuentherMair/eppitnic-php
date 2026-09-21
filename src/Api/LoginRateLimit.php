@@ -109,7 +109,7 @@ final class LoginRateLimit
      */
     private static function failuresFor(string $network, int $timespan): int {
         // 'denied' is the only action counted: a successful login is 'login'
-        // and a rate-limit block is 'read', so neither a legitimate user nor a
+        // and a rate-limit block is 'secread', so neither a legitimate user nor a
         // network that keeps knocking extends how long the door stays closed
         return (int) R::getCell(
             "SELECT COUNT(*) FROM history

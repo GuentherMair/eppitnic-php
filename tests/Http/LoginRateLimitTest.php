@@ -272,7 +272,7 @@ final class LoginRateLimitTest extends TestCase
         }
 
         $attempts = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'denied'");
-        $blocks   = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'read'");
+        $blocks   = (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'secread'");
 
         $this->assertSame(2, $attempts, 'a blocked request was counted as a failure');
         $this->assertSame(5, $blocks);

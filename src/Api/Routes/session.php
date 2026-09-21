@@ -95,9 +95,14 @@ $app->get('/v1/poll-queue', function (Request $request, Response $response, arra
     $activeOnly = ($params['active'] ?? '1') !== '0';
 
     $where = $activeOnly ? 'archived_time IS NULL' : '1 = 1';
-    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC");
 
-    return Json::response($response, ['messages' => $messages]);
+    // The whole queue runs to ~3 MB, so a screen that wants only the latest few
+    // asks for them; `total` is how many matched, whatever was returned.
+    $limit = isset($params['limit']) ? min(500, max(1, (int) $params['limit'])) : null;
+    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC" . ($limit !== null ? " LIMIT {$limit}" : ''));
+    $total = (int) R::getCell("SELECT COUNT(*) FROM messages WHERE {$where}");
+
+    return Json::response($response, ['messages' => $messages, 'total' => $total]);
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
@@ -118,7 +123,40 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
 
     R::exec("UPDATE messages SET archived_time = NOW(), archived_user_id = ? WHERE id = ?", [$user_id, $id]);
 
-    return Json::response($response, ['archived' => true, 'id' => $id]);
+    return Json::response($response, [
+        'archived'      => true,
+        'id'            => $id,
+        'archived_time' => R::getCell("SELECT archived_time FROM messages WHERE id = ?", [$id]),
+    ]);
+});
+
+/**
+ * Archive every unarchived message up to a moment the caller names, in one go.
+ * The moment is the newest message the caller has looked at, so whatever the
+ * registry delivered after they loaded the list stays in the queue instead of
+ * being archived unread. Same contract as POST /v1/history/acknowledge.
+ *
+ * Body: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to created_time inclusively.
+ */
+$app->post('/v1/poll-queue/archive', function (Request $request, Response $response, array $args): Response {
+    $user_id = Auth::requireAdmin($request);
+    $until = (string) (($request->getParsedBody() ?? [])['until'] ?? '');
+
+    if ( ! Validate::isDatetime($until)) {
+        return Json::response($response, ['error' => "until must be a datetime such as '2026-09-21 14:41:36'"], 400);
+    }
+
+    $archived = R::exec(
+        'UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = :user
+         WHERE archived_time IS NULL AND created_time <= :until',
+        [':user' => $user_id, ':until' => $until]
+    );
+
+    return Json::response($response, [
+        'archived'    => (int) $archived,
+        'until'       => $until,
+        'outstanding' => (int) R::getCell('SELECT COUNT(*) FROM messages WHERE archived_time IS NULL'),
+    ]);
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {

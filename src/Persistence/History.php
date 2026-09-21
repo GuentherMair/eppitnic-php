@@ -30,13 +30,17 @@ final class History
      */
     private const REDACTED_HEADERS = ['authorization', 'cookie', 'proxy-authorization'];
 
+    /** the `history.action` enum */
+    public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied'];
+
     /**
      * record an audit-trail entry
      *
      * @param string $object contacts/domains/users/security
      * @param int $object_id the object's DB row id; for `security`, the acting
      *            user
-     * @param string $action create/update/delete/read
+     * @param string $action create/update/delete, or on a `security` row
+     *            secread/login/denied
      * @param array $data changed fields (or a minimal identifying set, for
      *              create/delete)
      * @param int|null $user_id acting user
@@ -77,15 +81,15 @@ final class History
      * @param array $detail anything else worth keeping. Must not contain a
      *              secret -- this table is read casually, and by more people
      *              than the thing being recorded was shown to.
-     * @param string $action 'read' for a disclosure, 'attempt' for an
-     *               authentication that was tried
+     * @param string $action 'secread' for a disclosure or a turned-away
+     *               request; 'login' or 'denied' for an authentication
      */
     public static function recordSecurityEvent(
         string $event,
         Request $request,
         ?int $user_id,
         array $detail = [],
-        string $action = 'read'
+        string $action = 'secread'
     ): void {
         self::record(
             'security',
@@ -108,8 +112,9 @@ final class History
      * else the objects they own, and nobody but an admin sees `security`, which
      * carries other people's addresses and headers.
      *
-     * @param array<string, mixed> $filters object, object_id, action, network,
-     *        acknowledged ('0'/'1'), since, until, limit, offset
+     * @param array<string, mixed> $filters object, object_id, action (or several,
+     *        comma-separated), network, acknowledged ('0'/'1'), since, until,
+     *        limit, offset
      * @return array{rows: array<int, array<string, mixed>>, total: int}
      */
     public static function visibleTo(int $userId, bool $isAdmin, array $filters = []): array {
@@ -159,11 +164,25 @@ final class History
                         OR object = 'contacts' AND object_id IN (SELECT id FROM contacts WHERE user_id = :me))";
         }
 
-        foreach (['object' => 'object', 'object_id' => 'object_id', 'action' => 'action', 'network' => 'network'] as $filter => $column) {
+        foreach (['object' => 'object', 'object_id' => 'object_id', 'network' => 'network'] as $filter => $column) {
             if (isset($filters[$filter]) && $filters[$filter] !== '') {
                 $clauses[] = "{$column} = :{$filter}";
                 $params[":{$filter}"] = $filters[$filter];
             }
+        }
+
+        // one action, or a comma-separated list of them meaning "any of these"
+        $actions = array_values(array_unique(array_filter(
+            array_map('trim', explode(',', (string) ($filters['action'] ?? ''))),
+            'strlen'
+        )));
+        if ($actions !== []) {
+            $names = [];
+            foreach ($actions as $i => $action) {
+                $names[] = ":action{$i}";
+                $params[":action{$i}"] = $action;
+            }
+            $clauses[] = 'action IN (' . implode(', ', $names) . ')';
         }
 
         if (isset($filters['acknowledged'])) {

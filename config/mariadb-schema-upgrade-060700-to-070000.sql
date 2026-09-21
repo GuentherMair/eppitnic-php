@@ -406,7 +406,7 @@ CREATE TABLE `history` (
   `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','read','login','denied') NOT NULL,
+  `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
   -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,

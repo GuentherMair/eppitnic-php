@@ -4,6 +4,7 @@ namespace Eppitnic\Epp;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
+use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
@@ -675,7 +676,13 @@ class Contact extends AbstractObject
     if ($activeOnly) {
       $where[] = 'active = 1';
     }
-    return R::getAll("SELECT handle, org, name, entitytype, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
+    $rows = R::getAll("SELECT handle, org, name, entitytype, status, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
+
+    // status is a serialized column, in either of the two shapes the table holds
+    return array_map(static function (array $row): array {
+      $row['status'] = SerializedColumn::toArray($row['status'] ?? null);
+      return $row;
+    }, $rows);
   }
 
   /**

@@ -44,11 +44,21 @@ final class HistoryAcknowledgeTest extends TestCase
         return (int) R::getCell('SELECT MAX(id) FROM history');
     }
 
+    private function seedAt(string $timestamp, string $object = 'security'): int {
+        R::exec(
+            "INSERT INTO history (timestamp, user_id, object, object_id, action, network, data) VALUES (?, 1, ?, 1, 'denied', '203.0.113.0/24', '{}')",
+            [$timestamp, $object]
+        );
+        return (int) R::getCell('SELECT MAX(id) FROM history');
+    }
+
     /**
      * @param array<string, mixed>|null $claims null for an unauthenticated call
+     * @param array<string, mixed> $body the parsed request body
      */
-    private function call(\Slim\App $app, string $method, string $path, ?array $claims = ['admin' => 1]): ResponseInterface {
-        $request = (new ServerRequestFactory())->createServerRequest($method, "http://localhost{$path}");
+    private function call(\Slim\App $app, string $method, string $path, ?array $claims = ['admin' => 1], array $body = []): ResponseInterface {
+        $request = (new ServerRequestFactory())->createServerRequest($method, "http://localhost{$path}")
+            ->withParsedBody($body);
 
         if ($claims !== null) {
             $token = Auth::issueToken($claims + ['id' => 7, 'username' => 'an-admin', 'has_totp' => false, 'max_token_age' => 60])['token'];
@@ -215,6 +225,178 @@ final class HistoryAcknowledgeTest extends TestCase
 
         $this->assertSame(403, $this->call($app, 'POST', "/v1/history/{$id}/acknowledge", ['admin' => 0])->getStatusCode());
         $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]));
+    }
+
+    // ---------------------------------------------------------------
+    // acknowledging everything up to a moment
+    // ---------------------------------------------------------------
+
+    public function testEverythingUpToTheMomentIsAcknowledged(): void {
+        $app = $this->app();
+        $old = $this->seedAt('2026-09-20 10:00:00');
+        $exact = $this->seedAt('2026-09-21 14:41:36');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['until' => '2026-09-21 14:41:36']));
+
+        $this->assertSame(2, $body['acknowledged'], 'the boundary itself is included');
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$old]));
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$exact]));
+    }
+
+    /**
+     * The point of naming a moment: what arrived after the caller loaded the
+     * list has not been read by anybody.
+     */
+    public function testWhatIsNewerStaysOutstanding(): void {
+        $app = $this->app();
+        $this->seedAt('2026-09-21 14:41:36');
+        $newer = $this->seedAt('2026-09-21 14:41:37');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['until' => '2026-09-21 14:41:36']));
+
+        $this->assertSame(1, $body['acknowledged']);
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$newer]));
+        $this->assertSame(1, $body['outstanding'], 'the answer says what is still to be read');
+    }
+
+    public function testItRecordsWhoAcknowledged(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+
+        $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['until' => '2026-09-21 14:41:36']);
+
+        $this->assertSame(7, (int) R::getCell('SELECT acknowledged_user_id FROM history WHERE id = ?', [$id]));
+    }
+
+    public function testWhatWasAlreadyAcknowledgedKeepsItsStamp(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+        R::exec("UPDATE history SET acknowledged_time = '2026-09-21 15:00:00', acknowledged_user_id = 3 WHERE id = ?", [$id]);
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['until' => '2026-09-22 00:00:00']));
+
+        $this->assertSame(0, $body['acknowledged']);
+        $this->assertSame(3, (int) R::getCell('SELECT acknowledged_user_id FROM history WHERE id = ?', [$id]), 'the first reader stays on record');
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function notAMoment(): array {
+        return [
+            'missing'        => [null],
+            'a date only'    => ['2026-09-21'],
+            'month 13'       => ['2026-13-01 00:00:00'],
+            'not a date'     => ['yesterday'],
+            'with a T'       => ['2026-09-21T14:41:36'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('notAMoment')]
+    public function testItRefusesWhatIsNotAMoment(mixed $until): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], $until === null ? [] : ['until' => $until]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]), 'a refused call acknowledges nothing');
+    }
+
+    public function testAcknowledgingEverythingRequiresAdmin(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 0], ['until' => '2026-09-22 00:00:00']);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]));
+    }
+
+    /**
+     * The fixed path must not be read as an entry id for the per-entry route.
+     */
+    public function testTheSingleEntryRouteIsUnaffected(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+
+        $this->assertSame(200, $this->call($app, 'POST', "/v1/history/{$id}/acknowledge")->getStatusCode());
+    }
+
+    // ---------------------------------------------------------------
+    // several actions at once: what a screen of severe entries asks for
+    // ---------------------------------------------------------------
+
+    public function testTheListTakesSeveralActionsAtOnce(): void {
+        $app = $this->app();
+        $this->seed('security', 'denied');
+        $this->seed('security', 'secread', 'epp_credentials_retrieved');
+        $this->seed('security', 'login', 'login_succeeded');
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?action=denied,secread'));
+
+        $this->assertEqualsCanonicalizing(['denied', 'secread'], array_column($body['history'], 'action'));
+        $this->assertSame(2, $body['total']);
+    }
+
+    public function testOneActionStillMeansOneAction(): void {
+        $app = $this->app();
+        $this->seed('security', 'denied');
+        $this->seed('security', 'login', 'login_succeeded');
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?action=denied'));
+
+        $this->assertSame(['denied'], array_column($body['history'], 'action'));
+    }
+
+    public function testStrayCommasAndSpacesInTheListAreIgnored(): void {
+        $app = $this->app();
+        $this->seed('security', 'denied');
+        $this->seed('security', 'login', 'login_succeeded');
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?action=' . rawurlencode(' denied ,, ')));
+
+        $this->assertSame(['denied'], array_column($body['history'], 'action'));
+    }
+
+    public function testAcknowledgingByActionLeavesTheRestOutstanding(): void {
+        $app = $this->app();
+        $denied = $this->seed('security', 'denied');
+        $secread = $this->seed('security', 'secread', 'epp_credentials_retrieved');
+        $login = $this->seed('security', 'login', 'login_succeeded');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2099-01-01 00:00:00', 'actions' => ['denied', 'secread'],
+        ]));
+
+        $this->assertSame(2, $body['acknowledged']);
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$denied]));
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$secread]));
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$login]), 'not one of the named actions');
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function notAListOfActions(): array {
+        return [
+            'an empty list'   => [[]],
+            'a plain string'  => ['denied'],
+            'an unknown one'  => [['denied', 'sideways']],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('notAListOfActions')]
+    public function testItRefusesActionsThatAreNotAListOfKnownOnes(mixed $actions): void {
+        $app = $this->app();
+        $id = $this->seed('security', 'denied');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2099-01-01 00:00:00', 'actions' => $actions,
+        ]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]), 'a refused call acknowledges nothing');
     }
 
     /**

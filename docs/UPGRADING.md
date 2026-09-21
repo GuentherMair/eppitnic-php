@@ -48,7 +48,7 @@ schema still in use. Drop it yourself once confirmed unneeded.
 ## Breaking changes to check your code against
 
 - The audit-trail table is `history`, not `changelog`, and records more than
-  changes: a `security`/`read` row notes non-mutating events like an admin
+  changes: a `security`/`secread` row notes non-mutating events like an admin
   retrieving the registry credential. `GET /v1/history/{object}/{object_id}`;
   `security` rows are admin-only.
 - `Domain->get('tech')` always returns an array now (handle => handle). It

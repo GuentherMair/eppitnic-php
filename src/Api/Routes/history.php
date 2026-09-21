@@ -3,6 +3,7 @@
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Persistence\History;
+use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -53,6 +54,54 @@ $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response 
         'acknowledged' => true,
         'id'           => $id,
         'entry'        => R::getRow('SELECT * FROM history WHERE id = ?', [$id]),
+    ]);
+});
+
+/**
+ * Acknowledge every entry still unacknowledged up to a moment the caller names,
+ * in one go. The moment is what keeps it honest: it is the newest entry the
+ * caller has looked at, so whatever arrived after they loaded the list stays
+ * outstanding instead of being waved through unread. Entries already
+ * acknowledged keep their original stamp.
+ *
+ * Body: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to the entry's timestamp
+ * inclusively, and optionally {"actions": [...]} to acknowledge only entries
+ * of those actions -- what a screen that lists just the severe ones needs.
+ */
+$app->post('/v1/history/acknowledge', function (Request $request, Response $response, array $args): Response {
+    $user_id = Auth::requireAdmin($request);
+    $body = $request->getParsedBody() ?? [];
+    $until = (string) ($body['until'] ?? '');
+
+    if ( ! Validate::isDatetime($until)) {
+        return Json::response($response, ['error' => "until must be a datetime such as '2026-09-21 14:41:36'"], 400);
+    }
+
+    $where = 'acknowledged_time IS NULL AND `timestamp` <= :until';
+    $bind = [':user' => $user_id, ':until' => $until];
+
+    $actions = $body['actions'] ?? null;
+    if ($actions !== null) {
+        if ( ! is_array($actions) || $actions === [] || array_diff($actions, History::ACTIONS) !== []) {
+            return Json::response($response, ['error' => 'actions must be a list of: ' . implode(', ', History::ACTIONS)], 400);
+        }
+        $names = [];
+        foreach (array_values($actions) as $i => $action) {
+            $names[] = ":action{$i}";
+            $bind[":action{$i}"] = $action;
+        }
+        $where .= ' AND action IN (' . implode(', ', $names) . ')';
+    }
+
+    $acknowledged = R::exec(
+        "UPDATE history SET acknowledged_time = CURRENT_TIMESTAMP, acknowledged_user_id = :user WHERE {$where}",
+        $bind
+    );
+
+    return Json::response($response, [
+        'acknowledged' => (int) $acknowledged,
+        'until'        => $until,
+        'outstanding'  => History::outstandingSecurityCount(),
     ]);
 });
 

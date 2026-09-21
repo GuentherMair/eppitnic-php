@@ -18,6 +18,19 @@ use RedBeanPHP\R;
 final class User
 {
     /**
+     * The columns the read routes select. Any logged-in user may read them, so
+     * what only an admin has any business seeing -- an address, a quota -- is
+     * added for an admin alone, and the edit dialog can show what it is about
+     * to change.
+     */
+    public static function readColumns(bool $isAdmin): string {
+        $columns = 'id, active, admin, username, max_token_age, max_idle_time, debug,
+            totp_secret IS NOT NULL AS has_totp';
+
+        return $isAdmin ? "{$columns}, description, email, max_operations" : $columns;
+    }
+
+    /**
      * @throws UsernameTaken if $username is already in use
      * @throws \InvalidArgumentException if $password does not meet
      *                       PasswordPolicy

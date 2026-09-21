@@ -95,6 +95,15 @@ final class Validate
     }
 
     /**
+     * A real moment in `YYYY-MM-DD HH:MM:SS`, not just that shape: month 13 is
+     * refused, and so is anything PHP would quietly roll over.
+     */
+    public static function isDatetime(string $value): bool {
+        $parsed = \DateTime::createFromFormat('Y-m-d H:i:s', $value);
+        return $parsed !== false && $parsed->format('Y-m-d H:i:s') === $value;
+    }
+
+    /**
      * basic .it domain name shape check -- not a full RFC-1035 validator,
      * just enough to reject obvious garbage before it reaches the registry
      */

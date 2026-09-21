@@ -253,7 +253,7 @@ proxy would exempt every request reaching it.
 
 Logins are recorded in `history` as `security` rows (address, network,
 username, headers — never password or token). `action` is `login`, `denied`,
-or `read` (a request the limit turned away). Enough failures from one network
+or `secread` (a request the limit turned away). Enough failures from one network
 and `POST /v1/users/authenticate` answers `429` until they age out.
 
 Two settings:

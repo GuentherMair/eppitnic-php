@@ -6,6 +6,7 @@ use Eppitnic\Api\Json;
 use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\User;
 use Eppitnic\Support\PasswordPolicy;
 use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Support\Validate;
@@ -39,7 +40,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         // by continuing to knock
         History::recordSecurityEvent('login_blocked', $request, null, [
             'username' => (string) $username,
-        ], 'read');
+        ], 'secread');
 
         return Json::response($response, [
             'error'       => 'Too many failed login attempts. Try again later.',
@@ -123,24 +124,18 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 });
 
 $app->get('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::userId($request);
+    $actor = Auth::actor($request);
 
-    $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug,
-        totp_secret IS NOT NULL AS has_totp
-    FROM users");
+    $users = R::getAll("SELECT " . User::readColumns($actor['isAdmin']) . " FROM users");
     return Json::response($response, [
         'users' => $users,
     ]);
 });
 
 $app->get('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::userId($request);
+    $actor = Auth::actor($request);
 
-    $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug,
-        totp_secret IS NOT NULL AS has_totp
-    FROM users WHERE id = :id", [
+    $users = R::getAll("SELECT " . User::readColumns($actor['isAdmin']) . " FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
     return Json::response($response, [

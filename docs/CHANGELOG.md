@@ -97,7 +97,7 @@ The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
 see "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
 
 The `changelog` table is now `history`, because not everything it records is a
-change: it gained a `security` object type and `read`, `login` and `denied`
+change: it gained a `security` object type and `secread`, `login` and `denied`
 actions, so that an admin retrieving the shared registry credential through the
 new `GET /v1/session/epp/credentials` is recorded along with the address and
 headers the request arrived with. The password itself is never written, and

@@ -26,7 +26,7 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Also holds `security` rows for non-mutating events (e.g. credential
--- reads, action='read') -- hence `history`, not `changelog`.
+-- reads, action='secread') -- hence `history`, not `changelog`.
 CREATE TABLE `history` (
   `id`                    serial,
   `timestamp`             datetime NOT NULL DEFAULT current_timestamp(),
@@ -35,7 +35,7 @@ CREATE TABLE `history` (
   `user_id`               bigint unsigned DEFAULT NULL,
   `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','read','login','denied') NOT NULL,
+  `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
   -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,

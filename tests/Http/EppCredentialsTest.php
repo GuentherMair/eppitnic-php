@@ -192,7 +192,7 @@ final class EppCredentialsTest extends TestCase
         $rows = self::securityRows();
         $this->assertCount(1, $rows, 'the retrieval was not recorded');
 
-        $this->assertSame('read', $rows[0]['action'], "a retrieval is not a create, update or delete");
+        $this->assertSame('secread', $rows[0]['action'], "a retrieval is not a create, update or delete");
         $this->assertSame(1, (int) $rows[0]['user_id']);
         $this->assertSame(1, (int) $rows[0]['object_id'], 'object_id should be the acting user');
         $this->assertSame('epp_credentials_retrieved', $rows[0]['data']['event']);
