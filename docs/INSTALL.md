@@ -165,6 +165,7 @@ suppresses output and keeps the exit code.
 0-59/5  * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
 0-59/15 * * * *  /path/to/bin/eppitnic pdns sync   >> /var/log/eppitnic/pdns-sync.log 2>&1
 * * * * *        /path/to/bin/eppitnic session keepalive >> /var/log/eppitnic/keepalive.log 2>&1
+0-59/5  * * * *  /path/to/bin/eppitnic domain sync >> /var/log/eppitnic/domain-sync.log 2>&1
 ```
 
 `poll process` drains the registry's message queue into `messages`,
@@ -181,7 +182,14 @@ serves your zones. Zone deletions wait out `--delay-hours` (12 by default);
 keep-alive" below) — schedule it unconditionally, since it prints nothing and
 exits `0` while the setting is off.
 
-All three are ordinary verbs, runnable by hand any time.
+`domain sync` reconciles domains already known locally against the registry
+in bounded phases, and refreshes their linked contacts (see "Domain
+reconciliation" below) — only turn it on (`config domain-sync on`) after
+`poll process`/`session keepalive` are already working reliably; like
+`session keepalive`, it prints nothing and exits `0` while off, so it is
+safe to schedule unconditionally ahead of that.
+
+All four are ordinary verbs, runnable by hand any time.
 
 ## Session keep-alive
 
@@ -226,6 +234,42 @@ With both on, every command takes a MariaDB advisory lock (`GET_LOCK`,
 scoped to this installation's database) before it runs. A lock not obtained
 within 10s, or a database with no `GET_LOCK` at all, is treated the same:
 the command proceeds unlocked rather than blocking forever.
+
+## Domain reconciliation
+
+`domain sync` periodically re-checks domains already in the local database
+against the registry (`domain check`, then `domain info` for anything still
+registered), reconciling drifted nameservers, contacts, authinfo, DNSSEC,
+status and expiry back onto the local row. It processes a bounded batch of
+domains per run rather than the whole table, advancing a persisted cursor
+(the `domain_sync` setting's `cursor_id`) through `domains.id` and wrapping
+back to the start once exhausted — so a job scheduled every 5 minutes
+eventually revisits every active domain without ever issuing an unbounded
+number of registry calls in one tick.
+
+Off by default:
+
+```
+bin/eppitnic config domain-sync on
+bin/eppitnic config domain-sync off
+```
+
+`--batch-size=N` (default 25) sets and persists how many domains each run
+processes; `--report-only` checks and fetches against the real registry as
+normal but writes nothing locally and does not advance the cursor, for
+previewing what a run would find.
+
+Every registrant, admin and technical contact linked to a domain processed
+in a phase is also refreshed locally via `contact info` (never `contact
+check`: a domain naming a contact as linked is itself sufficient reason to
+fetch and store it) — this is what keeps `domains.admin`/`domains.tech`
+populated locally even though, unlike `registrant`, neither carries a
+foreign key to `contacts.handle`.
+
+A domain the registry no longer holds is reported (exit code 6, the same
+code `eppitnic doctor inactive-domains` uses for "ran fine, found drift")
+but is never deactivated automatically — this job reconciles data, it does
+not prune it.
 
 ## Safe networks
 

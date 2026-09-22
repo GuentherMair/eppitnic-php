@@ -29,3 +29,9 @@ EPPITNIC_VAR_DIR=/data/var
 # comfortably inside nic.it's 300s idle timeout -- see docs/INSTALL.md's
 # "Session keep-alive".
 * * * * * su-exec www-data /usr/local/bin/eppitnic session keepalive >> /proc/1/fd/1 2>&1
+
+# Shipped unconditionally: `domain sync` prints nothing and exits 0 whenever
+# the `domain_sync` setting's `enabled` flag is off (the default), so this
+# needs no image change when an installation turns it on. Every 5 minutes,
+# alongside `poll process` -- see docs/INSTALL.md's "Domain reconciliation".
+*/5 * * * * su-exec www-data /usr/local/bin/eppitnic domain sync >> /proc/1/fd/1 2>&1

@@ -96,6 +96,24 @@ Everything runnable now lives behind one entry point, `bin/eppitnic`: the
 The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
 see "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
 
+A new `eppitnic domain sync` reconciles domains already known locally
+against the registry in bounded phases: `domain check` finds domains the
+registry no longer holds, and `domain info` reconciles drifted nameservers,
+contacts, authinfo, DNSSEC, status and expiry back onto the local row. Each
+run advances a persisted cursor (the `domain_sync` setting's `cursor_id`)
+through the active `domains` table by a configurable `batch_size` (default
+25), wrapping back to the start once exhausted, so a continuously-scheduled
+job eventually revisits every domain without ever issuing an unbounded
+number of registry calls in one tick. Every registrant/admin/tech contact
+linked to a domain touched in a phase is also refreshed locally via `contact
+info` (never `contact check`: a domain naming it as linked is by itself
+sufficient justification to fetch and store it), closing the gap left by
+`domains.admin`/`domains.tech` carrying no foreign key to `contacts.handle`.
+Off by default — `eppitnic config domain-sync on` turns it on; scheduled
+unconditionally in `docker/crontab`, a no-op while off, exactly like
+`session keepalive`. See "Domain reconciliation" in
+[INSTALL.md](INSTALL.md).
+
 The `changelog` table is now `history`, because not everything it records is a
 change: it gained a `security` object type and `secread`, `login` and `denied`
 actions, so that an admin retrieving the shared registry credential through the

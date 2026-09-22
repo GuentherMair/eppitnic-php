@@ -55,7 +55,10 @@ Detailed instructions can be found in:
 4. choose a setup method (CLI or web UI) and follow the instructions provided:
    * CLI: run `bin/eppitnic setup`
    * web UI: open the URL you set up for your webserver
-5. verify everything is working, the  add the cronjob for `bin/eppitnic poll process`
+5. verify everything is working, then add at least the following cronjobs:
+   * `bin/eppitnic poll process`
+   * `bin/eppitnic domain sync` (off by default -- `bin/eppitnic config domain-sync on`)
+   * (TBD: scheduled tasks as specified in the 'reminder' database table)
 
 
 # Verify

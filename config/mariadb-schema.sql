@@ -213,4 +213,12 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('session_cookies', '{}'),
   ('session_timestamp', '0'),
   ('pdnsutil_path', 'null'),
-  ('pdnsutil_ttl', '3600');
+  ('pdnsutil_ttl', '3600'),
+  -- domain_sync: periodic `domain sync` reconciliation against the registry
+  -- (domain check/domain info), plus a refresh of every linked contact via
+  -- contact info. enabled: off by default, mirroring keepalive -- turn on
+  -- via `config domain-sync on`. batch_size: how many active domains one
+  -- run processes. cursor_id: the last domains.id processed, so the next
+  -- run resumes after it and wraps to the start once every active domain
+  -- has been covered.
+  ('domain_sync', '{"enabled":false,"batch_size":25,"cursor_id":0}');

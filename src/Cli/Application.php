@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Cli;
 
+use Eppitnic\Cli\Command\ConfigDomainSyncCommand;
 use Eppitnic\Cli\Command\ConfigEppPasswordCommand;
 use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigEppSetCommand;
@@ -31,6 +32,7 @@ use Eppitnic\Cli\Command\DomainRestoreCommand;
 use Eppitnic\Cli\Command\DomainSetOwnerCommand;
 use Eppitnic\Cli\Command\DomainSetRegistrantCommand;
 use Eppitnic\Cli\Command\DomainStatusCommand;
+use Eppitnic\Cli\Command\DomainSyncCommand;
 use Eppitnic\Cli\Command\DomainTransferCommand;
 use Eppitnic\Cli\Command\DomainUpdateCommand;
 use Eppitnic\Cli\Command\PdnsSyncCommand;
@@ -74,6 +76,7 @@ final class Application
             'domain delete'             => DomainDeleteCommand::class,
             'domain restore'            => DomainRestoreCommand::class,
             'domain status'             => DomainStatusCommand::class,
+            'domain sync'               => DomainSyncCommand::class,
             'contact info'              => ContactInfoCommand::class,
             'contact check'             => ContactCheckCommand::class,
             'contact create'            => ContactCreateCommand::class,
@@ -102,6 +105,7 @@ final class Application
             'config epp-set'            => ConfigEppSetCommand::class,
             'config epp-password'       => ConfigEppPasswordCommand::class,
             'config keepalive'          => ConfigKeepaliveCommand::class,
+            'config domain-sync'        => ConfigDomainSyncCommand::class,
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
             'config safe-networks'      => ConfigSafeNetworksCommand::class,
             'config migrate'            => ConfigMigrateCommand::class,
