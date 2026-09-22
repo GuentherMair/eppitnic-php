@@ -97,6 +97,34 @@ final class PollQueueArchiveTest extends TestCase
         $this->assertSame(1, $body['outstanding'], 'the answer says what is still in the queue');
     }
 
+    /**
+     * `created_time` is only second-resolution: two messages landing in the
+     * same second as the one the caller saw are otherwise indistinguishable
+     * from it. `until_id` is exact.
+     */
+    public function testUntilIdIsExactWithinTheSameSecond(): void {
+        $app = $this->app();
+        $seen = $this->seedAt('2026-08-06 00:50:16');
+        $sameSecond = $this->seedAt('2026-08-06 00:50:16');
+
+        $body = self::body($this->archive($app, ['until' => '2026-08-06 00:50:16', 'until_id' => $seen]));
+
+        $this->assertSame(1, $body['archived']);
+        $this->assertSame($seen, $body['until_id']);
+        $this->assertNotNull(self::archivedTime($seen));
+        $this->assertNull(self::archivedTime($sameSecond), 'a same-second arrival stays in the queue when until_id says it is newer');
+    }
+
+    public function testUntilIdMustBeAnInteger(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-08-06 00:50:16');
+
+        $response = $this->archive($app, ['until' => '2026-08-06 00:50:16', 'until_id' => 'not-a-number']);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(self::archivedTime($id));
+    }
+
     public function testItRecordsWhoArchived(): void {
         $app = $this->app();
         $id = $this->seedAt('2026-08-06 00:50:16');

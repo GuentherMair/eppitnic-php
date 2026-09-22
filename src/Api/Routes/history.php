@@ -67,6 +67,12 @@ $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response 
  * Body: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to the entry's timestamp
  * inclusively, and optionally {"actions": [...]} to acknowledge only entries
  * of those actions -- what a screen that lists just the severe ones needs.
+ * `timestamp` is only second-resolution, so a burst can land several rows in
+ * the same second as the one the caller saw; pass {"until_id": N} (the id of
+ * that row) for an exact cutoff instead -- ids are monotonic.
+ *
+ * {"object": ...} defaults to `security`: that is the only object type
+ * `outstanding` counts, and the only one this button is meant to clear.
  */
 $app->post('/v1/history/acknowledge', function (Request $request, Response $response, array $args): Response {
     $user_id = Auth::requireAdmin($request);
@@ -77,8 +83,23 @@ $app->post('/v1/history/acknowledge', function (Request $request, Response $resp
         return Json::response($response, ['error' => "until must be a datetime such as '2026-09-21 14:41:36'"], 400);
     }
 
-    $where = 'acknowledged_time IS NULL AND `timestamp` <= :until';
-    $bind = [':user' => $user_id, ':until' => $until];
+    $untilId = $body['until_id'] ?? null;
+    if ($untilId !== null && filter_var($untilId, FILTER_VALIDATE_INT) === false) {
+        return Json::response($response, ['error' => 'until_id must be an integer'], 400);
+    }
+
+    $object = (string) ($body['object'] ?? 'security');
+    if ( ! in_array($object, History::OBJECTS, true)) {
+        return Json::response($response, ['error' => 'object must be one of: ' . implode(', ', History::OBJECTS)], 400);
+    }
+
+    if ($untilId !== null) {
+        $where = 'acknowledged_time IS NULL AND object = :object AND id <= :until_id';
+        $bind = [':user' => $user_id, ':object' => $object, ':until_id' => (int) $untilId];
+    } else {
+        $where = 'acknowledged_time IS NULL AND object = :object AND `timestamp` <= :until';
+        $bind = [':user' => $user_id, ':object' => $object, ':until' => $until];
+    }
 
     $actions = $body['actions'] ?? null;
     if ($actions !== null) {
@@ -98,11 +119,13 @@ $app->post('/v1/history/acknowledge', function (Request $request, Response $resp
         $bind
     );
 
-    return Json::response($response, [
+    return Json::response($response, array_filter([
         'acknowledged' => (int) $acknowledged,
+        'object'       => $object,
         'until'        => $until,
+        'until_id'     => $untilId !== null ? (int) $untilId : null,
         'outstanding'  => History::outstandingSecurityCount(),
-    ]);
+    ], static fn($v) => $v !== null));
 });
 
 /**

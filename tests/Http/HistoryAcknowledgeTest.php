@@ -259,6 +259,41 @@ final class HistoryAcknowledgeTest extends TestCase
         $this->assertSame(1, $body['outstanding'], 'the answer says what is still to be read');
     }
 
+    /**
+     * `timestamp` is only second-resolution: two entries landing in the same
+     * second as the one the caller saw are otherwise indistinguishable from
+     * it. `until_id` is exact.
+     */
+    public function testUntilIdIsExactWithinTheSameSecond(): void {
+        $app = $this->app();
+        $seen = $this->seedAt('2026-09-21 14:41:36');
+        $sameSecond = $this->seedAt('2026-09-21 14:41:36');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2026-09-21 14:41:36', 'until_id' => $seen,
+        ]));
+
+        $this->assertSame(1, $body['acknowledged']);
+        $this->assertSame($seen, $body['until_id']);
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$seen]));
+        $this->assertNull(
+            R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$sameSecond]),
+            'a same-second arrival stays outstanding when until_id says it is newer',
+        );
+    }
+
+    public function testUntilIdMustBeAnInteger(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-09-21 14:41:36');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2026-09-21 14:41:36', 'until_id' => 'not-a-number',
+        ]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]));
+    }
+
     public function testItRecordsWhoAcknowledged(): void {
         $app = $this->app();
         $id = $this->seedAt('2026-09-21 14:41:36');
@@ -393,6 +428,54 @@ final class HistoryAcknowledgeTest extends TestCase
 
         $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
             'until' => '2099-01-01 00:00:00', 'actions' => $actions,
+        ]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]), 'a refused call acknowledges nothing');
+    }
+
+    // ---------------------------------------------------------------
+    // object scope: `outstanding` only ever counts `security`
+    // ---------------------------------------------------------------
+
+    /**
+     * Without an explicit `object`, only `security` rows are swept. Without
+     * this, the badge-clearing button would also stamp audit rows nobody
+     * looked at as reviewed.
+     */
+    public function testDefaultsToSecurityOnly(): void {
+        $app = $this->app();
+        $security = $this->seed('security', 'denied');
+        $domain = $this->seed('domains', 'update');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['until' => '2099-01-01 00:00:00']));
+
+        $this->assertSame(1, $body['acknowledged']);
+        $this->assertSame('security', $body['object']);
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$security]));
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$domain]), 'not security, so not touched by default');
+    }
+
+    public function testObjectCanBeNamedExplicitly(): void {
+        $app = $this->app();
+        $security = $this->seed('security', 'denied');
+        $domain = $this->seed('domains', 'update');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2099-01-01 00:00:00', 'object' => 'domains',
+        ]));
+
+        $this->assertSame(1, $body['acknowledged']);
+        $this->assertNotNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$domain]));
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$security]), 'named a different object');
+    }
+
+    public function testObjectMustBeAKnownOne(): void {
+        $app = $this->app();
+        $id = $this->seed('security', 'denied');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'until' => '2099-01-01 00:00:00', 'object' => 'sideways',
         ]);
 
         $this->assertSame(400, $response->getStatusCode());

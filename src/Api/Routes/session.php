@@ -137,26 +137,44 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
  * being archived unread. Same contract as POST /v1/history/acknowledge.
  *
  * Body: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to created_time inclusively.
+ * `created_time` is only second-resolution, so a burst can land several
+ * messages in the same second as the one the caller saw; pass
+ * {"until_id": N} (that message's id) for an exact cutoff instead -- ids are
+ * monotonic.
  */
 $app->post('/v1/poll-queue/archive', function (Request $request, Response $response, array $args): Response {
     $user_id = Auth::requireAdmin($request);
-    $until = (string) (($request->getParsedBody() ?? [])['until'] ?? '');
+    $body = $request->getParsedBody() ?? [];
+    $until = (string) ($body['until'] ?? '');
 
     if ( ! Validate::isDatetime($until)) {
         return Json::response($response, ['error' => "until must be a datetime such as '2026-09-21 14:41:36'"], 400);
     }
 
+    $untilId = $body['until_id'] ?? null;
+    if ($untilId !== null && filter_var($untilId, FILTER_VALIDATE_INT) === false) {
+        return Json::response($response, ['error' => 'until_id must be an integer'], 400);
+    }
+
+    if ($untilId !== null) {
+        $where = 'archived_time IS NULL AND id <= :until_id';
+        $bind = [':user' => $user_id, ':until_id' => (int) $untilId];
+    } else {
+        $where = 'archived_time IS NULL AND created_time <= :until';
+        $bind = [':user' => $user_id, ':until' => $until];
+    }
+
     $archived = R::exec(
-        'UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = :user
-         WHERE archived_time IS NULL AND created_time <= :until',
-        [':user' => $user_id, ':until' => $until]
+        "UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = :user WHERE {$where}",
+        $bind
     );
 
-    return Json::response($response, [
+    return Json::response($response, array_filter([
         'archived'    => (int) $archived,
         'until'       => $until,
+        'until_id'    => $untilId !== null ? (int) $untilId : null,
         'outstanding' => (int) R::getCell('SELECT COUNT(*) FROM messages WHERE archived_time IS NULL'),
-    ]);
+    ], static fn($v) => $v !== null));
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
