@@ -55,10 +55,12 @@ Detailed instructions can be found in:
 4. choose a setup method (CLI or web UI) and follow the instructions provided:
    * CLI: run `bin/eppitnic setup`
    * web UI: open the URL you set up for your webserver
-5. verify everything is working, then add at least the following cronjobs:
+5. verify everything is working, then add at least the following cronjobs (see
+   docs/INSTALL.md's "Scheduled jobs" for the full list and crontab lines):
    * `bin/eppitnic poll process`
    * `bin/eppitnic domain sync` (off by default -- `bin/eppitnic config domain-sync on`)
-   * (TBD: scheduled tasks as specified in the 'reminder' database table)
+   * `bin/eppitnic domain reap-deletions`
+   * `bin/eppitnic pdns sync` (only if PowerDNS serves your zones)
 
 
 # Verify

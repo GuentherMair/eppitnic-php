@@ -40,7 +40,7 @@ named key — never the data itself:
 | `GET /v1/contacts/{handle}` | `{"contact": {...}, "stale": bool}` |
 | `POST /v1/contacts`, `PATCH /v1/contacts/{handle}` | `{"contact": {...}}` |
 | `GET /v1/users`, `GET /v1/users/{id}` | `{"users": [...]}` |
-| `GET /v1/reminders`, `GET /v1/domains/{name}/reminders` | `{"reminders": [...]}` |
+| `GET /v1/domains/{name}/tasks` | `{"tasks": [...]}` |
 | `GET /v1/poll-queue` / `{id}` | `{"messages": [...]}` / `{"message": {...}}` |
 | `GET /v1/history`, `/v1/history/{object}/{object_id}` | `{"history": [...], "total": n}` |
 | `POST /v1/users/authenticate`, `GET /v1/users/renew-token`, `GET /v1/users/me` | **not enveloped** — the claims are the body |
@@ -270,7 +270,7 @@ out to be unreachable mid-request, the route returns **502** with
 which means the registry responded but rejected the operation (bad input,
 business-rule violation, etc.). Routes that only touch the local DB
 (`GET /v1/domains`, `.../expiring`, `.../autocomplete`, `.../export`,
-`.../transfers`, most of `contacts`/`reminders`) never pay this cost.
+`.../transfers`, most of `contacts`/`tasks`) never pay this cost.
 
 The two single-object reads — `GET /v1/domains/{name}` and
 `GET /v1/contacts/{handle}` — are the exception to the 502 rule: rather than
@@ -352,7 +352,7 @@ Three details that matter to a browser client:
 
 ## Pagination convention
 
-Used by `GET /v1/reminders` (admin-only variant) and any future list-heavy
+Used by `GET /v1/tasks` (admin-only variant) and any future list-heavy
 endpoint that adopts it (not every list route
 does — see per-route notes, most domain/contact listings return the full
 scoped set unpaginated):
@@ -459,7 +459,7 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 | `PATCH /v1/domains/{name}` | user | partial update: `admin`, `authinfo` set directly; `ns`, `tech`, `dnssec` are **full-target-list diffs** — send the complete desired array and the server computes add/remove, don't send deltas. `dnssec` entries are `{keytag, algorithm, digesttype, digest}`. Registrant changes are **not** accepted here — see the dedicated endpoint below |
 | `POST /v1/domains/{name}/registrant` | user | dedicated registrant-change flow (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}` — the new registrant must be a contact you own (403 otherwise), since this also moves the domain's local ownership to that contact's owner — authinfo is rotated automatically (server-generated if omitted) since the registry requires it to change alongside the registrant |
 | `POST /v1/domains/{name}/status` | user | body `{"state"*, "action"?: "add"\|"rem" (default "add")}` — EPP status flags (e.g. `clientTransferProhibited`) |
-| `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | ownership is checked up front, so a domain you don't own is **403** in every mode (it used to be a 404 for `mode=expiry\|date`). `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry at all** — just inserts a future-dated `reminder` row (`date` required when `mode=date`; defaults to the domain's `ex_date` for `mode=expiry`) for some other process to act on later. `mode=date` 400s if `date` is missing |
+| `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | ownership is checked up front, so a domain you don't own is **403** in every mode (it used to be a 404 for `mode=expiry\|date`). `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry at all** — just inserts a future-dated `tasks` row (`object='registry'`, `date` required when `mode=date`; defaults to the domain's `ex_date` for `mode=expiry`) for `eppitnic domain reap-deletions` to act on once due. `mode=date` 400s if `date` is missing |
 | `POST /v1/domains/{name}/restore` | user | undelete a `pendingDelete`/redemption-period domain |
 | `POST /v1/domains/{name}/owner` | admin | reassigns local ownership to another user: duplicates the registrant (and admin, if set) contact under the new owner, picks the new owner's default tech contact (`users.techc`) or duplicates the current one, runs `updateRegistrant()` then a generic `update()`, then flips `domains.user_id`. Body `{"user_id"*}` (the new owner). Multi-step — can partially fail (e.g. registrant duplicated but registrant-change rejected); check `error` carefully in the UI |
 | `POST /v1/domains/{name}/transfer` | user | request-transfer-in, storing the desired post-transfer registrant/tech/ns locally (`transfers` table) for `PollProcessor` to apply once the registry confirms. Body `{"authinfo"*, "registrant"?, "tech"?: [...], "ns"?: [...]}`. **Not** ownership-checked — you're claiming a domain you don't hold yet — but 403 if another local user already holds it |
@@ -480,18 +480,24 @@ envelope: `{ handle, status, name, org, street, street2, street3, city, province
 | `PATCH /v1/contacts/{handle}` | user (+ownership/attachment check) | same field allow-list as create, partial update |
 | `DELETE /v1/contacts/{handle}` | user | **no `canAccessContact()` check** — only succeeds if the registry itself allows the delete (i.e. the contact isn't attached to any domain there), but there's no local ownership gate before attempting it. Treat as a gap if tightening auth later |
 
-### Reminders
+### Tasks
 
-Two distinct concepts share this table: DNS-sync events (`action` set,
-system-internal, applied by `eppitnic pdns sync`) and human-facing
-scheduled notices (`action` NULL, e.g. "renew this domain").
+Three things share this table, told apart by `object`: rows a consumer owns
+and executes (`object='pdns'`, applied by `eppitnic pdns sync`; `object=
+'registry'`, applied by `eppitnic domain reap-deletions`) and human-facing
+scheduled notices (`object` NULL, e.g. "renew this domain") nothing automated
+reads. A consumer-owned row also carries the result of its last run:
+`executed_time`, `exit_code` (0 success, nonzero failure), `exit_message` —
+NULL/NULL/NULL until a consumer has actually acted on it. Only a success
+retires a row (`active=0`); a failure records the result and stays active for
+the next run to retry.
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/reminders?page=&pageSize=&action=&active=` | admin | paginated, unscoped, sees the raw queue including DNS-sync rows. `action=null` (literal string) filters to `action IS NULL` |
-| `GET /v1/domains/{name}/reminders` | user | scoped to domains the caller owns (or all, if admin); only `active = 1` rows, and only `{id, date, domain, email, notice}` — `action` is not exposed here (this endpoint is meant for the human-notice use case) |
-| `POST /v1/domains/{name}/reminders` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
-| `DELETE /v1/reminders/{id}` | user | soft-delete (`active = 0`); 403 if the reminder's domain isn't owned by the caller |
+| `GET /v1/tasks?page=&pageSize=&object=&action=&active=` | admin | paginated, unscoped, sees the raw queue including consumer-owned rows. `object=null`/`action=null` (literal string) filter to `IS NULL` |
+| `GET /v1/domains/{name}/tasks` | user | scoped to domains the caller owns (or all, if admin); only `active = 1` rows with `object IS NULL` (the human-notice use case), and only `{id, date, domain, email, notice}` |
+| `POST /v1/domains/{name}/tasks` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
+| `DELETE /v1/tasks/{id}` | user | soft-delete (`active = 0`); 403 if the task's domain isn't owned by the caller |
 
 ### History (audit trail)
 

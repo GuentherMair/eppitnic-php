@@ -25,9 +25,10 @@ final class PdnsSyncTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        R::exec('DROP TABLE IF EXISTS reminder');
+        R::exec('DROP TABLE IF EXISTS tasks');
         R::exec('DROP TABLE IF EXISTS domains');
-        R::exec('CREATE TABLE reminder (id INTEGER PRIMARY KEY, domain TEXT, action TEXT, active INTEGER DEFAULT 1, created_time TEXT)');
+        R::exec('CREATE TABLE tasks (id INTEGER PRIMARY KEY, domain TEXT, date TEXT, object TEXT, action TEXT,
+                 active INTEGER DEFAULT 1, executed_time TEXT, exit_code INTEGER, exit_message TEXT, created_time TEXT)');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, ns TEXT)');
 
         $dir = sys_get_temp_dir() . '/pdns-sync-test-' . getmypid();
@@ -112,7 +113,7 @@ final class PdnsSyncTest extends EppTestCase
     private function addEvent(string $domain, string $action, string $created = 'now'): void {
         $dbNow = strtotime((string) R::getCell('SELECT CURRENT_TIMESTAMP'));
 
-        R::exec('INSERT INTO reminder (domain, action, active, created_time) VALUES (?, ?, 1, ?)',
+        R::exec('INSERT INTO tasks (domain, date, object, action, active, created_time) VALUES (?, CURRENT_DATE, \'pdns\', ?, 1, ?)',
             [$domain, $action, date('Y-m-d H:i:s', strtotime($created, $dbNow))]);
     }
 
@@ -143,7 +144,10 @@ final class PdnsSyncTest extends EppTestCase
             'add-record example-one.it example-one.it NS 3600 ns2.example.com.',
         ], $this->calls());
 
-        $this->assertSame(0, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'), 'the row was not archived');
+        $row = R::getRow('SELECT active, exit_code, exit_message FROM tasks WHERE id = 1');
+        $this->assertSame(0, (int) $row['active'], 'the row was not archived');
+        $this->assertSame(0, (int) $row['exit_code']);
+        $this->assertStringContainsString('synced', $row['exit_message']);
     }
 
     /**
@@ -170,7 +174,9 @@ final class PdnsSyncTest extends EppTestCase
 
         $this->assertSame([], $this->calls(), 'the zone was torn down inside the grace period');
         $this->assertStringContainsString('not due yet', $output);
-        $this->assertSame(1, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'), 'a deferred row was archived');
+        $row = R::getRow('SELECT active, executed_time FROM tasks WHERE id = 1');
+        $this->assertSame(1, (int) $row['active'], 'a deferred row was archived');
+        $this->assertNull($row['executed_time'], 'a deferred row was never attempted, so it has no result yet');
     }
 
     public function testADeleteRunsOnceItIsDue(): void {
@@ -179,7 +185,7 @@ final class PdnsSyncTest extends EppTestCase
         $this->sync();
 
         $this->assertSame(['delete-zone example-one.it'], $this->calls());
-        $this->assertSame(0, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'));
+        $this->assertSame(0, (int) R::getCell('SELECT active FROM tasks WHERE id = 1'));
     }
 
     public function testTheGracePeriodIsConfigurable(): void {
@@ -195,17 +201,18 @@ final class PdnsSyncTest extends EppTestCase
      * one step here that cannot be undone, so an unknown age waits.
      */
     public function testADeleteWithNoTimestampIsNotApplied(): void {
-        R::exec("INSERT INTO reminder (domain, action, active, created_time) VALUES ('example-one.it', 'delete', 1, NULL)");
+        R::exec("INSERT INTO tasks (domain, date, object, action, active, created_time) VALUES ('example-one.it', CURRENT_DATE, 'pdns', 'delete', 1, NULL)");
 
         $output = $this->sync();
 
         $this->assertSame([], $this->calls());
         $this->assertStringContainsString('no usable created_time', $output);
-        $this->assertSame(1, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'));
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM tasks WHERE id = 1'));
     }
 
     /**
-     * A failing pdnsutil leaves the row active, so the next run retries it.
+     * A failing pdnsutil leaves the row active, so the next run retries it --
+     * but the failure is now recorded, unlike before.
      */
     public function testAFailedCallLeavesTheRowForTheNextRun(): void {
         touch($this->failFile);
@@ -215,7 +222,10 @@ final class PdnsSyncTest extends EppTestCase
         $this->sync();
 
         $this->assertSame(DNS_SYNC_FAILED, $this->exitCode);
-        $this->assertSame(1, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'), 'a failed row was archived');
+        $row = R::getRow('SELECT active, exit_code, exit_message FROM tasks WHERE id = 1');
+        $this->assertSame(1, (int) $row['active'], 'a failed row was archived');
+        $this->assertSame(1, (int) $row['exit_code']);
+        $this->assertStringContainsString('FAILED', $row['exit_message']);
     }
 
     public function testADomainMissingLocallyIsSkipped(): void {
@@ -225,7 +235,10 @@ final class PdnsSyncTest extends EppTestCase
 
         $this->assertSame([], $this->calls());
         $this->assertStringContainsString('domain not found locally', $output);
-        $this->assertSame(1, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'));
+        $row = R::getRow('SELECT active, exit_code, exit_message FROM tasks WHERE id = 1');
+        $this->assertSame(1, (int) $row['active'], 'a skip stays active for the next run');
+        $this->assertSame(1, (int) $row['exit_code']);
+        $this->assertStringContainsString('SKIPPED', $row['exit_message']);
     }
 
     public function testADomainWithNoNameserversIsSkipped(): void {
@@ -248,10 +261,26 @@ final class PdnsSyncTest extends EppTestCase
         $output = $this->sync(['--dry-run']);
 
         $this->assertSame([], $this->calls(), 'pdnsutil was run under --dry-run');
-        $this->assertSame(1, (int) R::getCell('SELECT active FROM reminder WHERE id = 1'), 'a row was archived under --dry-run');
+        $row = R::getRow('SELECT active, executed_time FROM tasks WHERE id = 1');
+        $this->assertSame(1, (int) $row['active'], 'a row was archived under --dry-run');
+        $this->assertNull($row['executed_time'], 'a result was recorded under --dry-run');
 
         $this->assertStringContainsString('create-zone', $output);
         $this->assertStringContainsString('add-record', $output);
+    }
+
+    /**
+     * A row dated in the future is not due yet -- it must not be picked up
+     * at all, regardless of what --delay-hours would otherwise allow.
+     */
+    public function testARowDatedInTheFutureIsNotPickedUp(): void {
+        R::exec("INSERT INTO tasks (domain, date, object, action, active, created_time) VALUES ('example-one.it', ?, 'pdns', 'create', 1, ?)",
+            [date('Y-m-d', strtotime('+1 day')), (string) R::getCell('SELECT CURRENT_TIMESTAMP')]);
+
+        $output = $this->sync();
+
+        $this->assertStringContainsString('no pending DNS-sync events', $output);
+        $this->assertSame([], $this->calls());
     }
 
     /**

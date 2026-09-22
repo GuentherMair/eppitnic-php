@@ -35,3 +35,8 @@ EPPITNIC_VAR_DIR=/data/var
 # needs no image change when an installation turns it on. Every 5 minutes,
 # alongside `poll process` -- see docs/INSTALL.md's "Domain reconciliation".
 */5 * * * * su-exec www-data /usr/local/bin/eppitnic domain sync >> /proc/1/fd/1 2>&1
+
+# Shipped unconditionally: a no-op unless a deletion was actually scheduled
+# via `DELETE /v1/domains/{name}?mode=expiry|date` -- this is what carries it
+# out once due. See docs/INSTALL.md's "Scheduled jobs".
+0-59/15 * * * * su-exec www-data /usr/local/bin/eppitnic domain reap-deletions >> /proc/1/fd/1 2>&1

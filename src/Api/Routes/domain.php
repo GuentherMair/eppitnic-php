@@ -538,10 +538,10 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
         }
 
-        // no `action`: this is a future-dated notice, not a DNS-sync event.
-        // `pdns sync` gates 'delete' rows off created_time, not `date`, so
-        // tagging it now would tear down DNS ~12h later instead of on the date
-        R::exec("INSERT INTO reminder (domain, date, notice, email) VALUES (:domain, :date, :notice, '')", [
+        // object='registry': `domain reap-deletions` reads this and deletes
+        // the domain at the registry once `date` arrives. No `action` --
+        // that column is `pdns sync`'s own, not this consumer's.
+        R::exec("INSERT INTO tasks (domain, date, notice, email, object) VALUES (:domain, :date, :notice, '', 'registry')", [
             ':domain' => $name,
             ':date'   => $date ?: $row['ex_date'],
             ':notice' => 'scheduled deletion',

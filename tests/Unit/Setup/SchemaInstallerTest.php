@@ -87,12 +87,12 @@ final class SchemaInstallerTest extends TestCase
 
         $tables = array_map(static fn(array $row) => array_values($row)[0], R::getAll('SHOW TABLES'));
         foreach (['users', 'history', 'transactions', 'responses', 'msgqueue', 'contacts',
-                  'domains', 'transfers', 'messages', 'reminder', 'settings'] as $expected) {
+                  'domains', 'transfers', 'messages', 'tasks', 'settings'] as $expected) {
             $this->assertContains($expected, $tables, "missing table '{$expected}'");
         }
 
         $version = R::getCell("SELECT `value` FROM settings WHERE `key` = 'schema_version'");
-        $this->assertSame('"070000"', $version);
+        $this->assertSame('"' . SCHEMA_VERSION . '"', $version);
     }
 
     public function testInstallIsANoOpOnAnExistingEppitnicDatabase(): void {

@@ -6,7 +6,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
-$app->get('/v1/reminders', function (Request $request, Response $response, array $args): Response {
+$app->get('/v1/tasks', function (Request $request, Response $response, array $args): Response {
     Auth::requireAdmin($request);
     $params = $request->getQueryParams();
 
@@ -15,6 +15,12 @@ $app->get('/v1/reminders', function (Request $request, Response $response, array
 
     $where = ['1 = 1'];
     $bind = [];
+    if (isset($params['object']) && $params['object'] !== '') {
+        $where[] = $params['object'] === 'null' ? 'object IS NULL' : 'object = :object';
+        if ($params['object'] !== 'null') {
+            $bind[':object'] = $params['object'];
+        }
+    }
     if (isset($params['action']) && $params['action'] !== '') {
         $where[] = $params['action'] === 'null' ? 'action IS NULL' : 'action = :action';
         if ($params['action'] !== 'null') {
@@ -27,9 +33,11 @@ $app->get('/v1/reminders', function (Request $request, Response $response, array
     }
     $whereSql = implode(' AND ', $where);
 
-    $total = (int) R::getCell("SELECT COUNT(*) FROM reminder WHERE {$whereSql}", $bind);
+    $total = (int) R::getCell("SELECT COUNT(*) FROM tasks WHERE {$whereSql}", $bind);
     $rows = R::getAll("
-        SELECT id, domain, date, notice, email, action, active, created_time FROM reminder
+        SELECT id, domain, date, notice, email, object, action, active,
+               executed_time, exit_code, exit_message, created_time
+        FROM tasks
         WHERE {$whereSql}
         ORDER BY id DESC
         LIMIT " . (($page - 1) * $pageSize) . ", " . $pageSize, $bind);
@@ -43,27 +51,30 @@ $app->get('/v1/reminders', function (Request $request, Response $response, array
     ]);
 });
 
-$app->get('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
+$app->get('/v1/domains/{name}/tasks', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $name = $args['name'];
 
-    $where = ['d.domain = r.domain', 'r.active = 1', 'd.domain = :domain'];
+    // object IS NULL: only the plain human-facing notices belong here --
+    // an automated consumer's own rows (object set) are its own business,
+    // not something to surface as if a person scheduled them.
+    $where = ['d.domain = r.domain', 'r.active = 1', 'r.object IS NULL', 'd.domain = :domain'];
     $bind = [':domain' => $name];
     if ( ! $isAdmin) {
         $where[] = 'd.user_id = :user_id';
         $bind[':user_id'] = $user_id;
     }
 
-    $reminders = R::getAll("
+    $tasks = R::getAll("
         SELECT r.id, r.date, r.domain, r.email, r.notice
-        FROM domains d, reminder r
+        FROM domains d, tasks r
         WHERE " . implode(' AND ', $where) . "
         ORDER BY r.date DESC", $bind);
 
-    return Json::response($response, ['reminders' => $reminders]);
+    return Json::response($response, ['tasks' => $tasks]);
 });
 
-$app->post('/v1/domains/{name}/reminders', function (Request $request, Response $response, array $args): Response {
+$app->post('/v1/domains/{name}/tasks', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
@@ -83,7 +94,7 @@ $app->post('/v1/domains/{name}/reminders', function (Request $request, Response 
         return Json::response($response, ['error' => "Domain '{$name}' does not belong to this user"], 403);
     }
 
-    R::exec("INSERT INTO reminder (domain, date, notice, email) VALUES (:domain, :date, :notice, :email)", [
+    R::exec("INSERT INTO tasks (domain, date, notice, email) VALUES (:domain, :date, :notice, :email)", [
         ':domain' => $name,
         ':date'   => $params['date'],
         ':notice' => $params['notice'],
@@ -93,7 +104,7 @@ $app->post('/v1/domains/{name}/reminders', function (Request $request, Response 
     return Json::response($response, ['created' => true, 'domain' => $name], 201);
 });
 
-$app->delete('/v1/reminders/{id}', function (Request $request, Response $response, array $args): Response {
+$app->delete('/v1/tasks/{id}', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
     $id = (int) $args['id'];
 
@@ -103,12 +114,12 @@ $app->delete('/v1/reminders/{id}', function (Request $request, Response $respons
         $where[] = 'd.user_id = :user_id';
         $bind[':user_id'] = $user_id;
     }
-    $owns = (int) R::getCell("SELECT COUNT(*) FROM domains d, reminder r WHERE " . implode(' AND ', $where), $bind);
+    $owns = (int) R::getCell("SELECT COUNT(*) FROM domains d, tasks r WHERE " . implode(' AND ', $where), $bind);
     if ($owns !== 1) {
-        return Json::response($response, ['error' => "Reminder not found or does not belong to this user"], 403);
+        return Json::response($response, ['error' => "Task not found or does not belong to this user"], 403);
     }
 
-    R::exec("UPDATE reminder SET active = 0 WHERE id = ?", [$id]);
+    R::exec("UPDATE tasks SET active = 0 WHERE id = ?", [$id]);
 
     return Json::response($response, ['archived' => true, 'id' => $id]);
 });

@@ -153,7 +153,7 @@ final class ResponseParsingTest extends EppTestCase
 
     /**
      * A message about a specific domain must carry that domain through:
-     * PollProcessor, the DNS-sync queue and the reminders view all key off
+     * PollProcessor, the DNS-sync queue and the tasks view all key off
      * messages.domain, so one parsed without it is a failure nobody hears
      * about.
      */

@@ -166,6 +166,7 @@ suppresses output and keeps the exit code.
 0-59/15 * * * *  /path/to/bin/eppitnic pdns sync   >> /var/log/eppitnic/pdns-sync.log 2>&1
 * * * * *        /path/to/bin/eppitnic session keepalive >> /var/log/eppitnic/keepalive.log 2>&1
 0-59/5  * * * *  /path/to/bin/eppitnic domain sync >> /var/log/eppitnic/domain-sync.log 2>&1
+0-59/15 * * * *  /path/to/bin/eppitnic domain reap-deletions >> /var/log/eppitnic/domain-reap-deletions.log 2>&1
 ```
 
 `poll process` drains the registry's message queue into `messages`,
@@ -189,7 +190,18 @@ reconciliation" below) — only turn it on (`config domain-sync on`) after
 `session keepalive`, it prints nothing and exits `0` while off, so it is
 safe to schedule unconditionally ahead of that.
 
-All four are ordinary verbs, runnable by hand any time.
+`domain reap-deletions` deletes, at the registry, every domain whose
+`DELETE /v1/domains/{name}?mode=expiry|date` scheduling has come due. Schedule
+it unconditionally — the deletion was already confirmed when it was scheduled,
+so there is nothing to opt into; it simply has nothing to do until a domain's
+scheduled date arrives. `--dry-run` shows what would be deleted.
+
+Both `pdns sync` and `domain reap-deletions` consume rows from the `tasks`
+table (`object` = 'pdns'/'registry'); only a successful run retires a row —
+a failure records `exit_code`/`exit_message` for the next run to see, but
+stays active so it is retried automatically.
+
+All five are ordinary verbs, runnable by hand any time.
 
 ## Session keep-alive
 

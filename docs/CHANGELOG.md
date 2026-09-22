@@ -18,9 +18,8 @@ directly, and configuration moved out of `config.xml`: the database
 credentials live in `config/config.php` (the one thing that must be a file,
 since it is needed to reach the database at all) and everything else in the
 `settings` table, read through `Eppitnic\Config`. `eppitnic config migrate`
-converts an existing `config.xml` into both. As part of this, DNS-sync
-notifications end up in, and will be waiting to be consumed from, the
-`reminder` queue.
+converts an existing `config.xml` into both. As part of this, DNS-sync events
+are queued in `tasks` (`object='pdns'`) and consumed by `eppitnic pdns sync`.
 
 Users gained defaults for new contacts and domains: `countrycode`, a list of
 technical contacts in `techc` (a single handle there still reads as a list of
@@ -93,8 +92,7 @@ docblocks here confused the two and now say which is which.
 
 Everything runnable now lives behind one entry point, `bin/eppitnic`: the
 `CLI/`, `examples/` and `cronjobs/` folders are gone, absorbed into verbs.
-The two scheduled jobs are `eppitnic poll process` and `eppitnic pdns sync` —
-see "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
+See "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
 
 A new `eppitnic domain sync` reconciles domains already known locally
 against the registry in bounded phases: `domain check` finds domains the
@@ -113,6 +111,20 @@ Off by default — `eppitnic config domain-sync on` turns it on; scheduled
 unconditionally in `docker/crontab`, a no-op while off, exactly like
 `session keepalive`. See "Domain reconciliation" in
 [INSTALL.md](INSTALL.md).
+
+`reminder` is now `tasks`, and every row a consumer owns says so through a
+new `object` column (`'pdns'` for a DNS-sync event, `'registry'` for a
+scheduled domain deletion) instead of being told apart by shape. A consumer
+also records what happened once it has actually run a row: `executed_time`,
+`exit_code` (0 success, nonzero failure) and `exit_message`. Only a success
+retires the row (`active=0`); a failure or a skip records the result but
+stays active, so the next run retries it — unchanged from `pdns sync`'s
+existing behaviour, just now visible instead of silent. A new
+`eppitnic domain reap-deletions` is the `object='registry'` counterpart to
+`pdns sync`: it is what actually deletes a domain at the registry once a
+`DELETE /v1/domains/{name}?mode=expiry|date` schedule comes due — previously
+nothing consumed those rows at all. `GET /v1/reminders` and its siblings are
+now `GET /v1/tasks`.
 
 The `changelog` table is now `history`, because not everything it records is a
 change: it gained a `security` object type and `secread`, `login` and `denied`

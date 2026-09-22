@@ -161,18 +161,30 @@ CREATE TABLE `messages` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `reminder` (
+-- A queue of two things: human-facing scheduled notices (`object` NULL, e.g.
+-- a per-domain reminder someone set by hand) and rows a consumer owns and
+-- executes (`object` says which one -- 'registry' for a scheduled domain
+-- deletion, 'pdns' for a DNS-sync event). A consumer reads its own `object`,
+-- due (`date` <= today) and still `active`; once it has actually run a row it
+-- records `executed_time`/`exit_code`/`exit_message` -- a success also clears
+-- `active`, a failure or a skip stays active so the next run retries it.
+CREATE TABLE `tasks` (
   `id`                    serial,
   `domain`                varchar(255) NOT NULL,
   `date`                  date NOT NULL,
   `notice`                varchar(255),
   `email`                 varchar(64),
+  `object`                enum('registry','pdns'),
   `action`                enum('create','update','delete'),
   `active`                tinyint DEFAULT 1,
   `created_time`          timestamp DEFAULT CURRENT_TIMESTAMP,
+  `executed_time`         timestamp NULL DEFAULT NULL,
+  `exit_code`             tinyint,
+  `exit_message`          varchar(255),
   PRIMARY KEY (`id`),
   KEY (`domain`),
   KEY (`action`),
+  KEY (`object`),
   CONSTRAINT FOREIGN KEY (domain) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

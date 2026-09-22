@@ -28,6 +28,7 @@ use Eppitnic\Cli\Command\DomainDeleteCommand;
 use Eppitnic\Cli\Command\DomainExportCommand;
 use Eppitnic\Cli\Command\DomainImportCommand;
 use Eppitnic\Cli\Command\DomainInfoCommand;
+use Eppitnic\Cli\Command\DomainReapDeletionsCommand;
 use Eppitnic\Cli\Command\DomainRestoreCommand;
 use Eppitnic\Cli\Command\DomainSetOwnerCommand;
 use Eppitnic\Cli\Command\DomainSetRegistrantCommand;
@@ -77,6 +78,7 @@ final class Application
             'domain restore'            => DomainRestoreCommand::class,
             'domain status'             => DomainStatusCommand::class,
             'domain sync'               => DomainSyncCommand::class,
+            'domain reap-deletions'     => DomainReapDeletionsCommand::class,
             'contact info'              => ContactInfoCommand::class,
             'contact check'             => ContactCheckCommand::class,
             'contact create'            => ContactCreateCommand::class,

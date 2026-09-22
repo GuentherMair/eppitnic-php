@@ -32,9 +32,9 @@
 --       risk (utf8mb3_bin, case-sensitive); the other two checks are cheap
 --       insurance since they're already case-insensitive today.
 --
---   (b) Data violating PART 3's stricter `reminder` shape (TEXT ->
---       VARCHAR(255), nullable `date` -> NOT NULL) or blocking its new
---       reminder.domain -> domains.domain FK (orphaned values).
+--   (b) Data violating PART 3's stricter `tasks` (renamed from `reminder`)
+--       shape (TEXT -> VARCHAR(255), nullable `date` -> NOT NULL) or
+--       blocking its new tasks.domain -> domains.domain FK (orphaned values).
 --
 -- Any failing check SIGNALs an error, halting the script (default `mysql`
 -- CLI behaviour) before PART 2 runs.
@@ -248,7 +248,8 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- PART 3: COLUMN NAME CORRECTIONS + STRUCTURAL FIXES
 --
 -- Renames columns from camelCase to lower_snake_case per the target
--- schema, and brings reminder the rest of the way to its target shape.
+-- schema, and brings reminder (renamed to `tasks` here) the rest of the
+-- way to its target shape.
 --
 -- CHANGE COLUMN needs the full definition, not just the new name -- text
 -- columns restate their charset so the rename can't regress Part 2's
@@ -310,20 +311,39 @@ ALTER TABLE messages
 -- `reminder` pre-dates this migration and holds real data, so it's
 -- altered in place, not recreated (PART 2 only renamed + converted its
 -- charset). Reorders columns, narrows `notice` to VARCHAR(255), makes
--- `date` NOT NULL, adds `action`/`created_time`, a real PRIMARY KEY, and
--- the domain -> domains.domain FK (all pre-flight checked in PART 1).
+-- `date` NOT NULL, adds `object`/`action`/`executed_time`/`exit_code`/
+-- `exit_message`/`created_time`, a real PRIMARY KEY, and the domain ->
+-- domains.domain FK (all pre-flight checked in PART 1), and renames the
+-- table itself to `tasks`: `object` says which consumer owns a row
+-- ('registry' for a scheduled domain deletion, 'pdns' for a DNS-sync
+-- event, NULL for a plain human-facing notice); `executed_time`/
+-- `exit_code`/`exit_message` record what happened once a consumer has
+-- actually run it -- a success clears `active`, a failure or a skip
+-- stays active so the next run retries it.
 ALTER TABLE reminder
+  RENAME TO tasks,
   MODIFY COLUMN `domain` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL AFTER `id`,
   MODIFY COLUMN `date` DATE NOT NULL AFTER `domain`,
   MODIFY COLUMN `notice` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `date`,
   MODIFY COLUMN `email` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `notice`,
-  ADD COLUMN `action` ENUM('create','update','delete') AFTER `email`,
+  ADD COLUMN `object` ENUM('registry','pdns') AFTER `email`,
+  ADD COLUMN `action` ENUM('create','update','delete') AFTER `object`,
   MODIFY COLUMN `active` TINYINT DEFAULT 1 AFTER `action`,
   ADD COLUMN `created_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP AFTER `active`,
+  ADD COLUMN `executed_time` TIMESTAMP NULL DEFAULT NULL AFTER `created_time`,
+  ADD COLUMN `exit_code` TINYINT AFTER `executed_time`,
+  ADD COLUMN `exit_message` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `exit_code`,
   ADD PRIMARY KEY (`id`),
   ADD KEY `domain` (`domain`),
   ADD KEY `action` (`action`),
+  ADD KEY `object` (`object`),
   ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Backfill: every row already carrying an `action` was written by one of the
+-- four DNS-sync call sites, so it is unambiguously a `pdns` task. There is
+-- no equally safe backfill for `object = 'registry'` -- see this file's
+-- header note on the scheduled-deletion write site's notice text.
+UPDATE tasks SET `object` = 'pdns' WHERE `action` IS NOT NULL;
 
 -- The two ownership FKs the target schema declares (contacts/domains
 -- .user_id -> users.id), added only if a 6.7 dump doesn't already carry
@@ -475,14 +495,14 @@ JOIN information_schema.COLLATION_CHARACTER_SET_APPLICABILITY CCSA
 WHERE T.TABLE_SCHEMA = DATABASE()
   AND T.TABLE_NAME IN ('users','contacts','domains','transfers',
                         'transactions','responses','msgqueue','messages',
-                        'reminder','history');
+                        'tasks','history');
 
 SELECT TABLE_NAME, COLUMN_NAME, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'reminder')
+                      'tasks')
   AND CHARACTER_SET_NAME IS NOT NULL
   AND (CHARACTER_SET_NAME <> 'utf8mb4' OR COLLATION_NAME <> 'utf8mb4_unicode_ci');
 -- ^ expect ZERO rows; a row means a column still has an old charset.
@@ -510,26 +530,27 @@ FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'reminder')
+                      'tasks')
   AND BINARY COLUMN_NAME REGEXP '[A-Z]';
 -- ^ expect ZERO rows.
 
--- 6e. Confirm history/reminder's shape: PKs, secondary indexes, and
+-- 6e. Confirm history/tasks's shape: PKs, secondary indexes, and
 --     history's data column charset/collation/CHECK constraint.
 SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, CHARACTER_SET_NAME, COLLATION_NAME
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('history','reminder')
+  AND TABLE_NAME IN ('history','tasks')
 ORDER BY TABLE_NAME, ORDINAL_POSITION;
 
 SELECT TABLE_NAME, INDEX_NAME, COLUMN_NAME, SEQ_IN_INDEX, NON_UNIQUE
 FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = DATABASE()
-  AND TABLE_NAME IN ('history','reminder')
+  AND TABLE_NAME IN ('history','tasks')
 ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX;
 -- ^ expect: history: PRIMARY (id), object_lookup (object, object_id)
---           reminder:  PRIMARY (id), id (pre-existing redundant UNIQUE
---                      KEY, harmless), domain (domain), action (action)
+--           tasks:     PRIMARY (id), id (pre-existing redundant UNIQUE
+--                      KEY, harmless), domain (domain), action (action),
+--                      object (object)
 
 SELECT CONSTRAINT_NAME, CHECK_CLAUSE
 FROM information_schema.CHECK_CONSTRAINTS
@@ -550,7 +571,7 @@ ORDER BY ORDINAL_POSITION;
 --   techc), and no `dns`.
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the
---     new names, including history's and reminder's FKs.
+--     new names, including history's and tasks's FKs.
 SELECT
     TABLE_NAME        AS child_table,
     COLUMN_NAME        AS child_column,
@@ -562,13 +583,13 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'reminder','history');
+                      'tasks','history');
 -- ^ expect: contacts.user_id -> users.id
 --           domains.user_id -> users.id
 --           domains.registrant -> contacts.handle
 --           transfers.registrant -> contacts.handle
 --           history.user_id -> users.id
---           reminder.domain -> domains.domain
+--           tasks.domain -> domains.domain
 -- (there is deliberately no accounting table any more -- PART 2 drops it)
 
 -- 6g-bis. No HTML entities left in stored text (expect ZERO rows).

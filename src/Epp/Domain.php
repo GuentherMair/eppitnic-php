@@ -892,8 +892,14 @@ class Domain extends AbstractObject
 
     if ($notifyDNS) {
       // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the
-      // zone
-      R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$this->domain, 'domain created']);
+      // zone. The SELECT is the gate -- a row is only written when
+      // pdnsutil_path is actually configured, so nothing queues up for a
+      // sync job nobody is going to schedule.
+      R::exec("
+        INSERT INTO tasks (domain, date, notice, object, action)
+        SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
+        WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+      ", [$this->domain, 'domain created']);
     }
 
     return TRUE;
@@ -995,9 +1001,14 @@ class Domain extends AbstractObject
 
     History::record('domains', $this->storageId($domain), 'update', $data, $user_id);
 
-    // DNS-sync queue: only nameserver changes require a pdnsutil update
+    // DNS-sync queue: only nameserver changes require a pdnsutil update, and
+    // only when pdnsutil_path is actually configured -- see storeDB()
     if (in_array('ns', $changes, true)) {
-      R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'update')", [$domain, 'nameservers changed']);
+      R::exec("
+        INSERT INTO tasks (domain, date, notice, object, action)
+        SELECT ?, CURRENT_DATE, ?, 'pdns', 'update' FROM settings
+        WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+      ", [$domain, 'nameservers changed']);
     }
 
     return TRUE;
@@ -1189,8 +1200,13 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // DNS-sync queue: `eppitnic pdns sync` tears the zone down (delay-gated)
-    R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'delete')", [$domain, 'domain deleted']);
+    // DNS-sync queue: `eppitnic pdns sync` tears the zone down (delay-gated),
+    // and only when pdnsutil_path is actually configured -- see storeDB()
+    R::exec("
+      INSERT INTO tasks (domain, date, notice, object, action)
+      SELECT ?, CURRENT_DATE, ?, 'pdns', 'delete' FROM settings
+      WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+    ", [$domain, 'domain deleted']);
 
     return TRUE;
   }
@@ -1209,9 +1225,13 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to come
-    // back
-    R::exec("INSERT INTO reminder (domain, date, notice, action) VALUES (?, CURDATE(), ?, 'create')", [$domain, 'domain restored']);
+    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to
+    // come back, same pdnsutil_path gate
+    R::exec("
+      INSERT INTO tasks (domain, date, notice, object, action)
+      SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
+      WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+    ", [$domain, 'domain restored']);
 
     return TRUE;
   }

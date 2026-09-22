@@ -36,7 +36,7 @@ final class PdnsSyncCommand extends Command
         $this->pdnsutil = (string) (Config::get('pdnsutil_path') ?: 'pdnsutil');
         $this->ttl = (int) (Config::get('pdnsutil_ttl') ?: 3600);
 
-        $rows = R::getAll("SELECT * FROM reminder WHERE active = 1 AND action IS NOT NULL ORDER BY id ASC");
+        $rows = R::getAll("SELECT * FROM tasks WHERE object = 'pdns' AND active = 1 AND date <= CURRENT_DATE ORDER BY id ASC");
         if ($rows === []) {
             $this->line('no pending DNS-sync events');
             return 0;
@@ -61,17 +61,29 @@ final class PdnsSyncCommand extends Command
                 ]
             );
 
+            // deferred: not attempted this run (still waiting out
+            // --delay-hours), so there is no result to record
+            if ($outcome['status'] === 'deferred') {
+                continue;
+            }
+
+            // only a success is terminal -- a failure or a skip records what
+            // was found, but stays active so the next run tries again. Under
+            // --dry-run nothing actually ran, so the row is left untouched.
+            if ( ! $this->isDryRun()) {
+                R::exec(
+                    "UPDATE tasks SET executed_time = CURRENT_TIMESTAMP, exit_code = ?, exit_message = ?"
+                    . ($outcome['status'] === 'applied' ? ", active = 0" : "") . " WHERE id = ?",
+                    [$outcome['status'] === 'applied' ? 0 : 1, $outcome['message'], $row['id']]
+                );
+            }
+
             if ($outcome['status'] === 'failed') {
                 $failed++;
                 continue;
             }
             if ($outcome['status'] === 'applied') {
                 $applied++;
-                // under --dry-run the pdnsutil calls never ran, so archiving
-                // the row would lose the work it still stands for
-                if ( ! $this->isDryRun()) {
-                    R::exec("UPDATE reminder SET active = 0 WHERE id = ?", [$row['id']]);
-                }
             }
         }
 
