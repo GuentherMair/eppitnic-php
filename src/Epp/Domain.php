@@ -7,6 +7,7 @@ use Eppitnic\Persistence\History;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
+use Eppitnic\Persistence\SerializedColumn;
 use RedBeanPHP\R;
 
 /**
@@ -1143,11 +1144,15 @@ class Domain extends AbstractObject
       $params[':registrant'] = $registrant;
     }
 
-    // pending transfer-in domains (active/age restrictions do not apply)
-    $domains = R::getAll("
+    // pending transfer-in domains (active/age restrictions do not apply) --
+    // not a domain EPP has confirmed exists locally yet, so no status of its own
+    $domains = array_map(static function (array $row): array {
+      $row['status'] = [];
+      return $row;
+    }, R::getAll("
       SELECT concat(domain, ' (transfer-in)') as domain, registrant, user_id
       FROM transfers WHERE " . implode(' AND ', $where) . "
-      ORDER BY domain ASC", $params);
+      ORDER BY domain ASC", $params));
 
     if ($activeOnly) {
       $where[] = 'active = :active';
@@ -1159,9 +1164,14 @@ class Domain extends AbstractObject
     }
 
     $active = R::getAll("
-      SELECT domain, registrant, user_id
+      SELECT domain, registrant, user_id, status
       FROM domains WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params);
+    // status is a serialized column, in either of the two shapes the table holds
+    $active = array_map(static function (array $row): array {
+      $row['status'] = SerializedColumn::toArray($row['status'] ?? null);
+      return $row;
+    }, $active);
 
     return array_merge($domains, $active);
   }
