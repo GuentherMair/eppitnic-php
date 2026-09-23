@@ -52,15 +52,24 @@ Secrets (`jwt_psk`, the registry password) are never printed — `epp` reports
 `password_set`/`rotation_pending` instead, the same allow-list
 `GET /v1/session/epp` uses.
 
-To change the `epp` setting's plain fields (`server`/`server_deleted`/`port`
-have their own verb, see "Verifying against the live test registry" below):
+To change one of the `epp` setting's 7 plain fields (`server` also has a
+friendlier preset verb, see "Verifying against the live test registry"
+below), give a value to set it or omit one to unset it (where that field
+allows it -- `server`/`username`/`lang`/`cl_trid_prefix` are required and
+cannot be unset):
 
 ```
-bin/eppitnic config epp-set interface 203.0.113.5   # IPv4 only
-bin/eppitnic config epp-set lang it                 # 'it' or 'en'
-bin/eppitnic config epp-set cl_trid_prefix MYPREFIX  # 1-47 chars, no whitespace
-bin/eppitnic config epp-set username MYCOMPANY-REG   # 3-16 chars, ending '-REG'
+bin/eppitnic config epp-set server https://epp.nic.it        # must be https://
+bin/eppitnic config epp-set server_deleted https://epp-deleted.nic.it
+bin/eppitnic config epp-set port 8443                        # 1-65535, or omit the value to unset
+bin/eppitnic config epp-set interface 203.0.113.5             # IPv4 only, or omit the value to unset
+bin/eppitnic config epp-set lang it                            # 'it' or 'en'
+bin/eppitnic config epp-set cl_trid_prefix MYPREFIX             # 1-47 chars, no whitespace
+bin/eppitnic config epp-set username MYCOMPANY-REG              # 3-16 chars, ending '-REG'
 ```
+
+Every change here is admin-only over the API too (`GET`/`PATCH
+/v1/session/epp`) and recorded to `history` (`object='epp'`).
 
 `password` is deliberately not one of these — a value this installation and
 the registry disagree about breaks every EPP call, so it goes through the
@@ -161,51 +170,87 @@ suppresses output and keeps the exit code.
 
 ## Scheduled jobs
 
+One crontab line runs everything:
+
 ```
-0-59/5  * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
-0-59/15 * * * *  /path/to/bin/eppitnic pdns sync   >> /var/log/eppitnic/pdns-sync.log 2>&1
-* * * * *        /path/to/bin/eppitnic session keepalive >> /var/log/eppitnic/keepalive.log 2>&1
-0-59/5  * * * *  /path/to/bin/eppitnic domain sync >> /var/log/eppitnic/domain-sync.log 2>&1
-0-59/15 * * * *  /path/to/bin/eppitnic domain reap-deletions >> /var/log/eppitnic/domain-reap-deletions.log 2>&1
+* * * * *  /path/to/bin/eppitnic cron run >> /var/log/eppitnic/cron.log 2>&1
 ```
 
-`poll process` drains the registry's message queue into `messages`,
-reconciles domain transfer state, then rotates the registry password if a
-reminder asked for it — in that order, hence one verb, not three. `--no-rotate`
-and `--no-transfers` drop a step. It never prompts.
+`cron run` decides internally which of the five jobs below are actually due
+this tick and runs only those, reusing each job's own command — nothing here
+needs its own crontab line, and a fresh install needs no per-job scheduling
+decisions beyond this one entry. `--dry-run` prints which jobs would run
+without running them.
 
-`pdns sync` applies pending DNS-sync events to PowerDNS via `pdnsutil` (on
-`PATH`, or named by the `pdnsutil_path` setting -- `config pdns-set path
-/path/to/pdnsutil`, verified executable unless `--force`; `config pdns-set
-path` with no value unsets it back to a plain `PATH` lookup). Only schedule
-it if PowerDNS serves your zones. Zone deletions wait out `--delay-hours`
-(12 by default); `--dry-run` prints the `pdnsutil` invocations without
-running them. `config pdns-set ttl <seconds>` sets the TTL new NS records
-get (default 3600, also unset the same way).
+Four jobs are due-checked the same way: `enabled` (where the job has one)
+and `frequency_minutes` minutes elapsed since `last_run_at`. Every field is
+settable both through the CLI and, for an admin, via `GET`/`PATCH
+/v1/cronjobs*` (see `docs/API.md`):
 
-`session keepalive` only does anything when `keepalive` is on (see "Session
-keep-alive" below) — schedule it unconditionally, since it prints nothing and
-exits `0` while the setting is off.
+- **`pdns sync`** applies pending DNS-sync events to PowerDNS via `pdnsutil`
+  (on `PATH`, or named by the `pdns` setting's `path` field). Off by
+  default:
+  ```
+  bin/eppitnic config pdns-set enabled true
+  bin/eppitnic config pdns-set path /path/to/pdnsutil   # verified executable unless --force; no value unsets it
+  bin/eppitnic config pdns-set ttl <seconds>             # TTL new NS records get, default 3600
+  bin/eppitnic config pdns-set delay_hours <hours>       # grace period before a delete is applied, default 12
+  bin/eppitnic config pdns-set frequency_minutes <n>     # default 15
+  ```
+  Only enable it if PowerDNS serves your zones. `bin/eppitnic pdns sync
+  --dry-run` prints the `pdnsutil` invocations a manual run would make,
+  without running them.
 
-`domain sync` reconciles domains already known locally against the registry
-in bounded phases, and refreshes their linked contacts (see "Domain
-reconciliation" below) — only turn it on (`config domain-sync on`) after
-`poll process`/`session keepalive` are already working reliably; like
-`session keepalive`, it prints nothing and exits `0` while off, so it is
-safe to schedule unconditionally ahead of that.
+- **`domain sync`** reconciles domains already known locally against the
+  registry in bounded phases, and refreshes their linked contacts (see
+  "Domain reconciliation" below). **On by default:**
+  ```
+  bin/eppitnic config domain-sync on
+  bin/eppitnic config domain-sync off
+  bin/eppitnic config domain-sync-set batch_size <n>         # default 25
+  bin/eppitnic config domain-sync-set frequency_minutes <n>  # default 5
+  ```
 
-`domain reap-deletions` deletes, at the registry, every domain whose
-`DELETE /v1/domains/{name}?mode=expiry|date` scheduling has come due. Schedule
-it unconditionally — the deletion was already confirmed when it was scheduled,
-so there is nothing to opt into; it simply has nothing to do until a domain's
-scheduled date arrives. `--dry-run` shows what would be deleted.
+- **`domain reap-deletions`** deletes, at the registry, every domain whose
+  `DELETE /v1/domains/{name}?mode=expiry|date` scheduling has come due. **On
+  by default** — the deletion was already confirmed when it was scheduled,
+  so there is nothing to opt into; it simply has nothing to do until a
+  domain's scheduled date arrives:
+  ```
+  bin/eppitnic config domain-reap-set enabled false
+  bin/eppitnic config domain-reap-set frequency_minutes <n>  # default 15
+  ```
+  `bin/eppitnic domain reap-deletions --dry-run` shows what a manual run
+  would delete.
 
-Both `pdns sync` and `domain reap-deletions` consume rows from the `tasks`
+- **`poll process`** drains the registry's message queue into `messages`,
+  reconciles domain transfer state, then rotates the registry password if a
+  reminder asked for it — in that order, hence one verb, not three.
+  `--no-rotate` and `--no-transfers` drop a step on a manual run. It never
+  prompts. **On by default** — turning it off is a real foot-gun: the
+  shared registry password stops auto-rotating on a `passwdReminder`
+  alongside the queue drain and transfer reconciliation, and nothing else
+  in this project watches for that reminder. The frontend's cronjobs
+  dialog warns about exactly this when it's switched off:
+  ```
+  bin/eppitnic config poll-process-set enabled false
+  bin/eppitnic config poll-process-set frequency_minutes <n>  # default 5
+  ```
+
+`session keepalive` is the one exception: it only does anything when
+`keepalive` is on (see "Session keep-alive" below), has no
+`frequency_minutes` of its own, and is invoked by `cron run` unconditionally
+every tick — exactly as if it still had its own every-minute line — since it
+prints nothing and exits `0` while the setting is off.
+
+`pdns sync` and `domain reap-deletions` both consume rows from the `tasks`
 table (`object` = 'pdns'/'registry'); only a successful run retires a row —
 a failure records `exit_code`/`exit_message` for the next run to see, but
 stays active so it is retried automatically.
 
-All five are ordinary verbs, runnable by hand any time.
+Every job above is also an ordinary verb, runnable by hand any time
+(`bin/eppitnic pdns sync`, `bin/eppitnic domain reap-deletions`, ...),
+independent of whether `cron run` would currently consider it due.
 
 ## Session keep-alive
 
@@ -263,16 +308,17 @@ back to the start once exhausted — so a job scheduled every 5 minutes
 eventually revisits every active domain without ever issuing an unbounded
 number of registry calls in one tick.
 
-Off by default:
+On by default (see "Scheduled jobs" above for its full settings, including
+`frequency_minutes`):
 
 ```
 bin/eppitnic config domain-sync on
 bin/eppitnic config domain-sync off
 ```
 
-`--batch-size=N` (default 25) sets and persists how many domains each run
-processes; `--report-only` checks and fetches against the real registry as
-normal but writes nothing locally and does not advance the cursor, for
+`--batch-size=N` overrides `batch_size` for one manual run only, without
+persisting it; `--report-only` checks and fetches against the real registry
+as normal but writes nothing locally and does not advance the cursor, for
 previewing what a run would find.
 
 Every registrant, admin and technical contact linked to a domain processed

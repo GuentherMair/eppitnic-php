@@ -10,9 +10,12 @@ use RedBeanPHP\R;
  * The DNS-sync task rows (deleteDomainDB()/restoreDomainDB()/storeDB()/
  * updateDB() writing to `tasks` with `object='pdns'`) exist purely to feed
  * `eppitnic pdns sync`, which nobody should schedule unless PowerDNS actually
- * serves their zones (docs/INSTALL.md). The insert is gated on
- * settings.pdnsutil_path in the SQL itself, so an installation that never
- * configures it never queues work for a job it isn't running.
+ * serves their zones (docs/INSTALL.md). The insert is gated on the `pdns`
+ * setting's `enabled` field in the SQL itself (a `LIKE '%"enabled":true%'`
+ * substring match against its JSON-encoded text, the same style as
+ * CronjobSettings and every other settings row in this codebase), so an
+ * installation that never turns it on never queues work for a job it isn't
+ * running.
  */
 final class DnsSyncGateTest extends EppTestCase
 {
@@ -46,37 +49,39 @@ final class DnsSyncGateTest extends EppTestCase
         return $out;
     }
 
+    private function seedPdns(string $json): void {
+        R::exec("INSERT INTO settings (`key`, value) VALUES ('pdns', ?)", [$json]);
+    }
+
     public function testNoSettingsRowAtAllMeansNoInsert(): void {
         (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
 
         $this->assertSame([], $this->dnsSyncRows());
     }
 
-    public function testJsonEncodedNullMeansNoInsert(): void {
-        // what Config::set('pdnsutil_path', null) actually writes
-        R::exec("INSERT INTO settings (`key`, value) VALUES ('pdnsutil_path', 'null')");
+    public function testEnabledFalseMeansNoInsert(): void {
+        $this->seedPdns('{"enabled":false,"path":null,"ttl":3600}');
 
         (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
 
         $this->assertSame([], $this->dnsSyncRows());
     }
 
-    public function testAnEmptyStringSettingMeansNoInsert(): void {
-        // what Config::set('pdnsutil_path', '') writes -- deliberately blanked
-        R::exec("INSERT INTO settings (`key`, value) VALUES ('pdnsutil_path', '\"\"')");
-
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
-
-        $this->assertSame([], $this->dnsSyncRows());
-    }
-
-    public function testAConfiguredPathMeansTheRowIsWritten(): void {
-        // what Config::set('pdnsutil_path', '/usr/bin/pdnsutil') writes
-        R::exec("INSERT INTO settings (`key`, value) VALUES ('pdnsutil_path', '\"/usr/bin/pdnsutil\"')");
+    public function testEnabledTrueMeansTheRowIsWritten(): void {
+        $this->seedPdns('{"enabled":true,"path":"/usr/bin/pdnsutil","ttl":3600}');
 
         (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
 
         $this->assertSame(['domain deleted' => ['example.it', 'delete']], $this->dnsSyncRows());
+    }
+
+    /** field order in the JSON must not matter -- LIKE is a plain substring match */
+    public function testEnabledTrueAsTheLastFieldStillOpensTheGate(): void {
+        $this->seedPdns('{"path":"/usr/bin/pdnsutil","ttl":3600,"enabled":true}');
+
+        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+
+        $this->assertNotSame([], $this->dnsSyncRows());
     }
 
     public function testAnUnrelatedSettingDoesNotOpenTheGate(): void {
@@ -95,7 +100,7 @@ final class DnsSyncGateTest extends EppTestCase
         (new Domain($this->nic))->restoreDomainDB('example.it', 1, true);
         $this->assertSame([], $this->dnsSyncRows(), 'closed by default');
 
-        R::exec("INSERT INTO settings (`key`, value) VALUES ('pdnsutil_path', '\"/usr/bin/pdnsutil\"')");
+        $this->seedPdns('{"enabled":true,"path":"/usr/bin/pdnsutil","ttl":3600}');
         (new Domain($this->nic))->restoreDomainDB('example.it', 1, true);
 
         $this->assertSame(['domain restored' => ['example.it', 'create']], $this->dnsSyncRows());

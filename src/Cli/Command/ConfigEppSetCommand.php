@@ -4,24 +4,25 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Config;
-use Eppitnic\Support\Validate;
+use Eppitnic\Service\EppSettings;
 
 /**
- * Set one plain `epp` field: interface, lang, cl_trid_prefix, or username -- a
- * local write only. `server`/`server_deleted`/`port` belong to `config
- * epp-server`, and `password` to the guarded `config epp-password`.
+ * `config epp-set <field> [value]` over the 7 plain `epp.*` fields --
+ * `server`/`server_deleted`/`port`/`interface`/`username`/`lang`/
+ * `cl_trid_prefix`. See EppSettings, the single place that validates,
+ * persists and audits a change here (also used by `PATCH /v1/session/epp`
+ * and, for `server`'s production/test presets, `config epp-server`).
+ * `password` is `config epp-password`'s alone -- a registry round-trip,
+ * unlike every field here, which is a local write only.
  */
 final class ConfigEppSetCommand extends Command
 {
-    private const FIELDS = ['interface', 'lang', 'cl_trid_prefix', 'username'];
-
     public function describe(): string {
-        return 'set one epp.* field: interface, lang, cl_trid_prefix, or username';
+        return 'set one epp.* field: ' . implode(', ', EppSettings::fields());
     }
 
     public function arguments(): string {
-        return '<field> <value>';
+        return '<field> [value]';
     }
 
     public function options(): array {
@@ -34,46 +35,50 @@ final class ConfigEppSetCommand extends Command
     public function run(): int {
         $this->database();
 
+        $fields = EppSettings::fields();
         $field = $this->arguments[0] ?? null;
-        $value = $this->arguments[1] ?? null;
-        if ($field === null || $value === null) {
-            throw new UsageError('give a field (' . implode(', ', self::FIELDS) . ') and a value');
-        }
-        if ( ! in_array($field, self::FIELDS, true)) {
+        if ($field === null || ! in_array($field, $fields, true)) {
             throw new UsageError(
-                "field must be one of: " . implode(', ', self::FIELDS) .
-                " -- see 'config epp-server' for server/port, 'config epp-password' for the password"
+                'give a field (' . implode(', ', $fields) . ') and, optionally, a value to set it to' .
+                " -- see 'config epp-server' for server presets, 'config epp-password' for the password"
             );
         }
 
-        // the registry's own rules, shared with first-run setup rather than
-        // stated twice -- see Support\Validate::eppField()
-        if ($error = Validate::eppField($field, $value)) {
-            throw new UsageError($error);
+        // no value = unset, for the fields that allow it
+        $value = $this->arguments[1] ?? null;
+        $label = "epp.{$field}";
+
+        try {
+            [, $preview] = EppSettings::preview([$field => $value]);
+        } catch (\InvalidArgumentException $e) {
+            throw new UsageError($e->getMessage());
         }
+        $new = $preview[$field];
+        $current = EppSettings::get()[$field] ?? null;
 
-        $epp = Config::get('epp');
-        $current = (string) ($epp[$field] ?? '');
-
-        if ($current === $value) {
-            $this->line("epp.{$field} is already '{$value}'");
+        if ($current === $new) {
+            $this->line("{$label} is already " . ($new === null ? 'unset' : "'{$new}'"));
             return 0;
         }
 
-        if ( ! $this->confirm("Set epp.{$field} to '{$value}'?")) {
+        $verb = $new === null ? 'Unset' : "Set to '{$new}'";
+        if ( ! $this->confirm("{$verb} {$label}?")) {
             $this->line('nothing done');
             return 0;
         }
 
         if ($this->isDryRun()) {
-            $this->line("would set epp.{$field}: '{$current}' -> '{$value}'");
+            $this->line($new === null ? "would unset {$label}" : "would set {$label}: '{$current}' -> '{$new}'");
             return 0;
         }
 
-        $epp[$field] = $value;
-        Config::set('epp', $epp);
+        try {
+            EppSettings::set([$field => $value], $this->userId());
+        } catch (\InvalidArgumentException $e) {
+            throw new UsageError($e->getMessage());
+        }
 
-        $this->record("epp.{$field} set to '{$value}'", ['field' => $field, 'value' => $value]);
+        $this->record("{$label} " . ($new === null ? 'unset' : "set to '{$new}'"), ['field' => $field, 'value' => $new]);
         return 0;
     }
 }

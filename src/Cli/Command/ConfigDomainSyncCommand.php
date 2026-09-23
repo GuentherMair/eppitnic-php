@@ -4,12 +4,14 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
-use Eppitnic\Config;
+use Eppitnic\Service\CronjobSettings;
 
 /**
  * Turn periodic domain/contact reconciliation against the registry on or off
  * -- see docs/INSTALL.md's "Domain reconciliation" for what `domain sync`
- * does with the setting.
+ * does with the setting. A friendlier <on|off> shape over the same field
+ * `config domain-sync-set enabled <true|false>` also reaches; both go
+ * through CronjobSettings, so either is audited the same way.
  */
 final class ConfigDomainSyncCommand extends Command
 {
@@ -37,8 +39,8 @@ final class ConfigDomainSyncCommand extends Command
         }
         $desired = $value === 'on';
 
-        $cfg = Config::get('domain_sync');
-        if ((bool) $cfg['enabled'] === $desired) {
+        $current = (bool) CronjobSettings::get('domain_sync')['enabled'];
+        if ($current === $desired) {
             $this->line("domain sync is already {$value}");
             return 0;
         }
@@ -53,8 +55,7 @@ final class ConfigDomainSyncCommand extends Command
             return 0;
         }
 
-        $cfg['enabled'] = $desired;
-        Config::set('domain_sync', $cfg);
+        CronjobSettings::set('domain_sync', ['enabled' => $desired], $this->userId());
 
         $this->record("domain sync turned {$value}", ['enabled' => $desired]);
         return 0;

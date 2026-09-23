@@ -2,13 +2,16 @@
 
 namespace Eppitnic\Cli;
 
+use Eppitnic\Cli\Command\ConfigDomainReapSetCommand;
 use Eppitnic\Cli\Command\ConfigDomainSyncCommand;
+use Eppitnic\Cli\Command\ConfigDomainSyncSetCommand;
 use Eppitnic\Cli\Command\ConfigEppPasswordCommand;
 use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigEppSetCommand;
 use Eppitnic\Cli\Command\ConfigKeepaliveCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
 use Eppitnic\Cli\Command\ConfigPdnsSetCommand;
+use Eppitnic\Cli\Command\ConfigPollProcessSetCommand;
 use Eppitnic\Cli\Command\ConfigSafeNetworksCommand;
 use Eppitnic\Cli\Command\ConfigSessionSerializeCommand;
 use Eppitnic\Cli\Command\ConfigShowCommand;
@@ -18,6 +21,7 @@ use Eppitnic\Cli\Command\ContactDeleteCommand;
 use Eppitnic\Cli\Command\ContactFixEmailPrivacyCommand;
 use Eppitnic\Cli\Command\ContactInfoCommand;
 use Eppitnic\Cli\Command\ContactUpdateCommand;
+use Eppitnic\Cli\Command\CronRunCommand;
 use Eppitnic\Cli\Command\DoctorEppPasswordCommand;
 use Eppitnic\Cli\Command\DoctorInactiveDomainsCommand;
 use Eppitnic\Cli\Command\DoctorNormalizePayloadsCommand;
@@ -98,6 +102,7 @@ final class Application
             'doctor epp-password'       => DoctorEppPasswordCommand::class,
             'doctor normalize-payloads' => DoctorNormalizePayloadsCommand::class,
             'pdns sync'                 => PdnsSyncCommand::class,
+            'cron run'                  => CronRunCommand::class,
             'selftest run'              => SelftestRunCommand::class,
             'selftest reap'             => SelftestReapCommand::class,
             'setup'                     => SetupCommand::class,
@@ -109,7 +114,10 @@ final class Application
             'config epp-password'       => ConfigEppPasswordCommand::class,
             'config keepalive'          => ConfigKeepaliveCommand::class,
             'config domain-sync'        => ConfigDomainSyncCommand::class,
+            'config domain-sync-set'    => ConfigDomainSyncSetCommand::class,
+            'config domain-reap-set'    => ConfigDomainReapSetCommand::class,
             'config pdns-set'           => ConfigPdnsSetCommand::class,
+            'config poll-process-set'   => ConfigPollProcessSetCommand::class,
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
             'config safe-networks'      => ConfigSafeNetworksCommand::class,
             'config migrate'            => ConfigMigrateCommand::class,

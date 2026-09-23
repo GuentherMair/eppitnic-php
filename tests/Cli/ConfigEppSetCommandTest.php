@@ -11,7 +11,8 @@ use RedBeanPHP\R;
 /**
  * `config epp-set` -- a local settings write only, no registry session
  * opens (unlike `config epp-password`, which every one of these fields is
- * deliberately kept separate from).
+ * deliberately kept separate from). Field rules themselves are
+ * EppSettingsTest's job; this covers the CLI shape around them.
  */
 final class ConfigEppSetCommandTest extends EppTestCase
 {
@@ -22,7 +23,10 @@ final class ConfigEppSetCommandTest extends EppTestCase
             R::setup('sqlite::memory:');
         }
         R::exec('DROP TABLE IF EXISTS settings');
+        R::exec('DROP TABLE IF EXISTS history');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
+        R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
 
         Config::loadForTesting(static::SETTINGS);
     }
@@ -94,6 +98,46 @@ final class ConfigEppSetCommandTest extends EppTestCase
     public function testRejectsAnUnknownField(): void {
         $this->expectException(UsageError::class);
         (new ConfigEppSetCommand(['--yes', 'password', 'whatever']))->run();
+    }
+
+    public function testSetsThePort(): void {
+        $this->runCommand(['--yes', 'port', '8443']);
+        $this->assertSame(8443, Config::get('epp')['port']);
+    }
+
+    public function testRejectsAPortOutOfRange(): void {
+        $this->expectException(UsageError::class);
+        (new ConfigEppSetCommand(['--yes', 'port', '99999']))->run();
+    }
+
+    public function testSetsServerDeleted(): void {
+        $this->runCommand(['--yes', 'server_deleted', 'https://epp-deleted.example.it']);
+        $this->assertSame('https://epp-deleted.example.it', Config::get('epp')['server_deleted']);
+    }
+
+    public function testRejectsAnHttpServer(): void {
+        $this->expectException(UsageError::class);
+        (new ConfigEppSetCommand(['--yes', 'server', 'http://epp.nic.it']))->run();
+    }
+
+    public function testOmittingTheValueUnsetsAnOptionalField(): void {
+        $this->runCommand(['--yes', 'port', '8443']);
+        $this->runCommand(['--yes', 'port']);
+        $this->assertNull(Config::get('epp')['port']);
+    }
+
+    public function testOmittingTheValueOnARequiredFieldIsRejected(): void {
+        $this->expectException(UsageError::class);
+        (new ConfigEppSetCommand(['--yes', 'username']))->run();
+    }
+
+    public function testASuccessfulChangeIsRecordedToHistory(): void {
+        $this->runCommand(['--yes', 'lang', 'it']);
+
+        $row = R::getRow("SELECT * FROM history WHERE object = 'epp'");
+        $this->assertNotEmpty($row);
+        $this->assertStringContainsString('lang', $row['data']);
+        $this->assertStringContainsString('it', $row['data']);
     }
 
     public function testDryRunDoesNotWrite(): void {

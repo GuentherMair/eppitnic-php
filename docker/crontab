@@ -1,7 +1,10 @@
-# `poll process` is not optional: it's the only thing that acts on the
-# registry's passwdReminder, so a scheduler that silently stops running it
-# ends with an expired EPP credential and every call failing. This file is
-# the sidecar's whole job -- see compose.yaml's scheduler service.
+# `cron run` is the one verb this sidecar schedules -- it decides
+# internally which jobs (pdns sync, domain sync, domain reap-deletions,
+# poll process, session keepalive) are actually due this tick, from each
+# job's own `enabled`/`frequency_minutes` setting, and runs only those. See
+# docs/INSTALL.md's "Scheduled jobs" for what each one does and how to turn
+# it on (and, for `poll process`, off -- it's the only thing that acts on
+# the registry's passwdReminder, on by default, but the operator's call).
 #
 # EPPITNIC_CONFIG_DIR/EPPITNIC_VAR_DIR are set as image ENV (see the
 # Dockerfile) and would normally just be inherited, but cron implementations
@@ -10,9 +13,9 @@
 # survive that. BusyBox crond's actual behaviour here isn't verified (no
 # Docker on this machine to check), so they're declared explicitly below
 # rather than assumed inherited. Do not "tidy up" this duplication with the
-# Dockerfile's ENV -- without it, `poll process` looks for
-# /app/config/config.php, finds nothing, and fails every five minutes: a
-# scheduler that's silently broken on an otherwise healthy stack.
+# Dockerfile's ENV -- without it, `cron run` looks for /app/config/config.php,
+# finds nothing, and fails every minute: a scheduler that's silently broken
+# on an otherwise healthy stack.
 EPPITNIC_CONFIG_DIR=/data/config
 EPPITNIC_VAR_DIR=/data/var
 
@@ -21,22 +24,8 @@ EPPITNIC_VAR_DIR=/data/var
 # docker/entrypoint.sh's chown). /proc/1/fd/1 is this container's own PID 1
 # (crond itself, run in the foreground -- see compose.yaml) -- the usual way
 # to make a cron job's output land in `docker logs` instead of nowhere.
-*/5 * * * * su-exec www-data /usr/local/bin/eppitnic poll process >> /proc/1/fd/1 2>&1
-
-# Shipped unconditionally: `session keepalive` prints nothing and exits 0
-# whenever the `keepalive` setting is off (the default), so this needs no
-# image change when an installation turns it on. Once a minute, refreshing
-# comfortably inside nic.it's 300s idle timeout -- see docs/INSTALL.md's
-# "Session keep-alive".
-* * * * * su-exec www-data /usr/local/bin/eppitnic session keepalive >> /proc/1/fd/1 2>&1
-
-# Shipped unconditionally: `domain sync` prints nothing and exits 0 whenever
-# the `domain_sync` setting's `enabled` flag is off (the default), so this
-# needs no image change when an installation turns it on. Every 5 minutes,
-# alongside `poll process` -- see docs/INSTALL.md's "Domain reconciliation".
-*/5 * * * * su-exec www-data /usr/local/bin/eppitnic domain sync >> /proc/1/fd/1 2>&1
-
-# Shipped unconditionally: a no-op unless a deletion was actually scheduled
-# via `DELETE /v1/domains/{name}?mode=expiry|date` -- this is what carries it
-# out once due. See docs/INSTALL.md's "Scheduled jobs".
-0-59/15 * * * * su-exec www-data /usr/local/bin/eppitnic domain reap-deletions >> /proc/1/fd/1 2>&1
+#
+# Shipped unconditionally, once a minute: every job it might run is itself
+# a no-op (prints nothing, exits 0) while its own `enabled` flag is off, so
+# this needs no image change when an installation turns one on.
+* * * * * su-exec www-data /usr/local/bin/eppitnic cron run >> /proc/1/fd/1 2>&1

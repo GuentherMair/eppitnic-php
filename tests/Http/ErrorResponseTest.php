@@ -42,7 +42,7 @@ final class ErrorResponseTest extends TestCase
         $app = AppFactory::create();
         Middleware::register($app);
 
-        foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'tasks', 'whois', 'history'] as $file) {
+        foreach (['root', 'network_check', 'users', 'session', 'contact', 'domain', 'tasks', 'cronjobs', 'whois', 'history'] as $file) {
             require EPPITNIC_ROOT . "/src/Api/Routes/{$file}.php";
         }
 
@@ -68,6 +68,7 @@ final class ErrorResponseTest extends TestCase
             'GET /v1/poll-queue'  => ['GET', '/v1/poll-queue'],
             'GET /v1/session/epp/credentials' => ['GET', '/v1/session/epp/credentials'],
             'GET /v1/tasks'       => ['GET', '/v1/tasks'],
+            'GET /v1/cronjobs'    => ['GET', '/v1/cronjobs'],
             'POST /v1/domains'    => ['POST', '/v1/domains'],
             'DELETE /v1/users/1'  => ['DELETE', '/v1/users/1'],
         ];

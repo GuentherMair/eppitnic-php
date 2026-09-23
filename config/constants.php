@@ -63,3 +63,6 @@ if ( ! defined('SELFTEST_FAILED'))       define('SELFTEST_FAILED', 51);
 // setup exit codes (60-69)
 if ( ! defined('SETUP_ALREADY_DONE')) define('SETUP_ALREADY_DONE', 60); // config/config.php already exists
 if ( ! defined('SETUP_FAILED'))       define('SETUP_FAILED', 61);       // credential verification or installation failed
+
+// scheduler exit codes (70-79)
+if ( ! defined('CRON_RUN_FAILED')) define('CRON_RUN_FAILED', 70); // at least one due job's own run() returned non-zero

@@ -3,13 +3,15 @@
 namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
-use Eppitnic\Config;
+use Eppitnic\Service\CronjobSettings;
 use RedBeanPHP\R;
 
 /**
  * Apply pending DNS-sync events to PowerDNS through `pdnsutil`, which must be
- * on the PATH or named by `pdnsutil_path`. create and update share one
- * idempotent path; a delete waits `--delay-hours`, and archives on success.
+ * on the PATH or named by the `pdns` setting's `path` field. create and
+ * update share one idempotent path; a delete waits `--delay-hours`, and
+ * archives on success. A no-op while `pdns.enabled` is off -- see
+ * `config pdns-set enabled true`.
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic pdns sync >> /var/log/eppitnic/pdns-sync.log 2>&1
  */
@@ -21,7 +23,7 @@ final class PdnsSyncCommand extends Command
 
     public function options(): array {
         return [
-            'delay-hours=' => 'hours to wait before applying a delete (default 12)',
+            'delay-hours=' => 'hours to wait before applying a delete (default: pdns.delay_hours)',
             'dry-run'      => 'print the pdnsutil invocations without running any',
         ];
     }
@@ -32,9 +34,15 @@ final class PdnsSyncCommand extends Command
     public function run(): int {
         $this->database();
 
-        $delayHours = (int) $this->option('delay-hours', 12);
-        $this->pdnsutil = (string) (Config::get('pdnsutil_path') ?: 'pdnsutil');
-        $this->ttl = (int) (Config::get('pdnsutil_ttl') ?: 3600);
+        $cfg = CronjobSettings::get('pdns');
+        if ( ! $cfg['enabled']) {
+            $this->line('pdns sync is off (see: eppitnic config pdns-set enabled true)');
+            return 0;
+        }
+
+        $delayHours = (int) $this->option('delay-hours', $cfg['delay_hours'] ?: 12);
+        $this->pdnsutil = (string) ($cfg['path'] ?: 'pdnsutil');
+        $this->ttl = (int) ($cfg['ttl'] ?: 3600);
 
         $rows = R::getAll("SELECT * FROM tasks WHERE object = 'pdns' AND active = 1 AND date <= CURRENT_DATE ORDER BY id ASC");
         if ($rows === []) {

@@ -310,6 +310,81 @@ expected format for `--province`, `--voice`, `--countrycode` and
 `--nationalitycode`; `domain create --help` states that `--admin`, `--tech`
 (1–6) and `--ns` (2–6) are required and how many of each the registry accepts.
 
+The five scheduled jobs (`poll process`, `pdns sync`, `session keepalive`,
+`domain sync`, `domain reap-deletions`) had inconsistent, CLI-only settings
+and no crontab beyond one line each. `pdnsutil_path`/`pdnsutil_ttl` are now
+one `pdns` settings object (`enabled`, `path`, `ttl`, `delay_hours`,
+`frequency_minutes`, `last_run_at`), defaulting to `/usr/bin/pdnsutil`;
+`domain_sync` and a new `domain_reap_deletions` row gained the same
+`enabled`/`frequency_minutes`/`last_run_at` shape (`domain_reap_deletions`
+defaults **on**, since it only ever acts on a deletion a user already
+scheduled through the app); a new `poll_process` row gained
+`frequency_minutes`/`last_run_at` but deliberately no `enabled` — rotating
+the shared EPP password on a `passwdReminder` is not optional, so that job
+has no kill switch. `Service\CronjobSettings` is now the one place that
+validates, persists and audits (`history`, `object='cronjobs'`) a change to
+any of these, shared by both a new `config pdns-set`/`domain-sync-set`/
+`domain-reap-set`/`poll-process-set` CLI shape and the new admin-only
+`GET`/`PATCH /v1/cronjobs*` API — neither reimplements the other's rules.
+`domain sync --batch-size` is now a per-run override only; it no longer
+persists as a side effect of a single run.
+
+A new `eppitnic cron run` decides internally which of those four jobs are
+actually due (`enabled` where applicable, `frequency_minutes` elapsed since
+`last_run_at`) and runs only those, invoking `session keepalive`
+unconditionally every tick alongside them — the one job with no frequency
+of its own. It is now the **only** verb `docker/crontab` and a fresh
+install's crontab need to schedule, replacing what used to be five
+separate lines. The DNS-sync `INSERT` gate in `Epp\Domain` moved from
+`pdnsutil_path IS NOT NULL` to `pdns.enabled = true` accordingly.
+
+The frontend's "EPP settings" page is now "Settings" (`/admin/settings`,
+`nav.settings`), with the previously scattered credential-reveal,
+password-rotation and account-balance controls folded into one "Registry
+EPP settings" block, each nested under the row it belongs to rather than
+in its own card. A new "Scheduled Tasks" table lists all five jobs
+(enabled/execution frequency at a glance); clicking one opens a dialog
+editing that job's own fields through `PATCH /v1/cronjobs/{job}`.
+`history`'s object filter gained `cronjobs`.
+
+The same "Registry EPP settings" block's other 7 plain `epp.*` fields
+(`server`, `server_deleted`, `port`, `interface`, `username`, `lang`,
+`cl_trid_prefix`) are now editable the same way, through a new
+`Service\EppSettings` -- the class `config epp-set`/`config epp-server`
+and the new admin-only `PATCH /v1/session/epp` share, so a change made on
+the command line or through the API is validated and audited identically
+(`history`, `object='epp'`, a gap `config epp-set`/`config epp-server`
+previously had neither). `server`/`server_deleted` must now be a valid
+`https://` URL and `port` 1-65535 -- both previously unvalidated;
+`username`/`lang`/`cl_trid_prefix` cannot be unset, since every one of
+them is structurally required for any EPP call to succeed at all. The
+`interface` field (`CURLOPT_INTERFACE`, confirmed still read by
+`Client`/`Transport\Curl`, not dead) is now chosen from a dropdown of this
+server's own IPv4 addresses (`GET /v1/session/epp/interfaces`, loopback
+excluded), queried fresh each time the edit dialog opens, rather than
+typed freehand. `lang` is a two-way toggle between `it`/`en`. The
+read-only list's labels are translated instead of showing raw field
+names, and `username` moved to the end, right before "Password set".
+`History::OBJECTS` (the `object` allow-list `POST /v1/history/acknowledge`
+checks against) had drifted out of sync with the schema's own ENUM since
+`cronjobs` was added; both `cronjobs` and `epp` are in it now.
+
+`poll_process` gained the `enabled` flag it was originally built without on
+purpose -- rotating the shared EPP password on a `passwdReminder` still
+runs from here by default (`enabled: true`), but an operator who wants to
+turn it off now can, through the same `config poll-process-set enabled
+<true|false>` / `PATCH /v1/cronjobs/poll_process` path every other job
+uses. `poll process` itself gained the matching guard (a no-op while off,
+same as `pdns sync`/`domain sync`/`domain reap-deletions`), and a
+`--dry-run` flag it always silently rejected as an unknown option is now
+declared, so that rejection's own explanatory message is what a caller
+actually sees. The frontend's cronjobs dialog shows a warning, naming what
+stops working, while the checkbox is unchecked.
+
+`domain_sync` (domains and their linked contacts) is now **on by default**
+too, alongside `domain_reap_deletions`/`poll_process` -- only `pdns`
+remains off, since it depends on PowerDNS actually serving the zones.
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

@@ -5,6 +5,7 @@ use Eppitnic\Api\Json;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
 use Eppitnic\Service\EppSession;
+use Eppitnic\Service\EppSettings;
 use Eppitnic\Service\RegistryPasswordChange;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -34,6 +35,60 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
     $public['rotation_pending'] = ($epp['pendingPassword'] ?? '') !== '';
 
     return Json::response($response, ['epp' => $public]);
+});
+
+/**
+ * The 7 plain `epp.*` fields -- see EppSettings, the same class `config
+ * epp-set`/`config epp-server` use, so a change made here or on the command
+ * line is validated and audited identically (`history`, `object='epp'`).
+ * `password` is not one of these -- POST /v1/session/change-password.
+ */
+$app->patch('/v1/session/epp', function (Request $request, Response $response, array $args): Response {
+    $user_id = Auth::requireAdmin($request);
+    $body = $request->getParsedBody() ?? [];
+
+    try {
+        EppSettings::set($body, $user_id);
+    } catch (\InvalidArgumentException $e) {
+        return Json::response($response, ['error' => $e->getMessage()], 400);
+    }
+
+    $epp = Config::get('epp');
+    $public = [];
+    foreach (Config::EPP_PUBLIC_FIELDS as $field) {
+        $public[$field] = $epp[$field] ?? null;
+    }
+    $public['password_set'] = ($epp['password'] ?? '') !== '';
+    $public['rotation_pending'] = ($epp['pendingPassword'] ?? '') !== '';
+
+    return Json::response($response, ['epp' => $public]);
+});
+
+/**
+ * The server's own IPv4 addresses, for the `interface` field's picker --
+ * that field binds outgoing registry connections to one of them
+ * (CURLOPT_INTERFACE), so a free-text value is one typo away from a
+ * connection that silently never leaves the box. Loopback is excluded: it
+ * can never route to the registry.
+ */
+$app->get('/v1/session/epp/interfaces', function (Request $request, Response $response, array $args): Response {
+    Auth::requireAdmin($request);
+
+    $addresses = [];
+    foreach (net_get_interfaces() ?: [] as $interface) {
+        foreach ($interface['unicast'] ?? [] as $unicast) {
+            $address = $unicast['address'] ?? null;
+            if ($address === null || ($unicast['family'] ?? null) !== 2 /* AF_INET */) {
+                continue;
+            }
+            if (str_starts_with($address, '127.')) {
+                continue;
+            }
+            $addresses[$address] = true;
+        }
+    }
+
+    return Json::response($response, ['interfaces' => array_keys($addresses)]);
 });
 
 /**

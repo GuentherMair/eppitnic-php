@@ -210,7 +210,23 @@ final class DomainSyncCommandTest extends EppTestCase
         $this->assertSame(0, $cfg['cursor_id']);
     }
 
-    public function testBatchSizeOptionPersistsEvenWhileOff(): void {
+    /**
+     * --batch-size overrides this run only -- unlike before, it no longer
+     * rewrites the stored default as a side effect (config domain-sync-set
+     * batch_size is the way to actually change that).
+     */
+    public function testBatchSizeOptionDoesNotPersist(): void {
+        $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
+
+        $command = new DomainSyncCommand(['--batch-size=10']);
+        $command->useClient($this->nic);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+        $this->assertSame(0, $command->run());
+
+        $this->assertSame(25, Config::get('domain_sync')['batch_size'], 'the CLI override leaked into the stored setting');
+    }
+
+    public function testBatchSizeOptionHasNoEffectWhileOff(): void {
         $this->withSettings(['enabled' => false, 'batch_size' => 25, 'cursor_id' => 0]);
 
         $command = new DomainSyncCommand(['--batch-size=10']);
@@ -218,7 +234,8 @@ final class DomainSyncCommandTest extends EppTestCase
         $command->useErrorStream(fopen('php://memory', 'w+'));
         $this->assertSame(0, $command->run());
 
-        $this->assertSame(10, Config::get('domain_sync')['batch_size']);
+        $this->assertCount(0, $this->transport->requests, 'off means off, regardless of --batch-size');
+        $this->assertSame(25, Config::get('domain_sync')['batch_size']);
     }
 
     public function testRejectsAnOutOfRangeBatchSize(): void {

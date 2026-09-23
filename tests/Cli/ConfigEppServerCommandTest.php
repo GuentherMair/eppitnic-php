@@ -25,7 +25,10 @@ final class ConfigEppServerCommandTest extends EppTestCase
             R::setup('sqlite::memory:');
         }
         R::exec('DROP TABLE IF EXISTS settings');
+        R::exec('DROP TABLE IF EXISTS history');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
+        R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
 
         // EppTestCase::SETTINGS['epp']['server'] is already the pubtest
         // endpoint, which doubles as this suite's "current = test" case
@@ -64,6 +67,10 @@ final class ConfigEppServerCommandTest extends EppTestCase
         $warnings = (string) stream_get_contents($errors);
         $this->assertStringContainsString('LIVE production', $warnings);
         $this->assertStringContainsString('separate accounts', $warnings);
+
+        $row = R::getRow("SELECT * FROM history WHERE object = 'epp'");
+        $this->assertNotEmpty($row);
+        $this->assertSame(self::PRODUCTION, json_decode($row['data'], true)['changes']['server']);
     }
 
     public function testTogglesFromTestToProduction(): void {

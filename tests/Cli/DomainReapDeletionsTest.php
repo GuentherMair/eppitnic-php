@@ -3,6 +3,7 @@
 namespace Eppitnic\Tests\Cli;
 
 use Eppitnic\Cli\Command\DomainReapDeletionsCommand;
+use Eppitnic\Config;
 use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
 use Eppitnic\Tests\Support\FakeTransport;
@@ -31,6 +32,10 @@ final class DomainReapDeletionsTest extends EppTestCase
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, value TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, data TEXT)');
+
+        Config::loadForTesting(static::SETTINGS + [
+            'domain_reap_deletions' => ['enabled' => true, 'frequency_minutes' => 15, 'last_run_at' => null],
+        ]);
     }
 
     private function addDomain(string $name): void {

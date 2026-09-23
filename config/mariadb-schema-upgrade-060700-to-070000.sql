@@ -433,7 +433,7 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp') NOT NULL,
   `object_id`             int(11) NOT NULL,
   `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
@@ -691,16 +691,33 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('session_serialize', 'false'),
   ('session_cookies', '{}'),
   ('session_timestamp', '0'),
-  ('pdnsutil_path', 'null'),
-  ('pdnsutil_ttl', '3600'),
+  -- pdns: `pdns sync`'s settings, gated by `enabled` (off by default) --
+  -- see the DNS-sync INSERT gates in src/Epp/Domain.php, which read this
+  -- same key. path: pdnsutil binary (a real path, not PATH-relative,
+  -- since is_executable() must be able to check it -- `config pdns-set
+  -- path` with no value unsets it back to a plain `pdnsutil` PATH lookup).
+  -- ttl: seconds new NS records get. delay_hours: how long a queued
+  -- deletion waits before it is actually applied. frequency_minutes/
+  -- last_run_at: `cron run`'s own due-check bookkeeping.
+  ('pdns', '{"enabled":false,"path":"/usr/bin/pdnsutil","ttl":3600,"delay_hours":12,"frequency_minutes":15,"last_run_at":null}'),
   -- domain_sync: periodic `domain sync` reconciliation against the registry
   -- (domain check/domain info), plus a refresh of every linked contact via
-  -- contact info. enabled: off by default, mirroring keepalive -- turn on
-  -- via `config domain-sync on`. batch_size: how many active domains one
+  -- contact info. enabled: on by default -- turn off via
+  -- `config domain-sync off`. batch_size: how many active domains one
   -- run processes. cursor_id: the last domains.id processed, so the next
   -- run resumes after it and wraps to the start once every active domain
-  -- has been covered.
-  ('domain_sync', '{"enabled":false,"batch_size":25,"cursor_id":0}')
+  -- has been covered. frequency_minutes/last_run_at: `cron run` bookkeeping.
+  ('domain_sync', '{"enabled":true,"batch_size":25,"cursor_id":0,"frequency_minutes":5,"last_run_at":null}'),
+  -- domain_reap_deletions: carries out a domain deletion once its
+  -- DELETE /v1/domains/{name}?mode=expiry|date schedule comes due. Enabled
+  -- by default -- unlike pdns it needs no external infrastructure, only
+  -- ever acts on deletions a user explicitly scheduled through the app
+  -- itself, and is a no-op until one exists.
+  ('domain_reap_deletions', '{"enabled":true,"frequency_minutes":15,"last_run_at":null}'),
+  -- poll_process: enabled by default -- rotating the shared EPP password
+  -- on a passwdReminder normally runs from here, so this starts on;
+  -- turning it off is a real foot-gun, but the operator's call to make.
+  ('poll_process', '{"enabled":true,"frequency_minutes":5,"last_run_at":null}')
   -- idempotent: a half-finished or hand-seeded `settings` table would
   -- otherwise abort on the first duplicate key. Existing values win --
   -- this seeds defaults, never overwrites an operator's configuration.

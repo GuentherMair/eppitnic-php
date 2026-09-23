@@ -893,12 +893,12 @@ class Domain extends AbstractObject
     if ($notifyDNS) {
       // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the
       // zone. The SELECT is the gate -- a row is only written when
-      // pdnsutil_path is actually configured, so nothing queues up for a
-      // sync job nobody is going to schedule.
+      // pdns.enabled is actually true, so nothing queues up for a sync job
+      // nobody has turned on.
       R::exec("
         INSERT INTO tasks (domain, date, notice, object, action)
         SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
-        WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+        WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
       ", [$this->domain, 'domain created']);
     }
 
@@ -1002,12 +1002,12 @@ class Domain extends AbstractObject
     History::record('domains', $this->storageId($domain), 'update', $data, $user_id);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update, and
-    // only when pdnsutil_path is actually configured -- see storeDB()
+    // only when pdns.enabled is actually true -- see storeDB()
     if (in_array('ns', $changes, true)) {
       R::exec("
         INSERT INTO tasks (domain, date, notice, object, action)
         SELECT ?, CURRENT_DATE, ?, 'pdns', 'update' FROM settings
-        WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+        WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
       ", [$domain, 'nameservers changed']);
     }
 
@@ -1201,11 +1201,11 @@ class Domain extends AbstractObject
     }
 
     // DNS-sync queue: `eppitnic pdns sync` tears the zone down (delay-gated),
-    // and only when pdnsutil_path is actually configured -- see storeDB()
+    // and only when pdns.enabled is actually true -- see storeDB()
     R::exec("
       INSERT INTO tasks (domain, date, notice, object, action)
       SELECT ?, CURRENT_DATE, ?, 'pdns', 'delete' FROM settings
-      WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+      WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
     ", [$domain, 'domain deleted']);
 
     return TRUE;
@@ -1226,11 +1226,11 @@ class Domain extends AbstractObject
     }
 
     // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to
-    // come back, same pdnsutil_path gate
+    // come back, same pdns.enabled gate
     R::exec("
       INSERT INTO tasks (domain, date, notice, object, action)
       SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
-      WHERE `key` = 'pdnsutil_path' AND value NOT IN ('null', '\"\"', '')
+      WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
     ", [$domain, 'domain restored']);
 
     return TRUE;

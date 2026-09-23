@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
+use Eppitnic\Service\EppSettings;
 
 /**
  * Show, set, or toggle which endpoint `epp.server` points at -- a local write
@@ -95,8 +96,7 @@ final class ConfigEppServerCommand extends Command
             return 0;
         }
 
-        $epp['server'] = $new;
-        Config::set('epp', $epp);
+        EppSettings::set(['server' => $new], $this->userId());
 
         $this->warn(
             "username/password/cl_trid_prefix were left untouched -- production and the " .

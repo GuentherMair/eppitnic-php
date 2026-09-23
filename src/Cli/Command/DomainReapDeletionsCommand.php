@@ -4,6 +4,7 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Service\CronjobSettings;
 use RedBeanPHP\R;
 
 /**
@@ -13,7 +14,9 @@ use RedBeanPHP\R;
  * reaches the registry once the date arrives. The query is the gate: this
  * command must never act on a `registry` row that isn't explicitly a
  * delete, so `action = 'delete'` is part of the SQL itself, not a PHP-level
- * check that a future row shape could quietly bypass.
+ * check that a future row shape could quietly bypass. A no-op while
+ * `domain_reap_deletions.enabled` is off -- on by default, unlike
+ * `pdns`/`domain_sync` (see `config domain-reap-set`).
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic domain reap-deletions >> /var/log/eppitnic/domain-reap-deletions.log 2>&1
  */
@@ -31,6 +34,11 @@ final class DomainReapDeletionsCommand extends Command
 
     public function run(): int {
         $this->database();
+
+        if ( ! CronjobSettings::get('domain_reap_deletions')['enabled']) {
+            $this->line('domain reap-deletions is off (see: eppitnic config domain-reap-set enabled true)');
+            return 0;
+        }
 
         $rows = R::getAll("SELECT * FROM tasks WHERE object = 'registry' AND action = 'delete' AND active = 1 AND date <= CURRENT_DATE ORDER BY id ASC");
         if ($rows === []) {

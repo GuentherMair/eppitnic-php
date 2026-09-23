@@ -56,8 +56,10 @@ final class PdnsSyncTest extends EppTestCase
         $this->zoneDir = $dir;
 
         Config::loadForTesting(self::SETTINGS + [
-            'pdnsutil_path' => $this->stub,
-            'pdnsutil_ttl'  => 3600,
+            'pdns' => [
+                'enabled' => true, 'path' => $this->stub, 'ttl' => 3600,
+                'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
+            ],
         ]);
     }
 

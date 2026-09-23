@@ -129,6 +129,16 @@ final class Validate
         }
 
         return match ($field) {
+            // Client's transport only ever speaks TLS to the registry
+            'server', 'server_deleted' => (str_starts_with($value, 'https://') && filter_var($value, FILTER_VALIDATE_URL) !== false)
+                ? null
+                : "{$field} must be a valid https:// URL",
+
+            // CURLOPT_PORT -- see Client::__construct()/Transport\Curl::setPort()
+            'port' => (ctype_digit($value) && (int) $value >= 1 && (int) $value <= 65535)
+                ? null
+                : 'port must be between 1 and 65535',
+
             'interface' => filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
                 ? 'interface must be an IPv4 address'
                 : null,

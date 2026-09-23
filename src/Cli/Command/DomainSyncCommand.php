@@ -7,6 +7,7 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Service\CronjobSettings;
 use RedBeanPHP\R;
 
 /**
@@ -17,7 +18,7 @@ use RedBeanPHP\R;
  * invocation advances a persisted cursor (the `domain_sync` setting) through
  * `domains.id`, wrapping back to the start once exhausted, so a
  * continuously-scheduled job eventually revisits every active domain without
- * ever making an unbounded number of registry calls in one tick. Off by
+ * ever making an unbounded number of registry calls in one tick. On by
  * default -- see `config domain-sync`.
  */
 final class DomainSyncCommand extends Command
@@ -28,7 +29,7 @@ final class DomainSyncCommand extends Command
 
     public function options(): array {
         return [
-            'batch-size='  => 'set and persist how many active domains this and future runs process per tick (default: 25)',
+            'batch-size='  => 'how many active domains this run processes, overriding domain_sync.batch_size for this run only (default: that setting)',
             'report-only'  => 'check and fetch against the real registry as normal, but write nothing locally and do not advance the cursor',
         ];
     }
@@ -36,23 +37,22 @@ final class DomainSyncCommand extends Command
     public function run(): int {
         $this->database();
 
-        $cfg = Config::get('domain_sync');
-
-        if ($this->hasOption('batch-size')) {
-            $size = (int) $this->option('batch-size');
-            if ($size < 1 || $size > 500) {
-                throw new UsageError('--batch-size must be between 1 and 500');
-            }
-            $cfg['batch_size'] = $size;
-            Config::set('domain_sync', $cfg);
-        }
+        $cfg = CronjobSettings::get('domain_sync');
 
         if ( ! $cfg['enabled']) {
             $this->line('domain sync is off (see: eppitnic config domain-sync on)');
             return 0;
         }
 
-        $candidates = $this->nextBatch((int) $cfg['cursor_id'], (int) $cfg['batch_size']);
+        $batchSize = (int) $cfg['batch_size'];
+        if ($this->hasOption('batch-size')) {
+            $batchSize = (int) $this->option('batch-size');
+            if ($batchSize < 1 || $batchSize > 500) {
+                throw new UsageError('--batch-size must be between 1 and 500');
+            }
+        }
+
+        $candidates = $this->nextBatch((int) $cfg['cursor_id'], $batchSize);
         if ($candidates === []) {
             $this->line('no active domains to reconcile');
             return 0;

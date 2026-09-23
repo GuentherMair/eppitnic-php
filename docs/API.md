@@ -383,6 +383,8 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 | `GET /` | public | plaintext "Hello, World!", not JSON — liveness check only |
 | `GET /v1/network-check` | public | `{"safe_network": bool, "client_ip": "..."}` — used pre-login to decide if the UI should prompt for a TOTP field |
 | `GET /v1/session/epp` | admin | the shared EPP registry account this installation uses, `{"epp": {...}}`: `server`, `server_deleted`, `port`, `interface`, `username`, `lang`, `cl_trid_prefix`, `lastPasswordUpdate` (unix timestamp of the last automated password rotation attempt, `0` = never), plus `password_set` (bool) and `rotation_pending` (bool — a password rotation was interrupted; run `eppitnic doctor epp-password`). Local DB only, no registry round-trip. **The password itself is never returned** — the field list is an allow-list, so anything added to the `epp` setting later is withheld until explicitly published |
+| `PATCH /v1/session/epp` | admin | change any of those same 7 plain fields (not `password`, see below). Body = partial field map, e.g. `{"lang": "it"}`; `null` (or blank) unsets an optional field (`server_deleted`/`port`/`interface`) — `server`/`username`/`lang`/`cl_trid_prefix` are required and `400` if unset. `400` on an unknown field or a failed validator. Recorded to `history` (`object='epp'`). Returns the same shape `GET /v1/session/epp` does. Shares its validation with `config epp-set`/`config epp-server`, so neither can disagree with the other |
+| `GET /v1/session/epp/interfaces` | admin | this server's own IPv4 addresses (loopback excluded), `{"interfaces": ["..."]}` — what a UI offers as choices for the `interface` field, so a typo can't silently bind outgoing registry connections to nothing. Queried live via `net_get_interfaces()`, not cached |
 | `GET /v1/session/credit` | user | live EPP registry account balance, `{"credit": "..."}`; 502 if the registry session fails |
 | `GET /v1/session/epp/credentials` | admin | the shared EPP registry credential itself — `{"credentials": {"server", "username", "password"}}`. Separate from `GET /v1/session/epp` on purpose: that one is what a settings screen loads, and a secret delivered as a side effect of rendering a page ends up in caches, proxy logs and screenshots. Exists because the password is rotated automatically — after `eppitnic poll process` acts on a `passwdReminder`, this is the only way short of a SQL client to learn the current one. When a rotation was interrupted the response also carries `pending_password` and a `note`: the registry holds one of the two and only it can say which. `404` when no password is configured. **Every retrieval is recorded** in `history` as a `security`/`secread` row: the acting user, the client IP, and the request headers. The password is not written, and `Authorization`, `Cookie` and `Proxy-Authorization` are stored as `[redacted]` — they are themselves credentials, and the log is read by more people than the password was shown to. A refused request records nothing |
 | `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — records the new password in the `settings` table, then logs into EPP with it to make the change. Body `{"password"?: "..."}` (random if omitted; 16 characters is the EPP maximum). 500/502/400 when the settings write, the registry connection or the registry itself fails. A failure before the registry is reached leaves the current credential untouched; one after it is settled by `eppitnic doctor epp-password` |
@@ -498,6 +500,27 @@ the next run to retry.
 | `GET /v1/domains/{name}/tasks` | user | scoped to domains the caller owns (or all, if admin); only `active = 1` rows with `object IS NULL` (the human-notice use case), and only `{id, date, domain, email, notice}` |
 | `POST /v1/domains/{name}/tasks` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
 | `DELETE /v1/tasks/{id}` | user | soft-delete (`active = 0`); 403 if the task's domain isn't owned by the caller |
+
+### Cronjobs
+
+The five scheduled jobs' settings (`docs/INSTALL.md`'s "Scheduled jobs") --
+the same `Eppitnic\Service\CronjobSettings` every `config *-set` CLI command
+uses, so a change made here or on the command line is validated and audited
+identically (`history`, `object='cronjobs'`).
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/cronjobs` | admin | every job's current settings, as `{"jobs": {"pdns": {...}, "domain_sync": {...}, "domain_reap_deletions": {...}, "poll_process": {...}, "keepalive": {...}}}`. Job-state fields (`cursor_id`, `last_run_at`) are included read-only, not part of what `PATCH` accepts |
+| `PATCH /v1/cronjobs/{job}` | admin | body = partial field map for that job, e.g. `{"enabled": true, "frequency_minutes": 10}`. `400` with `{"error": "..."}` on an unknown job/field or a failed validator (same message the CLI's usage error already produces). `{"force": true}` in the body overrides `pdns.path`'s `is_executable()` check, mirroring `config pdns-set path --force`. Returns `{"job": "...", "settings": {...}}`, the job's full updated settings |
+
+Every job here has `enabled` except `keepalive`, which has no `enabled`
+field of its own everywhere else it's read (`Config::get('keepalive')` is a
+bare bool) -- this route wraps it as `{"enabled": bool}` only for a
+uniform response shape, matching every other job. Turning `poll_process`
+off stops the shared registry password from auto-rotating on a
+`passwdReminder`, alongside the queue drain and transfer reconciliation --
+a real foot-gun, but the operator's call to make (see "Scheduled jobs" and
+the frontend's warning in that job's dialog).
 
 ### History (audit trail)
 

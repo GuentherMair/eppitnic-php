@@ -126,8 +126,11 @@ final class ConfigMigrateCommand extends Command
           'session_serialize' => false,
           'session_cookies'   => [],
           'session_timestamp' => 0,
-          'pdnsutil_path'   => null, // no config.xml source
-          'pdnsutil_ttl'    => 3600, // no config.xml source
+          // no config.xml source -- off, PATH lookup, defaults throughout
+          'pdns' => [
+            'enabled' => false, 'path' => null, 'ttl' => 3600,
+            'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
+          ],
         ];
 
         foreach ($settings as $key => $value) {
@@ -136,7 +139,7 @@ final class ConfigMigrateCommand extends Command
         }
 
         $this->line("\nDone. jwt_psk was auto-generated. safe_networks, allowed_origins/headers/methods,");
-        $this->line("certificatefile and pdnsutil_path/pdnsutil_ttl have no config.xml source -- review");
+        $this->line("certificatefile and pdns have no config.xml source -- review");
         $this->line("and adjust them by hand.");
 
         return 0;
