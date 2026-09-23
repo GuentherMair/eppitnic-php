@@ -175,9 +175,13 @@ reminder asked for it — in that order, hence one verb, not three. `--no-rotate
 and `--no-transfers` drop a step. It never prompts.
 
 `pdns sync` applies pending DNS-sync events to PowerDNS via `pdnsutil` (on
-`PATH` or named by the `pdnsutil_path` setting). Only schedule it if PowerDNS
-serves your zones. Zone deletions wait out `--delay-hours` (12 by default);
-`--dry-run` prints the `pdnsutil` invocations without running them.
+`PATH`, or named by the `pdnsutil_path` setting -- `config pdns-set path
+/path/to/pdnsutil`, verified executable unless `--force`; `config pdns-set
+path` with no value unsets it back to a plain `PATH` lookup). Only schedule
+it if PowerDNS serves your zones. Zone deletions wait out `--delay-hours`
+(12 by default); `--dry-run` prints the `pdnsutil` invocations without
+running them. `config pdns-set ttl <seconds>` sets the TTL new NS records
+get (default 3600, also unset the same way).
 
 `session keepalive` only does anything when `keepalive` is on (see "Session
 keep-alive" below) — schedule it unconditionally, since it prints nothing and
