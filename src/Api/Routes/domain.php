@@ -538,10 +538,11 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
         }
 
-        // object='registry': `domain reap-deletions` reads this and deletes
-        // the domain at the registry once `date` arrives. No `action` --
-        // that column is `pdns sync`'s own, not this consumer's.
-        R::exec("INSERT INTO tasks (domain, date, notice, email, object) VALUES (:domain, :date, :notice, '', 'registry')", [
+        // object='registry', action='delete': `domain reap-deletions` reads
+        // this and deletes the domain at the registry once `date` arrives.
+        // The explicit action is what lets that job's own query say, in SQL,
+        // that a delete is the only thing it will ever act on.
+        R::exec("INSERT INTO tasks (domain, date, notice, email, object, action) VALUES (:domain, :date, :notice, '', 'registry', 'delete')", [
             ':domain' => $name,
             ':date'   => $date ?: $row['ex_date'],
             ':notice' => 'scheduled deletion',

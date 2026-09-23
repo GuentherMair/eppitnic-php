@@ -340,10 +340,19 @@ ALTER TABLE reminder
   ADD CONSTRAINT FOREIGN KEY (`domain`) REFERENCES domains(domain) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- Backfill: every row already carrying an `action` was written by one of the
--- four DNS-sync call sites, so it is unambiguously a `pdns` task. There is
--- no equally safe backfill for `object = 'registry'` -- see this file's
--- header note on the scheduled-deletion write site's notice text.
+-- four DNS-sync call sites, so it is unambiguously a `pdns` task.
 UPDATE tasks SET `object` = 'pdns' WHERE `action` IS NOT NULL;
+
+-- 'automaticDelete' is the pre-7.0 scheduled-deletion notice -- a fixed,
+-- machine-written value, unlike the current feature's 'scheduled deletion'
+-- text, which a human could in principle type into the free-text per-domain
+-- notice endpoint too and so is not backfilled the same way. Rewritten to
+-- match exactly what `DELETE /v1/domains/{name}?mode=expiry|date` itself
+-- writes today (object, action and notice alike) -- `domain reap-deletions`
+-- only ever reads object='registry' AND action='delete', and a legacy row
+-- that looked any different from a fresh one would sit inert forever.
+UPDATE tasks SET `object` = 'registry', `action` = 'delete', `notice` = 'scheduled deletion'
+WHERE `notice` = 'automaticDelete' AND `object` IS NULL;
 
 -- The two ownership FKs the target schema declares (contacts/domains
 -- .user_id -> users.id), added only if a 6.7 dump doesn't already carry

@@ -120,11 +120,13 @@ also records what happened once it has actually run a row: `executed_time`,
 retires the row (`active=0`); a failure or a skip records the result but
 stays active, so the next run retries it — unchanged from `pdns sync`'s
 existing behaviour, just now visible instead of silent. A new
-`eppitnic domain reap-deletions` is the `object='registry'` counterpart to
-`pdns sync`: it is what actually deletes a domain at the registry once a
-`DELETE /v1/domains/{name}?mode=expiry|date` schedule comes due — previously
-nothing consumed those rows at all. `GET /v1/reminders` and its siblings are
-now `GET /v1/tasks`.
+`eppitnic domain reap-deletions` is the `object='registry'`, `action='delete'`
+counterpart to `pdns sync`: it is what actually deletes a domain at the
+registry once a `DELETE /v1/domains/{name}?mode=expiry|date` schedule comes
+due — previously nothing consumed those rows at all. Both parts of that pair
+are required in the job's own query, not just the write side, so a `registry`
+row of any other shape is never touched. `GET /v1/reminders` and its siblings
+are now `GET /v1/tasks`.
 
 The `changelog` table is now `history`, because not everything it records is a
 change: it gained a `security` object type and `secread`, `login` and `denied`

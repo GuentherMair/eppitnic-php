@@ -38,8 +38,19 @@ final class DomainReapDeletionsTest extends EppTestCase
     }
 
     private function addDueTask(string $domain, string $date = 'today'): int {
-        R::exec("INSERT INTO tasks (domain, date, notice, object, active) VALUES (?, ?, 'scheduled deletion', 'registry', 1)",
+        R::exec("INSERT INTO tasks (domain, date, notice, object, action, active) VALUES (?, ?, 'scheduled deletion', 'registry', 'delete', 1)",
             [$domain, date('Y-m-d', strtotime($date))]);
+        return (int) R::getCell('SELECT id FROM tasks WHERE domain = ? ORDER BY id DESC LIMIT 1', [$domain]);
+    }
+
+    /**
+     * A registry row that isn't explicitly a delete -- object='registry' but
+     * no (or a different) action -- must never be picked up. The query
+     * itself is the gate, not a PHP-level check.
+     */
+    private function addNonDeleteRegistryTask(string $domain, ?string $action, string $date = 'today'): int {
+        R::exec("INSERT INTO tasks (domain, date, notice, object, action, active) VALUES (?, ?, 'not a deletion', 'registry', ?, 1)",
+            [$domain, date('Y-m-d', strtotime($date)), $action]);
         return (int) R::getCell('SELECT id FROM tasks WHERE domain = ? ORDER BY id DESC LIMIT 1', [$domain]);
     }
 
@@ -128,6 +139,25 @@ final class DomainReapDeletionsTest extends EppTestCase
         $output = $this->reap([], []);
 
         $this->assertStringContainsString('no deletions due', $output);
+    }
+
+    /**
+     * object='registry' alone is not enough -- only action='delete' makes a
+     * row this command's to act on. A row with no action at all, or some
+     * other action, must be left completely untouched: not deleted, not
+     * even read into the batch.
+     */
+    public function testARegistryRowThatIsNotADeleteIsIgnored(): void {
+        $this->addDomain('example-one.it');
+        $noAction = $this->addNonDeleteRegistryTask('example-one.it', null);
+        $this->addDomain('example-two.it');
+        $wrongAction = $this->addNonDeleteRegistryTask('example-two.it', 'create');
+
+        $output = $this->reap([], []);
+
+        $this->assertStringContainsString('no deletions due', $output);
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM tasks WHERE id = ?', [$noAction]));
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM tasks WHERE id = ?', [$wrongAction]));
     }
 
     /**
