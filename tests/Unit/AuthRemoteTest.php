@@ -4,6 +4,7 @@ namespace Eppitnic\Tests\Unit;
 
 use Eppitnic\Api\Auth;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -31,10 +32,12 @@ final class AuthRemoteTest extends TestCase
             R::setup('sqlite::memory:');
         }
         R::exec('DROP TABLE IF EXISTS users');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, admin INTEGER DEFAULT 0,
-                 active INTEGER DEFAULT 1, debug INTEGER DEFAULT 0, max_token_age INTEGER, max_idle_time INTEGER)');
-        R::exec("INSERT INTO users (id, username, admin, active) VALUES
-                 (1, 'admin', 1, 1), (2, 'someone', 0, 1), (3, 'gone', 0, 0)");
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec("CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER DEFAULT 1, role TEXT DEFAULT 'user',
+                 username TEXT, active INTEGER DEFAULT 1, debug INTEGER DEFAULT 0, max_token_age INTEGER, max_idle_time INTEGER)");
+        R::exec("INSERT INTO users (id, username, role, active) VALUES
+                 (1, 'admin', 'admin', 1), (2, 'someone', 'user', 1), (3, 'gone', 'user', 0)");
+        TestAccounts::ensureReseller(1);
     }
 
     private function request(array $serverParams = [], ?string $authHeader = null): Request {
@@ -61,7 +64,7 @@ final class AuthRemoteTest extends TestCase
 
         $decoded = Auth::verify($this->request(['REMOTE_USER' => 'someone']));
         $this->assertSame(2, (int) $decoded->data->id);
-        $this->assertSame(0, (int) $decoded->data->admin);
+        $this->assertSame('user', $decoded->data->role);
         $this->assertTrue($decoded->data->remote_auth);
         $this->assertFalse($decoded->data->has_totp);
         $this->assertFalse($decoded->data->needs_totp);
@@ -104,7 +107,7 @@ final class AuthRemoteTest extends TestCase
         Config::loadForTesting($this->settings(['enabled' => true, 'header' => null]));
         $this->seedUsers();
 
-        $token = Auth::issueToken(['id' => 99, 'username' => 'scripted', 'admin' => 0, 'has_totp' => false])['token'];
+        $token = TestAccounts::issueToken(['id' => 99, 'username' => 'scripted', 'admin' => 0, 'has_totp' => false])['token'];
         $decoded = Auth::verify($this->request(['REMOTE_USER' => 'admin'], 'Bearer ' . $token));
 
         $this->assertSame(99, (int) $decoded->data->id);

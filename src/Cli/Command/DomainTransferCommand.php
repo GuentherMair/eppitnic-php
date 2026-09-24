@@ -5,6 +5,8 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\Scope;
 use RedBeanPHP\R;
 
 /**
@@ -68,10 +70,11 @@ final class DomainTransferCommand extends Command
             return 0;
         }
 
-        $userId = $this->userId();
         $dryRun = $this->isDryRun();
+        // a dry run records nothing locally, so it needs no database either
+        $scope = $dryRun ? Scope::operator($this->userId()) : $this->scope();
 
-        $this->withSession(function ($nic) use ($targets, $operation, $userId, $dryRun) {
+        $this->withSession(function ($nic) use ($targets, $operation, $scope, $dryRun) {
             foreach ($targets as $name => $authinfo) {
                 $domain = new Domain($nic);
 
@@ -88,7 +91,7 @@ final class DomainTransferCommand extends Command
                 }
 
                 if ( ! $dryRun) {
-                    $this->recordLocally($operation, $name, $authinfo, $userId);
+                    $this->recordLocally($operation, $name, $authinfo, $scope);
                 }
 
                 $this->record("{$name} transfer {$operation} accepted",
@@ -104,17 +107,19 @@ final class DomainTransferCommand extends Command
      * acts on, approve and reject settle someone else's claim and clear it.
      * Cancel does not -- the row records that we wanted the domain.
      */
-    private function recordLocally(string $operation, string $name, string $authinfo, int $userId): void {
+    private function recordLocally(string $operation, string $name, string $authinfo, Scope $scope): void {
         if ($operation === 'request') {
             R::exec("
-                INSERT INTO transfers (user_id, domain, registrant, techc, dns)
-                VALUES (:user_id, :domain, '', :techc, :dns)
+                INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
+                VALUES (:reseller_id, :domain, '', :techc, :dns)
             ", [
-                ':user_id' => $userId,
-                ':domain'  => $name,
-                ':techc'   => serialize([]),
-                ':dns'     => serialize([]),
+                ':reseller_id' => $scope->resellerId,
+                ':domain'      => $name,
+                ':techc'       => serialize([]),
+                ':dns'         => serialize([]),
             ]);
+            // what the reseller's daily quota counts, as the API writes it
+            History::record('domains', 0, 'request', ['domain' => $name, 'kind' => 'transfer'], $scope->userId);
             return;
         }
 

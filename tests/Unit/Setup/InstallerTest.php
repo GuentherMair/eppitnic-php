@@ -219,9 +219,11 @@ final class InstallerTest extends TestCase
             $written = (string) file_get_contents($path);
             $this->assertStringNotContainsString('a-strong-password', $written, 'the admin password leaked into config.php');
 
-            $adminRow = R::getRow('SELECT username, admin FROM users WHERE id = ?', [$result['admin']['id']]);
+            $adminRow = R::getRow('SELECT username, role, reseller_id FROM users WHERE id = ?', [$result['admin']['id']]);
             $this->assertSame('setupadmin', $adminRow['username']);
-            $this->assertSame(1, (int) $adminRow['admin']);
+            $this->assertSame('admin', $adminRow['role']);
+            $this->assertSame(1, (int) $adminRow['reseller_id'], 'the first admin belongs to the registrar itself');
+            $this->assertSame('Registrar (self)', R::getCell('SELECT name FROM resellers WHERE id = 1'));
 
             // a second install() against the now-configured fixture must
             // refuse, not silently create a second admin

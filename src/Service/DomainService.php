@@ -7,6 +7,7 @@ use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\Scope;
 use RedBeanPHP\R;
 
 /**
@@ -29,11 +30,12 @@ final class DomainService
      * @param Client $nic a logged-in client
      * @param array $params domain, registrant, and optionally admin, tech[],
      *              ns[], authinfo
-     * @param int $userId the local owner to record
+     * @param int $actorId the acting user, for history; the domain belongs
+     *              to its registrant's reseller (Domain::storeDB())
      * @param bool $persist write the result to the local database
      * @return array{ok: bool, action?: string, domain?: Domain, error?: string}
      */
-    public static function createOrTransfer(Client $nic, array $params, int $userId, bool $persist = true): array {
+    public static function createOrTransfer(Client $nic, array $params, int $actorId, bool $persist = true): array {
         $domain = new Domain($nic);
         $availability = $domain->check($params['domain']);
         if ( ! $availability->answered()) {
@@ -71,7 +73,7 @@ final class DomainService
             // a fresh registration is a DNS-sync 'create' event; a requested
             // transfer-in is NOT -- that only becomes real once PollProcessor
             // sees it complete
-            $domain->storeDB($userId, $action === 'created');
+            $domain->storeDB($actorId, $action === 'created');
         }
 
         return ['ok' => true, 'action' => $action, 'domain' => $domain];
@@ -83,12 +85,13 @@ final class DomainService
      *
      * @param Client $nic a logged-in client
      * @param string[] $names domains to import
-     * @param int $userId the owner for rows that do not exist locally yet
+     * @param Scope $scope who imports: a registrant not stored locally yet
+     *              goes to their reseller
      * @return array<string, array{domain: string, registrant: string, contact_stored: string, domain_stored: string}>
      *         per domain, each step's outcome: 'found'/'not found',
      *         'stored'/'not stored', or 'skipped' if an earlier step stopped it
      */
-    public static function import(Client $nic, array $names, int $userId): array {
+    public static function import(Client $nic, array $names, Scope $scope): array {
         $idnDecoder = new ToUnicode();
         $results = [];
 
@@ -114,7 +117,7 @@ final class DomainService
             if ( ! $domain->fetch($name)) {
                 $result['domain'] = 'not found';
                 // the registry does not have it, so neither should we
-                $domain->deleteDomainDB($name, $userId, true);
+                $domain->deleteDomainDB($name, Scope::operator($scope->userId));
                 $results[$name] = $result;
                 continue;
             }
@@ -127,13 +130,11 @@ final class DomainService
             }
             $result['registrant'] = 'found';
 
-            // if the registrant already exists locally, keep its current owner
-            $registrant = R::getRow("SELECT user_id FROM contacts WHERE handle = ?", [$domain->get('registrant')]);
-            $effectiveUserId = empty($registrant) ? $userId : (int) $registrant['user_id'];
+            // a registrant already stored locally keeps its reseller, and the
+            // domain follows it (Domain::storeDB())
+            $result['contact_stored'] = $contact->storeDB($scope->resellerId, $scope->userId) ? 'stored' : 'not stored';
 
-            $result['contact_stored'] = $contact->storeDB($effectiveUserId) ? 'stored' : 'not stored';
-
-            if ($domain->storeDB($effectiveUserId)) {
+            if ($domain->storeDB($scope->userId)) {
                 $result['domain_stored'] = 'stored';
                 // whatever transfer request brought it here has completed
                 R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
@@ -148,20 +149,21 @@ final class DomainService
     }
 
     /**
-     * Move a domain to another local user with its own copies of the contacts:
+     * Move a domain to another reseller with its own copies of the contacts:
      * both ownerships must move together. Not atomic -- the contacts exist
      * before the domain points at them, so a failure leaves them unused.
      *
      * @param Client $nic a logged-in client
      * @param string $name the domain to move
-     * @param int $newOwnerId the local user to move it to
+     * @param int $resellerId the reseller to move it to
+     * @param int $actorId the acting user, for history
      * @param bool $persist reassign local ownership too
      * @return array{ok: bool, domain?: Domain, error?: string, status?: int}
      */
-    public static function changeOwner(Client $nic, string $name, int $newOwnerId, bool $persist = true): array {
-        $newOwner = R::getRow("SELECT id, techc FROM users WHERE id = ?", [$newOwnerId]);
+    public static function changeOwner(Client $nic, string $name, int $resellerId, int $actorId, bool $persist = true): array {
+        $newOwner = R::getRow("SELECT id, techc FROM resellers WHERE id = ?", [$resellerId]);
         if (empty($newOwner)) {
-            return ['ok' => false, 'status' => 404, 'error' => "User id {$newOwnerId} not found"];
+            return ['ok' => false, 'status' => 404, 'error' => "Reseller {$resellerId} not found"];
         }
 
         $domain = new Domain($nic);
@@ -174,7 +176,7 @@ final class DomainService
         if ( ! $oldRegistrant->fetch($domain->get('registrant'))) {
             return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current registrant: ' . $oldRegistrant->getError()];
         }
-        $newRegistrantHandle = $oldRegistrant->duplicate($nic, $newOwnerId);
+        $newRegistrantHandle = $oldRegistrant->duplicate($nic, $resellerId, $actorId);
         if ($newRegistrantHandle === false) {
             return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate registrant contact: ' . $oldRegistrant->getError()];
         }
@@ -186,22 +188,22 @@ final class DomainService
             if ( ! $oldAdmin->fetch($currentAdmin)) {
                 return ['ok' => false, 'status' => 400, 'error' => 'unable to fetch current admin contact: ' . $oldAdmin->getError()];
             }
-            $newAdminHandle = $oldAdmin->duplicate($nic, $newOwnerId);
+            $newAdminHandle = $oldAdmin->duplicate($nic, $resellerId, $actorId);
             if ($newAdminHandle === false) {
                 return ['ok' => false, 'status' => 400, 'error' => 'unable to duplicate admin contact: ' . $oldAdmin->getError()];
             }
         }
 
-        // tech: the new owner's own default tech contacts (users.techc) if they
-        // have any on file, otherwise a duplicate of the domain's current one
-        $newTechHandles = UserSettings::decodeTech($newOwner['techc']);
+        // tech: the new reseller's own default tech contacts (resellers.techc)
+        // if it has any on file, otherwise a duplicate of the domain's current one
+        $newTechHandles = ResellerSettings::decodeTech($newOwner['techc']);
         if ($newTechHandles === []) {
             $currentTech = (array) $domain->get('tech');
             $firstTech = reset($currentTech);
             if ( ! empty($firstTech)) {
                 $oldTech = new Contact($nic);
                 if ($oldTech->fetch($firstTech)) {
-                    $duplicate = $oldTech->duplicate($nic, $newOwnerId);
+                    $duplicate = $oldTech->duplicate($nic, $resellerId, $actorId);
                     $newTechHandles = $duplicate === false ? [] : [$duplicate];
                 }
             }
@@ -233,9 +235,9 @@ final class DomainService
         }
 
         if ($persist) {
-            R::exec("UPDATE domains SET user_id = ? WHERE domain = ?", [$newOwnerId, $name]);
+            R::exec("UPDATE domains SET reseller_id = ?, registrant = ? WHERE domain = ?", [$resellerId, $newRegistrantHandle, $name]);
             $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-            History::record('domains', $id, 'update', ['user_id' => $newOwnerId], $newOwnerId);
+            History::record('domains', $id, 'update', ['reseller_id' => $resellerId, 'registrant' => $newRegistrantHandle], $actorId);
         }
 
         return ['ok' => true, 'domain' => $domain];

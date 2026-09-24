@@ -3,6 +3,7 @@
 namespace Eppitnic\Tests\Unit;
 
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
@@ -29,14 +30,14 @@ final class DnsSyncGateTest extends EppTestCase
         R::exec('DROP TABLE IF EXISTS tasks');
         R::exec('DROP TABLE IF EXISTS settings');
         R::exec('DROP TABLE IF EXISTS history');
-        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, active INTEGER DEFAULT 1, user_id INTEGER)');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, active INTEGER DEFAULT 1, reseller_id INTEGER)');
         R::exec('CREATE TABLE tasks (id INTEGER PRIMARY KEY, domain TEXT, date TEXT, notice TEXT,
                  object TEXT, action TEXT, active INTEGER DEFAULT 1, executed_time TEXT,
                  exit_code INTEGER, exit_message TEXT, created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, value TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, data TEXT)');
-        R::exec("INSERT INTO domains (domain, user_id) VALUES ('example.it', 1)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 1)");
     }
 
     /** @return array<string, string[]> notice => [domain, action] */
@@ -54,7 +55,7 @@ final class DnsSyncGateTest extends EppTestCase
     }
 
     public function testNoSettingsRowAtAllMeansNoInsert(): void {
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame([], $this->dnsSyncRows());
     }
@@ -62,7 +63,7 @@ final class DnsSyncGateTest extends EppTestCase
     public function testEnabledFalseMeansNoInsert(): void {
         $this->seedPdns('{"enabled":false,"path":null,"ttl":3600}');
 
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame([], $this->dnsSyncRows());
     }
@@ -70,7 +71,7 @@ final class DnsSyncGateTest extends EppTestCase
     public function testEnabledTrueMeansTheRowIsWritten(): void {
         $this->seedPdns('{"enabled":true,"path":"/usr/bin/pdnsutil","ttl":3600}');
 
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame(['domain deleted' => ['example.it', 'delete']], $this->dnsSyncRows());
     }
@@ -79,7 +80,7 @@ final class DnsSyncGateTest extends EppTestCase
     public function testEnabledTrueAsTheLastFieldStillOpensTheGate(): void {
         $this->seedPdns('{"path":"/usr/bin/pdnsutil","ttl":3600,"enabled":true}');
 
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertNotSame([], $this->dnsSyncRows());
     }
@@ -87,7 +88,7 @@ final class DnsSyncGateTest extends EppTestCase
     public function testAnUnrelatedSettingDoesNotOpenTheGate(): void {
         R::exec("INSERT INTO settings (`key`, value) VALUES ('some_other_setting', '\"anything\"')");
 
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame([], $this->dnsSyncRows());
     }
@@ -97,11 +98,11 @@ final class DnsSyncGateTest extends EppTestCase
     // ---------------------------------------------------------------
 
     public function testRestoreIsGatedTheSameWay(): void {
-        (new Domain($this->nic))->restoreDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->restoreDomainDB('example.it', Scope::operator(1));
         $this->assertSame([], $this->dnsSyncRows(), 'closed by default');
 
         $this->seedPdns('{"enabled":true,"path":"/usr/bin/pdnsutil","ttl":3600}');
-        (new Domain($this->nic))->restoreDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->restoreDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame(['domain restored' => ['example.it', 'create']], $this->dnsSyncRows());
     }
@@ -112,7 +113,7 @@ final class DnsSyncGateTest extends EppTestCase
     // ---------------------------------------------------------------
 
     public function testTheDomainIsStillDeactivatedWithTheGateClosed(): void {
-        (new Domain($this->nic))->deleteDomainDB('example.it', 1, true);
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
 
         $this->assertSame(0, (int) R::getCell("SELECT active FROM domains WHERE domain = 'example.it'"));
     }

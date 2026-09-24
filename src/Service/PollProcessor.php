@@ -6,6 +6,7 @@ use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Epp\Session;
+use Eppitnic\Persistence\Scope;
 use RedBeanPHP\R;
 
 /**
@@ -143,8 +144,8 @@ class PollProcessor
     foreach ($transferOut as $transfer) {
       $log[] = "handling '{$transfer['domain']}' (transfer-out)";
 
-      if ($this->domain->loadDB($transfer['domain'], 1, true)) {
-        if ( ! $this->domain->deleteDomainDB($transfer['domain'], 1, true)) {
+      if ($this->domain->loadDB($transfer['domain'], Scope::operator(1))) {
+        if ( ! $this->domain->deleteDomainDB($transfer['domain'], Scope::operator(1))) {
           $log[] = "  couldn't deactivate domain locally: " . $this->domain->getError();
         }
       } else {
@@ -156,12 +157,9 @@ class PollProcessor
 
     // 3. INCOMING TRANSFERS -- reconcile every open local transfer request
     $transfers = R::getAll("
-      SELECT
-        t.id, t.domain, t.techc, t.dns, t.user_id AS transfer_user_id,
-        c.name, c.email,
-        u.id AS user_id, u.email AS email_user
-      FROM transfers t, contacts c, users u
-      WHERE t.registrant = c.handle AND c.user_id = u.id");
+      SELECT t.id, t.domain, t.techc, t.dns
+      FROM transfers t, contacts c
+      WHERE t.registrant = c.handle");
 
     foreach ($transfers as $transfer) {
       $log[] = "verifying '{$transfer['domain']}' (transfer-in)";
@@ -226,8 +224,9 @@ class PollProcessor
           $this->domain->update();
 
           // transfer-in completing counts as a DNS-sync 'create' event
-          // (storeDB() fires it)
-          $this->domain->storeDB((int) $transfer['transfer_user_id']);
+          // (storeDB() fires it); done by this job, not by a person, and it
+          // lands in its registrant's reseller like any other domain
+          $this->domain->storeDB(null);
 
           if ($archiveMsg !== false) {
             R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$archiveMsg]);

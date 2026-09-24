@@ -27,8 +27,9 @@ final class DomainReapDeletionsTest extends EppTestCase
         foreach (['tasks', 'domains', 'settings', 'history', 'users'] as $table) {
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
-        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, active INTEGER DEFAULT 1, user_id INTEGER)');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, notify_message_types TEXT, notify_fulltext TEXT)');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, active INTEGER DEFAULT 1, reseller_id INTEGER)');
+        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER, email TEXT, active INTEGER DEFAULT 1,
+                 notify_enabled INTEGER DEFAULT 0, notify_message_types TEXT, notify_fulltext TEXT)');
         R::exec('CREATE TABLE tasks (id INTEGER PRIMARY KEY, domain TEXT, date TEXT, notice TEXT,
                  object TEXT, action TEXT, active INTEGER DEFAULT 1, executed_time TEXT,
                  exit_code INTEGER, exit_message TEXT, created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
@@ -54,8 +55,8 @@ final class DomainReapDeletionsTest extends EppTestCase
         parent::tearDown();
     }
 
-    private function addDomain(string $name, ?int $userId = 1): void {
-        R::exec('INSERT INTO domains (domain, active, user_id) VALUES (?, 1, ?)', [$name, $userId]);
+    private function addDomain(string $name, ?int $resellerId = 1): void {
+        R::exec('INSERT INTO domains (domain, active, reseller_id) VALUES (?, 1, ?)', [$name, $resellerId]);
     }
 
     private function addDueTask(string $domain, string $date = 'today'): int {
@@ -266,17 +267,18 @@ final class DomainReapDeletionsTest extends EppTestCase
         $this->assertStringContainsString('example-two.it: FAILED', FakeMailer::$sent[0]['body']);
     }
 
-    public function testEachOwningUserGetsOnlyTheirOwnDomains(): void {
-        R::exec("INSERT INTO users (id, email) VALUES (5, 'alice@example.it'), (6, 'bob@example.it')");
+    public function testEachOwningResellerGetsOnlyItsOwnDomains(): void {
+        R::exec("INSERT INTO users (id, reseller_id, email, notify_enabled) VALUES
+                 (5, 2, 'alice@example.it', 1), (6, 3, 'bob@example.it', 1), (7, 3, 'muted@example.it', 0)");
         $this->enableSmtp(['recipient_mode' => 'both']);
-        $this->addDomain('example-one.it', 5);
-        $this->addDomain('example-two.it', 6);
+        $this->addDomain('example-one.it', 2);
+        $this->addDomain('example-two.it', 3);
         $this->addDueTask('example-one.it');
         $this->addDueTask('example-two.it');
 
         $this->reap([], [CommandCatalog::OK_RESPONSE, CommandCatalog::OK_RESPONSE]);
 
-        $this->assertCount(3, FakeMailer::$sent, 'one system summary plus one per owning user');
+        $this->assertCount(3, FakeMailer::$sent, 'one system summary plus one per recipient of each owning reseller');
         $byRecipient = array_column(FakeMailer::$sent, 'body', 'to');
         $this->assertStringContainsString('example-one.it', $byRecipient['alice@example.it']);
         $this->assertStringNotContainsString('example-two.it', $byRecipient['alice@example.it']);

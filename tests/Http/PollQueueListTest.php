@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Http;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -41,7 +42,7 @@ final class PollQueueListTest extends TestCase
     }
 
     private function get(\Slim\App $app, string $query = '', int $admin = 1): ResponseInterface {
-        $token = Auth::issueToken([
+        $token = TestAccounts::issueToken([
             'id' => 7, 'username' => 'someone', 'admin' => $admin, 'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 
@@ -92,7 +93,15 @@ final class PollQueueListTest extends TestCase
         $this->assertCount(12, self::body($this->get($app, '?limit=100000'))['messages']);
     }
 
-    public function testItStaysAdminOnly(): void {
-        $this->assertSame(403, $this->get($this->app(), '?limit=10', 0)->getStatusCode());
+    /** a.it and b.it belong to no reseller here -- see PollQueueScopeTest */
+    public function testANonAdminSeesNoneOfAnotherResellersMessages(): void {
+        R::exec('DROP TABLE IF EXISTS domains');
+        R::exec('DROP TABLE IF EXISTS transfers');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+
+        $body = self::body($this->get($this->app(), '?limit=10', 0));
+        $this->assertSame([], $body['messages']);
+        $this->assertSame(0, $body['total']);
     }
 }

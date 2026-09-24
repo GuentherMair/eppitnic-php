@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Http;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -17,7 +18,7 @@ use Slim\Psr7\Factory\ServerRequestFactory;
  */
 final class UserReadFieldsTest extends TestCase
 {
-    private const PRIVATE_FIELDS = ['description', 'email', 'max_operations'];
+    private const PRIVATE_FIELDS = ['description', 'email'];
 
     private function app(): \Slim\App {
         Config::loadForTesting([
@@ -34,12 +35,15 @@ final class UserReadFieldsTest extends TestCase
             R::setup('sqlite::memory:');
         }
         R::exec('DROP TABLE IF EXISTS users');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, description TEXT, username TEXT, password TEXT,
-                 email TEXT, max_operations INTEGER DEFAULT 0, active INTEGER DEFAULT 1, admin INTEGER DEFAULT 0,
-                 totp_secret TEXT, max_token_age INTEGER, max_idle_time INTEGER, debug INTEGER DEFAULT 0)');
-        R::exec("INSERT INTO users (id, username, description, email, max_operations, admin)
-                 VALUES (1, 'admin', 'The admin', 'admin@example.it', 0, 1),
-                        (2, 'reseller', 'A reseller', 'reseller@example.it', 5, 0)");
+        R::exec('DROP TABLE IF EXISTS resellers');
+        TestAccounts::ensureReseller(2, 'A reseller');
+        TestAccounts::ensure(1, 'admin', 1, 'admin');
+        TestAccounts::ensure(2, 'manager', 2, 'reseller');
+        TestAccounts::ensure(3, 'user', 2, 'colleague');
+        TestAccounts::ensure(4, 'manager', 3, 'elsewhere');
+        R::exec("UPDATE users SET description = 'The admin', email = 'admin@example.it' WHERE id = 1");
+        R::exec("UPDATE users SET description = 'A reseller', email = 'reseller@example.it' WHERE id = 2");
+        R::exec("UPDATE users SET description = 'A colleague', email = 'colleague@example.it' WHERE id = 3");
 
         $app = AppFactory::create();
         Middleware::register($app);
@@ -48,8 +52,9 @@ final class UserReadFieldsTest extends TestCase
     }
 
     private function get(\Slim\App $app, string $path, int $as): ResponseInterface {
-        $token = Auth::issueToken([
-            'id' => $as, 'username' => 'someone', 'admin' => $as === 1 ? 1 : 0,
+        $account = R::getRow('SELECT role, reseller_id FROM users WHERE id = ?', [$as]);
+        $token = TestAccounts::issueToken([
+            'id' => $as, 'username' => 'someone', 'role' => $account['role'], 'reseller_id' => (int) $account['reseller_id'],
             'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 
@@ -77,7 +82,16 @@ final class UserReadFieldsTest extends TestCase
         $reseller = array_values(array_filter($rows, fn($row) => $row['username'] === 'reseller'))[0];
         $this->assertSame('A reseller', $reseller['description']);
         $this->assertSame('reseller@example.it', $reseller['email']);
-        $this->assertSame(5, (int) $reseller['max_operations']);
+        $this->assertSame('manager', $reseller['role']);
+        $this->assertSame(2, (int) $reseller['reseller_id']);
+        $this->assertSame('A reseller', $reseller['reseller_name']);
+        $this->assertCount(4, $rows, 'every reseller\'s users');
+    }
+
+    public function testAnAdminMayListOneResellersUsers(): void {
+        $rows = self::users($this->get($this->app(), '/v1/users?reseller_id=2', 1));
+
+        $this->assertSame(['reseller', 'colleague'], array_column($rows, 'username'));
     }
 
     public function testTheSameForOneUserById(): void {
@@ -86,21 +100,28 @@ final class UserReadFieldsTest extends TestCase
         $this->assertSame('reseller@example.it', $rows[0]['email']);
     }
 
-    public function testAResellerDoesNotSeeAnyonesAddressOrQuota(): void {
-        $app = $this->app();
-
-        foreach (['/v1/users', '/v1/users/1'] as $path) {
-            foreach (self::users($this->get($app, $path, 2)) as $row) {
-                foreach (self::PRIVATE_FIELDS as $field) {
-                    $this->assertArrayNotHasKey($field, $row, "{$path} handed a reseller {$field}");
-                }
-            }
-        }
-    }
-
-    public function testEveryoneStillSeesWhoExists(): void {
+    public function testAManagerSeesTheirResellersUsersWithTheirAddresses(): void {
         $rows = self::users($this->get($this->app(), '/v1/users', 2));
 
-        $this->assertSame(['admin', 'reseller'], array_column($rows, 'username'));
+        $this->assertSame(['reseller', 'colleague'], array_column($rows, 'username'));
+        $this->assertSame('colleague@example.it', $rows[1]['email']);
+    }
+
+    public function testAManagerCannotReadAnotherResellersUser(): void {
+        $app = $this->app();
+
+        $this->assertSame([], self::users($this->get($app, '/v1/users/4', 2)));
+        $this->assertSame([], self::users($this->get($app, '/v1/users/1', 2)));
+    }
+
+    public function testAPlainUserSeesOnlyThemselvesWithoutAddresses(): void {
+        $app = $this->app();
+
+        $rows = self::users($this->get($app, '/v1/users', 3));
+        $this->assertSame(['colleague'], array_column($rows, 'username'));
+        foreach (self::PRIVATE_FIELDS as $field) {
+            $this->assertArrayNotHasKey($field, $rows[0]);
+        }
+        $this->assertSame([], self::users($this->get($app, '/v1/users/2', 3)));
     }
 }

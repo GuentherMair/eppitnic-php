@@ -4,6 +4,7 @@ namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\CronjobSettings;
 use Eppitnic\Service\Notifier;
 use RedBeanPHP\R;
@@ -44,10 +45,10 @@ final class DomainReapDeletionsCommand extends Command
             return 0;
         }
 
-        // the owning user_id is captured now, from the domains row as it
+        // the owning reseller is captured now, from the domains row as it
         // stands before any deletion -- deleteDomainDB() below can clear it
         $rows = R::getAll("
-            SELECT t.*, d.user_id AS owner_user_id
+            SELECT t.*, d.reseller_id AS owner_reseller_id
             FROM tasks t
             LEFT JOIN domains d ON d.domain = t.domain
             WHERE t.object = 'registry' AND t.action = 'delete' AND t.active = 1 AND t.date <= CURRENT_DATE
@@ -70,7 +71,7 @@ final class DomainReapDeletionsCommand extends Command
                 // a dry run reached a synthetic success, so neither the local
                 // row nor the task itself must be touched
                 if ($ok && ! $this->isDryRun()) {
-                    $domain->deleteDomainDB($row['domain'], $userId, true);
+                    $domain->deleteDomainDB($row['domain'], Scope::operator($userId));
                 }
 
                 $this->record(
@@ -86,7 +87,7 @@ final class DomainReapDeletionsCommand extends Command
                 if ( ! $this->isDryRun()) {
                     $outcomes[] = [
                         'domain'  => $row['domain'],
-                        'user_id' => $row['owner_user_id'] !== null ? (int) $row['owner_user_id'] : null,
+                        'reseller_id' => $row['owner_reseller_id'] !== null ? (int) $row['owner_reseller_id'] : null,
                         'ok'      => $ok,
                         'message' => $message,
                     ];

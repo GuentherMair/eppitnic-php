@@ -33,8 +33,11 @@ final class NotifierTest extends EppTestCase
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, notify_message_types TEXT, notify_fulltext TEXT)');
-        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, user_id INTEGER)');
+        // users are recipients by default here (notify_enabled 1); a test
+        // that wants a muted one says so
+        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER DEFAULT 2, email TEXT, active INTEGER DEFAULT 1,
+                 notify_enabled INTEGER DEFAULT 1, notify_message_types TEXT, notify_fulltext TEXT)');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
 
         Config::loadForTesting(static::SETTINGS + [
             'smtp' => [
@@ -174,7 +177,7 @@ final class NotifierTest extends EppTestCase
     }
 
     public function testRecipientModeNoneSendsNothing(): void {
-        R::exec("INSERT INTO domains (domain, user_id) VALUES ('example.it', 5)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2)");
         R::exec("INSERT INTO users (id, email) VALUES (5, 'owner@example.it')");
         Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'none']), 1);
         Notifier::notifyPoll('chgStatusMsgData', 'example.it', 'status changed to ok');
@@ -207,9 +210,9 @@ final class NotifierTest extends EppTestCase
         $this->assertSame('admin@example.it', FakeMailer::$sent[0]['to']);
     }
 
-    public function testNotifyPollSendsToTheDomainsOwningUser(): void {
+    public function testNotifyPollSendsToTheDomainsResellersRecipients(): void {
         R::exec("INSERT INTO users (id, email) VALUES (5, 'owner@example.it')");
-        R::exec("INSERT INTO domains (domain, user_id) VALUES ('example.it', 5)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2)");
         Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'both']), 1);
 
         Notifier::notifyPoll('chgStatusMsgData', 'example.it', 'status changed');
@@ -220,9 +223,23 @@ final class NotifierTest extends EppTestCase
         $this->assertCount(2, FakeMailer::$sent);
     }
 
+    public function testNotifyPollReachesEveryRecipientOfTheResellerButNoOther(): void {
+        R::exec("INSERT INTO users (id, reseller_id, email, notify_enabled, active) VALUES
+                 (5, 2, 'alice@example.it', 1, 1), (6, 2, 'bob@example.it', 1, 1),
+                 (7, 2, 'muted@example.it', 0, 1), (8, 2, 'gone@example.it', 1, 0), (9, 3, 'elsewhere@example.it', 1, 1)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2)");
+        Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'user']), 1);
+
+        Notifier::notifyPoll('chgStatusMsgData', 'example.it', 'status changed');
+
+        $recipients = array_column(FakeMailer::$sent, 'to');
+        sort($recipients);
+        $this->assertSame(['alice@example.it', 'bob@example.it'], $recipients, 'not muted, not inactive, not another reseller');
+    }
+
     public function testNotifyPollHonoursTheOwningUsersOwnFilter(): void {
         R::exec("INSERT INTO users (id, email, notify_message_types) VALUES (5, 'owner@example.it', ?)", [json_encode(['dnsWarningMsgData'])]);
-        R::exec("INSERT INTO domains (domain, user_id) VALUES ('example.it', 5)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2)");
         Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'user']), 1);
 
         Notifier::notifyPoll('chgStatusMsgData', 'example.it', 'status changed');
@@ -257,8 +274,8 @@ final class NotifierTest extends EppTestCase
     public function testNotifyDeletionsSendsOneSystemSummaryForEveryOutcome(): void {
         Notifier::set(self::ENABLED_SYSTEM, 1);
         Notifier::notifyDeletions([
-            ['domain' => 'a.it', 'user_id' => null, 'ok' => true, 'message' => 'domain deleted'],
-            ['domain' => 'b.it', 'user_id' => null, 'ok' => false, 'message' => 'registry refused'],
+            ['domain' => 'a.it', 'reseller_id' => null, 'ok' => true, 'message' => 'domain deleted'],
+            ['domain' => 'b.it', 'reseller_id' => null, 'ok' => false, 'message' => 'registry refused'],
         ]);
 
         $this->assertCount(1, FakeMailer::$sent);
@@ -266,16 +283,16 @@ final class NotifierTest extends EppTestCase
         $this->assertStringContainsString('b.it: FAILED — registry refused', FakeMailer::$sent[0]['body']);
     }
 
-    public function testNotifyDeletionsSendsEachOwnerTheirOwnDomainsOnly(): void {
-        R::exec("INSERT INTO users (id, email) VALUES (5, 'alice@example.it'), (6, 'bob@example.it')");
+    public function testNotifyDeletionsSendsEachResellerItsOwnDomainsOnly(): void {
+        R::exec("INSERT INTO users (id, reseller_id, email) VALUES (5, 2, 'alice@example.it'), (6, 3, 'bob@example.it')");
         Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'both']), 1);
 
         Notifier::notifyDeletions([
-            ['domain' => 'a.it', 'user_id' => 5, 'ok' => true, 'message' => 'domain deleted'],
-            ['domain' => 'b.it', 'user_id' => 6, 'ok' => true, 'message' => 'domain deleted'],
+            ['domain' => 'a.it', 'reseller_id' => 2, 'ok' => true, 'message' => 'domain deleted'],
+            ['domain' => 'b.it', 'reseller_id' => 3, 'ok' => true, 'message' => 'domain deleted'],
         ]);
 
-        // one system summary (both outcomes) + one email per owner (their own domain only)
+        // one system summary (both outcomes) + one per reseller's recipient (its own domain only)
         $this->assertCount(3, FakeMailer::$sent);
         $byRecipient = [];
         foreach (FakeMailer::$sent as $sent) {
@@ -291,7 +308,7 @@ final class NotifierTest extends EppTestCase
         Notifier::set(array_merge(self::ENABLED_SYSTEM, ['recipient_mode' => 'user']), 1);
 
         Notifier::notifyDeletions([
-            ['domain' => 'a.it', 'user_id' => null, 'ok' => true, 'message' => 'domain deleted'],
+            ['domain' => 'a.it', 'reseller_id' => null, 'ok' => true, 'message' => 'domain deleted'],
         ]);
 
         $this->assertSame([], FakeMailer::$sent, 'no owner to notify, and mode is user-only');
@@ -368,7 +385,8 @@ final class NotifierTest extends EppTestCase
 
     public function testLoadUserPreferencesDefaultsToUnfiltered(): void {
         R::exec("INSERT INTO users (id, email) VALUES (5, 'owner@example.it')");
-        $this->assertSame(['message_types' => [], 'fulltext' => ''], Notifier::loadUserPreferences(5));
+        R::exec('UPDATE users SET notify_enabled = 0 WHERE id = 5');
+        $this->assertSame(['enabled' => false, 'message_types' => [], 'fulltext' => ''], Notifier::loadUserPreferences(5));
     }
 
     public function testSaveUserPreferencesRoundTrips(): void {
@@ -379,6 +397,14 @@ final class NotifierTest extends EppTestCase
         $this->assertSame(['dnsWarningMsgData'], $result['settings']['message_types']);
         $this->assertSame('expired', $result['settings']['fulltext']);
         $this->assertSame(['dnsWarningMsgData'], Notifier::loadUserPreferences(5)['message_types']);
+    }
+
+    public function testSaveUserPreferencesTogglesNotifications(): void {
+        R::exec("INSERT INTO users (id, email, notify_enabled) VALUES (5, 'owner@example.it', 0)");
+
+        $this->assertTrue(Notifier::saveUserPreferences(5, ['enabled' => true])['settings']['enabled']);
+        $this->assertFalse(Notifier::saveUserPreferences(5, ['enabled' => 'no'])['settings']['enabled']);
+        $this->assertSame(400, Notifier::saveUserPreferences(5, ['enabled' => 'maybe'])['status']);
     }
 
     public function testSaveUserPreferencesRejectsAnUnknownType(): void {

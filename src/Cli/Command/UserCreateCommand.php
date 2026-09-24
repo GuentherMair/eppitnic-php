@@ -6,6 +6,7 @@ use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Persistence\User;
 use Eppitnic\Persistence\UsernameTaken;
+use RedBeanPHP\R;
 
 /**
  * Create a local login account. Once config/config.php exists this is the only
@@ -27,8 +28,8 @@ final class UserCreateCommand extends Command
             'password='       => 'plaintext password, hashed before storing (required)',
             'email='          => 'contact e-mail address',
             'description='    => 'free-text description',
-            'max-operations=' => 'daily domain-create quota; 0 (the default) is unlimited',
-            'admin'           => 'grant admin (unrestricted) access',
+            'role='           => 'admin, manager or user (default: user); admin only in reseller 1',
+            'reseller='       => 'the reseller id the user belongs to, fixed from now on (default: 1)',
         ];
     }
 
@@ -44,7 +45,14 @@ final class UserCreateCommand extends Command
             throw new UsageError('--password is required');
         }
 
-        $isAdmin = $this->hasOption('admin');
+        $role = (string) $this->option('role', 'user');
+        $resellerId = (int) $this->option('reseller', 1);
+        if (($error = User::roleError($role, $resellerId)) !== null) {
+            throw new UsageError($error);
+        }
+        if ((int) R::getCell('SELECT COUNT(*) FROM resellers WHERE id = ?', [$resellerId]) === 0) {
+            throw new UsageError("no reseller with id {$resellerId}");
+        }
 
         try {
             $id = User::create(
@@ -52,8 +60,8 @@ final class UserCreateCommand extends Command
                 password: (string) $this->option('password'),
                 email: $this->option('email'),
                 description: $this->option('description'),
-                maxOperations: (int) $this->option('max-operations', 0),
-                admin: $isAdmin,
+                resellerId: $resellerId,
+                role: $role,
             );
         } catch (UsernameTaken $e) {
             $this->warn($e->getMessage());
@@ -61,8 +69,8 @@ final class UserCreateCommand extends Command
         }
 
         $this->record(
-            "user '{$username}' created (id {$id}" . ($isAdmin ? ', admin' : '') . ')',
-            ['id' => $id, 'username' => $username, 'admin' => $isAdmin]
+            "user '{$username}' created (id {$id}, {$role} of reseller {$resellerId})",
+            ['id' => $id, 'username' => $username, 'role' => $role, 'reseller_id' => $resellerId]
         );
         return 0;
     }

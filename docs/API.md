@@ -21,7 +21,7 @@ back to. See "Error shapes" below.
 
 **Anything read straight from the database arrives as a string**, integers and
 booleans included — RedBeanPHP leaves `PDO::ATTR_STRINGIFY_FETCHES` on and
-nothing here turns it off. So a row's `id` is `"3"` and its `admin` flag is
+nothing here turns it off. So a row's `id` is `"3"` and its `active` flag is
 `"0"`, which is *truthy* in JavaScript; compare explicitly rather than testing
 the value for truth. The exceptions are values a handler casts on the way out —
 the login claims, and the `total`/`outstanding` counters — which are real JSON
@@ -140,7 +140,9 @@ Success response — `Auth::issueToken()`'s output, i.e. every field passed in p
 {
   "token": "<JWT>",
   "id": 3,
-  "admin": 0,
+  "role": "manager",
+  "reseller_id": 2,
+  "reseller_name": "Example Reseller",
   "username": "reseller1",
   "has_totp": true,
   "needs_totp": true,
@@ -150,8 +152,9 @@ Success response — `Auth::issueToken()`'s output, i.e. every field passed in p
   "max_idle_time": null
 }
 ```
-- `admin` — `1` means unrestricted (sees/manages every user's data);
-  anything else is a scoped reseller account.
+- `role` — `admin`, `manager` or `user`; `reseller_id`/`reseller_name` —
+  the reseller the account belongs to (see "Authorization model"). Shown for
+  the client's convenience only: the server looks both up on every request.
 - `has_totp` / `needs_totp` — whether the account has MFA configured, and
   whether *this* login required it (false when the request came from a
   safe network). `totp_verified` mirrors `has_totp` on a successful login
@@ -167,7 +170,9 @@ Success response — `Auth::issueToken()`'s output, i.e. every field passed in p
   enforces an idle timeout: no last-seen timestamp is tracked per token. Treat
   it as a reserved field. A token's only expiry is `max_token_age`.
 - Failure: `401` with `{"error": "Wrong username or password"}` /
-  `{"error": "MFA code required"}` / `{"error": "Invalid MFA code"}`.
+  `{"error": "MFA code required"}` / `{"error": "Invalid MFA code"}`; `403`
+  with `{"error": "Your reseller account is deactivated"}` for a correct
+  password into a deactivated reseller.
 
 `GET /v1/users/renew-token` (auth: any valid token) — re-issues a fresh JWT
 from the current token's own claims (`Auth::issueToken((array) $decoded->data)`),
@@ -239,43 +244,53 @@ under remote auth — there is no JWT to renew. `GET /v1/users/me` carries
 
 ### Password change (per-user login password)
 
-`PUT /v1/changepassword/{id}` (auth: self-with-MFA or admin) — body
-`{"password": "..."}`. This is the local `users.password`, unrelated to the
-shared EPP registry credential (below). Trying to change another user's
-password without being an admin is **403** — it answered 401 previously,
-which contradicted every other authorization refusal in the API.
+`PUT /v1/changepassword/{id}` (auth: self-with-MFA, the user's manager, or an
+admin) — body `{"password": "..."}`. This is the local `users.password`,
+unrelated to the shared EPP registry credential (below). Changing a password
+you may not change is **403**.
 
 ## Authorization model
 
-- `admin` claim `=== 1` → unrestricted, sees/manages every user's data, can
-  hit `Auth::requireAdmin()`-gated routes.
-- Everyone else is scoped to their own `user_id` — every list/read/write
-  handler that isn't admin-only filters
-  its query by the caller's id. There is no per-resource ACL table; it's a
-  `WHERE user_id = :id` (or ownership join) added to the query, or a 403 if
-  the ownership check fails outright.
-- Every domain **write** route checks ownership (`canAccessDomain()`,
-  `src/Api/Routes/domain.php`) *before* opening an EPP session, so a rejected call
-  never reaches the registry: 403
-  `{"error": "You are not authorized to modify domain '...'"}`. A domain
-  belongs to exactly one local user — there is no wider attachment rule like
-  contacts have. Two deliberate exceptions, both claim-style operations where
-  the caller isn't expected to own the domain yet:
-  `POST /v1/domains/{name}/transfer` and `.../transfer/cancel` (see their rows
-  below).
-- A domain's registrant must be a contact the caller **owns**
-  (`canUseAsRegistrant()`, `src/Api/Routes/domain.php`): `POST /v1/domains` and
-  `POST /v1/domains/{name}/registrant` 403 otherwise. This is stricter than
-  the read rule below on purpose — being allowed to *see* a contact because it
-  hangs off one of your domains is not grounds for making it the registrant of
-  another. It also keeps a domain's owner and its registrant's owner from
-  drifting apart, since a registrant change reassigns the domain's local
-  ownership to that contact's owner.
-- Contacts have a wider access rule than domains
-  (`canAccessContact()`, `src/Api/Routes/contact.php`): a reseller may `GET`/`PATCH`
-  a contact they don't directly own, as long as it's attached (as
-  registrant, admin, or tech) to at least one domain they DO own. Contact
-  `DELETE` has no such check — see gotchas.
+Contacts, domains and pending transfers belong to a **reseller**, not to a
+user. Every user belongs to exactly one reseller (fixed when the user is
+created) and has a **role**:
+
+| Role | Where | May |
+|---|---|---|
+| `admin` | reseller 1 only ("Registrar (self)") | everything, every reseller's data, the admin-only routes |
+| `manager` | any reseller | everything a user may, plus manage the reseller's users (not admins) and its defaults and NS sets |
+| `user` | any reseller | work on all of the reseller's contacts and domains; sees only their own `users` row |
+
+- The role and reseller are looked up **on every request** (`Auth::verify()`),
+  not taken from the token: a changed role or a deactivated user or reseller
+  takes effect on the next request. A deactivated user gets **403**
+  `{"error": "Your account is deactivated"}`, a user of a deactivated reseller
+  **403** `{"error": "Your reseller account is deactivated"}`.
+- Everyone but an admin is scoped to their own reseller — every list, read and
+  write filters by `reseller_id`, or answers 403 when the check fails outright.
+- Every domain **write** route checks access (`Api\Access::canAccessDomain()`)
+  *before* opening an EPP session, so a rejected call never reaches the
+  registry: 403 `{"error": "You are not authorized to modify domain '...'"}`.
+  Two deliberate exceptions, both claim-style operations where the caller
+  isn't expected to own the domain yet: `POST /v1/domains/{name}/transfer`
+  and `.../transfer/cancel` (see their rows below).
+- A domain always belongs to its **registrant contact's reseller**. So the
+  registrant must be one of the caller's reseller's contacts
+  (`Access::canUseAsRegistrant()`): `POST /v1/domains` and
+  `POST /v1/domains/{name}/registrant` answer 403 otherwise. Being allowed to
+  *see* a contact because it hangs off one of your domains is not grounds for
+  making it the registrant of another. An admin may use any reseller's
+  contact, and the domain lands in that reseller.
+- Contacts have a wider read rule than domains (`Access::canAccessContact()`):
+  a reseller may `GET`/`PATCH` a contact it doesn't own, as long as it's
+  attached (as registrant, admin, or tech) to one of its domains. `DELETE`
+  requires owning it.
+- **Daily quota** (`resellers.max_operations`, `0` = unlimited; admins exempt):
+  registrations and transfer-in requests by any of the reseller's users that
+  day, counted from `history` rows with `object='domains'`, `action='request'`
+  — whether or not the transfer later completes. Imports, registry
+  reconciliation and completing transfers don't count. Over it:
+  **429** `{"error": "Daily operation quota exceeded"}`.
 
 ## Talking to the registry (EPP)
 
@@ -410,12 +425,12 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 | `GET /v1/session/credit` | user | live EPP registry account balance, `{"credit": "..."}`; 502 if the registry session fails |
 | `GET /v1/session/epp/credentials` | admin | the shared EPP registry credential itself — `{"credentials": {"server", "username", "password"}}`. Separate from `GET /v1/session/epp` on purpose: that one is what a settings screen loads, and a secret delivered as a side effect of rendering a page ends up in caches, proxy logs and screenshots. Exists because the password is rotated automatically — after `eppitnic poll process` acts on a `passwdReminder`, this is the only way short of a SQL client to learn the current one. When a rotation was interrupted the response also carries `pending_password` and a `note`: the registry holds one of the two and only it can say which. `404` when no password is configured. **Every retrieval is recorded** in `history` as a `security`/`secread` row: the acting user, the client IP, and the request headers. The password is not written, and `Authorization`, `Cookie` and `Proxy-Authorization` are stored as `[redacted]` — they are themselves credentials, and the log is read by more people than the password was shown to. A refused request records nothing |
 | `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — records the new password in the `settings` table, then logs into EPP with it to make the change. Body `{"password"?: "..."}` (random if omitted; 16 characters is the EPP maximum). 500/502/400 when the settings write, the registry connection or the registry itself fails. A failure before the registry is reached leaves the current credential untouched; one after it is settled by `eppitnic doctor epp-password` |
-| `GET /v1/poll-queue` | admin | raw `messages` table rows, `?active=1\|0` (default `1` = `archived_time IS NULL` only), newest first. `?limit=n` (1–500) returns only the newest `n`; `total` is how many matched either way: `{"messages": [...], "total": n}` |
-| `GET /v1/poll-queue/{id}` | admin | single message, 404 if missing |
-| `POST /v1/poll-queue/{id}/archive` | admin | sets `archived_time`/`archived_user_id`; answers `{"archived": true, "id", "archived_time"}` |
-| `POST /v1/poll-queue/archive` | admin | archive every unarchived message up to a moment, in one call. Body `{"until": "YYYY-MM-DD HH:MM:SS"}` (a real datetime; `400` otherwise), compared to `created_time` inclusively. Pass the newest message the user has loaded, so what arrived since stays in the queue rather than being archived unread. `created_time` is only second-resolution, so pass `"until_id"` (that message's `id`) instead for an exact cutoff — ids are monotonic, and when given it is used in place of `until`. Already-archived messages keep their stamp. Answers `{"archived": n, "until", "until_id", "outstanding"}` (`until_id` only when given) — `outstanding` is how many unarchived messages remain |
+| `GET /v1/poll-queue` | user | raw `messages` table rows — an admin sees all, anyone else only messages about a domain (or pending transfer-in) of their reseller; account-level messages without a domain stay the admins' — `?active=1\|0` (default `1` = `archived_time IS NULL` only), newest first. `?limit=n` (1–500) returns only the newest `n`; `total` is how many matched either way: `{"messages": [...], "total": n}` |
+| `GET /v1/poll-queue/{id}` | user | single message, scoped the same way; 404 if missing or not the caller's to see |
+| `POST /v1/poll-queue/{id}/archive` | manager | within the same scope (404 otherwise); sets `archived_time`/`archived_user_id`; answers `{"archived": true, "id", "archived_time"}` |
+| `POST /v1/poll-queue/archive` | manager | archive every unarchived message up to a moment, in one call — a manager only their reseller's, and `outstanding` counts within that scope too. Body `{"until": "YYYY-MM-DD HH:MM:SS"}` (a real datetime; `400` otherwise), compared to `created_time` inclusively. Pass the newest message the user has loaded, so what arrived since stays in the queue rather than being archived unread. `created_time` is only second-resolution, so pass `"until_id"` (that message's `id`) instead for an exact cutoff — ids are monotonic, and when given it is used in place of `until`. Already-archived messages keep their stamp. Answers `{"archived": n, "until", "until_id", "outstanding"}` (`until_id` only when given) — `outstanding` is how many unarchived messages remain |
 
-### Users (admin-managed accounts)
+### Users
 
 **Password rule.** Every route that *sets* a password — `POST /v1/users`,
 `PUT /v1/users/{id}` (only when one is supplied) and `PUT /v1/changepassword/{id}` —
@@ -430,26 +445,54 @@ state it before anybody types.
 password at login would lock out every account created before the rule, and the
 refusal there stays the generic `Wrong username or password` whatever the reason.
 
+A **manager** manages the users of their own reseller: creates them (as
+`manager` or `user`), edits and deactivates them, but never an admin, never
+`debug`, and never in another reseller. Nobody may change their own `role` or
+deactivate themselves, and neither the last active admin nor a reseller's
+last active manager may be demoted or deactivated — each refused with `400`
+or `403` and a message saying why. Acting on another user needs a verified MFA
+(`Auth::requireManager()`).
+
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/users` | user | **not actually scoped** despite requiring only a valid token — returns every user's `id, active, admin, username, max_token_age, max_idle_time, debug, has_totp`, and for an admin also `description, email, max_operations`. Never returns password hashes |
-| `GET /v1/users/{id}` | user | same field set, but still `{"users": [row]}` — a one-element array, and `[]` rather than `404` for an unknown id. Also unscoped: any logged-in user can look up any other by id |
-| `POST /v1/users` | admin | create. Required: `username`, `password`. Optional: `description`, `email`, `max_operations` (daily domain-create quota, `0` = unlimited), `active` (default `1`), `admin` (default `0`), `max_token_age`, `max_idle_time`, `debug`. `400` if a required field is missing or if `username` is already taken |
-| `PUT /v1/users/{id}` | admin | update of the same field set. **Every field is optional** — anything omitted keeps its current value (this includes `password`, as before). `404` if the id doesn't exist, `400` on a `username` collision with another row |
-| `DELETE /v1/users/{id}` | admin | soft-delete (`active = 0`) — does **not** block deleting id `1`, unlike the original plan's intent; be careful in the UI |
+| `GET /v1/users` | user | an admin sees every user (`?reseller_id=` narrows it to one reseller), a manager their reseller's, a plain user only themselves. Rows: `id, active, role, reseller_id, reseller_name, username, max_token_age, max_idle_time, debug, notify_enabled, has_totp`, and for a manager or admin also `description, email`. Never password hashes |
+| `GET /v1/users/{id}` | user | same field set and scope, still `{"users": [row]}` — a one-element array, and `[]` for an unknown id or one the caller may not see |
+| `POST /v1/users` | manager | create. Required: `username`, `password`. Optional: `description`, `email`, `role` (default `user`; `admin` only in reseller 1), `reseller_id` (admin only; a manager's users join their own reseller), `notify_enabled` (default on for managers/admins, off for plain users), `active` (default `1`), `max_token_age`, `max_idle_time`, `debug` (admin only). `400` if a required field is missing, the username is taken, or the role doesn't fit the reseller |
+| `PUT /v1/users/{id}` | manager | update of the same field set; **every field is optional** — anything omitted keeps its current value (including `password`). `reseller_id` can never change (`400`). `404` for an unknown id |
+| `DELETE /v1/users/{id}` | manager | deactivate (`active = 0`), with the same rules as setting it through `PUT` |
+| `GET /v1/users/{id}/notifications` | self, their manager, or admin | this user's own email notifications, `{"notifications": {"enabled": bool, "message_types": [...], "fulltext": "..."}, "message_types": [...]}` (the second `message_types` is the full allow-list, for a picker). `404` for an unknown user |
+| `PATCH /v1/users/{id}/notifications` | self, their manager, or admin | body: any of `enabled`, `message_types` (a list from the allow-list above) and `fulltext`; what is omitted stays. Only takes effect while the system-wide `smtp.recipient_mode` (see "Email (SMTP)") includes `user` |
+
+### Resellers
+
+Who contacts, domains and pending transfers belong to. Reseller 1,
+"Registrar (self)", is the registrar itself: every admin belongs to it, and it
+can be renamed but never deactivated. Resellers are deactivated, never
+deleted — their users lose access at once (see "Authorization model"), their
+data stays.
+
+A reseller: `{"id", "name", "max_operations", "active", "creation_time",
+"users", "domains", "contacts"}` — the last three are counts.
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/resellers` | user | `{"resellers": [...]}` — an admin sees all, anyone else only their own |
+| `GET /v1/resellers/{id}` | user | `{"reseller": {...}}` — an admin any, anyone else only their own (`403`); `404` for an unknown id |
+| `POST /v1/resellers` | admin | body `{"name"*, "max_operations"?}`; `201`. `400` for a blank, over-long (64) or taken name (compared ignoring case), or a negative quota |
+| `PATCH /v1/resellers/{id}` | admin | body: any of `name`, `max_operations`, `active`. `400` on the same validation, and for deactivating reseller 1 |
 
 #### Defaults and NS sets
 
-What a user starts new contacts and domains from, kept on their `users` row.
-All of it is the user's own to read and change (an MFA-verified admin may act
-for anyone), and every route answers with the whole current state:
+What a reseller's new contacts and domains start from, kept on its
+`resellers` row. Anyone in the reseller may read them; its managers (and any
+admin) may change them. Every route answers with the whole current state:
 `{"settings": {"countrycode", "techc", "dnsset", "nssets"}}`.
 
 - `countrycode` — a two-letter ISO 3166-1 code (stored upper-case), or `""`.
 - `techc` — a list of up to six contact handles. Rows written before it was a
   list hold one bare handle, which reads as a one-element list;
   `POST /v1/domains/{name}/owner` uses the whole list.
-- `nssets` — named sets `{"name", "ns": [...]}`. A name is unique per user
+- `nssets` — named sets `{"name", "ns": [...]}`. A name is unique per reseller
   ignoring case, at most 64 characters, without a slash. `ns` holds 2 to 6
   hostnames, lower-cased; addresses are refused, since only a single domain's
   glue records ever need them.
@@ -458,13 +501,11 @@ for anyone), and every route answers with the whole current state:
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/users/{id}/settings` | self or admin | `404` for an unknown user |
-| `PUT /v1/users/{id}/settings` | self or admin | body: any of `countrycode`, `techc`, `dnsset`; what is omitted stays. `dnsset` must name one of the user's sets |
-| `POST /v1/users/{id}/nssets` | self or admin | body `{"name", "ns"}`; `201` |
-| `PUT /v1/users/{id}/nssets/{name}` | self or admin | body `{"name"?, "ns"}` — replaces the nameservers, and renames the set if `name` differs. `404` for an unknown set |
-| `DELETE /v1/users/{id}/nssets/{name}` | self or admin | `404` for an unknown set |
-| `GET /v1/users/{id}/notifications` | self or admin | this user's own email-notification filter, `{"notifications": {"message_types": [...], "fulltext": "..."}, "message_types": [...]}` (the second `message_types` is the full allow-list, for a picker). `404` for an unknown user |
-| `PATCH /v1/users/{id}/notifications` | self or admin | body: either or both of `message_types` (a list from the allow-list above) and `fulltext`; what is omitted stays. Only takes effect while the system-wide `smtp.recipient_mode` (see "Email (SMTP)") includes `user` |
+| `GET /v1/resellers/{id}/settings` | its users, or admin | `404` for an unknown reseller |
+| `PUT /v1/resellers/{id}/settings` | its managers, or admin | body: any of `countrycode`, `techc`, `dnsset`; what is omitted stays. `dnsset` must name one of the reseller's sets |
+| `POST /v1/resellers/{id}/nssets` | its managers, or admin | body `{"name", "ns"}`; `201` |
+| `PUT /v1/resellers/{id}/nssets/{name}` | its managers, or admin | body `{"name"?, "ns"}` — replaces the nameservers, and renames the set if `name` differs. `404` for an unknown set |
+| `DELETE /v1/resellers/{id}/nssets/{name}` | its managers, or admin | `404` for an unknown set |
 
 ### Domains
 
@@ -474,21 +515,21 @@ below: `{ domain, status, registrant, admin, tech: [handles], ns: [names], authi
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/domains` | user | local DB only, no EPP round-trip. Query params: `registrant` (exact match), `active` (`1`\|`0`, default `1`), `age` (months since `ex_date`, filters to older-than). Returns **raw DB rows** `{domain, registrant, user_id, status}` per entry — not `domainToArray()` — plus any pending transfer-in requests with `" (transfer-in)"` appended to the domain name as a literal string suffix (not a separate field — parse it out if the UI needs to distinguish); a transfer-in row always has `status: []`, since EPP has not confirmed the domain locally yet |
-| `GET /v1/domains/expiring?days=30` | user | local DB, joined with the registrant contact; rows include `handle, org, name, email` alongside the domain columns. `ns`, `tech`, `status` and `dnssec` are decoded from their stored serialization into real JSON (`ns`/`tech` as objects keyed by hostname/handle, so take `Object.keys()`; `status`/`dnssec` as arrays) — they are **not** in the flattened `domainToArray()` shape. Scoped by the **domain's** owner (`domains.user_id`), same as every other domain route |
+| `GET /v1/domains` | user | local DB only, no EPP round-trip. Query params: `registrant` (exact match), `active` (`1`\|`0`, default `1`), `age` (months since `ex_date`, filters to older-than). Returns **raw DB rows** `{domain, registrant, reseller_id, status}` per entry — not `domainToArray()` — plus any pending transfer-in requests with `" (transfer-in)"` appended to the domain name as a literal string suffix (not a separate field — parse it out if the UI needs to distinguish); a transfer-in row always has `status: []`, since EPP has not confirmed the domain locally yet |
+| `GET /v1/domains/expiring?days=30` | user | local DB, joined with the registrant contact; rows include `handle, org, name, email` alongside the domain columns. `ns`, `tech`, `status` and `dnssec` are decoded from their stored serialization into real JSON (`ns`/`tech` as objects keyed by hostname/handle, so take `Object.keys()`; `status`/`dnssec` as arrays) — they are **not** in the flattened `domainToArray()` shape. Scoped by the **domain's** reseller (`domains.reseller_id`), same as every other domain route |
 | `GET /v1/domains/autocomplete?term=&limit=10` | user | domain-name substring search (`LIKE %term%`), includes transfer-in pending domains with the same `" (transfer-in)"` suffix, returns `{"domains": ["a.it", "b.it (transfer-in)", ...]}` |
 | `GET /v1/domains/export` | user | **not JSON** — `text/csv` with `Content-Disposition: attachment`, columns `Active;Domain;Auth-Info;Created;Expires;Registrant Handle;Registrant Org;Registrant Name;Registrant Email` |
-| `GET /v1/domains/transfers?registrant=` | user | pending local transfer-in requests (the `transfers` table, not registry `pendingTransfer` polling state) — `techc`/`dns` are unserialized back into arrays for the response. Scoped by who **requested** the transfer (`transfers.user_id`), matching what `.../transfer/cancel` authorizes against |
-| `GET /v1/domains/{name}` | user | registry-first: live EPP `fetch()`, returned as-is in the `domainToArray()` shape with `"stale": false`. If the registry can't answer — `fetch()` fails **or** the session itself fails — falls back to the local DB row and returns it with `"stale": true`. 404 only when neither source has it (the local fallback is scoped by `user_id`, so a domain you don't own counts as absent). This route no longer returns 502 |
-| `POST /v1/domains` | user | create-or-transfer-request in one call: `check()`s the name first, `create()`s if available, otherwise issues a `transfer()` request if it's held elsewhere. Body: `domain*, registrant*, admin?, tech?: [...], ns?: [{name,ip?}...], authinfo?` (`*` = required). The `registrant` must be a contact you own, else 403. **Daily quota enforced** for non-admins via `users.max_operations` vs. today's `history` create-count — `429` with `{"error": "Daily operation quota exceeded"}` when hit. `201` + `domainToArray()` on success |
+| `GET /v1/domains/transfers?registrant=` | user | pending local transfer-in requests (the `transfers` table, not registry `pendingTransfer` polling state) — rows `{id, domain, techc, dns, reseller_id, name, email}` (the last two are the registrant's), `techc`/`dns` unserialized back into arrays. Scoped by the requesting reseller (`transfers.reseller_id`), matching what `.../transfer/cancel` authorizes against |
+| `GET /v1/domains/{name}` | user | registry-first: live EPP `fetch()`, returned as-is in the `domainToArray()` shape with `"stale": false`. If the registry can't answer — `fetch()` fails **or** the session itself fails — falls back to the local DB row and returns it with `"stale": true`. 404 only when neither source has it (the local fallback is scoped by reseller, so another reseller's domain counts as absent). This route no longer returns 502 |
+| `POST /v1/domains` | user | create-or-transfer-request in one call: `check()`s the name first, `create()`s if available, otherwise issues a `transfer()` request if it's held elsewhere. Body: `domain*, registrant*, admin?, tech?: [...], ns?: [{name,ip?}...], authinfo?` (`*` = required). The `registrant` must be one of your reseller's contacts, else 403, and the domain belongs to the registrant's reseller. Counts against the reseller's **daily quota** (see "Authorization model"), whether it registers or requests a transfer — `429` when exceeded. `201` + `domainToArray()` on success |
 | `POST /v1/domains/import` | user | body `{"domains": ["a.it", ...]}` — pulls each from the registry into the local DB (idempotent reconciliation, not a create). Response is a per-domain diagnostic object keyed by domain name, each with `domain` and `registrant` (`"found"`/`"not found"`) and `contact_stored` and `domain_stored` (`"stored"`/`"not stored"`). A step that was never reached reads `"skipped"`, so the first non-`skipped` failure is where the import stopped and why — not a simple success flag, and useful for surfacing partial failures in a bulk-import UI |
 | `PATCH /v1/domains/{name}` | user | partial update: `admin`, `authinfo` set directly; `ns`, `tech`, `dnssec` are **full-target-list diffs** — send the complete desired array and the server computes add/remove, don't send deltas. `dnssec` entries are `{keytag, algorithm, digesttype, digest}`. Registrant changes are **not** accepted here — see the dedicated endpoint below |
-| `POST /v1/domains/{name}/registrant` | user | dedicated registrant-change flow (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}` — the new registrant must be a contact you own (403 otherwise), since this also moves the domain's local ownership to that contact's owner — authinfo is rotated automatically (server-generated if omitted) since the registry requires it to change alongside the registrant |
+| `POST /v1/domains/{name}/registrant` | user | dedicated registrant-change flow (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}` — the new registrant must be one of your reseller's contacts (403 otherwise), since this also moves the domain to that contact's reseller — authinfo is rotated automatically (server-generated if omitted) since the registry requires it to change alongside the registrant |
 | `POST /v1/domains/{name}/status` | user | body `{"state"*, "action"?: "add"\|"rem" (default "add")}` — EPP status flags (e.g. `clientTransferProhibited`) |
 | `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | ownership is checked up front, so a domain you don't own is **403** in every mode (it used to be a 404 for `mode=expiry\|date`). `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry at all** — just inserts a future-dated `tasks` row (`object='registry'`, `action='delete'`, `date` required when `mode=date`; defaults to the domain's `ex_date` for `mode=expiry`) for `eppitnic domain reap-deletions` to act on once due — that job's own query requires `action='delete'`, so no other `registry` row shape is ever picked up. `mode=date` 400s if `date` is missing |
 | `POST /v1/domains/{name}/restore` | user | undelete a `pendingDelete`/redemption-period domain |
-| `POST /v1/domains/{name}/owner` | admin | reassigns local ownership to another user: duplicates the registrant (and admin, if set) contact under the new owner, picks the new owner's default tech contact (`users.techc`) or duplicates the current one, runs `updateRegistrant()` then a generic `update()`, then flips `domains.user_id`. Body `{"user_id"*}` (the new owner). Multi-step — can partially fail (e.g. registrant duplicated but registrant-change rejected); check `error` carefully in the UI |
-| `POST /v1/domains/{name}/transfer` | user | request-transfer-in, storing the desired post-transfer registrant/tech/ns locally (`transfers` table) for `PollProcessor` to apply once the registry confirms. Body `{"authinfo"*, "registrant"?, "tech"?: [...], "ns"?: [...]}`. **Not** ownership-checked — you're claiming a domain you don't hold yet — but 403 if another local user already holds it |
+| `POST /v1/domains/{name}/owner` | admin | moves the domain to another reseller: duplicates the registrant (and admin, if set) contact into it, picks its default tech contacts (`resellers.techc`) or duplicates the current one, runs `updateRegistrant()` then a generic `update()`, then points `domains.reseller_id` and `registrant` at the new owner and copy. Body `{"reseller_id"*}`; `404` for an unknown reseller. Multi-step — can partially fail (e.g. registrant duplicated but registrant-change rejected); check `error` carefully in the UI |
+| `POST /v1/domains/{name}/transfer` | user | request-transfer-in, storing the desired post-transfer registrant/tech/ns locally (`transfers` table) for `PollProcessor` to apply once the registry confirms. Body `{"authinfo"*, "registrant"?, "tech"?: [...], "ns"?: [...]}`. **Not** ownership-checked — you're claiming a domain you don't hold yet — but 403 if another reseller already holds it, or if `registrant` is not one of your reseller's contacts. The pending row belongs to the registrant's reseller. Counts against the daily quota — `429` when exceeded |
 | `POST /v1/domains/{name}/transfer/approve` | user | body `{"authinfo"?}`; ownership-checked against `domains` (you're answering a request for a domain you sponsor) |
 | `POST /v1/domains/{name}/transfer/reject` | user | body `{"authinfo"?}`; ownership-checked against `domains` |
 | `POST /v1/domains/{name}/transfer/cancel` | user | body `{"authinfo"?}`; unlike approve/reject, does **not** delete the local `transfers` row (cancelling an outgoing request the local side itself made, not one incoming). Ownership check accepts a pending `transfers` row too, since the domain isn't in `domains` yet |
@@ -500,11 +541,11 @@ envelope: `{ handle, status, name, org, street, street2, street3, city, province
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/contacts?active=1\|0` | user | local DB only, scoped rows: `{handle, org, name, entitytype, status, user_id}` (`status` is the list of flags as of the contact's last sync, e.g. `["ok", "linked"]`) (not the full `contactToArray()` shape — fetch by handle for full detail) |
-| `GET /v1/contacts/{handle}` | user (+ownership/attachment check) | registry-first, same contract as `GET /v1/domains/{name}`: live EPP `fetch()` returned with `"stale": false`, falling back to the local row with `"stale": true` when the registry can't answer. 403 if `canAccessContact()` fails, 404 when neither source has it. No longer returns 502 |
-| `POST /v1/contacts` | user | body: any of the `contactToArray()` fields except `status` (server-managed), plus optional `handle` (16 random hex chars, registry-checked for uniqueness, if omitted) and `authinfo` (server-generated if omitted). `consentforpublishing` is a boolean (or `1`/`0`); the registry refuses withdrawing it for entity types other than 1 and 3. `name` is required. `201` + full contact on success |
+| `GET /v1/contacts?active=1\|0` | user | local DB only, scoped rows: `{handle, org, name, entitytype, status, reseller_id}` (`status` is the list of flags as of the contact's last sync, e.g. `["ok", "linked"]`) (not the full `contactToArray()` shape — fetch by handle for full detail) |
+| `GET /v1/contacts/{handle}` | user (+ownership/attachment check) | registry-first, same contract as `GET /v1/domains/{name}`: live EPP `fetch()` returned with `"stale": false`, falling back to the local row with `"stale": true` when the registry can't answer. 403 if `Access::canAccessContact()` fails, 404 when neither source has it. No longer returns 502 |
+| `POST /v1/contacts` | user | body: any of the `contactToArray()` fields except `status` (server-managed), plus optional `handle` (16 random hex chars, registry-checked for uniqueness, if omitted) and `authinfo` (server-generated if omitted). `consentforpublishing` is a boolean (or `1`/`0`); the registry refuses withdrawing it for entity types other than 1 and 3. `name` is required. An admin may pass `reseller_id` to create it for that reseller (default: their own); anyone else passing it gets `403`. `201` + full contact on success |
 | `PATCH /v1/contacts/{handle}` | user (+ownership/attachment check) | same field allow-list as create, partial update |
-| `DELETE /v1/contacts/{handle}` | user | **no `canAccessContact()` check** — only succeeds if the registry itself allows the delete (i.e. the contact isn't attached to any domain there), but there's no local ownership gate before attempting it. Treat as a gap if tightening auth later |
+| `DELETE /v1/contacts/{handle}` | user | the contact must belong to your reseller (`403` otherwise), checked before the registry is asked. Only succeeds if the registry itself allows the delete (i.e. the contact isn't attached to any domain there) |
 
 ### Tasks
 
@@ -565,7 +606,7 @@ notifications" in `docs/INSTALL.md` for the full field list and
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything, everyone else sees the history of objects they own — their own `users` row, their `domains`, their `contacts` — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action` (or several, comma-separated: `action=denied,secread`), `network`, `acknowledged` (`0` = not yet acknowledged, **any other value** = acknowledged), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
+| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything; everyone else sees their reseller's `domains` and `contacts` (whoever changed them), the registrations and transfer-ins its users requested (`action=request`), and their own `users` row — a manager also every user of the reseller and the reseller itself (`object=resellers`) — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action` (or several, comma-separated: `action=denied,secread`), `network`, `acknowledged` (`0` = not yet acknowledged, **any other value** = acknowledged), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
 | `GET /v1/history/{object}/{object_id}` | user | shorthand for `GET /v1/history?object=…&object_id=…`, scoped identically. Only `limit` is honoured here (default **500**, not 100) — no `offset`, no further filters. Answers `{"history": [...], "total": n}` without `outstanding` |
 | `POST /v1/history/acknowledge` | admin | acknowledge every entry still unacknowledged up to a moment, in one call. Body `{"until": "YYYY-MM-DD HH:MM:SS"}` (a real datetime; `400` otherwise), compared to the entry's timestamp inclusively, and optionally `"actions": [...]` to acknowledge only entries of those actions (`400` unless a non-empty list of known ones). Pass the newest entry the user has loaded, so what arrived since stays outstanding rather than being acknowledged unread. The timestamp is only second-resolution, so pass `"until_id"` (that entry's `id`) instead for an exact cutoff — ids are monotonic, and when given it is used in place of `until`. `"object"` (default `security`, `400` unless one of the `object` enum) scopes it — `outstanding` only ever counts `security`, and this is the button that clears that badge. Already-acknowledged entries keep their stamp. Answers `{"acknowledged": n, "object", "until", "until_id", "outstanding"}` |
 | `POST /v1/history/{id}/acknowledge` | admin | mark one entry as reviewed. Records `acknowledged_time` and `acknowledged_user_id` rather than a flag — an entry that was dismissed is worth being able to ask about later. Does not alter what the entry says happened. Re-acknowledging re-stamps it, so the last person to look at it is the one on record. Returns `{"acknowledged": true, "id": n, "entry": {…}}` with the entry as it now stands. `404` for an unknown id. Unscoped: an admin may acknowledge any entry, including a non-`security` one |
@@ -605,11 +646,6 @@ headers, with `Authorization`, `Cookie` and `Proxy-Authorization` stored as
 - No stable machine-readable error `code` field — the original plan called
   for one (`{"error": {"code": "DOMAIN_CREATE_FAILED", ...}}`), it was
   never implemented; every route just returns a human-readable string.
-- `GET /v1/users` and `GET /v1/users/{id}` are reachable by any
-  authenticated user, not just admins — fine for an internal back-office
-  tool, worth knowing before exposing this API more broadly.
-- `DELETE /v1/contacts/{handle}` has no ownership check (see above).
-- `DELETE /v1/users/{id}` doesn't block deleting id `1`.
 - No refresh-token flow — `GET /v1/users/renew-token` just re-signs the
   same claims from whatever token you already have; if it's expired,
   you're back to a full login.

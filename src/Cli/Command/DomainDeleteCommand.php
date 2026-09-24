@@ -21,7 +21,7 @@ final class DomainDeleteCommand extends Command
 
     public function options(): array {
         return self::fileOption('domain names') + [
-            'all-users' => 'operate on any user\'s domains, not just --user\'s',
+            'all-resellers' => 'operate on any reseller\'s domains, not just --user\'s reseller\'s',
         ] + self::MUTATING_OPTIONS;
     }
 
@@ -36,10 +36,9 @@ final class DomainDeleteCommand extends Command
             return 0;
         }
 
-        $userId = $this->userId();
-        $isAdmin = $this->hasOption('all-users');
+        $scope = $this->scope($this->hasOption('all-resellers'));
 
-        $this->withSession(function ($nic) use ($names, $userId, $isAdmin) {
+        $this->withSession(function ($nic) use ($names, $scope) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
@@ -51,7 +50,7 @@ final class DomainDeleteCommand extends Command
                 // a dry run reached this point on a synthetic success, so the
                 // local row must not be touched
                 if ( ! $this->isDryRun()) {
-                    $domain->deleteDomainDB($name, $userId, $isAdmin);
+                    $domain->deleteDomainDB($name, $scope);
                 }
 
                 $this->record("{$name} deleted", ['domain' => $name, 'deleted' => true]);

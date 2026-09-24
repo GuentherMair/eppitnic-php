@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 
 /**
  * Change a domain's nameservers, technical contacts, admin contact or authinfo.
@@ -113,7 +114,7 @@ final class DomainUpdateCommand extends Command
                 if ( ! $this->isDryRun()) {
                     // update() zeroes the mask on success, so it is passed
                     // explicitly -- see Domain::updateDB()
-                    $domain->updateDB($row['domain'], $this->userId(), true, $changes);
+                    $domain->updateDB($row['domain'], Scope::operator($this->userId()), $changes);
                 }
 
                 $this->record("{$row['domain']} updated", [

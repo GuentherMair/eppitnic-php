@@ -31,10 +31,10 @@ final class History
     private const REDACTED_HEADERS = ['authorization', 'cookie', 'proxy-authorization'];
 
     /** the `history.action` enum */
-    public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied'];
+    public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied', 'request'];
 
     /** the `history.object` enum */
-    public const OBJECTS = ['users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies'];
+    public const OBJECTS = ['users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers'];
 
     /**
      * record an audit-trail entry
@@ -111,17 +111,19 @@ final class History
      *         header appeared more than once
      */
     /**
-     * Entries $userId may see, newest first: an admin sees everything, everyone
-     * else the objects they own, and nobody but an admin sees `security`, which
-     * carries other people's addresses and headers.
+     * Entries $scope may see, newest first: an admin sees everything; everyone
+     * else their reseller's domains and contacts, the registrations and
+     * transfer-ins its users requested, and their own `users` row -- a manager
+     * also every user of the reseller and the reseller itself. Nobody but an
+     * admin sees `security`, which carries other people's addresses and headers.
      *
      * @param array<string, mixed> $filters object, object_id, action (or several,
      *        comma-separated), network, acknowledged ('0'/'1'), since, until,
      *        limit, offset
      * @return array{rows: array<int, array<string, mixed>>, total: int}
      */
-    public static function visibleTo(int $userId, bool $isAdmin, array $filters = []): array {
-        [$where, $params] = self::scope($userId, $isAdmin, $filters);
+    public static function visibleTo(Scope $scope, array $filters = []): array {
+        [$where, $params] = self::scope($scope, $filters);
 
         $limit  = min(500, max(1, (int) ($filters['limit'] ?? 100)));
         $offset = max(0, (int) ($filters['offset'] ?? 0));
@@ -152,19 +154,30 @@ final class History
      * @param array<string, mixed> $filters
      * @return array{0: string, 1: array<string, mixed>}
      */
-    private static function scope(int $userId, bool $isAdmin, array $filters): array {
+    private static function scope(Scope $scope, array $filters): array {
         $params = [];
         $clauses = [];
 
-        if ($isAdmin) {
+        if ($scope->isAdmin()) {
             $clauses[] = '1 = 1';
         } else {
             // security is excluded by omission rather than by a NOT: a new
-            // object type defaults to invisible until it is listed here
-            $params[':me'] = $userId;
-            $clauses[] = "(object = 'users' AND object_id = :me
-                        OR object = 'domains'  AND object_id IN (SELECT id FROM domains  WHERE user_id = :me)
-                        OR object = 'contacts' AND object_id IN (SELECT id FROM contacts WHERE user_id = :me))";
+            // object type defaults to invisible until it is listed here. A
+            // transfer-in request may have no domains row yet, hence its own
+            // rule by who asked
+            $params[':reseller'] = $scope->resellerId;
+            if ($scope->isManager()) {
+                $users = "object = 'users' AND object_id IN (SELECT id FROM users WHERE reseller_id = :reseller)
+                   OR object = 'resellers' AND object_id = :reseller";
+            } else {
+                $params[':me'] = $scope->userId;
+                $users = "object = 'users' AND object_id = :me";
+            }
+            $clauses[] = "({$users}
+                        OR object = 'domains'  AND object_id IN (SELECT id FROM domains  WHERE reseller_id = :reseller)
+                        OR object = 'contacts' AND object_id IN (SELECT id FROM contacts WHERE reseller_id = :reseller)
+                        OR object = 'domains'  AND action = 'request'
+                           AND user_id IN (SELECT id FROM users WHERE reseller_id = :reseller))";
         }
 
         foreach (['object' => 'object', 'object_id' => 'object_id', 'network' => 'network'] as $filter => $column) {

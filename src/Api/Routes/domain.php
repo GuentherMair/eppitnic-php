@@ -1,10 +1,12 @@
 <?php
 
+use Eppitnic\Api\Access;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\Service\DomainService;
 use Eppitnic\Service\EppSession;
@@ -33,75 +35,20 @@ function domainToArray(Domain $domain): array {
 }
 
 /**
- * A domain may be operated on by its owner or any admin -- one user, no wider
- * attachment rule. Every write route calls this *before* opening a session: the
- * *DB() helpers scope by user_id only after the registry has changed.
- *
- * @param bool $includePending also accept a domain that so far only exists as a
- *                     pending transfer-in request (the `transfers` table) --
- *                     the state a transfer/cancel operates on, where the
- *                     domain isn't in `domains` yet
- */
-function canAccessDomain(string $domain, int $user_id, bool $isAdmin, bool $includePending = false): bool {
-    if ($isAdmin) {
-        return true;
-    }
-    $owns = (int) R::getCell("SELECT COUNT(*) FROM domains WHERE domain = ? AND user_id = ?", [$domain, $user_id]);
-    if ($owns > 0) {
-        return true;
-    }
-    if ($includePending) {
-        return (int) R::getCell("SELECT COUNT(*) FROM transfers WHERE domain = ? AND user_id = ?", [$domain, $user_id]) > 0;
-    }
-    return false;
-}
-
-/**
- * Whether some *other* local user already holds this domain -- the check for
- * claim-style operations (a transfer-in), where the caller is not expected to
- * own it yet but must not pull it away from a colleague either.
- */
-function domainHeldByAnotherUser(string $domain, int $user_id, bool $isAdmin): bool {
-    if ($isAdmin) {
-        return false;
-    }
-    return (int) R::getCell(
-        "SELECT COUNT(*) FROM domains WHERE domain = ? AND user_id <> ? AND active = 1",
-        [$domain, $user_id]
-    ) > 0;
-}
-
-/**
  * the 403 every ownership check above answers with
  */
 function domainForbidden(Response $response, string $domain): Response {
     return Json::response($response, ['error' => "You are not authorized to modify domain '{$domain}'"], 403);
 }
 
-/**
- * Whether the caller may make $handle a domain's registrant. Domain::updateDB()
- * moves domains.user_id to that contact's owner, so naming somebody else's
- * hands the domain away -- ownership, not canAccessContact()'s read access.
- */
-function canUseAsRegistrant(string $handle, int $user_id, bool $isAdmin): bool {
-    if ($isAdmin) {
-        return true;
-    }
-    return (int) R::getCell(
-        "SELECT COUNT(*) FROM contacts WHERE handle = ? AND user_id = ?",
-        [$handle, $user_id]
-    ) > 0;
-}
-
 $app->get('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
     $domain = new Domain($nic);
     $domains = $domain->listDomains(
-        $user_id,
-        $isAdmin,
+        $scope,
         $params['registrant'] ?? null,
         ($params['active'] ?? '1') !== '0',
         isset($params['age']) ? (int) $params['age'] : 0
@@ -111,17 +58,15 @@ $app->get('/v1/domains', function (Request $request, Response $response, array $
 });
 
 $app->get('/v1/domains/expiring', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $days = (int) ($request->getQueryParams()['days'] ?? 30);
 
-    // scoped by the DOMAIN's owner, like every other domain route. Scoping by
-    // the registrant CONTACT's owner hid a domain from its own owner's
-    // renewals list and showed it to a user who cannot act on it at all
+    // scoped by the DOMAIN's reseller, like every other domain route
     $where = ['1 = 1'];
     $params = [':days' => $days];
-    if ( ! $isAdmin) {
-        $where[] = 'd.user_id = :user_id';
-        $params[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'd.reseller_id = :reseller_id';
+        $params[':reseller_id'] = $scope->resellerId;
     }
 
     $domains = R::getAll("
@@ -147,15 +92,15 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
 });
 
 $app->get('/v1/domains/autocomplete', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $term = $request->getQueryParams()['term'] ?? '';
     $limit = (int) ($request->getQueryParams()['limit'] ?? 10) ?: 10;
 
     $where = ['domain LIKE :term'];
     $params = [':term' => "%{$term}%"];
-    if ( ! $isAdmin) {
-        $where[] = 'user_id = :user_id';
-        $params[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'reseller_id = :reseller_id';
+        $params[':reseller_id'] = $scope->resellerId;
     }
 
     $domains = R::getCol("SELECT domain FROM domains WHERE active = 1 AND " . implode(' AND ', $where), $params);
@@ -167,13 +112,13 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
 });
 
 $app->get('/v1/domains/export', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
 
     $where = ['1 = 1'];
     $params = [];
-    if ( ! $isAdmin) {
-        $where[] = 'd.user_id = :user_id';
-        $params[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'd.reseller_id = :reseller_id';
+        $params[':reseller_id'] = $scope->resellerId;
     }
     $records = R::getAll("
         SELECT
@@ -208,30 +153,25 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/domains/transfers', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $registrant = $request->getQueryParams()['registrant'] ?? '';
 
-    // scoped by who REQUESTED it (transfers.user_id), matching the
-    // transfer/cancel authorization check -- otherwise a user is shown a
-    // pending transfer they may not cancel. The joined user is the requester
-    // too
-    $where = ['t.registrant = c.handle', 't.user_id = u.id'];
+    // scoped by the requesting reseller (transfers.reseller_id), matching the
+    // transfer/cancel authorization check
+    $where = ['t.registrant = c.handle'];
     $bind = [];
     if ($registrant !== '') {
         $where[] = 't.registrant = :registrant';
         $bind[':registrant'] = $registrant;
     }
-    if ( ! $isAdmin) {
-        $where[] = 't.user_id = :user_id';
-        $bind[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 't.reseller_id = :reseller_id';
+        $bind[':reseller_id'] = $scope->resellerId;
     }
 
     $rows = R::getAll("
-        SELECT
-            t.id, t.domain, t.techc, t.dns, t.user_id AS transferUserID,
-            c.name, c.email,
-            u.id AS user_id, u.email AS email_user
-        FROM transfers t, contacts c, users u
+        SELECT t.id, t.domain, t.techc, t.dns, t.reseller_id, c.name, c.email
+        FROM transfers t, contacts c
         WHERE " . implode(' AND ', $where), $bind);
 
     $transfers = array_map(function ($row) {
@@ -244,7 +184,7 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
 });
 
 $app->get('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
     // the registry is authoritative: its answer is returned as-is, never
@@ -266,12 +206,12 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     }
 
     // registry lookup failed: serve the last known local state, flagged as
-    // possibly stale. loadDB() scopes by user_id, so a domain the caller does
-    // not own is simply not found. (via a variable: Domain takes it by
+    // possibly stale. loadDB() scopes by reseller, so another reseller's
+    // domain is simply not found. (via a variable: Domain takes it by
     // reference)
     $nic = new Client();
     $domain = new Domain($nic);
-    if ( ! $domain->loadDB($name, $user_id, $isAdmin)) {
+    if ( ! $domain->loadDB($name, $scope)) {
         return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
     }
 
@@ -279,7 +219,7 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
 });
 
 $app->post('/v1/domains', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Validate::requireFields($params, ['domain', 'registrant']) ?? Validate::maxLength($params, Validate::DOMAIN_FIELD_MAX_LENGTHS)) {
@@ -288,29 +228,16 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
     if ( ! Validate::isDomain($params['domain'])) {
         return Json::response($response, ['error' => "'{$params['domain']}' is not a valid .it domain name"], 400);
     }
-    if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
+    if ( ! Access::canUseAsRegistrant($params['registrant'], $scope)) {
         return Json::response($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
-
-    // quota check -- count today's domain creations against this user's cap,
-    // sourced from the history audit trail rather than a separate counter
-    if ( ! $isAdmin) {
-        $user = R::getRow("SELECT max_operations FROM users WHERE id = ?", [$user_id]);
-        $maxOps = (int) ($user['max_operations'] ?? 0);
-        if ($maxOps > 0) {
-            $used = (int) R::getCell("
-                SELECT COUNT(*) FROM history
-                WHERE user_id = ? AND object = 'domains' AND action = 'create' AND DATE(timestamp) = CURDATE()
-            ", [$user_id]);
-            if ($used >= $maxOps) {
-                return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
-            }
-        }
+    if ( ! Access::withinQuota($scope)) {
+        return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
     }
 
     try {
         $result = EppSession::run(
-            fn($nic) => DomainService::createOrTransfer($nic, $params, $user_id),
+            fn($nic) => DomainService::createOrTransfer($nic, $params, $scope->userId),
             $debug
         );
     } catch (\RuntimeException $e) {
@@ -321,11 +248,12 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
+    Access::recordRequest($params['domain'], $result['action'] === 'created' ? 'register' : 'transfer', $scope);
     return Json::response($response, ['domain' => domainToArray($result['domain'])], 201);
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
 
     $names = array_unique(array_filter(array_map('trim', (array) ($params['domains'] ?? []))));
@@ -335,7 +263,7 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
 
     try {
         $results = EppSession::run(
-            fn($nic) => DomainService::import($nic, $names, $user_id),
+            fn($nic) => DomainService::import($nic, $names, $scope),
             $debug
         );
     } catch (\RuntimeException $e) {
@@ -346,11 +274,11 @@ $app->post('/v1/domains/import', function (Request $request, Response $response,
 });
 
 $app->patch('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
-    if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessDomain($name, $scope)) {
         return domainForbidden($response, $name);
     }
     if ($err = Validate::maxLength($params, Validate::DOMAIN_FIELD_MAX_LENGTHS)) {
@@ -358,7 +286,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $scope) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -402,7 +330,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             if ( ! $domain->update()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            $domain->updateDB($name, $user_id, $isAdmin, $changes);
+            $domain->updateDB($name, $scope, $changes);
 
             return ['ok' => true, 'domain' => $domain];
         }, $debug);
@@ -418,25 +346,25 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
-    if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessDomain($name, $scope)) {
         return domainForbidden($response, $name);
     }
     if (empty($params['registrant'])) {
         return Json::response($response, ['error' => 'registrant is required'], 400);
     }
-    // a registrant change moves local ownership to that contact's owner
-    // (Domain::updateDB()), so it must be a contact the caller owns -- or this
-    // is a way to hand a domain away by accident
-    if ( ! canUseAsRegistrant($params['registrant'], $user_id, $isAdmin)) {
+    // a registrant change moves the domain to that contact's reseller
+    // (Domain::updateDB()), so it must be one of the caller's -- or this is a
+    // way to hand a domain away by accident
+    if ( ! Access::canUseAsRegistrant($params['registrant'], $scope)) {
         return Json::response($response, ['error' => "Contact '{$params['registrant']}' is not yours to use as registrant"], 403);
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $scope) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -451,7 +379,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             if ( ! $domain->updateRegistrant()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            $domain->updateDB($name, $user_id, $isAdmin);
+            $domain->updateDB($name, $scope);
             return ['ok' => true, 'domain' => $domain];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -466,11 +394,11 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
-    if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessDomain($name, $scope)) {
         return domainForbidden($response, $name);
     }
     if (empty($params['state'])) {
@@ -501,26 +429,26 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
     // go through the usual updateDB() guard -- sync the status column directly
     $sql = "UPDATE domains SET status = :status WHERE domain = :domain";
     $sqlParams = [':status' => serialize($result['domain']->get('status')), ':domain' => $name];
-    if ( ! $isAdmin) {
-        $sql .= " AND user_id = :user_id";
-        $sqlParams[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $sql .= " AND reseller_id = :reseller_id";
+        $sqlParams[':reseller_id'] = $scope->resellerId;
     }
     R::exec($sql, $sqlParams);
     $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-    History::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $user_id);
+    History::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $scope->userId);
 
     return Json::response($response, ['domain' => domainToArray($result['domain'])]);
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getQueryParams();
     $mode = $params['mode'] ?? 'now';
 
     // checked up front so both the registry delete (mode=now) and the
     // schedule-a-reminder branch (mode=expiry|date) answer identically
-    if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessDomain($name, $scope)) {
         return domainForbidden($response, $name);
     }
 
@@ -530,9 +458,9 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             return Json::response($response, ['error' => 'date is required when mode=date'], 400);
         }
 
-        $row = R::getRow("SELECT id, ex_date FROM domains WHERE domain = :domain" . ($isAdmin ? '' : ' AND user_id = :user_id'), array_filter([
+        $row = R::getRow("SELECT id, ex_date FROM domains WHERE domain = :domain" . ($scope->isAdmin() ? '' : ' AND reseller_id = :reseller_id'), array_filter([
             ':domain' => $name,
-            ':user_id' => $isAdmin ? null : $user_id,
+            ':reseller_id' => $scope->isAdmin() ? null : $scope->resellerId,
         ], fn($v) => $v !== null));
         if (empty($row)) {
             return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
@@ -552,12 +480,12 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $scope) {
             $domain = new Domain($nic);
             if ( ! $domain->delete($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
-            $domain->deleteDomainDB($name, $user_id, $isAdmin);
+            $domain->deleteDomainDB($name, $scope);
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -572,20 +500,20 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
-    if ( ! canAccessDomain($name, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessDomain($name, $scope)) {
         return domainForbidden($response, $name);
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($name, $scope) {
             $domain = new Domain($nic);
             if ( ! $domain->restore($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
-            $domain->restoreDomainDB($name, $user_id, $isAdmin);
+            $domain->restoreDomainDB($name, $scope);
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -600,19 +528,22 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
 });
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    $actorId = Auth::requireAdmin($request);
     ['debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
-    if (empty($params['user_id'])) {
-        return Json::response($response, ['error' => 'user_id (the new owner) is required'], 400);
+    if (empty($params['reseller_id'])) {
+        return Json::response($response, ['error' => 'reseller_id (the new owner) is required'], 400);
     }
-    $newOwnerId = (int) $params['user_id'];
+    $resellerId = (int) $params['reseller_id'];
+    if ((int) R::getCell('SELECT COUNT(*) FROM resellers WHERE id = ?', [$resellerId]) === 0) {
+        return Json::response($response, ['error' => "Reseller {$resellerId} not found"], 404);
+    }
 
     try {
         $result = EppSession::run(
-            fn($nic) => DomainService::changeOwner($nic, $name, $newOwnerId),
+            fn($nic) => DomainService::changeOwner($nic, $name, $resellerId, $actorId),
             $debug
         );
     } catch (\RuntimeException $e) {
@@ -627,32 +558,41 @@ $app->post('/v1/domains/{name}/owner', function (Request $request, Response $res
 });
 
 $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
     // a transfer-in request is a *claim*: the caller is not supposed to own the
-    // domain yet, so canAccessDomain() would reject every legitimate request.
-    // What must be blocked is claiming a domain a colleague already holds.
-    if (domainHeldByAnotherUser($name, $user_id, $isAdmin)) {
+    // domain yet, so Access::canAccessDomain() would reject every legitimate request.
+    // What must be blocked is claiming a domain another reseller holds.
+    if (Access::domainHeldByAnotherReseller($name, $scope)) {
         return domainForbidden($response, $name);
     }
     if (empty($params['authinfo'])) {
         return Json::response($response, ['error' => 'authinfo is required'], 400);
     }
+    $registrant = (string) ($params['registrant'] ?? '');
+    if ($registrant !== '' && ! Access::canUseAsRegistrant($registrant, $scope)) {
+        return Json::response($response, ['error' => "Contact '{$registrant}' is not yours to use as registrant"], 403);
+    }
+    if ( ! Access::withinQuota($scope)) {
+        return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
+    }
+    // the transfer belongs where the domain will: its registrant's reseller
+    $resellerId = $registrant !== '' ? Domain::resellerOf($registrant) : $scope->resellerId;
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $user_id) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $resellerId) {
             $domain = new Domain($nic);
             if ( ! $domain->transfer($name, $params['authinfo'])) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
 
             R::exec("
-                INSERT INTO transfers (user_id, domain, registrant, techc, dns)
-                VALUES (:user_id, :domain, :registrant, :techc, :dns)
+                INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
+                VALUES (:reseller_id, :domain, :registrant, :techc, :dns)
             ", [
-                ':user_id'    => $user_id,
+                ':reseller_id' => $resellerId,
                 ':domain'     => $name,
                 ':registrant' => $params['registrant'] ?? '',
                 ':techc'      => serialize((array) ($params['tech'] ?? [])),
@@ -668,12 +608,13 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
+    Access::recordRequest($name, 'transfer', $scope);
     return Json::response($response, ['requested' => true, 'domain' => $name], 201);
 });
 
 foreach (['approve', 'reject', 'cancel'] as $transferAction) {
     $app->post("/v1/domains/{name}/transfer/{$transferAction}", function (Request $request, Response $response, array $args) use ($transferAction): Response {
-        ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+        ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
         $name = $args['name'];
         $params = $request->getParsedBody() ?? [];
         $authinfo = $params['authinfo'] ?? '';
@@ -682,7 +623,7 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
         // approve/reject answer a request for a domain we sponsor, so the
         // caller must own the `domains` row; cancel withdraws our own request,
         // which exists only in `transfers`
-        if ( ! canAccessDomain($name, $user_id, $isAdmin, $transferAction === 'cancel')) {
+        if ( ! Access::canAccessDomain($name, $scope, $transferAction === 'cancel')) {
             return domainForbidden($response, $name);
         }
 

@@ -23,7 +23,7 @@ final class DomainRestoreCommand extends Command
 
     public function options(): array {
         return self::fileOption('domain names') + [
-            'all-users' => 'operate on any user\'s domains, not just --user\'s',
+            'all-resellers' => 'operate on any reseller\'s domains, not just --user\'s reseller\'s',
         ] + self::MUTATING_OPTIONS;
     }
 
@@ -45,14 +45,13 @@ final class DomainRestoreCommand extends Command
             return CONFIG_ERROR;
         }
 
-        $userId = $this->userId();
-        $allUsers = $this->hasOption('all-users');
+        $scope = $this->scope($this->hasOption('all-resellers'));
 
         $this->line("using {$endpoint}");
 
         // a client of its own: restores are served from a different host than
         // every other command, so this session cannot be the ordinary one
-        $this->withSession(function ($nic) use ($names, $userId, $allUsers) {
+        $this->withSession(function ($nic) use ($names, $scope) {
             foreach ($names as $name) {
                 $domain = new Domain($nic);
 
@@ -62,7 +61,7 @@ final class DomainRestoreCommand extends Command
                 }
 
                 if ( ! $this->isDryRun()) {
-                    $domain->restoreDomainDB($name, $userId, $allUsers);
+                    $domain->restoreDomainDB($name, $scope);
                 }
 
                 $this->record("{$name} restored", ['domain' => $name, 'restored' => true]);

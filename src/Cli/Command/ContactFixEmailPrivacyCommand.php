@@ -6,6 +6,7 @@ use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 
 /**
  * Withdraw whois publication consent from every registrant, and give those
@@ -22,7 +23,7 @@ final class ContactFixEmailPrivacyCommand extends Command
 
     public function options(): array {
         return [
-            'all-users' => "every user's registrants, not just --user's",
+            'all-resellers' => "every reseller's registrants, not just --user's reseller's",
         ] + self::MUTATING_OPTIONS;
     }
 
@@ -35,13 +36,12 @@ final class ContactFixEmailPrivacyCommand extends Command
         }
 
         $this->database();
-        $userId = $this->userId();
-        $isAdmin = $this->hasOption('all-users');
+        $scope = $this->scope($this->hasOption('all-resellers'));
 
         // registrant => the domains it holds, so a contact with no address can
         // be given one at a domain that is actually its own
         $client = new \Eppitnic\Epp\Client();
-        $domains = (new Domain($client))->listDomains($userId, $isAdmin);
+        $domains = (new Domain($client))->listDomains($scope);
 
         $registrants = [];
         foreach ($domains as $row) {
@@ -58,7 +58,7 @@ final class ContactFixEmailPrivacyCommand extends Command
             return 0;
         }
 
-        $this->withSession(function ($nic) use ($registrants, $userId) {
+        $this->withSession(function ($nic) use ($registrants, $scope) {
             foreach ($registrants as $handle => $theirDomains) {
                 $contact = new Contact($nic);
 
@@ -88,7 +88,7 @@ final class ContactFixEmailPrivacyCommand extends Command
                     $this->itemFailed($handle, $contact->getError());
                     continue;
                 }
-                $contact->updateDB($handle, $userId, true);
+                $contact->updateDB($handle, Scope::operator($scope->userId));
 
                 $this->record(
                     sprintf('%-24s unpublished%s', $handle,

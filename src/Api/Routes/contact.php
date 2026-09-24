@@ -1,9 +1,11 @@
 <?php
 
+use Eppitnic\Api\Access;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Contact;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -38,41 +40,22 @@ function contactToArray(Contact $contact): array {
     ];
 }
 
-/**
- * a reseller may access a contact they don't directly own if it's attached
- * (as registrant, admin, or tech) to at least one domain they DO own
- */
-function canAccessContact(string $handle, int $user_id, bool $isAdmin): bool {
-    if ($isAdmin) {
-        return true;
-    }
-    $owns = (int) R::getCell("SELECT COUNT(*) FROM contacts WHERE handle = ? AND user_id = ?", [$handle, $user_id]);
-    if ($owns > 0) {
-        return true;
-    }
-    $attached = (int) R::getCell("
-        SELECT COUNT(*) FROM domains
-        WHERE user_id = ? AND (registrant = ? OR admin = ? OR tech LIKE ?)
-    ", [$user_id, $handle, $handle, '%"' . $handle . '"%']);
-    return $attached > 0;
-}
-
 $app->get('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $params  = $request->getQueryParams();
 
     $nic = new Client();
     $contact = new Contact($nic);
-    $contacts = $contact->listContacts($user_id, $isAdmin, ($params['active'] ?? '1') !== '0');
+    $contacts = $contact->listContacts($scope, ($params['active'] ?? '1') !== '0');
 
     return Json::response($response, ['contacts' => $contacts]);
 });
 
 $app->get('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
 
-    if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessContact($handle, $scope)) {
         return Json::response($response, ['error' => 'You are not authorized to view this contact'], 403);
     }
 
@@ -95,11 +78,11 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
     }
 
     // registry lookup failed: serve the local state, flagged stale. The ACL
-    // argument stays TRUE, canAccessContact() having allowed this already --
-    // scoping by user_id would 404 contacts hanging off a domain they own
+    // argument stays TRUE, Access::canAccessContact() having allowed this already --
+    // scoping by reseller would 404 contacts hanging off a domain it owns
     $nic = new Client();
     $contact = new Contact($nic);
-    if ( ! $contact->loadDB($handle, $user_id, true)) {
+    if ( ! $contact->loadDB($handle, Scope::operator($scope->userId))) {
         return Json::response($response, ['error' => "Contact '{$handle}' not found"], 404);
     }
 
@@ -107,8 +90,21 @@ $app->get('/v1/contacts/{handle}', function (Request $request, Response $respons
 });
 
 $app->post('/v1/contacts', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $params = $request->getParsedBody() ?? [];
+
+    // an admin may create a contact for any reseller; everyone else's go to
+    // their own, and saying otherwise is refused rather than ignored
+    $resellerId = $scope->resellerId;
+    if (array_key_exists('reseller_id', $params)) {
+        if ( ! $scope->isAdmin()) {
+            return Json::response($response, ['error' => 'Only an admin may choose the reseller'], 403);
+        }
+        $resellerId = (int) $params['reseller_id'];
+        if ((int) R::getCell('SELECT COUNT(*) FROM resellers WHERE id = ?', [$resellerId]) === 0) {
+            return Json::response($response, ['error' => "Reseller {$resellerId} not found"], 404);
+        }
+    }
 
     if ($err = Validate::requireFields($params, ['name']) ?? Validate::maxLength($params, Validate::CONTACT_FIELD_MAX_LENGTHS)) {
         return Json::response($response, ['error' => $err], 400);
@@ -118,7 +114,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($params, $user_id) {
+        $result = EppSession::run(function ($nic) use ($params, $resellerId, $scope) {
             $contact = new Contact($nic);
             foreach ($params as $key => $value) {
                 if ($key === 'handle') {
@@ -135,7 +131,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             if ( ! $contact->create()) {
                 return ['ok' => false, 'error' => $contact->getError()];
             }
-            $contact->storeDB($user_id);
+            $contact->storeDB($resellerId, $scope->userId);
             return ['ok' => true, 'contact' => $contact];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -150,11 +146,11 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
     $params = $request->getParsedBody() ?? [];
 
-    if ( ! canAccessContact($handle, $user_id, $isAdmin)) {
+    if ( ! Access::canAccessContact($handle, $scope)) {
         return Json::response($response, ['error' => 'You are not authorized to update this contact'], 403);
     }
     if ($err = Validate::maxLength($params, Validate::CONTACT_FIELD_MAX_LENGTHS)) {
@@ -165,7 +161,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
     }
 
     try {
-        $result = EppSession::run(function ($nic) use ($handle, $params, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($handle, $params, $scope) {
             $contact = new Contact($nic);
             if ( ! $contact->fetch($handle)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Contact '{$handle}' not found"];
@@ -178,7 +174,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
             if ( ! $contact->update()) {
                 return ['ok' => false, 'status' => 400, 'error' => $contact->getError()];
             }
-            $contact->updateDB($handle, $user_id, $isAdmin);
+            $contact->updateDB($handle, $scope);
             return ['ok' => true, 'contact' => $contact];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -193,16 +189,22 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin, 'debug' => $debug] = Auth::actor($request);
+    ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $handle = $args['handle'];
 
+    // checked before the registry: deleting there is not undone by the
+    // local scoping that follows
+    if ( ! Access::ownsContact($handle, $scope)) {
+        return Json::response($response, ['error' => 'You are not authorized to delete this contact'], 403);
+    }
+
     try {
-        $result = EppSession::run(function ($nic) use ($handle, $user_id, $isAdmin) {
+        $result = EppSession::run(function ($nic) use ($handle, $scope) {
             $contact = new Contact($nic);
             if ( ! $contact->delete($handle)) {
                 return ['ok' => false, 'error' => $contact->getError()];
             }
-            $contact->deleteContactDB($handle, $user_id, $isAdmin);
+            $contact->deleteContactDB($handle, $scope);
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {

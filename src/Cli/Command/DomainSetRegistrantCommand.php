@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 
 /**
  * Change a domain's registrant. Its own verb because it is its own EPP command:
@@ -66,8 +67,8 @@ final class DomainSetRegistrantCommand extends Command
                 }
 
                 if ( ! $this->isDryRun()) {
-                    // updateDB() moves the domain to the new registrant's owner
-                    $domain->updateDB($name, $this->userId(), true);
+                    // updateDB() moves the domain to the new registrant's reseller
+                    $domain->updateDB($name, Scope::operator($this->userId()));
                 }
 
                 $this->record(

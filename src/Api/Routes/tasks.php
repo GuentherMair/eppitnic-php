@@ -52,7 +52,7 @@ $app->get('/v1/tasks', function (Request $request, Response $response, array $ar
 });
 
 $app->get('/v1/domains/{name}/tasks', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $name = $args['name'];
 
     // object IS NULL: only the plain human-facing notices belong here --
@@ -60,9 +60,9 @@ $app->get('/v1/domains/{name}/tasks', function (Request $request, Response $resp
     // not something to surface as if a person scheduled them.
     $where = ['d.domain = r.domain', 'r.active = 1', 'r.object IS NULL', 'd.domain = :domain'];
     $bind = [':domain' => $name];
-    if ( ! $isAdmin) {
-        $where[] = 'd.user_id = :user_id';
-        $bind[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'd.reseller_id = :reseller_id';
+        $bind[':reseller_id'] = $scope->resellerId;
     }
 
     $tasks = R::getAll("
@@ -75,7 +75,7 @@ $app->get('/v1/domains/{name}/tasks', function (Request $request, Response $resp
 });
 
 $app->post('/v1/domains/{name}/tasks', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $name = $args['name'];
     $params = $request->getParsedBody() ?? [];
 
@@ -85,13 +85,13 @@ $app->post('/v1/domains/{name}/tasks', function (Request $request, Response $res
 
     $where = ['domain = :domain'];
     $bind = [':domain' => $name];
-    if ( ! $isAdmin) {
-        $where[] = 'user_id = :user_id';
-        $bind[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'reseller_id = :reseller_id';
+        $bind[':reseller_id'] = $scope->resellerId;
     }
     $owns = (int) R::getCell("SELECT COUNT(*) FROM domains WHERE " . implode(' AND ', $where), $bind);
     if ($owns !== 1) {
-        return Json::response($response, ['error' => "Domain '{$name}' does not belong to this user"], 403);
+        return Json::response($response, ['error' => "Domain '{$name}' does not belong to this reseller"], 403);
     }
 
     R::exec("INSERT INTO tasks (domain, date, notice, email) VALUES (:domain, :date, :notice, :email)", [
@@ -105,18 +105,18 @@ $app->post('/v1/domains/{name}/tasks', function (Request $request, Response $res
 });
 
 $app->delete('/v1/tasks/{id}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
     $id = (int) $args['id'];
 
     $where = ['r.id = :id', 'r.domain = d.domain'];
     $bind = [':id' => $id];
-    if ( ! $isAdmin) {
-        $where[] = 'd.user_id = :user_id';
-        $bind[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'd.reseller_id = :reseller_id';
+        $bind[':reseller_id'] = $scope->resellerId;
     }
     $owns = (int) R::getCell("SELECT COUNT(*) FROM domains d, tasks r WHERE " . implode(' AND ', $where), $bind);
     if ($owns !== 1) {
-        return Json::response($response, ['error' => "Task not found or does not belong to this user"], 403);
+        return Json::response($response, ['error' => "Task not found or does not belong to this reseller"], 403);
     }
 
     R::exec("UPDATE tasks SET active = 0 WHERE id = ?", [$id]);

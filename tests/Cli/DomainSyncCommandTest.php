@@ -28,10 +28,10 @@ final class DomainSyncCommandTest extends EppTestCase
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
-        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, user_id INTEGER, active INTEGER DEFAULT 1,
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1,
                  status TEXT, authinfo TEXT, ns TEXT, registrant TEXT, admin TEXT, tech TEXT,
                  cr_date TEXT, ex_date TEXT, dnssec TEXT, last_invoice TEXT)');
-        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, user_id INTEGER, active INTEGER DEFAULT 1,
+        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1,
                  status TEXT, name TEXT, org TEXT, street TEXT, street2 TEXT, street3 TEXT, city TEXT,
                  province TEXT, postalcode TEXT, countrycode TEXT, voice TEXT, fax TEXT, email TEXT,
                  authinfo TEXT, consentforpublishing INTEGER, nationalitycode TEXT, entitytype INTEGER,
@@ -54,17 +54,17 @@ final class DomainSyncCommandTest extends EppTestCase
      */
     private function seedDomain(string $name, array $fields = []): int {
         $fields += [
-            'user_id'    => 1, 'active' => 1, 'status' => serialize(['ok']),
+            'reseller_id' => 1, 'active' => 1, 'status' => serialize(['ok']),
             'authinfo'   => 'AUTHINFO12345678', 'ns' => serialize(['ns1.example.it' => [], 'ns2.example.it' => []]),
             'registrant' => 'REGI1234REGI5678', 'admin' => 'ADMIN123ADMIN456',
             'tech'       => serialize(['TECH1234TECH5678' => 'TECH1234TECH5678']),
             'cr_date'    => '2020-01-01', 'ex_date' => '2027-01-01', 'dnssec' => serialize([]),
         ];
         R::exec(
-            'INSERT INTO domains (domain, user_id, active, status, authinfo, ns, registrant, admin, tech, cr_date, ex_date, dnssec)
+            'INSERT INTO domains (domain, reseller_id, active, status, authinfo, ns, registrant, admin, tech, cr_date, ex_date, dnssec)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
-                $name, $fields['user_id'], $fields['active'], $fields['status'], $fields['authinfo'],
+                $name, $fields['reseller_id'], $fields['active'], $fields['status'], $fields['authinfo'],
                 $fields['ns'], $fields['registrant'], $fields['admin'], $fields['tech'],
                 $fields['cr_date'], $fields['ex_date'], $fields['dnssec'],
             ]
@@ -73,7 +73,7 @@ final class DomainSyncCommandTest extends EppTestCase
     }
 
     private function seedContact(string $handle, int $userId = 1): void {
-        R::exec('INSERT INTO contacts (handle, user_id, status, name, email) VALUES (?, ?, ?, ?, ?)', [
+        R::exec('INSERT INTO contacts (handle, reseller_id, status, name, email) VALUES (?, ?, ?, ?, ?)', [
             $handle, $userId, serialize(['ok']), 'Mario Rossi', 'old@example.it',
         ]);
     }
@@ -402,7 +402,7 @@ final class DomainSyncCommandTest extends EppTestCase
 
     public function testANewlyDiscoveredTechContactIsFetchedAndStored(): void {
         $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
-        $this->seedDomain('example.it', ['user_id' => 3]);
+        $this->seedDomain('example.it', ['reseller_id' => 3]);
         $this->seedContact('REGI1234REGI5678');
         $this->seedContact('ADMIN123ADMIN456');
         // TECH1234TECH5678 is not seeded -- it is the newly-discovered one
@@ -420,12 +420,12 @@ final class DomainSyncCommandTest extends EppTestCase
 
         $row = R::getRow('SELECT * FROM contacts WHERE handle = ?', ['TECH1234TECH5678']);
         $this->assertNotEmpty($row, 'a newly-seen tech contact must be stored');
-        $this->assertSame(3, (int) $row['user_id'], 'a new contact is owned by the domain that named it, not the CLI default');
+        $this->assertSame(3, (int) $row['reseller_id'], 'a new contact is owned by the domain that named it, not the CLI default');
     }
 
     public function testAnAlreadyKnownContactIsRefreshedWithoutClobberingItsOwner(): void {
         $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
-        $this->seedDomain('example.it', ['user_id' => 1]);
+        $this->seedDomain('example.it', ['reseller_id' => 1]);
         $this->seedContact('REGI1234REGI5678', 7);
         $this->seedContact('ADMIN123ADMIN456', 7);
         $this->seedContact('TECH1234TECH5678', 7); // pre-existing, owned by user 7
@@ -442,7 +442,7 @@ final class DomainSyncCommandTest extends EppTestCase
         });
 
         $row = R::getRow('SELECT * FROM contacts WHERE handle = ?', ['TECH1234TECH5678']);
-        $this->assertSame(7, (int) $row['user_id'], 'an existing owner must not be clobbered');
+        $this->assertSame(7, (int) $row['reseller_id'], 'an existing owner must not be clobbered');
         $this->assertSame('refreshed@example.it', $row['email'], 'but its data is still refreshed');
     }
 }

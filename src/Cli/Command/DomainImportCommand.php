@@ -40,7 +40,7 @@ final class DomainImportCommand extends Command
         $userId = $this->userId();
 
         $results = $this->withSession(
-            fn($nic) => DomainService::import($nic, $names, $userId)
+            fn($nic) => DomainService::import($nic, $names, $this->scope())
         );
 
         foreach ($results as $name => $steps) {

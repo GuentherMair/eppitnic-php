@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Http;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -18,9 +19,21 @@ use Slim\Psr7\Factory\ServerRequestFactory;
  */
 final class HistoryScopeTest extends TestCase
 {
-    /** the two ordinary users the fixture belongs to */
+    /** the two ordinary users the fixture belongs to, each in a reseller of their own */
     private const ALICE = 2;
     private const BOB   = 3;
+    /** Alice's colleague (reseller 2), and their reseller's manager */
+    private const CAROL = 4;
+    private const MANAGER = 5;
+
+    /** user id => [role, reseller] */
+    private const ACCOUNTS = [
+        1             => ['admin', 1],
+        self::ALICE   => ['user', 2],
+        self::BOB     => ['user', 3],
+        self::CAROL   => ['user', 2],
+        self::MANAGER => ['manager', 2],
+    ];
 
     private function app(): \Slim\App {
         Config::loadForTesting(['jwt_psk' => 'test-signing-key-for-this-suite-only']);
@@ -28,20 +41,21 @@ final class HistoryScopeTest extends TestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        foreach (['history', 'domains', 'contacts'] as $table) {
+        foreach (['history', 'domains', 'contacts', 'users', 'resellers'] as $table) {
             R::exec("DROP TABLE IF EXISTS {$table}");
+        }
+        foreach (self::ACCOUNTS as $id => [$role, $reseller]) {
+            TestAccounts::ensure($id, $role, $reseller);
         }
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT,
                  acknowledged_time TEXT DEFAULT NULL, acknowledged_user_id INTEGER DEFAULT NULL)');
-        R::exec('CREATE TABLE domains  (id INTEGER PRIMARY KEY, domain TEXT, user_id INTEGER)');
-        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, user_id INTEGER)');
+        R::exec('CREATE TABLE domains  (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER)');
 
-        // 10/11 are Alice's, 20/21 are Bob's
-        R::exec("INSERT INTO domains (id, domain, user_id) VALUES (10, 'alice-one.it', ?), (20, 'bob-one.it', ?)",
-            [self::ALICE, self::BOB]);
-        R::exec("INSERT INTO contacts (id, handle, user_id) VALUES (11, 'ALICE1', ?), (21, 'BOB1', ?)",
-            [self::ALICE, self::BOB]);
+        // 10/11 are Alice's reseller's, 20/21 are Bob's
+        R::exec("INSERT INTO domains (id, domain, reseller_id) VALUES (10, 'alice-one.it', 2), (20, 'bob-one.it', 3)");
+        R::exec("INSERT INTO contacts (id, handle, reseller_id) VALUES (11, 'ALICE1', 2), (21, 'BOB1', 3)");
 
         $this->entry('domains', 10, 'create', self::ALICE);
         $this->entry('domains', 20, 'create', self::BOB);
@@ -65,8 +79,9 @@ final class HistoryScopeTest extends TestCase
     }
 
     private function get(\Slim\App $app, string $path, int $id, bool $admin = false): ResponseInterface {
-        $token = Auth::issueToken([
-            'id' => $id, 'username' => "user{$id}", 'admin' => $admin ? 1 : 0,
+        [$role, $reseller] = self::ACCOUNTS[$id];
+        $token = TestAccounts::issueToken([
+            'id' => $id, 'username' => "user{$id}", 'role' => $role, 'reseller_id' => $reseller,
             'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 
@@ -97,8 +112,8 @@ final class HistoryScopeTest extends TestCase
     }
 
     /**
-     * The rule the rest of the API already scopes by: your own domains, your
-     * own contacts, your own user row.
+     * The rule the rest of the API already scopes by: your reseller's domains
+     * and contacts, and your own user row.
      */
     public function testAUserSeesOnlyTheirOwnObjects(): void {
         $app = $this->app();
@@ -191,5 +206,45 @@ final class HistoryScopeTest extends TestCase
         );
 
         $this->assertSame(401, $response->getStatusCode());
+    }
+
+    /**
+     * A colleague in the same reseller sees its objects, whoever changed
+     * them -- but not the other user's own row.
+     */
+    public function testAColleagueSeesTheResellersObjectsButNotAnotherUsersRow(): void {
+        $app = $this->app();
+
+        $carol = $this->visible($app, self::CAROL);
+        sort($carol);
+
+        $this->assertSame(['contacts:11', 'domains:10'], $carol);
+    }
+
+    /**
+     * A manager also sees every user of their reseller, and the reseller
+     * itself -- never another reseller's.
+     */
+    public function testAManagerSeesTheirResellersUsersAndTheReseller(): void {
+        $app = $this->app();
+        $this->entry('resellers', 2, 'update', self::MANAGER);
+        $this->entry('resellers', 3, 'update', 1);
+
+        $manager = $this->visible($app, self::MANAGER);
+        sort($manager);
+
+        $this->assertSame(['contacts:11', 'domains:10', 'resellers:2', 'users:2'], $manager);
+    }
+
+    /**
+     * A transfer-in request may have no local domain row yet (object_id 0):
+     * it is still the reseller's to see, because one of its users asked.
+     */
+    public function testARequestIsVisibleToTheRequestersReseller(): void {
+        $app = $this->app();
+        $this->entry('domains', 0, 'request', self::CAROL);
+
+        $this->assertContains('domains:0', $this->visible($app, self::ALICE));
+        $this->assertNotContains('domains:0', $this->visible($app, self::BOB));
     }
 }

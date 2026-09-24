@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Http;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -56,7 +57,7 @@ final class EppSettingsRouteTest extends TestCase
     }
 
     private function token(int $admin = 1): string {
-        return Auth::issueToken([
+        return TestAccounts::issueToken([
             'id' => 7, 'username' => 'someone', 'admin' => $admin, 'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
     }

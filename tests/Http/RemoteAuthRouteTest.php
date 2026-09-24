@@ -4,6 +4,7 @@ namespace Eppitnic\Tests\Http;
 
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -29,9 +30,11 @@ final class RemoteAuthRouteTest extends TestCase
             R::setup('sqlite::memory:');
         }
         R::exec('DROP TABLE IF EXISTS users');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, admin INTEGER DEFAULT 0,
-                 active INTEGER DEFAULT 1, debug INTEGER DEFAULT 0, max_token_age INTEGER, max_idle_time INTEGER)');
-        R::exec("INSERT INTO users (id, username, admin, active) VALUES (1, 'admin', 1, 1), (2, 'someone', 0, 1)");
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec("CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER DEFAULT 1, role TEXT DEFAULT 'user',
+                 username TEXT, active INTEGER DEFAULT 1, debug INTEGER DEFAULT 0, max_token_age INTEGER, max_idle_time INTEGER)");
+        R::exec("INSERT INTO users (id, username, role, active) VALUES (1, 'admin', 'admin', 1), (2, 'someone', 'user', 1)");
+        TestAccounts::ensureReseller(1);
 
         $app = AppFactory::create();
         Middleware::register($app);
@@ -61,7 +64,7 @@ final class RemoteAuthRouteTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         $this->assertTrue($body['remote_auth']);
         $this->assertSame(2, (int) $body['id']);
-        $this->assertSame(0, (int) $body['admin']);
+        $this->assertSame('user', $body['role']);
     }
 
     public function testMeWithoutRemoteAuthHasNoSuchClaim(): void {

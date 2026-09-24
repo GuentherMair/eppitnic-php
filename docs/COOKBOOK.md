@@ -260,13 +260,19 @@ so it is off by default and driven per user by `users`.`debug`.
 The `*DB()` methods keep a local mirror; nothing calls them for you.
 
 ```php
-$domain->storeDB($userId);                   // insert or replace
-$domain->loadDB('example.it', $userId);      // read it back
-$domain->updateDB('example.it', $userId, $isAdmin, $changes);
-$domain->listDomains($userId, $isAdmin);
-$domain->deleteDomainDB('example.it', $userId, $isAdmin);   // deactivates
+use Eppitnic\Persistence\Scope;
+
+$scope = new Scope($userId, $resellerId, 'user');  // or Scope::operator($userId)
+
+$domain->storeDB($userId);                   // insert or replace, as $userId
+$domain->loadDB('example.it', $scope);       // read it back
+$domain->updateDB('example.it', $scope, $changes);
+$domain->listDomains($scope);
+$domain->deleteDomainDB('example.it', $scope);   // deactivates
 ```
 
-`$isAdmin = true` lifts the `user_id` scoping. Deletes are soft: a domain row
-stays, because `domains`.`registrant` is a foreign key onto
+A `Scope` limits reads and writes to one reseller's rows; an admin one
+(`Scope::operator()`, what the CLI uses) reaches every reseller's. A stored
+domain always belongs to its registrant contact's reseller. Deletes are soft:
+a domain row stays, because `domains`.`registrant` is a foreign key onto
 `contacts`.`handle`.

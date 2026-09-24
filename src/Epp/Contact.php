@@ -6,6 +6,7 @@ use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
 use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\Persistence\History;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
@@ -90,7 +91,7 @@ class Contact extends AbstractObject
    */
   private const FIELDS_WITH_SETTERS = array('consentforpublishing', 'entitytype');
 
-  protected $user_id;              // use just in case of an updateRegistrant + change of agent
+  protected $reseller_id;          // use just in case of an updateRegistrant + change of agent
   protected $status;               // contact states (ok, linked, clientDeleteProhibited, clientUpdateProhibited)
   protected $handle;               // -
 
@@ -128,7 +129,7 @@ class Contact extends AbstractObject
    * initialize values
    */
   protected function initValues(): void {
-    $this->user_id   = 1;
+    $this->reseller_id = 1;
     $this->status    = array();
     $this->handle    = "";
     $this->clearChanges();
@@ -549,13 +550,14 @@ class Contact extends AbstractObject
    * Store contact to DB, upserting: no delete-then-insert like
    * Domain::storeDB(), domains.registrant being a foreign key onto
    * contacts.handle. On an existing row two columns are left alone: -
-   * `user_id`, so re-importing does not reassign somebody else's contact -
-   * `active`, so an import does not resurrect a deliberate deactivation
+   * `reseller_id`, so re-importing does not reassign another reseller's
+   * contact - `active`, so an import does not resurrect a deactivation
    *
-   * @param int $user_id user ACL, applied to newly created rows only
+   * @param int $resellerId who owns a newly created row (existing ones keep theirs)
+   * @param int $actorId the acting user, for history
    * @return bool status
    */
-  public function storeDB(int $user_id = 1): bool {
+  public function storeDB(int $resellerId, int $actorId): bool {
     $data = ['status' => serialize($this->status)];
     foreach (self::FIELDS as $field) {
       $data[$field] = $this->$field;
@@ -565,23 +567,23 @@ class Contact extends AbstractObject
 
     if (empty($existing)) {
       $data['handle'] = $this->handle;
-      $data['user_id'] = $user_id;
+      $data['reseller_id'] = $resellerId;
 
       if ( ! $this->storageInsert($data, $this->handle)) {
         return FALSE;
       }
     } else {
-      // isAdmin: an upsert is not a scoped write. $user_id says who owns a
-      // *new* row, not who is allowed to touch an existing one -- the two
-      // fields left out of $data above are exactly the ones that would move.
-      if ( ! $this->storageUpdate($this->handle, $data, $user_id, true)) {
+      // unscoped: an upsert is not a scoped write. $resellerId says who owns
+      // a *new* row, not who may touch an existing one -- the two fields left
+      // out of $data above are exactly the ones that would move.
+      if ( ! $this->storageUpdate($this->handle, $data, Scope::operator($actorId))) {
         return FALSE;
       }
     }
 
     History::record(
       'contacts', $this->storageId($this->handle),
-      empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $user_id
+      empty($existing) ? 'create' : 'update', ['handle' => $this->handle], $actorId
     );
     return TRUE;
   }
@@ -590,11 +592,9 @@ class Contact extends AbstractObject
    * load contact from DB
    *
    * @param string $contact contact to load
-   * @param int $user_id user ACL
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function loadDB(?string $contact = null, int $user_id = 1, bool $isAdmin = false): bool {
+  public function loadDB(?string $contact, Scope $scope): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -606,7 +606,7 @@ class Contact extends AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $row = $this->storageFind($contact, $user_id, $isAdmin);
+    $row = $this->storageFind($contact, $scope);
     if ($row === null) {
       $this->setError("Contact '{$contact}' not found.");
       return FALSE;
@@ -622,12 +622,10 @@ class Contact extends AbstractObject
   /**
    * update contact stored in DB
    *
-   * @param string $contact contact to update
-   * @param int $user_id user ACL
-   * @param bool $isAdmin admin (unrestricted by user_id)
+   * @param string $contact contact to update; never changes who owns it
    * @return bool status
    */
-  public function updateDB(?string $contact = null, int $user_id = 1, bool $isAdmin = false): bool {
+  public function updateDB(?string $contact, Scope $scope): bool {
     if ($contact === null) {
       $contact = $this->handle;
     }
@@ -642,7 +640,6 @@ class Contact extends AbstractObject
 
     $data = array(
       'status'  => serialize($this->status),
-      'user_id' => $user_id,
     );
     foreach (self::FIELDS as $field) {
       if ($this->changed($field)) {
@@ -650,33 +647,31 @@ class Contact extends AbstractObject
       }
     }
 
-    if ( ! $this->storageUpdate($contact, $data, $user_id, $isAdmin)) {
+    if ( ! $this->storageUpdate($contact, $data, $scope)) {
       return FALSE;
     }
 
-    History::record('contacts', $this->storageId($contact), 'update', $data, $user_id);
+    History::record('contacts', $this->storageId($contact), 'update', $data, $scope->userId);
     return TRUE;
   }
 
   /**
    * list contacts stored in DB
    *
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @param bool $activeOnly list only active contacts (TRUE = yes / FALSE = no)
    * @return array list of contacts
    */
-  public function listContacts(int $user_id = 1, bool $isAdmin = false, bool $activeOnly = TRUE): array {
+  public function listContacts(Scope $scope, bool $activeOnly = TRUE): array {
     $where = ['1 = 1'];
     $params = [];
-    if ( ! $isAdmin) {
-      $where[] = 'user_id = :user_id';
-      $params[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+      $where[] = 'reseller_id = :reseller_id';
+      $params[':reseller_id'] = $scope->resellerId;
     }
     if ($activeOnly) {
       $where[] = 'active = 1';
     }
-    $rows = R::getAll("SELECT handle, org, name, entitytype, status, user_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
+    $rows = R::getAll("SELECT handle, org, name, entitytype, status, reseller_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
 
     // status is a serialized column, in either of the two shapes the table holds
     return array_map(static function (array $row): array {
@@ -689,15 +684,13 @@ class Contact extends AbstractObject
    * deactivate a contact stored in DB (soft delete)
    *
    * @param string $contact contact name / handle
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function deleteContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
+  public function deleteContactDB(string $contact, Scope $scope): bool {
     // refuses while the contact is still some active domain's registrant --
     // the foreign key would reject it anyway, and this says so first
     return $this->storageSetActive(
-      $contact, 0, $user_id, $isAdmin, 'delete', ['handle' => $contact],
+      $contact, 0, $scope, 'delete', ['handle' => $contact],
       ' AND (SELECT COUNT(1) FROM domains WHERE registrant = :registrant AND active = 1) = 0',
       [':registrant' => $contact]
     );
@@ -707,14 +700,12 @@ class Contact extends AbstractObject
    * reactivate a contact stored in DB (undo a soft delete)
    *
    * @param string $contact contact name / handle
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function restoreContactDB(string $contact, int $user_id = 1, bool $isAdmin = false): bool {
+  public function restoreContactDB(string $contact, Scope $scope): bool {
     // logged as 'update': the history action enum has no 'restore'
     return $this->storageSetActive(
-      $contact, 1, $user_id, $isAdmin, 'update', ['handle' => $contact, 'active' => 1]
+      $contact, 1, $scope, 'update', ['handle' => $contact, 'active' => 1]
     );
   }
 
@@ -726,7 +717,7 @@ class Contact extends AbstractObject
    * @param int $newOwnerId the new contact's local owner (users.id)
    * @return string|false the new contact's handle, or false on failure
    */
-  public function duplicate(Client $nic, int $newOwnerId): string|false {
+  public function duplicate(Client $nic, int $resellerId, int $actorId): string|false {
     $fields = [
       'name', 'org', 'street', 'street2', 'street3', 'city', 'province',
       'postalcode', 'countrycode', 'voice', 'fax', 'email',
@@ -749,7 +740,7 @@ class Contact extends AbstractObject
     if ( ! $new->create()) {
       return false;
     }
-    $new->storeDB($newOwnerId);
+    $new->storeDB($resellerId, $actorId);
     return $new->get('handle');
   }
 }

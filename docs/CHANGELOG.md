@@ -431,6 +431,26 @@ are stored canonically, catch-all ranges (`0.0.0.0/0`, `::/0`) are
 refused, and every change is recorded in `history`
 (`object='trusted_proxies'`).
 
+**Resellers and roles.** Contacts, domains and pending transfers belong to a
+reseller instead of a user, and everyone in a reseller works on all of its
+objects. Users belong to one reseller for good and have a role instead of the
+admin flag: `admin` (only in reseller 1, "Registrar (self)", which can never be
+deactivated), `manager` (also manages the reseller's users, defaults and NS
+sets) or `user`. The daily quota, the defaults and NS sets move from the user
+to the reseller; the quota now counts transfer-in requests as well as
+registrations, at request time. A domain always belongs to its registrant's
+reseller. Role and reseller are checked against the database on every request,
+so deactivating a user or a reseller takes effect at once. New: `GET`/`POST`/
+`PATCH /v1/resellers`, `/v1/resellers/{id}/settings` and `/nssets` (replacing
+the per-user routes), `reseller list|create|set`, `user create
+--role --reseller`, `domain set-owner --new-reseller`, and a per-user
+notification switch. The 6.7 upgrade maps each existing user onto a reseller
+so nobody sees more than before (see UPGRADING.md). Also fixed on the way: a
+contact could be deleted at the registry by someone who didn't own it, and
+editing a contact or domain silently made the editor its owner. The poll
+queue is no longer admin-only: everyone sees the messages about their
+reseller's domains, and managers can archive them.
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

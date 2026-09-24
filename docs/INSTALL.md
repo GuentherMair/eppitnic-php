@@ -14,7 +14,7 @@ installer (`public/setup.html`) over `POST /v1/setup`. Either applies
 `config/mariadb-schema.sql` and creates the first admin account — there's no
 separate schema step. To do it by hand: copy `config/config.php-template` to
 `config/config.php`, apply `config/mariadb-schema.sql` yourself, then
-`bin/eppitnic user create --admin`.
+`bin/eppitnic user create --role=admin`.
 
 ## Configuration
 
@@ -135,13 +135,26 @@ PHP error log regardless.
 To have the web server handle login instead of eppitnic (Basic auth, LDAP,
 OpenID Connect, ...), see [REMOTE-AUTH.md](REMOTE-AUTH.md).
 
-## User setup
+## Resellers and users
 
-`POST /v1/users` requires an admin token, so the first admin account is
-created by `eppitnic setup`/the installer instead. Further accounts:
+Contacts, domains and pending transfers belong to a **reseller**. Reseller 1,
+"Registrar (self)", is the registrar itself: it is created with the schema,
+holds every admin, and can be renamed but never deactivated. Every user
+belongs to one reseller for good and has a role — `admin` (reseller 1 only),
+`manager` (also manages the reseller's users, defaults and NS sets) or `user`.
+Each reseller has its own daily quota of registrations and transfer-in
+requests (`0` = unlimited). See "Authorization model" in [API.md](API.md).
+
+The first admin is created by `eppitnic setup`/the installer. Resellers and
+further accounts, from the frontend (Resellers and Users) or the CLI:
 
 ```
-bin/eppitnic user create admin2 --password='a-strong-password' --admin
+bin/eppitnic reseller create 'Example Reseller' --max-operations=20
+bin/eppitnic reseller list
+bin/eppitnic reseller set 2 max_operations 50
+bin/eppitnic reseller set 2 active false       # its users lose access at once
+bin/eppitnic user create admin2 --password='a-strong-password' --role=admin
+bin/eppitnic user create jdoe --password='a-strong-password' --role=manager --reseller=2
 ```
 
 The same script issues a fixed API token for scripted/headless access:
@@ -156,12 +169,14 @@ finite `-x` unless a non-expiring credential is genuinely wanted.
 
 ## Ownership coherence
 
-`domains.user_id` and `contacts.user_id` (the registrant's owner) are expected
-to agree from 7.0.0 on — every domain route scopes non-admins by the domain's
-owner, and the API refuses to set a registrant the caller doesn't own. Legacy
-6.x data never enforced this, so an upgraded database can disagree; such a
-domain is editable by its owner but attributed to somebody else, and can't be
-fixed by re-saving it.
+A domain belongs to its registrant contact's reseller: `domains.reseller_id`
+and the registrant's `contacts.reseller_id` are expected to agree — every
+domain route scopes by the domain's reseller, and the API refuses a registrant
+from another reseller. Legacy 6.x data never enforced this, so an upgraded
+database can disagree; such a domain is listed under one reseller while its
+registrant belongs to another, and can't be fixed by re-saving it. Move it
+with `bin/eppitnic domain set-owner --new-reseller=ID <domain>`, which copies
+the contacts into that reseller.
 
 ```
 bin/eppitnic doctor ownership
@@ -277,8 +292,9 @@ bin/eppitnic config smtp-set fulltext expired                   # a plain substr
 ```
 
 `recipient_mode` decides who is a recipient class at all: `system` sends
-to the fixed `recipient` mailbox, `user` sends to the domain's own owning
-local user (at their `email` column), `both` does both, `none` sends
+to the fixed `recipient` mailbox, `user` sends to the domain's
+reseller's users (every active one with an address and notifications
+switched on, each by their own filter), `both` does both, `none` sends
 nothing at all (notifications effectively off, without unsetting the
 rest of the configuration) — each class judged only by its own filter,
 never the other's. A blank `recipient` under `system`/`both` simply
@@ -289,13 +305,14 @@ system recipient — there is no individual owner.
 
 `domain reap-deletions` sends one summary email per run listing every
 outcome, success and failure alike, rather than one per domain: the
-system recipient's copy covers the whole run, and each domain's owning
-user (under `user`/`both`) gets their own copy covering only their own
+system recipient's copy covers the whole run, and each owning reseller's
+recipients (under `user`/`both`) get a copy covering only that reseller's
 domains.
 
-Every user may also set their own filter (`GET`/`PATCH
-/v1/users/{id}/notifications`, self-service, admin may act for anyone) --
-it only has any effect while `smtp.recipient_mode` includes `user`.
+Every user may switch their own notifications on or off and set their own
+filter (`GET`/`PATCH /v1/users/{id}/notifications`; their manager or an
+admin may act for them) -- it only has any effect while `smtp.recipient_mode`
+includes `user`. Managers start with notifications on, plain users off.
 
 `message_types` is any of `Service\Notifier::MESSAGE_TYPES`: every real
 registry poll message type (`passwdReminder`, `chgStatusMsgData`,

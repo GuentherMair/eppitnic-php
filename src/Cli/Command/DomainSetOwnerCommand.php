@@ -7,14 +7,15 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\DomainService;
 
 /**
- * Move domains to another local user. Not just a `domains`.`user_id` update:
- * the registrant and admin contacts are copied under the new owner and the
- * domain repointed, or the two ownerships drift. Shared with the owner route.
+ * Move domains to another reseller. Not just a `domains`.`reseller_id`
+ * update: the registrant and admin contacts are copied into the new reseller
+ * and the domain repointed, or the two ownerships drift. Shared with the
+ * owner route.
  */
 final class DomainSetOwnerCommand extends Command
 {
     public function describe(): string {
-        return 'move domains to another local user';
+        return 'move domains to another reseller';
     }
 
     public function arguments(): string {
@@ -23,7 +24,7 @@ final class DomainSetOwnerCommand extends Command
 
     public function options(): array {
         return self::fileOption('domain names') + [
-            'new-owner=' => 'the local user id to move the domains to (required)',
+            'new-reseller=' => 'the reseller id to move the domains to (required)',
         ] + self::MUTATING_OPTIONS;
     }
 
@@ -33,13 +34,12 @@ final class DomainSetOwnerCommand extends Command
             throw new UsageError('give at least one domain name, or --file=PATH');
         }
 
-        // deliberately not --user, which every command uses for "act as"
-        if ( ! $this->hasOption('new-owner')) {
-            throw new UsageError('--new-owner=ID is required (the user to move the domains to)');
+        if ( ! $this->hasOption('new-reseller')) {
+            throw new UsageError('--new-reseller=ID is required (the reseller to move the domains to)');
         }
-        $newOwnerId = (int) $this->option('new-owner');
-        if ($newOwnerId <= 0) {
-            throw new UsageError('--new-owner must be a local user id');
+        $resellerId = (int) $this->option('new-reseller');
+        if ($resellerId <= 0) {
+            throw new UsageError('--new-reseller must be a reseller id');
         }
 
         // What this sends is built from records only the registry has, so a
@@ -53,16 +53,17 @@ final class DomainSetOwnerCommand extends Command
         }
 
         if ( ! $this->confirm(
-            'Move ' . count($names) . " domain(s) to user {$newOwnerId}?"
+            'Move ' . count($names) . " domain(s) to reseller {$resellerId}?"
             . ' Their registrant and admin contacts will be duplicated at the registry.'
         )) {
             $this->line('nothing done');
             return 0;
         }
 
-        $this->withSession(function ($nic) use ($names, $newOwnerId) {
+        $actorId = $this->userId();
+        $this->withSession(function ($nic) use ($names, $resellerId, $actorId) {
             foreach ($names as $name) {
-                $result = DomainService::changeOwner($nic, $name, $newOwnerId);
+                $result = DomainService::changeOwner($nic, $name, $resellerId, $actorId);
 
                 if ( ! $result['ok']) {
                     $this->itemFailed($name, $result['error']);
@@ -71,10 +72,10 @@ final class DomainSetOwnerCommand extends Command
 
                 $domain = $result['domain'];
                 $this->record(
-                    sprintf('%-40s moved to user %d (registrant %s)', $name, $newOwnerId, $domain->get('registrant')),
+                    sprintf('%-40s moved to reseller %d (registrant %s)', $name, $resellerId, $domain->get('registrant')),
                     [
-                        'domain'     => $name,
-                        'user_id'    => $newOwnerId,
+                        'domain'      => $name,
+                        'reseller_id' => $resellerId,
                         'registrant' => $domain->get('registrant'),
                         'admin'      => $domain->get('admin'),
                     ]

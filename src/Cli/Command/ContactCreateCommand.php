@@ -89,6 +89,7 @@ final class ContactCreateCommand extends Command
             $options[$field . '='] = in_array($field, self::REQUIRED, true) ? "{$label} (required)" : $label;
         }
         $options['store'] = 'also write the contact to the local database';
+        $options['reseller='] = "with --store, the reseller to own it (default: --user's)";
 
         return $options + self::MUTATING_OPTIONS;
     }
@@ -116,10 +117,11 @@ final class ContactCreateCommand extends Command
 
         $store = $this->hasOption('store');
         $userId = $this->userId();
+        $resellerId = $this->hasOption('reseller') ? (int) $this->option('reseller') : $this->scope()->resellerId;
         $dryRun = $this->isDryRun();
         $created = null;
 
-        $this->withSession(function ($nic) use ($handle, $store, $userId, $dryRun, &$created) {
+        $this->withSession(function ($nic) use ($handle, $store, $userId, $resellerId, $dryRun, &$created) {
             $contact = new Contact($nic);
 
             // a handle has to be unique at the registry, so one is generated
@@ -145,7 +147,7 @@ final class ContactCreateCommand extends Command
             $created = $contact->get('handle');
 
             if ($store && ! $dryRun) {
-                $contact->storeDB($userId);
+                $contact->storeDB($resellerId, $userId);
             }
 
             $this->record(

@@ -5,7 +5,7 @@ namespace Eppitnic\Persistence;
 use RedBeanPHP\R;
 
 /**
- * The plumbing Contact and Domain repeat verbatim: the user-scoping clause, a
+ * The plumbing Contact and Domain repeat verbatim: the reseller-scoping clause, a
  * SQL failure turned into setError() plus false, and the row-id lookup for
  * history. Primitives: the two really do store differently.
  *
@@ -32,19 +32,19 @@ trait LocalStorage
     abstract protected static function storageNoun(): string;
 
     /**
-     * Restrict a statement to one user's rows, unless admin. The placeholder is
-     * a parameter because some UPDATEs already bind :user_id, and rebinding it
-     * fails silently on the rows it then does not match.
+     * Restrict a statement to the caller's reseller's rows, unless admin. Its
+     * own placeholder, since some UPDATEs already bind :reseller_id, and
+     * rebinding it fails silently on the rows it then does not match.
      *
      * @param array $params bound parameters, added to in place
      * @return string the SQL to append
      */
-    private function storageScope(array &$params, int $userId, bool $isAdmin, string $placeholder = ':acl_user_id'): string {
-        if ($isAdmin) {
+    private function storageScope(array &$params, Scope $scope): string {
+        if ($scope->isAdmin()) {
             return '';
         }
-        $params[$placeholder] = $userId;
-        return " AND user_id = {$placeholder}";
+        $params[':acl_reseller_id'] = $scope->resellerId;
+        return ' AND reseller_id = :acl_reseller_id';
     }
 
     /**
@@ -77,16 +77,16 @@ trait LocalStorage
     }
 
     /**
-     * One row, scoped to the user unless acting as an admin.
+     * One row, scoped to the caller's reseller unless acting as an admin.
      *
      * @return array|null the row, or null when it does not exist or is not
      *                    theirs
      */
-    private function storageFind(string $key, int $userId, bool $isAdmin): ?array {
+    private function storageFind(string $key, Scope $scope): ?array {
         $params = [':key' => $key];
         $sql = 'SELECT * FROM ' . static::storageTable()
              . ' WHERE ' . static::storageKeyColumn() . ' = :key'
-             . $this->storageScope($params, $userId, $isAdmin);
+             . $this->storageScope($params, $scope);
 
         $row = R::getRow($sql, $params);
         return empty($row) ? null : $row;
@@ -129,8 +129,7 @@ trait LocalStorage
     private function storageSetActive(
         string $key,
         int $active,
-        int $userId,
-        bool $isAdmin,
+        Scope $scope,
         string $logAction,
         array $logData,
         string $extraWhere = '',
@@ -140,24 +139,24 @@ trait LocalStorage
         $sql = 'UPDATE ' . static::storageTable() . ' SET active = ' . $active
              . ' WHERE ' . static::storageKeyColumn() . ' = :key'
              . $extraWhere
-             . $this->storageScope($params, $userId, $isAdmin);
+             . $this->storageScope($params, $scope);
 
         if ( ! $this->storageWrite($sql, $params, $active === 0 ? 'deactivate' : 'activate', $key)) {
             return false;
         }
 
-        History::record(static::storageTable(), $this->storageId($key), $logAction, $logData, $userId);
+        History::record(static::storageTable(), $this->storageId($key), $logAction, $logData, $scope->userId);
         return true;
     }
 
     /**
-     * Write changed columns back, scoped to the user unless admin. Writes only:
+     * Write changed columns back, scoped to the reseller unless admin. Writes only:
      * the history entry is the caller's, since an update records the changed
      * columns where an upsert's update half records that it was stored.
      *
      * @param array $data column => value
      */
-    private function storageUpdate(string $key, array $data, int $userId, bool $isAdmin): bool {
+    private function storageUpdate(string $key, array $data, Scope $scope): bool {
         $set = [];
         $params = [':key' => $key];
         foreach ($data as $column => $value) {
@@ -167,7 +166,7 @@ trait LocalStorage
 
         $sql = 'UPDATE ' . static::storageTable() . ' SET ' . implode(', ', $set)
              . ' WHERE ' . static::storageKeyColumn() . ' = :key'
-             . $this->storageScope($params, $userId, $isAdmin);
+             . $this->storageScope($params, $scope);
 
         return $this->storageWrite($sql, $params, 'update', $key);
     }

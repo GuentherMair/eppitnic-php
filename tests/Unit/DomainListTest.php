@@ -3,6 +3,7 @@
 namespace Eppitnic\Tests\Unit;
 
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
@@ -21,12 +22,12 @@ final class DomainListTest extends EppTestCase
         R::exec('DROP TABLE IF EXISTS domains');
         R::exec('DROP TABLE IF EXISTS transfers');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT,
-                 status TEXT, user_id INTEGER, active INTEGER DEFAULT 1)');
-        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT, user_id INTEGER)');
+                 status TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT, reseller_id INTEGER)');
     }
 
     private function insert(string $domain, ?string $status, int $active = 1): void {
-        R::exec('INSERT INTO domains (domain, registrant, status, user_id, active) VALUES (?, ?, ?, 1, ?)',
+        R::exec('INSERT INTO domains (domain, registrant, status, reseller_id, active) VALUES (?, ?, ?, 1, ?)',
             [$domain, 'REG1', $status, $active]);
     }
 
@@ -34,7 +35,7 @@ final class DomainListTest extends EppTestCase
      * @return array<string, string[]> domain => its status flags
      */
     private function statuses(bool $activeOnly = true): array {
-        $rows = (new Domain($this->nic))->listDomains(1, true, null, $activeOnly);
+        $rows = (new Domain($this->nic))->listDomains(Scope::operator(1), null, $activeOnly);
         return array_column($rows, 'status', 'domain');
     }
 
@@ -74,9 +75,9 @@ final class DomainListTest extends EppTestCase
      * expects every row to have one.
      */
     public function testAPendingTransferInHasNoStatusOfItsOwn(): void {
-        R::exec('INSERT INTO transfers (domain, registrant, user_id) VALUES (?, ?, 1)', ['g.it', 'REG1']);
+        R::exec('INSERT INTO transfers (domain, registrant, reseller_id) VALUES (?, ?, 1)', ['g.it', 'REG1']);
 
-        $rows = (new Domain($this->nic))->listDomains(1, true, null, true);
+        $rows = (new Domain($this->nic))->listDomains(Scope::operator(1), null, true);
         $transferIn = current(array_filter($rows, fn($row) => $row['domain'] === 'g.it (transfer-in)'));
 
         $this->assertSame([], $transferIn['status']);

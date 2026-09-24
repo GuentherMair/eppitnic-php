@@ -9,7 +9,7 @@ frontend opens without a login screen.
 
 - **Who you are** comes from the web server. It has to match the `username` of
   an existing, active eppitnic user. Case does not matter. Users are not created
-  automatically, and admin rights and quotas still come from the local user.
+  automatically; role, reseller and quota still come from the local user.
 - **Two factors:** eppitnic does not ask for its own TOTP code. If you need
   MFA, enforce it at the web server.
 - **Bearer tokens take precedence.** A request with `Authorization: Bearer ...`

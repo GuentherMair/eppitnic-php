@@ -224,24 +224,25 @@ final class Notifier
     }
 
     // -----------------------------------------------------------------
-    // per-user preferences (users.notify_message_types/notify_fulltext)
+    // per-user preferences (users.notify_enabled/_message_types/_fulltext)
     // -----------------------------------------------------------------
 
-    /** @return array{message_types: string[], fulltext: string}|null null if no such user */
+    /** @return array{enabled: bool, message_types: string[], fulltext: string}|null null if no such user */
     public static function loadUserPreferences(int $userId): ?array {
-        $row = R::getRow('SELECT notify_message_types, notify_fulltext FROM users WHERE id = ?', [$userId]);
+        $row = R::getRow('SELECT notify_enabled, notify_message_types, notify_fulltext FROM users WHERE id = ?', [$userId]);
         if (empty($row)) {
             return null;
         }
         $types = json_decode((string) ($row['notify_message_types'] ?? ''), true);
         return [
+            'enabled'       => (int) $row['notify_enabled'] === 1,
             'message_types' => is_array($types) ? array_values(array_map('strval', $types)) : [],
             'fulltext'      => (string) ($row['notify_fulltext'] ?? ''),
         ];
     }
 
     /**
-     * Change either or both of a user's own fields; what is not given stays.
+     * Change any of a user's own fields; what is not given stays.
      *
      * @return array{ok: bool, settings?: array, error?: string, status?: int}
      */
@@ -252,6 +253,14 @@ final class Notifier
         }
 
         $fields = [];
+
+        if (array_key_exists('enabled', $params)) {
+            try {
+                $fields['notify_enabled'] = self::parseBool('enabled', $params['enabled']) ? 1 : 0;
+            } catch (\InvalidArgumentException $e) {
+                return ['ok' => false, 'status' => 400, 'error' => $e->getMessage()];
+            }
+        }
 
         if (array_key_exists('message_types', $params)) {
             try {
@@ -309,30 +318,46 @@ final class Notifier
             return;
         }
 
-        $owner = R::getRow(
-            'SELECT u.email, u.notify_message_types, u.notify_fulltext
-             FROM domains d JOIN users u ON u.id = d.user_id WHERE d.domain = ?',
-            [$domain]
-        );
-        if (empty($owner) || empty($owner['email'])) {
+        $resellerId = R::getCell('SELECT reseller_id FROM domains WHERE domain = ?', [$domain]);
+        if ($resellerId === null || $resellerId === false) {
             return;
         }
-        $types = json_decode((string) ($owner['notify_message_types'] ?? ''), true);
-        $types = is_array($types) ? array_map('strval', $types) : [];
-        $fulltext = (string) ($owner['notify_fulltext'] ?? '');
-
-        if (self::matches($types, $fulltext, $type, $domain, $message)) {
-            self::send($smtp, $owner['email'], $subject, $message);
+        foreach (self::recipientsOf((int) $resellerId) as $recipient) {
+            if (self::matches($recipient['types'], $recipient['fulltext'], $type, $domain, $message)) {
+                self::send($smtp, $recipient['email'], $subject, $message);
+            }
         }
+    }
+
+    /**
+     * The users of a reseller who receive its mail: active, notifications on,
+     * an address on file -- each with their own filter.
+     *
+     * @return array<int, array{email: string, types: string[], fulltext: string}>
+     */
+    private static function recipientsOf(int $resellerId): array {
+        $rows = R::getAll(
+            "SELECT email, notify_message_types, notify_fulltext FROM users
+             WHERE reseller_id = ? AND active = 1 AND notify_enabled = 1 AND email IS NOT NULL AND email <> ''",
+            [$resellerId]
+        );
+        return array_map(static function (array $row): array {
+            $types = json_decode((string) ($row['notify_message_types'] ?? ''), true);
+            return [
+                'email'    => (string) $row['email'],
+                'types'    => is_array($types) ? array_map('strval', $types) : [],
+                'fulltext' => (string) ($row['notify_fulltext'] ?? ''),
+            ];
+        }, $rows);
     }
 
     /**
      * One email per run summarizing every deletion `domain reap-deletions`
      * attempted, rather than one per domain -- to the system recipient
-     * (every outcome) and, separately, one per domain's owning user
-     * (their own domains only), each judged by its own filter.
+     * (every outcome) and, separately, to each owning reseller's recipients
+     * (its own domains only), each judged by their own filter.
      *
-     * @param array<int, array{domain: string, user_id: int|null, ok: bool, message: string}> $outcomes
+     * @param array<int, array{domain: string, reseller_id: int|null, ok: bool, message: string}> $outcomes
      */
     public static function notifyDeletions(array $outcomes): void {
         if ($outcomes === []) {
@@ -357,24 +382,18 @@ final class Notifier
             return;
         }
 
-        $byUser = [];
+        $byReseller = [];
         foreach ($outcomes as $outcome) {
-            if ($outcome['user_id'] !== null) {
-                $byUser[$outcome['user_id']][] = $outcome;
+            if ($outcome['reseller_id'] !== null) {
+                $byReseller[$outcome['reseller_id']][] = $outcome;
             }
         }
-        foreach ($byUser as $userId => $userOutcomes) {
-            $owner = R::getRow('SELECT email, notify_message_types, notify_fulltext FROM users WHERE id = ?', [$userId]);
-            if (empty($owner) || empty($owner['email'])) {
-                continue;
-            }
-            $types = json_decode((string) ($owner['notify_message_types'] ?? ''), true);
-            $types = is_array($types) ? array_map('strval', $types) : [];
-            $fulltext = (string) ($owner['notify_fulltext'] ?? '');
-            $summary = self::summarize($userOutcomes);
-
-            if (self::matches($types, $fulltext, $type, null, $summary)) {
-                self::send($smtp, $owner['email'], $subject, $summary);
+        foreach ($byReseller as $resellerId => $resellerOutcomes) {
+            $summary = self::summarize($resellerOutcomes);
+            foreach (self::recipientsOf((int) $resellerId) as $recipient) {
+                if (self::matches($recipient['types'], $recipient['fulltext'], $type, null, $summary)) {
+                    self::send($smtp, $recipient['email'], $subject, $summary);
+                }
             }
         }
     }

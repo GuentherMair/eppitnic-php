@@ -41,7 +41,7 @@ final class DomainExportCommand extends Command
             'csv'       => 'write CSV (the default for this command)',
             'output='   => 'write to this file instead of standard output',
         ] + self::fileOption('domain names', '--source=registry') + [
-            'all-users' => 'export every user\'s domains, not just --user\'s',
+            'all-resellers' => 'export every reseller\'s domains, not just --user\'s reseller\'s',
         ];
     }
 
@@ -124,9 +124,9 @@ final class DomainExportCommand extends Command
 
         $where = ['d.registrant = c.handle'];
         $params = [];
-        if ( ! $this->hasOption('all-users')) {
-            $where[] = 'd.user_id = :user_id';
-            $params[':user_id'] = $this->userId();
+        if ( ! $this->hasOption('all-resellers')) {
+            $where[] = 'd.reseller_id = :reseller_id';
+            $params[':reseller_id'] = $this->scope()->resellerId;
         }
         if ($names = $this->names()) {
             $in = [];

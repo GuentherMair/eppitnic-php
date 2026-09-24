@@ -5,18 +5,18 @@ namespace Eppitnic\Service;
 use RedBeanPHP\R;
 
 /**
- * What a user has on file for filling in new contacts and domains: a default
- * country, default technical contacts, and named sets of nameservers with one
- * of them as the default. Stored on the `users` row (countrycode, techc,
- * nssets, dnsset); every method returns data and leaves reporting to the
- * caller.
+ * What a reseller has on file for filling in new contacts and domains: a
+ * default country, default technical contacts, and named sets of nameservers
+ * with one of them as the default. Stored on the `resellers` row
+ * (countrycode, techc, nssets, dnsset); every method returns data and leaves
+ * reporting to the caller.
  *
  * @category    Net
- * @package     Eppitnic\Service\UserSettings
+ * @package     Eppitnic\Service\ResellerSettings
  * @author      Günther Mair <info@inet-services.it>
  * @license     http://opensource.org/licenses/bsd-license.php New BSD License
  */
-final class UserSettings
+final class ResellerSettings
 {
     public const MAX_TECH = 6;
     public const MIN_NAMESERVERS = 2;
@@ -70,10 +70,10 @@ final class UserSettings
 
     /**
      * @return array{countrycode: string, techc: string[], dnsset: string, nssets: array}|null
-     *         null if there is no such user
+     *         null if there is no such reseller
      */
-    public static function load(int $userId): ?array {
-        $row = R::getRow("SELECT countrycode, techc, nssets, dnsset FROM users WHERE id = ?", [$userId]);
+    public static function load(int $resellerId): ?array {
+        $row = R::getRow("SELECT countrycode, techc, nssets, dnsset FROM resellers WHERE id = ?", [$resellerId]);
         if (empty($row)) {
             return null;
         }
@@ -91,10 +91,10 @@ final class UserSettings
      *
      * @return array{ok: bool, settings?: array, error?: string, status?: int}
      */
-    public static function saveDefaults(int $userId, array $params): array {
-        $current = self::load($userId);
+    public static function saveDefaults(int $resellerId, array $params): array {
+        $current = self::load($resellerId);
         if ($current === null) {
-            return self::failure(404, 'User not found');
+            return self::failure(404, 'Reseller not found');
         }
 
         $fields = [];
@@ -124,19 +124,19 @@ final class UserSettings
             $fields['dnsset'] = $index === null ? null : $current['nssets'][$index]['name'];
         }
 
-        self::write($userId, $fields);
+        self::write($resellerId, $fields);
 
-        return ['ok' => true, 'settings' => self::load($userId)];
+        return ['ok' => true, 'settings' => self::load($resellerId)];
     }
 
     /**
      * @param array $params name and ns[] of the new set
      * @return array{ok: bool, settings?: array, error?: string, status?: int}
      */
-    public static function addSet(int $userId, array $params): array {
-        $current = self::load($userId);
+    public static function addSet(int $resellerId, array $params): array {
+        $current = self::load($resellerId);
         if ($current === null) {
-            return self::failure(404, 'User not found');
+            return self::failure(404, 'Reseller not found');
         }
 
         $set = self::normalizeSet($params, $current['nssets'], null, null);
@@ -146,9 +146,9 @@ final class UserSettings
 
         $sets = $current['nssets'];
         $sets[] = $set;
-        self::write($userId, ['nssets' => self::encodeSets($sets)]);
+        self::write($resellerId, ['nssets' => self::encodeSets($sets)]);
 
-        return ['ok' => true, 'settings' => self::load($userId)];
+        return ['ok' => true, 'settings' => self::load($resellerId)];
     }
 
     /**
@@ -157,10 +157,10 @@ final class UserSettings
      *
      * @return array{ok: bool, settings?: array, error?: string, status?: int}
      */
-    public static function replaceSet(int $userId, string $name, array $params): array {
-        $current = self::load($userId);
+    public static function replaceSet(int $resellerId, string $name, array $params): array {
+        $current = self::load($resellerId);
         if ($current === null) {
-            return self::failure(404, 'User not found');
+            return self::failure(404, 'Reseller not found');
         }
         $index = self::indexOf($current['nssets'], $name);
         if ($index === null) {
@@ -180,9 +180,9 @@ final class UserSettings
         $sets = $current['nssets'];
         $sets[$index] = $set;
         $fields['nssets'] = self::encodeSets($sets);
-        self::write($userId, $fields);
+        self::write($resellerId, $fields);
 
-        return ['ok' => true, 'settings' => self::load($userId)];
+        return ['ok' => true, 'settings' => self::load($resellerId)];
     }
 
     /**
@@ -190,10 +190,10 @@ final class UserSettings
      *
      * @return array{ok: bool, settings?: array, error?: string, status?: int}
      */
-    public static function removeSet(int $userId, string $name): array {
-        $current = self::load($userId);
+    public static function removeSet(int $resellerId, string $name): array {
+        $current = self::load($resellerId);
         if ($current === null) {
-            return self::failure(404, 'User not found');
+            return self::failure(404, 'Reseller not found');
         }
         $index = self::indexOf($current['nssets'], $name);
         if ($index === null) {
@@ -208,9 +208,9 @@ final class UserSettings
         $sets = $current['nssets'];
         unset($sets[$index]);
         $fields['nssets'] = self::encodeSets($sets);
-        self::write($userId, $fields);
+        self::write($resellerId, $fields);
 
-        return ['ok' => true, 'settings' => self::load($userId)];
+        return ['ok' => true, 'settings' => self::load($resellerId)];
     }
 
     /**
@@ -302,18 +302,18 @@ final class UserSettings
     /**
      * @param array<string, mixed> $fields column => value
      */
-    private static function write(int $userId, array $fields): void {
+    private static function write(int $resellerId, array $fields): void {
         if ($fields === []) {
             return;
         }
 
         $set = [];
-        $bind = [':id' => $userId];
+        $bind = [':id' => $resellerId];
         foreach ($fields as $column => $value) {
             $set[] = "{$column} = :{$column}";
             $bind[":{$column}"] = $value;
         }
-        R::exec("UPDATE users SET " . implode(', ', $set) . " WHERE id = :id", $bind);
+        R::exec("UPDATE resellers SET " . implode(', ', $set) . " WHERE id = :id", $bind);
     }
 
     /**

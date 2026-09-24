@@ -3,6 +3,7 @@
 namespace Eppitnic\Tests\Unit;
 
 use Eppitnic\Epp\Contact;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
@@ -21,11 +22,11 @@ final class ContactListTest extends EppTestCase
         }
         R::exec('DROP TABLE IF EXISTS contacts');
         R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, org TEXT, name TEXT,
-                 entitytype INTEGER, status TEXT, user_id INTEGER, active INTEGER DEFAULT 1)');
+                 entitytype INTEGER, status TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
     }
 
     private function insert(string $handle, ?string $status, int $active = 1): void {
-        R::exec('INSERT INTO contacts (handle, org, name, entitytype, status, user_id, active) VALUES (?, ?, ?, 2, ?, 1, ?)',
+        R::exec('INSERT INTO contacts (handle, org, name, entitytype, status, reseller_id, active) VALUES (?, ?, ?, 2, ?, 1, ?)',
             [$handle, $handle, $handle, $status, $active]);
     }
 
@@ -33,7 +34,7 @@ final class ContactListTest extends EppTestCase
      * @return array<string, string[]> handle => its status flags
      */
     private function statuses(bool $activeOnly = true): array {
-        $rows = (new Contact($this->nic))->listContacts(1, true, $activeOnly);
+        $rows = (new Contact($this->nic))->listContacts(Scope::operator(1), $activeOnly);
         return array_column($rows, 'status', 'handle');
     }
 

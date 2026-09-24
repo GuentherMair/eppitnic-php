@@ -7,6 +7,7 @@ use Eppitnic\Persistence\History;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Persistence\SerializedColumn;
 use RedBeanPHP\R;
 
@@ -83,7 +84,7 @@ class Domain extends AbstractObject
     'clientHold', 'clientLock',
   );
 
-  protected $user_id;           // use just in case of an updateRegistrant + change of agent
+  protected $reseller_id;       // use just in case of an updateRegistrant + change of agent
   protected $status;            // domain states (ok, clientDeleteProhibited, clientUpdateProhibited, clientTransferProhibited, clientHold, clientLock + server-side states)
   protected $domain;            // -
 
@@ -137,7 +138,7 @@ class Domain extends AbstractObject
    * initialize values
    */
   protected function initValues(): void {
-    $this->user_id           = 1;
+    $this->reseller_id       = 1;
     $this->status            = array();
     $this->domain            = "";
     $this->registrant        = "";
@@ -855,15 +856,26 @@ class Domain extends AbstractObject
   }
 
   /**
-   * store domain to DB
+   * @return int the reseller a domain with this registrant belongs to: the
+   *             contact's own, or reseller 1 for one not stored locally
+   */
+  public static function resellerOf(?string $registrant): int {
+    $resellerId = R::getCell("SELECT reseller_id FROM contacts WHERE handle = ?", [(string) $registrant]);
+    return $resellerId === null || $resellerId === false ? 1 : (int) $resellerId;
+  }
+
+  /**
+   * store domain to DB. It always belongs to its registrant contact's
+   * reseller -- that contact is stored locally first, domains.registrant
+   * being a foreign key onto it.
    *
-   * @param int $user_id user ACL
+   * @param int|null $actorId the acting user, for history (null: a job)
    * @param bool $notifyDNS fire the DNS-sync 'create' event (default yes; a
    *                     requested-but-not-yet-completed transfer-in passes
    *                     false here, since we don't operate the zone yet)
    * @return bool status
    */
-  public function storeDB(int $user_id = 1, bool $notifyDNS = true): bool {
+  public function storeDB(?int $actorId, bool $notifyDNS = true): bool {
     $data = [
       'status' => serialize($this->status),
       'domain' => $this->domain,
@@ -875,20 +887,19 @@ class Domain extends AbstractObject
     $data['ex_date'] = $this->exDate;
 
     // replaced rather than updated (re-transfer-in / re-register / re-import),
-    // preserving last_invoice and the current owner
-    $row = R::getRow("SELECT last_invoice, user_id FROM domains WHERE domain = ?", [$this->domain]);
+    // preserving last_invoice
+    $row = R::getRow("SELECT last_invoice FROM domains WHERE domain = ?", [$this->domain]);
     if ( ! empty($row)) {
       $data['last_invoice'] = $row['last_invoice'];
-      $user_id = $row['user_id'];
       R::exec("DELETE FROM domains WHERE domain = ?", [$this->domain]);
     }
 
-    $data['user_id'] = $user_id;
+    $data['reseller_id'] = self::resellerOf($this->registrant);
     if ( ! $this->storageInsert($data, $this->domain)) {
       return FALSE;
     }
 
-    History::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $user_id);
+    History::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $actorId);
 
     if ($notifyDNS) {
       // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the
@@ -909,11 +920,9 @@ class Domain extends AbstractObject
    * load domain from DB
    *
    * @param string $domain domain to load
-   * @param int $user_id user ACL
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function loadDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false): bool {
+  public function loadDB(?string $domain, Scope $scope): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -925,7 +934,7 @@ class Domain extends AbstractObject
     // re-initialize object data
     $this->initValues();
 
-    $row = $this->storageFind($domain, $user_id, $isAdmin);
+    $row = $this->storageFind($domain, $scope);
     if ($row === null) {
       $this->setError("Domain '{$domain}' not found.");
       return FALSE;
@@ -946,15 +955,13 @@ class Domain extends AbstractObject
    * update domain stored in DB
    *
    * @param string $domain domain to update
-   * @param int $user_id user ACL
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @param array|null $changes the fields to persist (defaults to whatever is
    *                     currently changed). Pass it explicitly when update()
    *                     has already run: it clears the set once the registry
    *                     has accepted the change, before updateDB() can read it.
    * @return bool status
    */
-  public function updateDB(?string $domain = null, int $user_id = 1, bool $isAdmin = false, ?array $changes = null): bool {
+  public function updateDB(?string $domain, Scope $scope, ?array $changes = null): bool {
     if ($domain === null) {
       $domain = $this->domain;
     }
@@ -975,7 +982,6 @@ class Domain extends AbstractObject
 
     $data = array(
       'status'  => serialize($this->status),
-      'user_id' => $user_id,
     );
     foreach (self::FIELDS as $field => $serialized) {
       if (in_array($field, $changes, true)) {
@@ -984,22 +990,20 @@ class Domain extends AbstractObject
     }
 
     if (in_array('registrant', $changes, true)) {
-      // a registrant change moves the domain to that contact's owner. It is
-      // the caller's job to have checked they may use it -- see
-      // canUseAsRegistrant() in src/Api/Routes/domain.php
-      $tmp = new Contact($this->client);
-      $tmp->loadDB($this->registrant, $user_id, true);
-      $data['user_id'] = $tmp->get('user_id');
+      // a registrant change moves the domain to that contact's reseller. It
+      // is the caller's job to have checked they may use it -- see
+      // Api\Access::canUseAsRegistrant()
+      $data['reseller_id'] = self::resellerOf($this->registrant);
     }
 
     $data['cr_date'] = $this->crDate;
     $data['ex_date'] = $this->exDate;
 
-    if ( ! $this->storageUpdate($domain, $data, $user_id, $isAdmin)) {
+    if ( ! $this->storageUpdate($domain, $data, $scope)) {
       return FALSE;
     }
 
-    History::record('domains', $this->storageId($domain), 'update', $data, $user_id);
+    History::record('domains', $this->storageId($domain), 'update', $data, $scope->userId);
 
     // DNS-sync queue: only nameserver changes require a pdnsutil update, and
     // only when pdns.enabled is actually true -- see storeDB()
@@ -1136,19 +1140,17 @@ class Domain extends AbstractObject
   /**
    * list domains stored in DB (includes pending transfer-in domains)
    *
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @param string $registrant restrict search to this registrant (optional)
    * @param bool $activeOnly list only active domains (TRUE = yes / FALSE = no)
    * @param int $age restrict search to domains older then X months
    * @return array list of domains
    */
-  public function listDomains(int $user_id = 1, bool $isAdmin = false, ?string $registrant = null, bool $activeOnly = TRUE, int $age = 0): array {
+  public function listDomains(Scope $scope, ?string $registrant = null, bool $activeOnly = TRUE, int $age = 0): array {
     $where = ['1 = 1'];
     $params = [];
-    if ( ! $isAdmin) {
-      $where[] = 'user_id = :user_id';
-      $params[':user_id'] = $user_id;
+    if ( ! $scope->isAdmin()) {
+      $where[] = 'reseller_id = :reseller_id';
+      $params[':reseller_id'] = $scope->resellerId;
     }
     if ($registrant !== null) {
       $where[] = 'registrant = :registrant';
@@ -1161,7 +1163,7 @@ class Domain extends AbstractObject
       $row['status'] = [];
       return $row;
     }, R::getAll("
-      SELECT concat(domain, ' (transfer-in)') as domain, registrant, user_id
+      SELECT concat(domain, ' (transfer-in)') as domain, registrant, reseller_id
       FROM transfers WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params));
 
@@ -1175,7 +1177,7 @@ class Domain extends AbstractObject
     }
 
     $active = R::getAll("
-      SELECT domain, registrant, user_id, status
+      SELECT domain, registrant, reseller_id, status
       FROM domains WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params);
     // status is a serialized column, in either of the two shapes the table holds
@@ -1191,12 +1193,10 @@ class Domain extends AbstractObject
    * deactivate a domain stored in DB (soft delete)
    *
    * @param string $domain domain name to delete
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function deleteDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
-    if ( ! $this->storageSetActive($domain, 0, $user_id, $isAdmin, 'delete', ['domain' => $domain])) {
+  public function deleteDomainDB(string $domain, Scope $scope): bool {
+    if ( ! $this->storageSetActive($domain, 0, $scope, 'delete', ['domain' => $domain])) {
       return FALSE;
     }
 
@@ -1215,13 +1215,11 @@ class Domain extends AbstractObject
    * reactivate a domain stored in DB (undo a soft delete)
    *
    * @param string $domain domain name to restore
-   * @param int $user_id user ACL (optional), defaults to 1
-   * @param bool $isAdmin admin (unrestricted by user_id)
    * @return bool status
    */
-  public function restoreDomainDB(string $domain, int $user_id = 1, bool $isAdmin = false): bool {
+  public function restoreDomainDB(string $domain, Scope $scope): bool {
     // logged as 'update': the history action enum has no 'restore'
-    if ( ! $this->storageSetActive($domain, 1, $user_id, $isAdmin, 'update', ['domain' => $domain, 'active' => 1])) {
+    if ( ! $this->storageSetActive($domain, 1, $scope, 'update', ['domain' => $domain, 'active' => 1])) {
       return FALSE;
     }
 

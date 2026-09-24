@@ -6,6 +6,7 @@ use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Persistence\User;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -39,16 +40,18 @@ final class PasswordPolicyRoutesTest extends TestCase
         foreach (['users', 'history'] as $table) {
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, description TEXT, username TEXT, password TEXT,
-                 email TEXT, max_operations INTEGER DEFAULT 0, active INTEGER DEFAULT 1, admin INTEGER DEFAULT 0,
-                 totp_secret TEXT, max_token_age INTEGER DEFAULT 60, max_idle_time INTEGER DEFAULT 30,
-                 debug INTEGER DEFAULT 0)');
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec("CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER DEFAULT 1, role TEXT DEFAULT 'user',
+                 description TEXT, username TEXT, password TEXT, email TEXT, notify_enabled INTEGER DEFAULT 0,
+                 active INTEGER DEFAULT 1, totp_secret TEXT, max_token_age INTEGER DEFAULT 60, max_idle_time INTEGER DEFAULT 30,
+                 debug INTEGER DEFAULT 0)");
+        TestAccounts::ensureReseller(1);
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT,
                  acknowledged_time TEXT DEFAULT NULL, acknowledged_user_id INTEGER DEFAULT NULL)');
 
         // an existing account whose password predates the policy
-        R::exec("INSERT INTO users (id, username, password, admin, active) VALUES (1, 'legacy', ?, 1, 1)",
+        R::exec("INSERT INTO users (id, username, password, role, active) VALUES (1, 'legacy', ?, 'admin', 1)",
             [password_hash(self::WEAK, PASSWORD_BCRYPT, ['cost' => 4])]);
 
         $app = AppFactory::create();
@@ -58,7 +61,7 @@ final class PasswordPolicyRoutesTest extends TestCase
     }
 
     private function call(\Slim\App $app, string $method, string $path, array $body): ResponseInterface {
-        $token = Auth::issueToken([
+        $token = TestAccounts::issueToken([
             'id' => 1, 'username' => 'legacy', 'admin' => 1, 'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 

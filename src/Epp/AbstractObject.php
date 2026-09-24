@@ -134,7 +134,7 @@ abstract class AbstractObject
         }
 
         // don't dump other special variables
-        if (in_array($name, array('changes', 'max_check', 'user_id'))) {
+        if (in_array($name, array('changes', 'max_check', 'reseller_id'))) {
           continue;
         }
 

@@ -13,6 +13,7 @@ use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
+use Slim\Exception\HttpForbiddenException;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
@@ -60,9 +61,10 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 
 
     $user = R::getAll("SELECT
-        id, admin, username, password, totp_secret, debug,
-        max_token_age, max_idle_time
-    FROM users WHERE username = :username AND active = 1", [
+        u.id, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active,
+        u.username, u.password, u.totp_secret, u.debug, u.max_token_age, u.max_idle_time
+    FROM users u JOIN resellers r ON r.id = u.reseller_id
+    WHERE u.username = :username AND u.active = 1", [
         ':username' => $username,
     ]);
 
@@ -76,6 +78,16 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         ], 'denied');
 
         return Json::response($response, ['error' => 'Wrong username or password'], 401);
+    }
+
+    // after the password, so this says nothing to someone merely guessing
+    if ((int) $user[0]['reseller_active'] !== 1) {
+        History::recordSecurityEvent('login_failed', $request, (int) $user[0]['id'], [
+            'username' => (string) $username,
+            'reason'   => 'reseller deactivated',
+        ], 'denied');
+
+        return Json::response($response, ['error' => 'Your reseller account is deactivated'], 403);
     }
 
     $hasTotp   = !empty($user[0]['totp_secret']);
@@ -115,7 +127,9 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
 
     return Json::response($response, Auth::issueToken([
         'id'            => $user[0]['id'],
-        'admin'         => $user[0]['admin'],
+        'role'          => $user[0]['role'],
+        'reseller_id'   => (int) $user[0]['reseller_id'],
+        'reseller_name' => $user[0]['reseller_name'],
         'username'      => $user[0]['username'],
         'has_totp'      => $hasTotp,
         'needs_totp'    => $needsTotp,
@@ -126,21 +140,62 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
     ]));
 });
 
-$app->get('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $actor = Auth::actor($request);
+/**
+ * Which users the caller may see: an admin everyone (optionally one reseller's,
+ * `?reseller_id=`), a manager their reseller's, a plain user only themselves.
+ *
+ * @return array{0: string, 1: array} the WHERE clause and its bindings
+ */
+$visibleUsers = static function (array $actor, array $query): array {
+    if ($actor['isAdmin']) {
+        return isset($query['reseller_id']) && $query['reseller_id'] !== ''
+            ? ['reseller_id = :reseller_id', [':reseller_id' => (int) $query['reseller_id']]]
+            : ['1 = 1', []];
+    }
+    return $actor['isManager']
+        ? ['reseller_id = :reseller_id', [':reseller_id' => $actor['resellerId']]]
+        : ['id = :me', [':me' => $actor['id']]];
+};
 
-    $users = R::getAll("SELECT " . User::readColumns($actor['isAdmin']) . " FROM users");
+/**
+ * A 403 in the shape every other route in this file already answers with.
+ */
+$notAuthorized = static function (Response $response): Response {
+    return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
+};
+
+/**
+ * How many other ACTIVE users hold $role -- in $resellerId if given, else
+ * anywhere -- so the last admin or the last manager of a reseller can be
+ * told apart from one of several.
+ */
+$activeCount = static function (string $role, ?int $resellerId, int $excludeId): int {
+    $sql = "SELECT COUNT(*) FROM users WHERE role = :role AND active = 1 AND id <> :id";
+    $bind = [':role' => $role, ':id' => $excludeId];
+    if ($resellerId !== null) {
+        $sql .= " AND reseller_id = :reseller_id";
+        $bind[':reseller_id'] = $resellerId;
+    }
+    return (int) R::getCell($sql, $bind);
+};
+
+$app->get('/v1/users', function (Request $request, Response $response, array $args) use ($visibleUsers): Response {
+    $actor = Auth::actor($request);
+    [$where, $bind] = $visibleUsers($actor, $request->getQueryParams());
+
+    $users = R::getAll("SELECT " . User::readColumns($actor['isManager']) . " FROM users WHERE {$where}", $bind);
     return Json::response($response, [
         'users' => $users,
     ]);
 });
 
-$app->get('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
+$app->get('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($visibleUsers): Response {
     $actor = Auth::actor($request);
+    [$where, $bind] = $visibleUsers($actor, []);
 
-    $users = R::getAll("SELECT " . User::readColumns($actor['isAdmin']) . " FROM users WHERE id = :id", [
+    $users = R::getAll("SELECT " . User::readColumns($actor['isManager']) . " FROM users WHERE id = :id AND {$where}", [
         ':id' => $args['id'],
-    ]);
+    ] + $bind);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -164,9 +219,11 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     }
 
     // 403, not 401: the caller is authenticated, they are just not allowed to
-    // change this particular user's password. Matches every other authorization
-    // refusal in the codebase.
-    if (($args['id'] != $decoded->data->id) && ($decoded->data->admin != 1)) {
+    // change this particular user's password -- their own, their manager's,
+    // or an admin's to change. Matches every other authorization refusal.
+    try {
+        Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
         return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
@@ -180,7 +237,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, 'PASSWORD_CHANGED' AS password, max_token_age, max_idle_time, debug
+        id, active, role, username, 'PASSWORD_CHANGED' AS password, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -190,16 +247,28 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 });
 
-$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::requireAdmin($request);
+$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount): Response {
+    $actor = Auth::requireManager($request);
+    $targetId = (int) $args['id'];
     $params = $request->getParsedBody() ?? [];
 
     // load the row first: an unknown id is a 404 rather than a silent no-op,
     // and an omitted field falls back to its current value instead of NULL --
     // as password has always done here
-    $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $args['id']]);
+    $current = R::getRow("SELECT * FROM users WHERE id = :id", [':id' => $targetId]);
     if (empty($current)) {
         return Json::response($response, ['error' => 'User not found'], 404);
+    }
+
+    // a manager reaches only a non-admin user of their own reseller, and may
+    // not hand out role=admin or debug -- an admin's own request is unrestricted
+    if ( ! $actor['isAdmin']) {
+        if ((int) $current['reseller_id'] !== $actor['resellerId'] || $current['role'] === 'admin') {
+            return $notAuthorized($response);
+        }
+        if ((isset($params['role']) && $params['role'] === 'admin') || array_key_exists('debug', $params)) {
+            return $notAuthorized($response);
+        }
     }
 
     // the UNIQUE column is pre-checked (excluding this row) for the same reason
@@ -208,10 +277,43 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     if ($username !== $current['username']) {
         $taken = (int) R::getCell("SELECT COUNT(*) FROM users WHERE username = :username AND id <> :id", [
             ':username' => $username,
-            ':id'       => $args['id'],
+            ':id'       => $targetId,
         ]);
         if ($taken > 0) {
             return Json::response($response, ['error' => "username '{$username}' is already taken"], 400);
+        }
+    }
+
+    // a user's reseller is fixed at creation
+    if (isset($params['reseller_id']) && (int) $params['reseller_id'] !== (int) $current['reseller_id']) {
+        return Json::response($response, ['error' => "a user's reseller cannot be changed"], 400);
+    }
+    $role = (string) ($params['role'] ?? $current['role']);
+    if (($error = User::roleError($role, (int) $current['reseller_id'])) !== null) {
+        return Json::response($response, ['error' => $error], 400);
+    }
+    $active = (int) ($params['active'] ?? $current['active']);
+
+    // the last active admin, or the last active manager of a reseller, may
+    // not be demoted or deactivated -- someone has to be left who can fix
+    // it; checked before the self-guard below, so it is this message a sole
+    // admin/manager gets for trying it on themselves, not the generic one
+    if ($current['role'] === 'admin' && ($role !== 'admin' || $active === 0)
+        && $activeCount('admin', null, $targetId) === 0) {
+        return Json::response($response, ['error' => 'cannot change the role or deactivate the last active admin'], 400);
+    }
+    if ($current['role'] === 'manager' && ($role !== 'manager' || $active === 0)
+        && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0) {
+        return Json::response($response, ['error' => 'cannot change the role or deactivate the last active manager of this reseller'], 400);
+    }
+
+    // nobody, admin included, may touch their own role or deactivate themselves
+    if ($targetId === $actor['id']) {
+        if ($role !== $current['role']) {
+            return Json::response($response, ['error' => 'you cannot change your own role'], 400);
+        }
+        if ($active !== (int) $current['active']) {
+            return Json::response($response, ['error' => 'you cannot deactivate yourself'], 400);
         }
     }
 
@@ -219,9 +321,9 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
         'description'    => $params['description'] ?? $current['description'],
         'username'       => $username,
         'email'          => $params['email'] ?? $current['email'],
-        'max_operations' => (int) ($params['max_operations'] ?? $current['max_operations']),
-        'active'         => (int) ($params['active'] ?? $current['active']),
-        'admin'          => (int) ($params['admin'] ?? $current['admin']),
+        'active'         => $active,
+        'role'           => $role,
+        'notify_enabled' => (int) ($params['notify_enabled'] ?? $current['notify_enabled']),
         'max_token_age'  => $params['max_token_age'] ?? $current['max_token_age'],
         'max_idle_time'  => $params['max_idle_time'] ?? $current['max_idle_time'],
         'debug'          => (int) ($params['debug'] ?? $current['debug']),
@@ -235,27 +337,24 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     }
 
     $set = [];
-    $bind = [':id' => $args['id']];
+    $bind = [':id' => $targetId];
     foreach ($fields as $k => $v) {
         $set[] = "{$k} = :{$k}";
         $bind[":{$k}"] = $v;
     }
     R::exec("UPDATE users SET " . implode(', ', $set) . " WHERE id = :id", $bind);
 
-    $users = R::getAll("SELECT
-        id, active, admin, username, email, max_operations,
-        max_token_age, max_idle_time, debug
-    FROM users WHERE id = :id", [
-        ':id' => $args['id'],
+    $users = R::getAll("SELECT " . User::readColumns(true) . " FROM users WHERE id = :id", [
+        ':id' => $targetId,
     ]);
-    History::record('users', (int)$args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', $targetId, 'update', $users[0] ?? [], $actor['id']);
     return Json::response($response, [
         'users' => $users,
     ]);
 });
 
-$app->post('/v1/users', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::requireAdmin($request);
+$app->post('/v1/users', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+    $actor = Auth::requireManager($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Validate::requireFields($params, ['username', 'password'])) {
@@ -275,55 +374,100 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         return Json::response($response, ['error' => "username '{$params['username']}' is already taken"], 400);
     }
 
+    $resellerId = (int) ($params['reseller_id'] ?? ($actor['isAdmin'] ? 1 : $actor['resellerId']));
+    $role = (string) ($params['role'] ?? 'user');
+
+    // a manager stays within their own reseller, and may not hand out
+    // role=admin or debug -- an admin's request is unrestricted
+    if ( ! $actor['isAdmin']) {
+        if (isset($params['reseller_id']) && $resellerId !== $actor['resellerId']) {
+            return $notAuthorized($response);
+        }
+        $resellerId = $actor['resellerId'];
+        if ($role === 'admin' || array_key_exists('debug', $params)) {
+            return $notAuthorized($response);
+        }
+    }
+
+    if ((int) R::getCell('SELECT COUNT(*) FROM resellers WHERE id = ?', [$resellerId]) === 0) {
+        return Json::response($response, ['error' => "Reseller {$resellerId} not found"], 400);
+    }
+    if (($error = User::roleError($role, $resellerId)) !== null) {
+        return Json::response($response, ['error' => $error], 400);
+    }
+
     R::exec("
         INSERT INTO users (
-            description, username, password, email,
-            max_operations, active, admin, max_token_age, max_idle_time, debug
+            reseller_id, role, description, username, password, email,
+            notify_enabled, active, max_token_age, max_idle_time, debug
         ) VALUES (
-            :description, :username, :password, :email,
-            :max_operations, :active, :admin, :max_token_age, :max_idle_time, :debug
+            :reseller_id, :role, :description, :username, :password, :email,
+            :notify_enabled, :active, :max_token_age, :max_idle_time, :debug
         )
     ", [
+        ':reseller_id'    => $resellerId,
+        ':role'           => $role,
         ':description'    => $params['description'] ?? null,
         ':username'       => $params['username'],
         ':password'       => password_hash($params['password'], PASSWORD_DEFAULT),
         ':email'          => $params['email'] ?? null,
-        // 0 means "no quota" -- see the max_operations check in
-        // src/Api/Routes/domain.php
-        ':max_operations' => (int) ($params['max_operations'] ?? 0),
+        // managers and admins start with notifications on, plain users off
+        ':notify_enabled' => (int) ($params['notify_enabled'] ?? ($role === 'user' ? 0 : 1)),
         ':active'         => (int) ($params['active'] ?? 1),
-        ':admin'          => (int) ($params['admin'] ?? 0),
         ':max_token_age'  => $params['max_token_age'] ?? null,
         ':max_idle_time'  => $params['max_idle_time'] ?? null,
         ':debug'          => (int) ($params['debug'] ?? 0),
     ]);
 
     $id = R::getInsertID();
-    $users = R::getAll("SELECT
-        id, active, admin, username, email, max_operations,
-        max_token_age, max_idle_time, debug
-    FROM users WHERE id = :id", [
+    $users = R::getAll("SELECT " . User::readColumns(true) . " FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
-    History::record('users', $id, 'create', $users[0] ?? [], $user_id);
+    History::record('users', $id, 'create', $users[0] ?? [], $actor['id']);
     return Json::response($response, [
         'users' => $users,
     ], 201);
 });
 
-$app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::requireAdmin($request);
+$app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount): Response {
+    $actor = Auth::requireManager($request);
+    $targetId = (int) $args['id'];
+
+    $current = R::getRow("SELECT role, reseller_id, active FROM users WHERE id = :id", [':id' => $targetId]);
+    if (empty($current)) {
+        return Json::response($response, ['error' => 'User not found'], 404);
+    }
+
+    if ( ! $actor['isAdmin'] && ((int) $current['reseller_id'] !== $actor['resellerId'] || $current['role'] === 'admin')) {
+        return $notAuthorized($response);
+    }
+
+    // same last-one-standing guard as PUT .../active=0, checked before the
+    // self-guard below; a no-op deactivation of someone already inactive
+    // never trips it
+    if ((int) $current['active'] === 1) {
+        if ($current['role'] === 'admin' && $activeCount('admin', null, $targetId) === 0) {
+            return Json::response($response, ['error' => 'cannot change the role or deactivate the last active admin'], 400);
+        }
+        if ($current['role'] === 'manager' && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0) {
+            return Json::response($response, ['error' => 'cannot change the role or deactivate the last active manager of this reseller'], 400);
+        }
+    }
+
+    if ($targetId === $actor['id']) {
+        return Json::response($response, ['error' => 'you cannot deactivate yourself'], 400);
+    }
 
     R::exec("UPDATE users SET active = 0 WHERE id = :id", [
-        ':id' => $args['id'],
+        ':id' => $targetId,
     ]);
 
     $users = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug
+        id, active, role, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
-        ':id' => $args['id'],
+        ':id' => $targetId,
     ]);
-    History::record('users', (int)$args['id'], 'delete', $users[0] ?? [], $user_id);
+    History::record('users', $targetId, 'delete', $users[0] ?? [], $actor['id']);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -331,7 +475,7 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
 
 $app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
-    $isAdmin = (int) $decoded->data->admin === 1;
+    $isAdmin = $decoded->data->role === 'admin';
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
@@ -360,7 +504,7 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
 
 $app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
-    $isAdmin = (int) $decoded->data->admin === 1;
+    $isAdmin = $decoded->data->role === 'admin';
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if (!$isOwner && !$isAdmin) {
@@ -389,7 +533,7 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug
+        id, active, role, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -401,10 +545,11 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
 
 $app->delete('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::requireMfa($request);
-    $isAdmin = (int) $decoded->data->admin === 1;
-    $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
-    if (!$isOwner && !$isAdmin) {
+    // one's own, or as their manager or an admin (Auth::actorFor)
+    try {
+        Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
         return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
     }
 
@@ -414,7 +559,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
 
     $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
-        id, active, admin, username, max_token_age, max_idle_time, debug
+        id, active, role, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
@@ -426,7 +571,7 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
 
 $app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
-    $isAdmin = (int) $decoded->data->admin === 1;
+    $isAdmin = $decoded->data->role === 'admin';
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {
@@ -466,7 +611,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
 
 $app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
-    $isAdmin = (int) $decoded->data->admin === 1;
+    $isAdmin = $decoded->data->role === 'admin';
     $isOwner = (int) $decoded->data->id === (int) $args['id'];
 
     if ( ! $isOwner && ! $isAdmin) {

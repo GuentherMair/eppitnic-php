@@ -67,7 +67,7 @@ final class ContactInfoCommand extends Command
                 $this->record($this->render($record), $record);
 
                 if ($store) {
-                    if ($contact->storeDB($userId)) {
+                    if ($contact->storeDB($this->scope()->resellerId, $userId)) {
                         $this->line('  stored locally');
                     } else {
                         $this->failures++;

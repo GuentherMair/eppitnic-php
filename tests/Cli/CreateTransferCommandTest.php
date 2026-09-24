@@ -147,12 +147,12 @@ final class CreateTransferCommandTest extends EppTestCase
     public function testSetOwnerRejectsDryRun(): void {
         $this->expectException(UsageError::class);
         $this->expectExceptionMessage('does not apply to set-owner');
-        (new \Eppitnic\Cli\Command\DomainSetOwnerCommand(['--dry-run', '--new-owner=2', 'example-one.it']))->run();
+        (new \Eppitnic\Cli\Command\DomainSetOwnerCommand(['--dry-run', '--new-reseller=2', 'example-one.it']))->run();
     }
 
     public function testSetOwnerRequiresANewOwner(): void {
         $this->expectException(UsageError::class);
-        $this->expectExceptionMessage('--new-owner');
+        $this->expectExceptionMessage('--new-reseller');
         (new \Eppitnic\Cli\Command\DomainSetOwnerCommand(['example-one.it']))->run();
     }
 

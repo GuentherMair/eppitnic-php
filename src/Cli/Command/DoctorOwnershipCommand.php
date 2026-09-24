@@ -6,14 +6,15 @@ use Eppitnic\Cli\Command;
 use RedBeanPHP\R;
 
 /**
- * Report rows where `domains`/`transfers`.`user_id` and the registrant
- * `contacts`.`user_id` disagree. They are expected to agree, so a disagreement
- * is a domain answering to one user in the listings and another elsewhere.
+ * Report rows where `domains`/`transfers`.`reseller_id` and the registrant
+ * `contacts`.`reseller_id` disagree. A domain always belongs to its
+ * registrant's reseller, so a disagreement is a domain listed under one
+ * reseller while its registrant belongs to another.
  */
 final class DoctorOwnershipCommand extends Command
 {
     public function describe(): string {
-        return 'report domains whose owner and registrant owner disagree';
+        return 'report domains whose reseller and registrant\'s reseller disagree';
     }
 
     public function options(): array {
@@ -48,13 +49,13 @@ final class DoctorOwnershipCommand extends Command
 
         if ( ! $this->hasOption('quiet')) {
             $this->line('');
-            $this->line('Per row, decide who should own it, then either:');
-            $this->line('  (a) give the owner their own copy of the registrant contact --');
-            $this->line('      POST /v1/domains/{name}/owner does exactly this; or');
-            $this->line('  (b) hand the domain to the registrant\'s owner --');
-            $this->line('      UPDATE domains SET user_id = <registrant_owner> WHERE domain = \'<domain>\';');
+            $this->line('Per row, decide which reseller should own it, then either:');
+            $this->line('  (a) give that reseller its own copy of the registrant contact --');
+            $this->line('      `domain set-owner --new-reseller=ID` does exactly this; or');
+            $this->line('  (b) hand the domain to the registrant\'s reseller --');
+            $this->line('      UPDATE domains SET reseller_id = <registrant_owner> WHERE domain = \'<domain>\';');
             $this->line('');
-            $this->line('(b) is one statement but moves the domain out of its current owner\'s');
+            $this->line('(b) is one statement but moves the domain out of its current reseller\'s');
             $this->line('listings. A pending transfer-in has not gone wrong yet: it will create a');
             $this->line('mismatched row when it completes, so fix its registrant before then.');
         }
@@ -70,17 +71,17 @@ final class DoctorOwnershipCommand extends Command
     private function mismatches(string $table, string $alias): array {
         return R::getAll("
             SELECT
-              {$alias}.domain   AS object,
-              {$alias}.user_id  AS owner_id,
-              owner.username    AS owner_name,
-              {$alias}.registrant AS registrant,
-              c.user_id         AS registrant_owner_id,
-              reg.username      AS registrant_owner_name
+              {$alias}.domain      AS object,
+              {$alias}.reseller_id AS owner_id,
+              owner.name           AS owner_name,
+              {$alias}.registrant  AS registrant,
+              c.reseller_id        AS registrant_owner_id,
+              reg.name             AS registrant_owner_name
             FROM {$table} {$alias}
-            JOIN contacts c    ON c.handle = {$alias}.registrant
-            JOIN users owner   ON owner.id = {$alias}.user_id
-            JOIN users reg     ON reg.id   = c.user_id
-            WHERE {$alias}.user_id <> c.user_id
+            JOIN contacts c      ON c.handle = {$alias}.registrant
+            JOIN resellers owner ON owner.id = {$alias}.reseller_id
+            JOIN resellers reg   ON reg.id   = c.reseller_id
+            WHERE {$alias}.reseller_id <> c.reseller_id
             ORDER BY {$alias}.domain
         ");
     }

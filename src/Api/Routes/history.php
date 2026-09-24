@@ -17,9 +17,9 @@ use RedBeanPHP\R;
  * limit (max 500), offset.
  */
 $app->get('/v1/history', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope, 'isAdmin' => $isAdmin] = Auth::actor($request);
 
-    $page = History::visibleTo($user_id, $isAdmin, $request->getQueryParams());
+    $page = History::visibleTo($scope, $request->getQueryParams());
 
     $body = [
         'history' => $page['rows'],
@@ -134,9 +134,9 @@ $app->post('/v1/history/acknowledge', function (Request $request, Response $resp
  * and a `users` snapshot carries an email address and an admin flag.
  */
 $app->get('/v1/history/{object}/{object_id}', function (Request $request, Response $response, array $args): Response {
-    ['id' => $user_id, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    ['scope' => $scope] = Auth::actor($request);
 
-    $page = History::visibleTo($user_id, $isAdmin, [
+    $page = History::visibleTo($scope, [
         'object'    => $args['object'],
         'object_id' => $args['object_id'],
         'limit'     => $request->getQueryParams()['limit'] ?? 500,

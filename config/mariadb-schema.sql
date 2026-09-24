@@ -1,25 +1,43 @@
-CREATE TABLE `users` (
+-- Who contacts, domains and pending transfers belong to. Reseller 1 is the
+-- registrar itself: every admin belongs to it, and it cannot be deactivated
+-- (enforced by Service\ResellerService: a CHECK cannot reference `id`).
+CREATE TABLE `resellers` (
   `id`                    serial,
-  `description`           varchar(64),
-  `username`              varchar(32),
-  `password`              varchar(255),
-  `email`                 varchar(64),
-  `max_operations`        int DEFAULT 0,
-  -- what new contacts and domains start from (see Service\UserSettings):
+  `name`                  varchar(64) NOT NULL,
+  -- daily cap on registrations + transfer-in requests; 0 = unlimited
+  `max_operations`        int NOT NULL DEFAULT 0,
+  `active`                tinyint NOT NULL DEFAULT 1,
+  `creation_time`         timestamp DEFAULT CURRENT_TIMESTAMP,
+  -- what new contacts and domains start from (see Service\ResellerSettings):
   -- techc is a JSON list of handles, nssets a JSON list of {name, ns[]}, and
   -- dnsset the name of the set new domains start with
   `techc`                 text,
   `countrycode`           varchar(2),
   `nssets`                text,
   `dnsset`                varchar(64),
-  -- this user's own filter on email notifications (see Service\Notifier),
-  -- applied only while the system-wide `smtp.recipient_mode` includes
-  -- 'user'; a JSON list of Notifier::MESSAGE_TYPES values (NULL/empty =
+  PRIMARY KEY (`id`),
+  UNIQUE KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `resellers` (`id`, `name`) VALUES (1, 'Registrar (self)');
+
+CREATE TABLE `users` (
+  `id`                    serial,
+  -- fixed at creation: a user never moves to another reseller
+  `reseller_id`           bigint unsigned NOT NULL DEFAULT 1,
+  `role`                  enum('admin','manager','user') NOT NULL DEFAULT 'user',
+  `description`           varchar(64),
+  `username`              varchar(32),
+  `password`              varchar(255),
+  `email`                 varchar(64),
+  -- this user's own email notifications (see Service\Notifier), applied
+  -- only while the system-wide `smtp.recipient_mode` includes 'user': a
+  -- switch, a JSON list of Notifier::MESSAGE_TYPES values (NULL/empty =
   -- unfiltered) and a plain substring filter
+  `notify_enabled`        tinyint NOT NULL DEFAULT 0,
   `notify_message_types`  text,
   `notify_fulltext`       varchar(255),
   `active`                tinyint DEFAULT 1,
-  `admin`                 tinyint DEFAULT 0,
   `totp_secret`           varchar(64),
   `totp_secret_pending`   varchar(64),
   `max_token_age`         int,
@@ -28,7 +46,10 @@ CREATE TABLE `users` (
   `api_token`             varchar(64),
   `api_token_expires`     bigint unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
-  UNIQUE KEY (`api_token`)
+  UNIQUE KEY (`api_token`),
+  -- RESTRICT, not CASCADE: MariaDB refuses a CHECK over a cascading column
+  CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT `admins_belong_to_reseller_1` CHECK (`role` <> 'admin' OR `reseller_id` = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Also holds `security` rows for non-mutating events (e.g. credential
@@ -39,9 +60,11 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
+  -- 'request': a registration or transfer-in a user asked for (object
+  -- 'domains'), what the daily reseller quota counts
+  `action`                enum('create','update','delete','secread','login','denied','request') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
   -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,
@@ -93,7 +116,7 @@ CREATE TABLE `msgqueue` (
 
 CREATE TABLE `contacts` (
   `id`                    serial,
-  `user_id`               bigint unsigned NOT NULL DEFAULT 1,
+  `reseller_id`           bigint unsigned NOT NULL DEFAULT 1,
   `status`                text,
   `handle`                varchar(32) unique NOT NULL,
   `name`                  varchar(256),
@@ -117,12 +140,13 @@ CREATE TABLE `contacts` (
   `active`                tinyint DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY (`handle`),
-  CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE
+  CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `domains` (
   `id`                    serial,
-  `user_id`               bigint unsigned NOT NULL DEFAULT 1,
+  -- always the registrant contact's reseller (see Domain::storeDB())
+  `reseller_id`           bigint unsigned NOT NULL DEFAULT 1,
   `active`                tinyint DEFAULT 1,
   `status`                text,
   `domain`                varchar(255) unique NOT NULL,
@@ -136,19 +160,20 @@ CREATE TABLE `domains` (
   `dnssec`                text,
   `last_invoice`          timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `transfers` (
   `id`                    serial,
-  `user_id`               bigint unsigned NOT NULL DEFAULT 1,
+  `reseller_id`           bigint unsigned NOT NULL DEFAULT 1,
   `domain`                varchar(255) unique NOT NULL,
   `techc`                 text,
   `dns`                   text,
   `registrant`            varchar(32) NOT NULL,
   `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

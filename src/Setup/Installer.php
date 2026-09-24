@@ -189,7 +189,8 @@ final class Installer
             username: $adminUsername,
             password: $adminPassword,
             email: ($input['admin_email'] ?? '') !== '' ? $input['admin_email'] : null,
-            admin: true,
+            resellerId: 1,
+            role: 'admin',
         );
 
         // 7. seed epp, if given -- optional: a fresh install still boots with

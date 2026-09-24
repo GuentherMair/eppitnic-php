@@ -6,6 +6,7 @@ use Eppitnic\Config;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Session;
 use Eppitnic\Epp\Transport\DryRun;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Setup\ConfigMissing;
 
@@ -228,6 +229,20 @@ abstract class Command
 
     protected function userId(): int {
         return (int) $this->option('user', 1);
+    }
+
+    /**
+     * What a command may touch: --user's own reseller's objects, or every
+     * reseller's with $unrestricted (e.g. --all-resellers). History names
+     * --user either way.
+     */
+    protected function scope(bool $unrestricted = false): Scope {
+        $this->database();
+        if ($unrestricted) {
+            return Scope::operator($this->userId());
+        }
+        $resellerId = (int) \RedBeanPHP\R::getCell('SELECT reseller_id FROM users WHERE id = ?', [$this->userId()]);
+        return new Scope($this->userId(), $resellerId ?: 1, 'user');
     }
 
     protected function isDryRun(): bool {

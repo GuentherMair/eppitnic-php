@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Contact;
+use Eppitnic\Persistence\Scope;
 
 /**
  * Change fields on existing contacts. Every option given applies to every
@@ -116,7 +117,7 @@ final class ContactUpdateCommand extends Command
                 }
 
                 if ($store && ! $dryRun) {
-                    $contact->updateDB($handle, $userId, true);
+                    $contact->updateDB($handle, Scope::operator($userId));
                 }
 
                 $this->record("{$handle} updated", ['handle' => $handle, 'changed' => $changes]);

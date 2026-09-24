@@ -22,9 +22,11 @@ Destroyed by the migration, recoverable only from a backup:
    `config/mariadb-schema.sql` fresh, for a brand-new install, not a 6.x
    database being migrated in place.
 3. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()` and
-   can't convert the old hashes, so no login works until reset (see "User
-   setup" in [INSTALL.md](INSTALL.md)).
-4. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
+   can't convert the old hashes, so no login works until reset (see
+   "Resellers and users" in [INSTALL.md](INSTALL.md)).
+4. Review the resellers the migration created (below): rename them, set
+   their quotas, and add further users to them.
+5. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
    is gone, replaced by JSON/REST (documented in [API.md](API.md)) with
    JWT bearer tokens instead of PHP sessions.
 
@@ -42,6 +44,20 @@ new collation. Resolve those and re-run.
 It also decodes HTML entities 6.x stored in text columns (`Rossi & Figli` was
 held as `Rossi &amp; Figli`).
 
+And it introduces **resellers**: contacts, domains and pending transfers no
+longer belong to a user but to a reseller, and the admin flag becomes a role
+(`admin`, `manager`, `user`). Nobody sees more afterwards than before:
+
+- reseller 1, "Registrar (self)", gets every admin and user 1 — the account
+  6.x filled in when no owner was given — together with user 1's defaults;
+- every other non-admin user gets a reseller of their own, named after the
+  username, with their daily quota and defaults, and becomes its `manager`;
+- contacts, domains and transfers follow their owner into that reseller;
+- every migrated user keeps receiving notification emails.
+
+The migration's verification part lists the result (6i), and reports any
+domain whose registrant belongs to another reseller (6h).
+
 `handleID` (MyISAM, utf8mb3) is left alone deliberately; it belongs to no
 schema still in use. Drop it yourself once confirmed unneeded.
 
@@ -54,10 +70,14 @@ schema still in use. Drop it yourself once confirmed unneeded.
 - `Domain->get('tech')` always returns an array now (handle => handle). It
   used to return a bare string for a single technical contact — drop any
   branch special-casing that.
-- Domain routes scope non-admins by `domains.user_id`, pending transfers by
-  `transfers.user_id`, and a domain's registrant must be a contact the caller
-  owns. Pre-existing disagreement is reported by `bin/eppitnic doctor
-  ownership`.
+- Contacts, domains and pending transfers belong to a reseller
+  (`reseller_id`), and routes scope everyone but an admin by it. A domain's
+  registrant must be one of the caller's reseller's contacts; pre-existing
+  disagreement is reported by `bin/eppitnic doctor ownership`.
+- `users.admin`, `users.max_operations` and the per-user defaults are gone:
+  use `users.role`, `resellers.max_operations`, and the reseller's defaults
+  (`/v1/resellers/{id}/settings`). The `admin` login claim is replaced by
+  `role`, `reseller_id` and `reseller_name`.
 - `Domain->check()` / `Contact->check()` return a `CheckResult`, not
   `array|bool|int`. Replace `=== true` with `->available()`, `-1`/`-2`
   sentinels with `->answered()`. `->all()` gives every answer keyed by name.

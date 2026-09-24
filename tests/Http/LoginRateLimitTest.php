@@ -4,6 +4,7 @@ namespace Eppitnic\Tests\Http;
 
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -43,10 +44,12 @@ final class LoginRateLimitTest extends TestCase
         R::exec('DROP TABLE IF EXISTS users');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
-        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password TEXT, admin INTEGER,
-                 active INTEGER, totp_secret TEXT, debug INTEGER, max_token_age INTEGER, max_idle_time INTEGER)');
-        R::exec("INSERT INTO users (id, username, password, admin, active, totp_secret, debug, max_token_age, max_idle_time)
-                 VALUES (1, 'someone', ?, 0, 1, NULL, 0, 60, 30)", [self::hash('the-right-password')]);
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec("CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER DEFAULT 1, role TEXT DEFAULT 'user',
+                 username TEXT, password TEXT, active INTEGER, totp_secret TEXT, debug INTEGER, max_token_age INTEGER, max_idle_time INTEGER)");
+        R::exec("INSERT INTO users (id, username, password, role, active, totp_secret, debug, max_token_age, max_idle_time)
+                 VALUES (1, 'someone', ?, 'user', 1, NULL, 0, 60, 30)", [self::hash('the-right-password')]);
+        TestAccounts::ensureReseller(1);
 
         $app = AppFactory::create();
         Middleware::register($app);

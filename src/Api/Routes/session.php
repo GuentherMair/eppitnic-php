@@ -1,5 +1,6 @@
 <?php
 
+use Eppitnic\Api\Access;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Config;
@@ -145,26 +146,29 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
 });
 
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    ['scope' => $scope] = Auth::actor($request);
     $params = $request->getQueryParams();
     $activeOnly = ($params['active'] ?? '1') !== '0';
 
-    $where = $activeOnly ? 'archived_time IS NULL' : '1 = 1';
+    [$visible, $bind] = Access::messageScope($scope);
+    $where = ($activeOnly ? 'archived_time IS NULL' : '1 = 1') . " AND {$visible}";
 
     // The whole queue runs to ~3 MB, so a screen that wants only the latest few
     // asks for them; `total` is how many matched, whatever was returned.
     $limit = isset($params['limit']) ? min(500, max(1, (int) $params['limit'])) : null;
-    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC" . ($limit !== null ? " LIMIT {$limit}" : ''));
-    $total = (int) R::getCell("SELECT COUNT(*) FROM messages WHERE {$where}");
+    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC" . ($limit !== null ? " LIMIT {$limit}" : ''), $bind);
+    $total = (int) R::getCell("SELECT COUNT(*) FROM messages WHERE {$where}", $bind);
 
     return Json::response($response, ['messages' => $messages, 'total' => $total]);
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    ['scope' => $scope] = Auth::actor($request);
     $id = (int) $args['id'];
 
-    $message = R::getRow("SELECT * FROM messages WHERE id = ?", [$id]);
+    // one the caller may not see is simply not there
+    [$visible, $bind] = Access::messageScope($scope);
+    $message = R::getRow("SELECT * FROM messages WHERE id = :id AND {$visible}", [':id' => $id] + $bind);
     if (empty($message)) {
         return Json::response($response, ['error' => "Message id {$id} not found"], 404);
     }
@@ -173,10 +177,15 @@ $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response,
 });
 
 $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::requireAdmin($request);
+    ['id' => $user_id, 'scope' => $scope] = Auth::requireManager($request);
     $id = (int) $args['id'];
 
-    R::exec("UPDATE messages SET archived_time = NOW(), archived_user_id = ? WHERE id = ?", [$user_id, $id]);
+    [$visible, $bind] = Access::messageScope($scope);
+    if ((int) R::getCell("SELECT COUNT(*) FROM messages WHERE id = :id AND {$visible}", [':id' => $id] + $bind) === 0) {
+        return Json::response($response, ['error' => "Message id {$id} not found"], 404);
+    }
+
+    R::exec("UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = ? WHERE id = ?", [$user_id, $id]);
 
     return Json::response($response, [
         'archived'      => true,
@@ -198,7 +207,7 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
  * monotonic.
  */
 $app->post('/v1/poll-queue/archive', function (Request $request, Response $response, array $args): Response {
-    $user_id = Auth::requireAdmin($request);
+    ['id' => $user_id, 'scope' => $scope] = Auth::requireManager($request);
     $body = $request->getParsedBody() ?? [];
     $until = (string) ($body['until'] ?? '');
 
@@ -219,16 +228,20 @@ $app->post('/v1/poll-queue/archive', function (Request $request, Response $respo
         $bind = [':user' => $user_id, ':until' => $until];
     }
 
+    // a manager archives only what they can see -- their reseller's messages
+    [$visible, $scopeBind] = Access::messageScope($scope);
+    $where .= " AND {$visible}";
+
     $archived = R::exec(
         "UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = :user WHERE {$where}",
-        $bind
+        $bind + $scopeBind
     );
 
     return Json::response($response, array_filter([
         'archived'    => (int) $archived,
         'until'       => $until,
         'until_id'    => $untilId !== null ? (int) $untilId : null,
-        'outstanding' => (int) R::getCell('SELECT COUNT(*) FROM messages WHERE archived_time IS NULL'),
+        'outstanding' => (int) R::getCell("SELECT COUNT(*) FROM messages WHERE archived_time IS NULL AND {$visible}", $scopeBind),
     ], static fn($v) => $v !== null));
 });
 

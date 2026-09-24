@@ -8,6 +8,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
 use Eppitnic\Config;
+use Eppitnic\Persistence\Scope;
 use OTPHP\TOTP;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -26,22 +27,30 @@ use Slim\Exception\HttpUnauthorizedException;
  */
 final class Auth
 {
+    /** @var \WeakMap<Request, object>|null verify()'s result, once per request */
+    private static ?\WeakMap $verified = null;
+
     /**
      * The authenticated caller, as every route needs them. Just these fields: a
      * route wanting more of the token calls verify() directly, so carrying it
      * here too would be a second way to reach the same thing.
      *
      * @param Request $request the incoming HTTP request
-     * @return array{id: int, isAdmin: bool, debug: bool}
+     * @return array{id: int, role: string, isAdmin: bool, isManager: bool, resellerId: int, debug: bool, scope: Scope}
      * @throws HttpUnauthorizedException if the request carries no usable
      *                       credential
      */
     public static function actor(Request $request): array {
         $decoded = self::verify($request);
+        $scope = new Scope((int) $decoded->data->id, (int) $decoded->data->reseller_id, (string) $decoded->data->role);
         return [
-            'id'      => (int) $decoded->data->id,
-            'isAdmin' => (int) $decoded->data->admin === 1,
-            'debug'   => ! empty($decoded->data->debug),
+            'id'         => $scope->userId,
+            'role'       => $scope->role,
+            'isAdmin'    => $scope->isAdmin(),
+            'isManager'  => $scope->isManager(),
+            'resellerId' => $scope->resellerId,
+            'debug'      => ! empty($decoded->data->debug),
+            'scope'      => $scope,
         ];
     }
 
@@ -60,7 +69,7 @@ final class Auth
      */
     private static function verifyFixedApiToken(string $token): ?object {
         $user = R::getRow("
-            SELECT id, admin, username
+            SELECT id, username
             FROM users
             WHERE api_token = :token AND active = 1
               AND (api_token_expires = 0 OR api_token_expires > UNIX_TIMESTAMP())
@@ -73,7 +82,6 @@ final class Auth
         return (object) [
             'data' => (object) [
                 'id'            => (int) $user['id'],
-                'admin'         => (int) $user['admin'],
                 'username'      => $user['username'],
                 'has_totp'      => false,
                 'needs_totp'    => false,
@@ -149,7 +157,7 @@ final class Auth
      */
     private static function verifyRemoteUser(string $username, Request $request): object {
         $user = R::getRow("
-            SELECT id, admin, username, debug, max_token_age, max_idle_time
+            SELECT id, username, debug, max_token_age, max_idle_time
             FROM users
             WHERE username = :username AND active = 1
         ", [':username' => $username]);
@@ -161,7 +169,6 @@ final class Auth
         return (object) [
             'data' => (object) [
                 'id'            => (int) $user['id'],
-                'admin'         => (int) $user['admin'],
                 'username'      => $user['username'],
                 'has_totp'      => false,
                 'needs_totp'    => false,
@@ -190,6 +197,43 @@ final class Auth
      *                       fixed token is found
      */
     public static function verify(Request $request): object {
+        self::$verified ??= new \WeakMap();
+        return self::$verified[$request] ??= self::withAccount(self::credential($request), $request);
+    }
+
+    /**
+     * The account as it stands now, not as the token remembers it: a
+     * deactivated user or reseller loses access at once, and a role change
+     * applies from the next request. Overwrites whatever the token claimed.
+     *
+     * @throws HttpUnauthorizedException if the user no longer exists
+     * @throws HttpForbiddenException if the user or their reseller is inactive
+     */
+    private static function withAccount(object $decoded, Request $request): object {
+        $account = R::getRow('
+            SELECT u.active, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active
+            FROM users u JOIN resellers r ON r.id = u.reseller_id
+            WHERE u.id = ?
+        ', [(int) $decoded->data->id]);
+
+        if (empty($account)) {
+            throw new HttpUnauthorizedException($request, 'User not found');
+        }
+        if ((int) $account['active'] !== 1) {
+            throw new HttpForbiddenException($request, 'Your account is deactivated');
+        }
+        if ((int) $account['reseller_active'] !== 1) {
+            throw new HttpForbiddenException($request, 'Your reseller account is deactivated');
+        }
+
+        unset($decoded->data->admin);
+        $decoded->data->role = $account['role'];
+        $decoded->data->reseller_id = (int) $account['reseller_id'];
+        $decoded->data->reseller_name = $account['reseller_name'];
+        return $decoded;
+    }
+
+    private static function credential(Request $request): object {
         $remoteAuth = self::remoteAuthSettings();
         if ( ! empty($remoteAuth['enabled']) && ! self::isBearerAuth($request)) {
             $username = self::resolveRemoteUsername($request, $remoteAuth);
@@ -267,31 +311,53 @@ final class Auth
      */
     public static function requireAdmin(Request $request): int {
         $decoded = self::verify($request);
-        if ((int) $decoded->data->admin !== 1) {
+        if ($decoded->data->role !== 'admin') {
             throw new HttpForbiddenException($request, 'Admin access required');
         }
-        if (!empty($decoded->data->has_totp) && empty($decoded->data->totp_verified)) {
-            throw new HttpForbiddenException($request, 'MFA verification required');
-        }
+        self::requireMfa($request);
         return (int) $decoded->data->id;
     }
 
     /**
-     * The caller, for something that belongs to user $userId: their own, or an
-     * admin's to reach into. Acting for someone else is as privileged as any
-     * other admin action, so it needs a verified MFA too.
+     * require a manager or admin, MFA-verified (if enabled)
+     *
+     * @return array the caller, as actor() returns it
+     * @throws HttpForbiddenException if a plain user, or MFA is enabled but not
+     *                       yet verified
+     */
+    public static function requireManager(Request $request): array {
+        $actor = self::actor($request);
+        if ( ! $actor['isManager']) {
+            throw new HttpForbiddenException($request, 'Manager access required');
+        }
+        self::requireMfa($request);
+        return $actor;
+    }
+
+    /**
+     * The caller, for something that belongs to user $userId: their own, an
+     * admin's to reach into, or their manager's (same reseller, never an
+     * admin). Acting for someone else needs a verified MFA too.
      *
      * @param Request $request the incoming HTTP request
      * @param int $userId whose data is being touched
-     * @return array{id: int, isAdmin: bool, debug: bool} the caller
-     * @throws HttpForbiddenException if it is someone else's and the caller is
-     *                       not an MFA-verified admin
+     * @return array the caller, as actor() returns it
+     * @throws HttpForbiddenException if it is someone else's and the caller may
+     *                       not act for them
      */
     public static function actorFor(Request $request, int $userId): array {
         $actor = self::actor($request);
-        if ($actor['id'] !== $userId) {
-            self::requireAdmin($request);
+        if ($actor['id'] === $userId) {
+            return $actor;
         }
+        if ($actor['role'] === 'manager') {
+            $target = R::getRow('SELECT reseller_id, role FROM users WHERE id = ?', [$userId]);
+            if ( ! empty($target) && (int) $target['reseller_id'] === $actor['resellerId'] && $target['role'] !== 'admin') {
+                self::requireMfa($request);
+                return $actor;
+            }
+        }
+        self::requireAdmin($request);
         return $actor;
     }
 

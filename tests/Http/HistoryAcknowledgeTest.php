@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Http;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
+use Eppitnic\Tests\Support\TestAccounts;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use RedBeanPHP\R;
@@ -61,7 +62,7 @@ final class HistoryAcknowledgeTest extends TestCase
             ->withParsedBody($body);
 
         if ($claims !== null) {
-            $token = Auth::issueToken($claims + ['id' => 7, 'username' => 'an-admin', 'has_totp' => false, 'max_token_age' => 60])['token'];
+            $token = TestAccounts::issueToken($claims + ['id' => 7, 'username' => 'an-admin', 'has_totp' => false, 'max_token_age' => 60])['token'];
             $request = $request->withHeader('Authorization', "Bearer {$token}");
         }
         return $app->handle($request);

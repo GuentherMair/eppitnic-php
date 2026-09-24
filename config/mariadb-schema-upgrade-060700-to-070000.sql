@@ -433,9 +433,11 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers') NOT NULL,
   `object_id`             int(11) NOT NULL,
-  `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
+  -- 'request': a registration or transfer-in a user asked for (object
+  -- 'domains'), what the daily reseller quota counts
+  `action`                enum('create','update','delete','secread','login','denied','request') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
   -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,
@@ -492,6 +494,119 @@ ALTER TABLE users
 UPDATE users SET techc = NULL WHERE techc IS NOT NULL AND TRIM(techc) = '';
 UPDATE users SET techc = JSON_ARRAY(TRIM(techc))
 WHERE techc IS NOT NULL AND LEFT(TRIM(techc), 1) <> '[';
+
+
+-- ----------------------------------------------------------------------------
+-- PART 5b: RESELLERS
+--
+-- Contacts, domains and pending transfers now belong to a reseller, not to
+-- one user; users get a role (admin/manager/user) instead of the admin flag.
+-- Mapped so nobody sees more on the first day than before:
+--   * reseller 1 "Registrar (self)" gets every admin and user 1 -- the
+--     account new rows always defaulted to -- along with user 1's defaults;
+--   * every other non-admin user gets a reseller of their own, named after
+--     the username, with their quota and defaults, and becomes its manager;
+--   * contacts, domains and transfers follow their owner's reseller.
+-- Every migrated user keeps receiving notifications (notify_enabled = 1).
+-- PART 5's quota, defaults and admin columns are read here, then dropped.
+-- ----------------------------------------------------------------------------
+
+CREATE TABLE `resellers` (
+  `id`                    serial,
+  `name`                  varchar(64) NOT NULL,
+  -- daily cap on registrations + transfer-in requests; 0 = unlimited
+  `max_operations`        int NOT NULL DEFAULT 0,
+  `active`                tinyint NOT NULL DEFAULT 1,
+  `creation_time`         timestamp DEFAULT CURRENT_TIMESTAMP,
+  `techc`                 text,
+  `countrycode`           varchar(2),
+  `nssets`                text,
+  `dnsset`                varchar(64),
+  -- migration only: which user this reseller was created for (dropped below)
+  `_migrated_user_id`     bigint unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO resellers (id, name) VALUES (1, 'Registrar (self)');
+UPDATE resellers r JOIN users u ON u.id = 1
+SET r.techc = u.techc, r.countrycode = u.countrycode, r.nssets = u.nssets, r.dnsset = u.dnsset
+WHERE r.id = 1;
+
+-- a blank username, or one another user shares (case-insensitively), gets
+-- its id added, since reseller names are unique
+INSERT INTO resellers (name, max_operations, techc, countrycode, nssets, dnsset, `_migrated_user_id`)
+SELECT
+  CASE
+    WHEN TRIM(COALESCE(u.username, '')) = '' THEN CONCAT('user #', u.id)
+    WHEN u.username = 'Registrar (self)'
+      OR EXISTS (SELECT 1 FROM users u2 WHERE u2.id <> u.id AND u2.username = u.username)
+      THEN CONCAT(u.username, ' #', u.id)
+    ELSE u.username
+  END,
+  COALESCE(u.max_operations, 0), u.techc, u.countrycode, u.nssets, u.dnsset, u.id
+FROM users u
+WHERE u.id <> 1 AND COALESCE(u.admin, 0) = 0
+ORDER BY u.id;
+
+ALTER TABLE users
+  ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`,
+  ADD COLUMN `role` ENUM('admin','manager','user') NOT NULL DEFAULT 'user' AFTER `reseller_id`,
+  ADD COLUMN `notify_enabled` TINYINT NOT NULL DEFAULT 0 AFTER `email`;
+
+UPDATE users u JOIN resellers r ON r.`_migrated_user_id` = u.id SET u.reseller_id = r.id;
+UPDATE users SET role = IF(COALESCE(admin, 0) = 1, 'admin', 'manager'), notify_enabled = 1;
+
+ALTER TABLE users
+  DROP COLUMN `admin`,
+  DROP COLUMN `max_operations`,
+  DROP COLUMN `techc`,
+  DROP COLUMN `countrycode`,
+  DROP COLUMN `nssets`,
+  DROP COLUMN `dnsset`,
+  -- RESTRICT, not CASCADE: MariaDB refuses a CHECK over a cascading column
+  ADD CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+  ADD CONSTRAINT `admins_belong_to_reseller_1` CHECK (`role` <> 'admin' OR `reseller_id` = 1);
+
+ALTER TABLE resellers DROP COLUMN `_migrated_user_id`;
+
+-- contacts, domains, transfers: user_id -> reseller_id. The old FKs carry
+-- whatever name InnoDB generated, so they are looked up, not named.
+ALTER TABLE contacts  ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE domains   ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE transfers ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
+
+UPDATE contacts  c JOIN users u ON u.id = c.user_id SET c.reseller_id = u.reseller_id;
+UPDATE domains   d JOIN users u ON u.id = d.user_id SET d.reseller_id = u.reseller_id;
+UPDATE transfers t JOIN users u ON u.id = t.user_id SET t.reseller_id = u.reseller_id;
+
+SET @fk := (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contacts' AND COLUMN_NAME = 'user_id'
+    AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1);
+SET @sql := IF(@fk IS NULL, 'DO 0', CONCAT('ALTER TABLE contacts DROP FOREIGN KEY `', @fk, '`'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @fk := (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'domains' AND COLUMN_NAME = 'user_id'
+    AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1);
+SET @sql := IF(@fk IS NULL, 'DO 0', CONCAT('ALTER TABLE domains DROP FOREIGN KEY `', @fk, '`'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @fk := (SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'transfers' AND COLUMN_NAME = 'user_id'
+    AND REFERENCED_TABLE_NAME IS NOT NULL LIMIT 1);
+SET @sql := IF(@fk IS NULL, 'DO 0', CONCAT('ALTER TABLE transfers DROP FOREIGN KEY `', @fk, '`'));
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE contacts
+  DROP COLUMN `user_id`,
+  ADD CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE domains
+  DROP COLUMN `user_id`,
+  ADD CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE transfers
+  DROP COLUMN `user_id`,
+  ADD CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
 -- ----------------------------------------------------------------------------
@@ -578,10 +693,12 @@ FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'users'
 ORDER BY ORDINAL_POSITION;
--- ^ expect password as varchar(255), followed by countrycode, nssets, dnsset,
---   active, admin, totp_secret, totp_secret_pending, max_token_age,
---   max_idle_time, debug, api_token, api_token_expires (in that order after
---   techc), and no `dns`.
+-- ^ expect: id, reseller_id, role, description, username, password
+--   (varchar(255)), email, notify_enabled, notify_message_types,
+--   notify_fulltext, active, totp_secret, totp_secret_pending,
+--   max_token_age, max_idle_time, debug, api_token, api_token_expires --
+--   and no `dns`, `admin`, `max_operations`, `techc`, `countrycode`,
+--   `nssets` or `dnsset` (those moved to `resellers` in PART 5b).
 
 -- 6g. Confirm foreign keys survived the rename/creation and point at the
 --     new names, including history's and tasks's FKs.
@@ -596,10 +713,12 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND REFERENCED_TABLE_NAME IS NOT NULL
   AND TABLE_NAME IN ('users','contacts','domains','transfers',
                       'transactions','responses','msgqueue','messages',
-                      'tasks','history');
--- ^ expect: contacts.user_id -> users.id
---           domains.user_id -> users.id
+                      'tasks','history','resellers');
+-- ^ expect: users.reseller_id -> resellers.id
+--           contacts.reseller_id -> resellers.id
+--           domains.reseller_id -> resellers.id
 --           domains.registrant -> contacts.handle
+--           transfers.reseller_id -> resellers.id
 --           transfers.registrant -> contacts.handle
 --           history.user_id -> users.id
 --           tasks.domain -> domains.domain
@@ -613,31 +732,41 @@ WHERE name LIKE '%&amp;%' OR org LIKE '%&amp;%' OR street LIKE '%&amp;%' OR city
 --   by hand after checking what it should read.
 
 -- 6h. DATA coherence: domains whose registrant contact belongs to a
---     different local user than the domain itself.
+--     different reseller than the domain itself.
 --
---     domains.user_id (the domain's owner) and contacts.user_id (the
---     registrant's owner) are independent, and 6.x never kept them in
---     step; from 7.0.0 they're expected to agree, since routes scope by
---     domains.user_id and the API refuses a registrant the caller
---     doesn't own -- so a mismatch can't be fixed by re-saving.
+--     6.x never kept a domain's owner and its registrant's owner in step;
+--     from 7.0.0 a domain always belongs to its registrant's reseller,
+--     since routes scope by domains.reseller_id -- so a mismatch can't be
+--     fixed by re-saving.
 --
 --     A report, not an abort: pre-existing data, and nothing here fails
---     because of it. Fix the rows afterwards.
+--     because of it. Fix the rows afterwards (`eppitnic doctor ownership`
+--     lists the same).
 SELECT
     d.domain,
-    d.user_id     AS domain_owner,
+    d.reseller_id AS domain_reseller,
     d.registrant  AS registrant_handle,
-    c.user_id     AS registrant_owner
+    c.reseller_id AS registrant_reseller
 FROM domains d
 JOIN contacts c ON c.handle = d.registrant
-WHERE d.user_id <> c.user_id
+WHERE d.reseller_id <> c.reseller_id
 ORDER BY d.domain;
--- ^ expect ZERO rows. For each one, decide who should own the domain:
---     (a) duplicate the registrant contact under the domain's owner and
+-- ^ expect ZERO rows. For each one, decide which reseller should own it:
+--     (a) copy the registrant contact into the domain's reseller and
 --         repoint the domain at the copy (POST /v1/domains/{name}/owner
 --         does exactly this), or
---     (b) UPDATE domains SET user_id = <owner> WHERE domain = '<domain>';
---         -- moves it out of the current owner's listings, confirm first.
+--     (b) UPDATE domains SET reseller_id = <reseller> WHERE domain = '<domain>';
+--         -- moves it out of the current reseller's listings, confirm first.
+
+-- 6i. The reseller mapping: every user, where they landed, as what.
+SELECT u.id, u.username, u.role, u.active, r.id AS reseller_id, r.name AS reseller,
+       r.max_operations,
+       (SELECT COUNT(*) FROM domains  d WHERE d.reseller_id = r.id) AS domains,
+       (SELECT COUNT(*) FROM contacts c WHERE c.reseller_id = r.id) AS contacts
+FROM users u JOIN resellers r ON r.id = u.reseller_id
+ORDER BY r.id, u.id;
+-- ^ expect admins and user 1 in reseller 1, every other user alone in a
+--   reseller named after them, as its manager.
 
 
 -- ----------------------------------------------------------------------------

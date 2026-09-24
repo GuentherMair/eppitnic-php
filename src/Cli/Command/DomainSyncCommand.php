@@ -7,6 +7,7 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
+use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\CronjobSettings;
 use RedBeanPHP\R;
 
@@ -63,7 +64,7 @@ final class DomainSyncCommand extends Command
         $updated = 0;
         $gone = 0;
         $stored = 0;
-        // handle => the local user_id that should own it if it is new --
+        // handle => the reseller that should own it if it is new --
         // collected across the whole phase so a tech contact shared by many
         // of this tick's domains is only fetched and stored once
         $handles = [];
@@ -107,11 +108,11 @@ final class DomainSyncCommand extends Command
                     }
 
                     $before = new Domain($nic);
-                    $before->loadDB($name, 0, true);
+                    $before->loadDB($name, Scope::operator($userId));
 
                     $changes = $this->diff($before, $after, (string) $row['ex_date']);
                     if ($changes !== [] && ! $reportOnly) {
-                        if ($after->updateDB($name, $userId, true, $changes)) {
+                        if ($after->updateDB($name, Scope::operator($userId), $changes)) {
                             $updated++;
                             $this->record("{$name}: reconciled (" . implode(', ', $changes) . ')', [
                                 'domain' => $name, 'result' => 'updated', 'changes' => $changes,
@@ -127,12 +128,12 @@ final class DomainSyncCommand extends Command
                     }
 
                     foreach ($this->linkedHandles($after) as $handle) {
-                        $handles[$handle] = (int) $row['user_id'];
+                        $handles[$handle] = (int) $row['reseller_id'];
                     }
                 }
             }
 
-            foreach ($handles as $handle => $ownerId) {
+            foreach ($handles as $handle => $resellerId) {
                 $contact = new Contact($nic);
                 if ( ! $contact->fetch($handle)) {
                     $this->itemFailed($handle, $contact->getError());
@@ -143,7 +144,7 @@ final class DomainSyncCommand extends Command
                     $this->record("{$handle}: would refresh", ['handle' => $handle, 'result' => 'would_store']);
                     continue;
                 }
-                if ($contact->storeDB($ownerId)) {
+                if ($contact->storeDB($resellerId, $userId)) {
                     $stored++;
                     $this->record("{$handle}: contact refreshed", ['handle' => $handle, 'result' => 'stored']);
                 } else {
@@ -176,16 +177,16 @@ final class DomainSyncCommand extends Command
      * the start once the table's tail is exhausted -- the two WHERE clauses
      * partition the id-space, so the merge can never produce a duplicate row.
      *
-     * @return array<int, array{id: int, domain: string, user_id: int, ex_date: string}>
+     * @return array<int, array{id: int, domain: string, reseller_id: int, ex_date: string}>
      */
     private function nextBatch(int $cursor, int $batchSize): array {
         $rows = R::getAll(
-            'SELECT id, domain, user_id, ex_date FROM domains WHERE active = 1 AND id > ? ORDER BY id LIMIT ?',
+            'SELECT id, domain, reseller_id, ex_date FROM domains WHERE active = 1 AND id > ? ORDER BY id LIMIT ?',
             [$cursor, $batchSize]
         );
         if (count($rows) < $batchSize) {
             $rows = array_merge($rows, R::getAll(
-                'SELECT id, domain, user_id, ex_date FROM domains WHERE active = 1 AND id <= ? ORDER BY id LIMIT ?',
+                'SELECT id, domain, reseller_id, ex_date FROM domains WHERE active = 1 AND id <= ? ORDER BY id LIMIT ?',
                 [$cursor, $batchSize - count($rows)]
             ));
         }
