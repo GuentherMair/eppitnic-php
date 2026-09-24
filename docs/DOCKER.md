@@ -104,9 +104,8 @@ necessarily arrive with a source address of `127.0.0.1` — Docker's NAT for
 host-to-published-port traffic commonly rewrites it to the bridge gateway
 address instead (`docker network inspect eppitnic_default` shows the real
 one). Set the `trusted_proxies` setting (see INSTALL.md's "Login rate
-limiting") to whatever address actually shows up — confirmed by sending one
-request and checking `GET /v1/history?object=security&limit=1` — not to
-`127.0.0.1`. Get it wrong and `X-Forwarded-For` is silently ignored, so every
+limiting") to whatever address actually shows up — Settings → Trusted proxies
+shows it, and can add it — not to `127.0.0.1`. Get it wrong and `X-Forwarded-For` is silently ignored, so every
 client behind the proxy shares one rate-limit bucket.
 
 The image adds only `docker-php-ext-install pdo_mysql` to

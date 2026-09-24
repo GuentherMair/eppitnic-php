@@ -16,6 +16,9 @@ use RedBeanPHP\R;
 
 $app->get('/v1/users/renew-token', function (Request $request, Response $response, array $args): Response {
     $decoded = Auth::verify($request);
+    if ( ! empty($decoded->data->remote_auth)) {
+        return Json::response($response, ['error' => 'Token renewal is not available with remote authentication'], 400);
+    }
     return Json::response($response, Auth::issueToken((array) $decoded->data));
 });
 

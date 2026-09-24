@@ -409,6 +409,28 @@ the saved config, nothing persisted or audited), surfaced as a "Send
 test email" button in the settings UI, split across three tabs (SMTP
 settings, authentication, message filters).
 
+Authentication can now be delegated to a front web server (Apache/nginx
+doing Basic auth, LDAP, OIDC…) via the new `remote_auth` setting
+(`config remote-auth-set`, admin-only `GET`/`PATCH /v1/remote-auth`, and a
+"Remote authentication" section in the settings UI; see
+`docs/REMOTE-AUTH.md`). With it enabled, `Api\Auth` trusts the CGI
+`REMOTE_USER`/`REDIRECT_REMOTE_USER` server variable (server mode), or a
+configurable request header read only from a `trusted_proxies` peer
+(header mode), mapping the name to an existing active local user; a
+`Bearer` token, when sent, still always takes precedence. A remote
+username with no matching local account is **403**; `GET
+/v1/users/renew-token` is **400** under remote auth, since there is no JWT
+to renew. `history.object` gained `remote_auth`.
+
+`trusted_proxies` can now be edited without SQL: `config trusted-proxies
+[add|remove|clear]` (the same list editing `config safe-networks` does,
+now shared through `CidrListCommand`), admin-only `GET`/`PUT
+/v1/trusted-proxies`, and a "Trusted proxies" section in the settings UI,
+which shows the address the admin's own request arrived from. Entries
+are stored canonically, catch-all ranges (`0.0.0.0/0`, `::/0`) are
+refused, and every change is recorded in `history`
+(`object='trusted_proxies'`).
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

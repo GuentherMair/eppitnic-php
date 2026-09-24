@@ -194,7 +194,11 @@ final class ClientIp
         return $hops;
     }
 
-    private static function isTrustedProxy(string $ip): bool {
+    /**
+     * @param string $ip address to check
+     * @return bool whether $ip falls inside a configured `trusted_proxies` CIDR
+     */
+    public static function isTrustedProxy(string $ip): bool {
         foreach (self::trustedProxies() as $cidr) {
             if (self::matches($ip, (string) $cidr)) {
                 return true;

@@ -433,7 +433,7 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies') NOT NULL,
   `object_id`             int(11) NOT NULL,
   `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
@@ -727,7 +727,11 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- while recipient_mode is system/both. auth_type: plain/tls/starttls.
   -- message_types: Notifier::MESSAGE_TYPES subset, empty = unfiltered.
   -- fulltext: plain substring filter over type/domain/message.
-  ('smtp', '{"enabled":false,"host":"localhost","port":null,"sender":"","recipient_mode":"both","recipient":"","username":"","password":"","auth_type":"plain","message_types":[],"fulltext":""}')
+  ('smtp', '{"enabled":false,"host":"localhost","port":null,"sender":"","recipient_mode":"both","recipient":"","username":"","password":"","auth_type":"plain","message_types":[],"fulltext":""}'),
+  -- remote_auth: off by default (see Api\Auth/Service\RemoteAuthSettings).
+  -- header unset means server mode (REMOTE_USER); set it only when a
+  -- trusted proxy injects it. `config remote-auth-set`, `/v1/remote-auth`.
+  ('remote_auth', '{"enabled":false,"header":null}')
   -- idempotent: a half-finished or hand-seeded `settings` table would
   -- otherwise abort on the first duplicate key. Existing values win --
   -- this seeds defaults, never overwrites an operator's configuration.

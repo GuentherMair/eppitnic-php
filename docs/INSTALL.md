@@ -132,6 +132,9 @@ class/file/line/trace to error responses and give 500s their real message.
 trigger an error, including unauthenticated requests. Errors always go to the
 PHP error log regardless.
 
+To have the web server handle login instead of eppitnic (Basic auth, LDAP,
+OpenID Connect, ...), see [REMOTE-AUTH.md](REMOTE-AUTH.md).
+
 ## User setup
 
 `POST /v1/users` requires an admin token, so the first admin account is
@@ -417,9 +420,20 @@ Two settings:
 - `login_ratelimit` — `{"max_failures":10,"timespan":900,"ipv4_prefix":24,"ipv6_prefix":48}`.
   Counted per network, not per address (an IPv6 customer gets an allocation, so
   per-address wouldn't stop anyone). `max_failures: 0` disables it.
-- `trusted_proxies` — **set this if the API runs behind a reverse proxy**, e.g.
-  `["10.0.0.0/8"]`. `X-Forwarded-For` is only trusted when the connecting
-  address is listed here.
+- `trusted_proxies` — **set this if the API runs behind a reverse proxy**.
+  `X-Forwarded-For` is only trusted when the connecting address is listed
+  here. Edit it under Settings → Trusted proxies (which also shows the address
+  your own request arrived from), or:
+
+  ```
+  bin/eppitnic config trusted-proxies                       # show
+  bin/eppitnic config trusted-proxies add 172.18.0.1        # a bare address is a /32
+  bin/eppitnic config trusted-proxies remove 172.18.0.1/32
+  bin/eppitnic config trusted-proxies clear
+  ```
+
+  Catch-all ranges (`0.0.0.0/0`, `::/0`) are refused. Changes are recorded in
+  `history` (`object='trusted_proxies'`).
 
 Getting `trusted_proxies` wrong fails in opposite ways: empty behind a proxy
 means every request looks like it came from the proxy (one shared bucket);

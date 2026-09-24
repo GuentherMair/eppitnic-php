@@ -82,18 +82,122 @@ final class Auth
         ];
     }
 
+    // -----------------------------------------------------------------
+    // remote auth (front server / trusted proxy)
+    // -----------------------------------------------------------------
+
+    /**
+     * The `remote_auth` setting, or disabled if it was never seeded -- same
+     * reasoning as ClientIp::trustedProxies() treating a missing key as
+     * empty.
+     */
+    private static function remoteAuthSettings(): array {
+        try {
+            return (array) Config::get('remote_auth');
+        } catch (\Throwable) {
+            return ['enabled' => false, 'header' => null];
+        }
+    }
+
+    /**
+     * @return bool whether $request's Authorization header uses the Bearer
+     *              scheme -- if so, it always takes the JWT/fixed-token path,
+     *              remote auth or not
+     */
+    private static function isBearerAuth(Request $request): bool {
+        $authHeader = $request->getHeaderLine('Authorization');
+        if ($authHeader === '') {
+            return false;
+        }
+        return strcasecmp(explode(' ', $authHeader, 2)[0], 'Bearer') === 0;
+    }
+
+    /**
+     * The remote username server mode or header mode resolved, if any.
+     * Header mode never falls back to REMOTE_USER, and only ever reads the
+     * header from a `trusted_proxies` peer -- everyone else is ignored.
+     *
+     * @param array $remoteAuth the `remote_auth` setting
+     * @return string|null the trimmed username, or null if none was found
+     */
+    private static function resolveRemoteUsername(Request $request, array $remoteAuth): ?string {
+        $serverParams = $request->getServerParams();
+        $header = $remoteAuth['header'] ?? null;
+
+        if ($header !== null && $header !== '') {
+            $peer = (string) ($serverParams['REMOTE_ADDR'] ?? '');
+            if ($peer === '' || ! ClientIp::isTrustedProxy($peer)) {
+                return null;
+            }
+            $username = trim($request->getHeaderLine($header));
+            return $username !== '' ? $username : null;
+        }
+
+        $username = trim((string) (
+            $serverParams['REMOTE_USER'] ?? $serverParams['REDIRECT_REMOTE_USER'] ?? ''
+        ));
+        return $username !== '' ? $username : null;
+    }
+
+    /**
+     * Match $username against an active local user and synthesize the claims
+     * object JWT::decode() would return -- same shape as
+     * verifyFixedApiToken(), plus `remote_auth: true`. MFA is the front
+     * server's job, so has_totp is always false here.
+     *
+     * @throws HttpForbiddenException if $username has no active local account
+     */
+    private static function verifyRemoteUser(string $username, Request $request): object {
+        $user = R::getRow("
+            SELECT id, admin, username, debug, max_token_age, max_idle_time
+            FROM users
+            WHERE username = :username AND active = 1
+        ", [':username' => $username]);
+
+        if (empty($user)) {
+            throw new HttpForbiddenException($request, "Remote user '{$username}' has no active account");
+        }
+
+        return (object) [
+            'data' => (object) [
+                'id'            => (int) $user['id'],
+                'admin'         => (int) $user['admin'],
+                'username'      => $user['username'],
+                'has_totp'      => false,
+                'needs_totp'    => false,
+                'totp_verified' => false,
+                'debug'         => (bool) $user['debug'],
+                'max_token_age' => $user['max_token_age'],
+                'max_idle_time' => $user['max_idle_time'],
+                'remote_auth'   => true,
+            ],
+        ];
+    }
+
     /**
      * validate the Authorization header: a real JWT (session login), falling
      * back to a fixed automation token (see verifyFixedApiToken()) if JWT
-     * decoding fails for any reason
+     * decoding fails for any reason. When `remote_auth.enabled` is true and
+     * the request carries no Bearer token, a front server's REMOTE_USER (or
+     * a trusted proxy's header) is tried first instead.
      *
      * @param Request $request the incoming HTTP request
      * @return object decoded claims, shaped identically regardless of which
      *                auth mechanism matched
+     * @throws HttpForbiddenException if a remote username was found but maps
+     *                       to no active local user
      * @throws HttpUnauthorizedException if neither a valid JWT nor a valid
      *                       fixed token is found
      */
     public static function verify(Request $request): object {
+        $remoteAuth = self::remoteAuthSettings();
+        if ( ! empty($remoteAuth['enabled']) && ! self::isBearerAuth($request)) {
+            $username = self::resolveRemoteUsername($request, $remoteAuth);
+            if ($username !== null) {
+                return self::verifyRemoteUser($username, $request);
+            }
+        }
+
         $authHeader = $request->getHeaderLine('Authorization');
 
         if (empty($authHeader)) {

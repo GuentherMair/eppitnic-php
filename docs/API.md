@@ -126,7 +126,8 @@ response stays `Wrong username or password` whichever half was wrong, so it
 cannot be used to discover which usernames exist — the log is precise where the
 response is vague.
 
-**Behind a reverse proxy**, list it in the `trusted_proxies` setting.
+**Behind a reverse proxy**, list it in the `trusted_proxies` setting
+(`GET`/`PUT /v1/trusted-proxies`, below).
 `X-Forwarded-For` is written by whoever sends the request, so it is only
 believed when the address that actually connected is a trusted proxy. Without
 that setting every request appears to come from the proxy, which means one
@@ -214,6 +215,27 @@ for a has-TOTP account without the code (not currently possible through
   meaningless for headless callers), and is otherwise indistinguishable to
   route handlers from a JWT-derived identity (`Auth::verify()` synthesizes the
   same claims shape).
+
+### Remote authentication
+
+When the `remote_auth` setting is enabled (`config remote-auth-set` or
+`PATCH /v1/remote-auth`; see `docs/REMOTE-AUTH.md`), a front server's already-
+authenticated username is trusted in place of a bearer token. Precedence:
+a `Bearer` `Authorization` header, if present, always takes the JWT/fixed-
+token path above; otherwise the remote username is read from `REMOTE_USER`
+(or a header from a `trusted_proxies` peer, depending on configuration)
+and mapped to a local user. A remote username with no matching active
+local user is **403**. `GET /v1/users/renew-token` answers **400**
+(`{"error": "Token renewal is not available with remote authentication"}`)
+under remote auth — there is no JWT to renew. `GET /v1/users/me` carries
+`"remote_auth": true` for a remotely-authenticated caller.
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/remote-auth` | admin | `{"remote_auth": {"enabled", "header"}, "trusted_proxies": [...]}`. `header` null = the `REMOTE_USER` server variable. `trusted_proxies` is read-only here (header mode only trusts those peers); change it with `PUT /v1/trusted-proxies` |
+| `PATCH /v1/remote-auth` | admin | body = partial field map, e.g. `{"enabled": true, "header": "X-Remote-User"}`; `null`/blank `header` goes back to `REMOTE_USER`. `400` on an unknown field or an invalid header name (`Authorization`, `Cookie` and `Proxy-Authorization` are refused). Audited in `history` (`object='remote_auth'`). Returns the same shape `GET` does |
+| `GET /v1/trusted-proxies` | admin | `{"trusted_proxies": ["10.0.0.0/8", ...], "peer": "172.18.0.1"}`. `peer` is the address this request itself arrived from — behind a reverse proxy, the address the proxy must be listed as |
+| `PUT /v1/trusted-proxies` | admin | body `{"trusted_proxies": [...]}` replaces the whole list; entries are addresses or networks, stored canonically (`172.18.0.1` → `172.18.0.1/32`, host bits cleared), duplicates dropped. `400` on an entry that is not a network, on a catch-all (`0.0.0.0/0`, `::/0`), or when the list is missing. Audited in `history` (`object='trusted_proxies'`). Returns the same shape `GET` does |
 
 ### Password change (per-user login password)
 

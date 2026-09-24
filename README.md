@@ -40,7 +40,13 @@ Detailed instructions can be found in:
 * [UPGRADING.md](docs/UPGRADING.md)
 * [INSTALL.md](docs/INSTALL.md)
 * [DOCKER.md](docs/DOCKER.md)
+
+For more specific information see:
+
+* [COOKBOOK.md](docs/COOKBOOK.md)
+* [REMOTE-AUTH.md](docs/REMOTE-AUTH.md)
 * [TESTING.md](docs/TESTING.md)
+* [API.md](docs/API.md)
 
 
 # Quick Start
