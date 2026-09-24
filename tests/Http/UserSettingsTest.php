@@ -39,7 +39,8 @@ final class UserSettingsTest extends TestCase
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
         R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, techc TEXT, countrycode TEXT,
-                 nssets TEXT, dnsset TEXT, active INTEGER DEFAULT 1, admin INTEGER DEFAULT 0)');
+                 nssets TEXT, dnsset TEXT, notify_message_types TEXT, notify_fulltext TEXT,
+                 active INTEGER DEFAULT 1, admin INTEGER DEFAULT 0)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec("INSERT INTO users (id, username, admin) VALUES (1, 'admin', 1), (2, 'reseller', 0), (3, 'other', 0)");
@@ -392,6 +393,56 @@ final class UserSettingsTest extends TestCase
         $app = $this->app();
 
         $this->call($app, 'POST', '/v1/users/2/nssets', self::SET);
+
+        $this->assertSame(1, (int) R::getCell("SELECT COUNT(*) FROM history WHERE object = 'users' AND object_id = 2 AND action = 'update'"));
+    }
+
+    // ---------------------------------------------------------------
+    // notification preferences (Notifier)
+    // ---------------------------------------------------------------
+
+    public function testANewUserHasNoNotificationFilterYet(): void {
+        $response = $this->call($this->app(), 'GET', '/v1/users/2/notifications');
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(['message_types' => [], 'fulltext' => ''], self::json($response)['notifications']);
+    }
+
+    public function testAUserSetsTheirOwnFilter(): void {
+        $response = $this->call($this->app(), 'PATCH', '/v1/users/2/notifications', [
+            'message_types' => ['dnsWarningMsgData'], 'fulltext' => 'expired',
+        ]);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(['dnsWarningMsgData'], self::json($response)['notifications']['message_types']);
+        $this->assertSame('expired', self::json($response)['notifications']['fulltext']);
+    }
+
+    public function testAUserCannotSetSomeoneElsesFilter(): void {
+        $app = $this->app();
+
+        $this->assertSame(403, $this->call($app, 'GET', '/v1/users/3/notifications')->getStatusCode());
+        $this->assertSame(403, $this->call($app, 'PATCH', '/v1/users/3/notifications', ['fulltext' => 'x'])->getStatusCode());
+    }
+
+    public function testAnAdminMaySetAnyonesFilter(): void {
+        $response = $this->call($this->app(), 'PATCH', '/v1/users/3/notifications', ['fulltext' => 'x'], 1);
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function testAnUnknownTypeIsRejected(): void {
+        $response = $this->call($this->app(), 'PATCH', '/v1/users/2/notifications', ['message_types' => ['bogus']]);
+        $this->assertSame(400, $response->getStatusCode());
+    }
+
+    public function testNotificationsUnknownUserIsNotFound(): void {
+        $this->assertSame(404, $this->call($this->app(), 'GET', '/v1/users/99/notifications', [], 1)->getStatusCode());
+    }
+
+    public function testANotificationsChangeIsRecordedInTheHistory(): void {
+        $app = $this->app();
+
+        $this->call($app, 'PATCH', '/v1/users/2/notifications', ['fulltext' => 'expired']);
 
         $this->assertSame(1, (int) R::getCell("SELECT COUNT(*) FROM history WHERE object = 'users' AND object_id = 2 AND action = 'update'"));
     }

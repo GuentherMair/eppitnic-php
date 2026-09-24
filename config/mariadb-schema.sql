@@ -12,6 +12,12 @@ CREATE TABLE `users` (
   `countrycode`           varchar(2),
   `nssets`                text,
   `dnsset`                varchar(64),
+  -- this user's own filter on email notifications (see Service\Notifier),
+  -- applied only while the system-wide `smtp.recipient_mode` includes
+  -- 'user'; a JSON list of Notifier::MESSAGE_TYPES values (NULL/empty =
+  -- unfiltered) and a plain substring filter
+  `notify_message_types`  text,
+  `notify_fulltext`       varchar(255),
   `active`                tinyint DEFAULT 1,
   `admin`                 tinyint DEFAULT 0,
   `totp_secret`           varchar(64),
@@ -33,7 +39,7 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp') NOT NULL,
   `object_id`             int(11) NOT NULL,
   `action`                enum('create','update','delete','secread','login','denied') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
@@ -250,4 +256,10 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- poll_process: enabled by default -- rotating the shared EPP password
   -- on a passwdReminder normally runs from here, so this starts on;
   -- turning it off is a real foot-gun, but the operator's call to make.
-  ('poll_process', '{"enabled":true,"frequency_minutes":5,"last_run_at":null}');
+  ('poll_process', '{"enabled":true,"frequency_minutes":5,"last_run_at":null}'),
+  -- smtp: off by default (see Service\Notifier). recipient_mode:
+  -- system/user/both/none; recipient is the system mailbox, required
+  -- while recipient_mode is system/both. auth_type: plain/tls/starttls.
+  -- message_types: Notifier::MESSAGE_TYPES subset, empty = unfiltered.
+  -- fulltext: plain substring filter over type/domain/message.
+  ('smtp', '{"enabled":false,"host":"localhost","port":null,"sender":"","recipient_mode":"both","recipient":"","username":"","password":"","auth_type":"plain","message_types":[],"fulltext":""}');

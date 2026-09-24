@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Service\CronjobSettings;
+use Eppitnic\Service\Notifier;
 use RedBeanPHP\R;
 
 /**
@@ -16,7 +17,10 @@ use RedBeanPHP\R;
  * delete, so `action = 'delete'` is part of the SQL itself, not a PHP-level
  * check that a future row shape could quietly bypass. A no-op while
  * `domain_reap_deletions.enabled` is off -- on by default, unlike
- * `pdns`/`domain_sync` (see `config domain-reap-set`).
+ * `pdns`/`domain_sync` (see `config domain-reap-set`). Every real run
+ * (not `--dry-run`) sends one Notifier::notifyDeletions() summary of
+ * every outcome, success and failure alike (see `smtp`'s own `enabled`
+ * gate).
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic domain reap-deletions >> /var/log/eppitnic/domain-reap-deletions.log 2>&1
  */
@@ -40,15 +44,24 @@ final class DomainReapDeletionsCommand extends Command
             return 0;
         }
 
-        $rows = R::getAll("SELECT * FROM tasks WHERE object = 'registry' AND action = 'delete' AND active = 1 AND date <= CURRENT_DATE ORDER BY id ASC");
+        // the owning user_id is captured now, from the domains row as it
+        // stands before any deletion -- deleteDomainDB() below can clear it
+        $rows = R::getAll("
+            SELECT t.*, d.user_id AS owner_user_id
+            FROM tasks t
+            LEFT JOIN domains d ON d.domain = t.domain
+            WHERE t.object = 'registry' AND t.action = 'delete' AND t.active = 1 AND t.date <= CURRENT_DATE
+            ORDER BY t.id ASC
+        ");
         if ($rows === []) {
             $this->line('no deletions due');
             return 0;
         }
 
         $userId = $this->userId();
+        $outcomes = [];
 
-        $this->withSession(function ($nic) use ($rows, $userId) {
+        $this->withSession(function ($nic) use ($rows, $userId, &$outcomes) {
             foreach ($rows as $row) {
                 $domain = new Domain($nic);
                 $ok = $domain->delete($row['domain']);
@@ -69,8 +82,21 @@ final class DomainReapDeletionsCommand extends Command
                     $this->itemFailed($row['domain'], $message);
                 }
                 $this->markExecuted((int) $row['id'], $ok, $message);
+
+                if ( ! $this->isDryRun()) {
+                    $outcomes[] = [
+                        'domain'  => $row['domain'],
+                        'user_id' => $row['owner_user_id'] !== null ? (int) $row['owner_user_id'] : null,
+                        'ok'      => $ok,
+                        'message' => $message,
+                    ];
+                }
             }
         });
+
+        if ($outcomes !== []) {
+            Notifier::notifyDeletions($outcomes);
+        }
 
         return $this->outcome(DOMAIN_DELETE_FAILED);
     }

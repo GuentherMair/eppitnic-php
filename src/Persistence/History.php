@@ -34,7 +34,7 @@ final class History
     public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied'];
 
     /** the `history.object` enum */
-    public const OBJECTS = ['users', 'contacts', 'domains', 'security', 'cronjobs', 'epp'];
+    public const OBJECTS = ['users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp'];
 
     /**
      * record an audit-trail entry

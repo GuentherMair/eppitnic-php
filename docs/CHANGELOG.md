@@ -385,6 +385,30 @@ stops working, while the checkbox is unchecked.
 too, alongside `domain_reap_deletions`/`poll_process` -- only `pdns`
 remains off, since it depends on PowerDNS actually serving the zones.
 
+`poll process` and `domain reap-deletions` can now email what they find,
+through a new `smtp` setting and `Service\Notifier` (validate/persist/
+audit, the same shape as `CronjobSettings`/`EppSettings`; new admin-only
+`GET`/`PATCH /v1/smtp`, `config smtp-set`). `recipient_mode` (system/
+user/both/none — `none` turns notifications off without unsetting the
+rest of the configuration) decides who is a recipient class at all, and
+each class is judged only by its own `message_types`/`fulltext` filter —
+the system's own settings, or, for `user`/`both`, the notified domain's
+owning local user's own filter (new `GET`/`PATCH
+/v1/users/{id}/notifications`, self-service). A message with no
+associated domain (an account-level registry message such as
+`passwdReminder`) can only ever reach the system recipient. `domain
+reap-deletions` sends one summary per run covering every outcome,
+success and failure alike, rather than one email per domain.
+`phpmailer/phpmailer` is the new dependency this sends through — no
+mail-sending library existed before, and PHP's own `mail()` has no SMTP
+AUTH of its own. `history.object` gained `smtp`; `History::OBJECTS`
+(which had already drifted out of sync with the schema's own ENUM once
+before) is corrected again. A new admin-only `POST /v1/smtp/test` sends
+one real message against whatever is currently in the form (merged over
+the saved config, nothing persisted or audited), surfaced as a "Send
+test email" button in the settings UI, split across three tabs (SMTP
+settings, authentication, message filters).
+
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
 existing domain name prior to saving the updated record.

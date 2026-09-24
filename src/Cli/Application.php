@@ -15,6 +15,7 @@ use Eppitnic\Cli\Command\ConfigPollProcessSetCommand;
 use Eppitnic\Cli\Command\ConfigSafeNetworksCommand;
 use Eppitnic\Cli\Command\ConfigSessionSerializeCommand;
 use Eppitnic\Cli\Command\ConfigShowCommand;
+use Eppitnic\Cli\Command\ConfigSmtpSetCommand;
 use Eppitnic\Cli\Command\ContactCheckCommand;
 use Eppitnic\Cli\Command\ContactCreateCommand;
 use Eppitnic\Cli\Command\ContactDeleteCommand;
@@ -118,6 +119,7 @@ final class Application
             'config domain-reap-set'    => ConfigDomainReapSetCommand::class,
             'config pdns-set'           => ConfigPdnsSetCommand::class,
             'config poll-process-set'   => ConfigPollProcessSetCommand::class,
+            'config smtp-set'           => ConfigSmtpSetCommand::class,
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
             'config safe-networks'      => ConfigSafeNetworksCommand::class,
             'config migrate'            => ConfigMigrateCommand::class,

@@ -441,6 +441,8 @@ for anyone), and every route answers with the whole current state:
 | `POST /v1/users/{id}/nssets` | self or admin | body `{"name", "ns"}`; `201` |
 | `PUT /v1/users/{id}/nssets/{name}` | self or admin | body `{"name"?, "ns"}` — replaces the nameservers, and renames the set if `name` differs. `404` for an unknown set |
 | `DELETE /v1/users/{id}/nssets/{name}` | self or admin | `404` for an unknown set |
+| `GET /v1/users/{id}/notifications` | self or admin | this user's own email-notification filter, `{"notifications": {"message_types": [...], "fulltext": "..."}, "message_types": [...]}` (the second `message_types` is the full allow-list, for a picker). `404` for an unknown user |
+| `PATCH /v1/users/{id}/notifications` | self or admin | body: either or both of `message_types` (a list from the allow-list above) and `fulltext`; what is omitted stays. Only takes effect while the system-wide `smtp.recipient_mode` (see "Email (SMTP)") includes `user` |
 
 ### Domains
 
@@ -521,6 +523,21 @@ off stops the shared registry password from auto-rotating on a
 `passwdReminder`, alongside the queue drain and transfer reconciliation --
 a real foot-gun, but the operator's call to make (see "Scheduled jobs" and
 the frontend's warning in that job's dialog).
+
+### Email (SMTP)
+
+The system-wide `smtp` setting `poll process`/`domain reap-deletions`
+send through (`Service\Notifier` -- the same class `config smtp-set`
+uses, so a change made here or on the command line is validated and
+audited identically, `history` `object='smtp'`). See "Email
+notifications" in `docs/INSTALL.md` for the full field list and
+`recipient_mode`'s system/user/both/none routing.
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/smtp` | admin | `{"smtp": {...}, "message_types": [...]}`. `password` is never returned — `password_set` (bool) stands in for it, same allow-list pattern as `GET /v1/session/epp`. `message_types` is the full allow-list, for a picker |
+| `PATCH /v1/smtp` | admin | body = partial field map, e.g. `{"enabled": true, "host": "smtp.example.it"}`; `null`/blank unsets an optional field. `400` on an unknown field, an unknown `message_types` entry, or a failed validator. Returns the same shape `GET` does |
+| `POST /v1/smtp/test` | admin | body = any `smtp` fields, merged over the **stored** config (a blank/omitted `password` reuses the stored one) — nothing is persisted or audited. `recipient` is required here regardless of `recipient_mode`, since there is no domain/owner context for a test. Works even while `smtp.enabled` is false. `200 {"sent": true}` on success, `502 {"error": ...}` on a real send failure, `400` on an unknown field or a failed validator |
 
 ### History (audit trail)
 

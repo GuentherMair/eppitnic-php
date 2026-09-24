@@ -5,8 +5,10 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\CronjobSettings;
+use Eppitnic\Service\Notifier;
 use Eppitnic\Service\PollProcessor;
 use Eppitnic\Service\RegistryPasswordChange;
+use RedBeanPHP\R;
 
 /**
  * The scheduled run: drain the poll queue, reconcile transfers, then act on a
@@ -15,6 +17,8 @@ use Eppitnic\Service\RegistryPasswordChange;
  * asks. A no-op while `poll_process.enabled` is off -- see
  * `config poll-process-set enabled true`; off is a real foot-gun (the
  * registry password stops rotating), but the operator's call to make.
+ * Every message this run actually drains also goes through
+ * Notifier::notifyPoll() (see `smtp`'s own `enabled` gate).
  *
  *   0-59/5 * * * *  /path/to/bin/eppitnic poll process >> /var/log/eppitnic/poll-queue.log 2>&1
  */
@@ -50,6 +54,11 @@ final class PollProcessCommand extends Command
             );
         }
 
+        // watermarked, not "unarchived": a drained message is ack'd-and-
+        // inserted immediately, but only marked archived once an admin
+        // dismisses it from the queue -- unarchived rows can be old
+        $beforeId = (int) (R::getCell('SELECT MAX(id) FROM messages') ?? 0);
+
         $this->withSession(function ($nic, $session) {
             $processor = new PollProcessor($nic);
 
@@ -65,6 +74,10 @@ final class PollProcessCommand extends Command
                 $this->line($line);
             }
         });
+
+        foreach (R::getAll('SELECT type, domain, data FROM messages WHERE id > ? ORDER BY id', [$beforeId]) as $row) {
+            Notifier::notifyPoll($row['type'], $row['domain'] ?: null, (string) $row['data']);
+        }
 
         // Outside the session above, and last -- see the note on the class.
         // The drain may have just stored the passwdReminder this acts on.

@@ -17,7 +17,8 @@
         "slim/psr7": "^1.8",
         "firebase/php-jwt": "^7.1",
         "hexmode/io-mode": "^1.0",
-        "spomky-labs/otphp": "^11.0"
+        "spomky-labs/otphp": "^11.0",
+        "phpmailer/phpmailer": "^7.1"
     },
     "autoload": {
         "psr-4": {

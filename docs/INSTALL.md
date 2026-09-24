@@ -252,6 +252,56 @@ Every job above is also an ordinary verb, runnable by hand any time
 (`bin/eppitnic pdns sync`, `bin/eppitnic domain reap-deletions`, ...),
 independent of whether `cron run` would currently consider it due.
 
+## Email notifications
+
+`poll process` and `domain reap-deletions` can email what they find,
+through the `smtp` setting (`Service\Notifier` -- the same class `config
+smtp-set` and the admin-only `GET`/`PATCH /v1/smtp` share). Off by
+default:
+
+```
+bin/eppitnic config smtp-set enabled true
+bin/eppitnic config smtp-set host smtp.example.it              # default: localhost
+bin/eppitnic config smtp-set port 587                          # optional, 1-65535
+bin/eppitnic config smtp-set sender eppitnic@example.it
+bin/eppitnic config smtp-set recipient_mode system              # system, user, both (default), or none
+bin/eppitnic config smtp-set recipient admin@example.it
+bin/eppitnic config smtp-set username eppitnic@example.it       # optional, for SMTP AUTH
+bin/eppitnic config smtp-set password '...'                     # optional, for SMTP AUTH
+bin/eppitnic config smtp-set auth_type starttls                 # plain, tls, or starttls
+bin/eppitnic config smtp-set message_types passwdReminder,scheduled_deletion  # comma-separated; omit for every type
+bin/eppitnic config smtp-set fulltext expired                   # a plain substring filter, over type/domain/message
+```
+
+`recipient_mode` decides who is a recipient class at all: `system` sends
+to the fixed `recipient` mailbox, `user` sends to the domain's own owning
+local user (at their `email` column), `both` does both, `none` sends
+nothing at all (notifications effectively off, without unsetting the
+rest of the configuration) — each class judged only by its own filter,
+never the other's. A blank `recipient` under `system`/`both` simply
+means nothing is sent to it yet; saving an in-progress configuration is
+never blocked. A message with no associated domain (an account-level
+registry message such as `passwdReminder`) can only ever reach the
+system recipient — there is no individual owner.
+
+`domain reap-deletions` sends one summary email per run listing every
+outcome, success and failure alike, rather than one per domain: the
+system recipient's copy covers the whole run, and each domain's owning
+user (under `user`/`both`) gets their own copy covering only their own
+domains.
+
+Every user may also set their own filter (`GET`/`PATCH
+/v1/users/{id}/notifications`, self-service, admin may act for anyone) --
+it only has any effect while `smtp.recipient_mode` includes `user`.
+
+`message_types` is any of `Service\Notifier::MESSAGE_TYPES`: every real
+registry poll message type (`passwdReminder`, `chgStatusMsgData`,
+`clientApprovedTransfer`, ...) plus the synthetic `scheduled_deletion`,
+which is not a poll message at all -- it is `domain reap-deletions`' own
+summary email. An empty `message_types` list means every type passes;
+`fulltext` (also empty by default) matches case-insensitively against
+the message's type, domain and text together.
+
 ## Session keep-alive
 
 By default every EPP operation is connect-per-request: hello, login, the

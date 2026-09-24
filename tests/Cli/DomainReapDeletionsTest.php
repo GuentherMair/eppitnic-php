@@ -4,8 +4,10 @@ namespace Eppitnic\Tests\Cli;
 
 use Eppitnic\Cli\Command\DomainReapDeletionsCommand;
 use Eppitnic\Config;
+use Eppitnic\Service\Notifier;
 use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeMailer;
 use Eppitnic\Tests\Support\FakeTransport;
 use RedBeanPHP\R;
 
@@ -22,10 +24,11 @@ final class DomainReapDeletionsTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        foreach (['tasks', 'domains', 'settings', 'history'] as $table) {
+        foreach (['tasks', 'domains', 'settings', 'history', 'users'] as $table) {
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, active INTEGER DEFAULT 1, user_id INTEGER)');
+        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT, notify_message_types TEXT, notify_fulltext TEXT)');
         R::exec('CREATE TABLE tasks (id INTEGER PRIMARY KEY, domain TEXT, date TEXT, notice TEXT,
                  object TEXT, action TEXT, active INTEGER DEFAULT 1, executed_time TEXT,
                  exit_code INTEGER, exit_message TEXT, created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
@@ -35,11 +38,24 @@ final class DomainReapDeletionsTest extends EppTestCase
 
         Config::loadForTesting(static::SETTINGS + [
             'domain_reap_deletions' => ['enabled' => true, 'frequency_minutes' => 15, 'last_run_at' => null],
+            'smtp' => [
+                'enabled' => false, 'host' => 'localhost', 'port' => null, 'sender' => '',
+                'recipient_mode' => 'system', 'recipient' => '', 'username' => '', 'password' => '',
+                'auth_type' => 'plain', 'message_types' => [], 'fulltext' => '',
+            ],
         ]);
+
+        FakeMailer::reset();
+        Notifier::useMailerFactory(fn() => new FakeMailer(true));
     }
 
-    private function addDomain(string $name): void {
-        R::exec('INSERT INTO domains (domain, active, user_id) VALUES (?, 1, 1)', [$name]);
+    protected function tearDown(): void {
+        Notifier::useMailerFactory(null);
+        parent::tearDown();
+    }
+
+    private function addDomain(string $name, ?int $userId = 1): void {
+        R::exec('INSERT INTO domains (domain, active, user_id) VALUES (?, 1, ?)', [$name, $userId]);
     }
 
     private function addDueTask(string $domain, string $date = 'today'): int {
@@ -200,5 +216,89 @@ final class DomainReapDeletionsTest extends EppTestCase
         $this->assertSame(0, $this->exitCode);
         $this->assertSame(0, (int) R::getCell('SELECT active FROM domains WHERE domain = ?', ['example-one.it']));
         $this->assertSame(0, (int) R::getCell('SELECT active FROM domains WHERE domain = ?', ['example-two.it']));
+    }
+
+    private function enableSmtp(array $overrides = []): void {
+        Config::loadForTesting(static::SETTINGS + [
+            'domain_reap_deletions' => ['enabled' => true, 'frequency_minutes' => 15, 'last_run_at' => null],
+            'smtp' => array_merge([
+                'enabled' => true, 'host' => 'localhost', 'port' => null, 'sender' => 'eppitnic@example.it',
+                'recipient_mode' => 'system', 'recipient' => 'admin@example.it', 'username' => '', 'password' => '',
+                'auth_type' => 'plain', 'message_types' => [], 'fulltext' => '',
+            ], $overrides),
+        ]);
+    }
+
+    public function testASuccessfulRunNotifiesTheSystemRecipient(): void {
+        $this->enableSmtp();
+        $this->addDomain('example-one.it');
+        $this->addDueTask('example-one.it');
+
+        $this->reap([], [CommandCatalog::OK_RESPONSE]);
+
+        $this->assertCount(1, FakeMailer::$sent);
+        $this->assertSame('admin@example.it', FakeMailer::$sent[0]['to']);
+        $this->assertStringContainsString('example-one.it: deleted', FakeMailer::$sent[0]['body']);
+    }
+
+    public function testAFailedDeletionIsAlsoInTheSummary(): void {
+        $this->enableSmtp();
+        $this->addDomain('example-one.it');
+        $this->addDueTask('example-one.it');
+
+        $this->reap([], [self::REJECTED_RESPONSE]);
+
+        $this->assertCount(1, FakeMailer::$sent);
+        $this->assertStringContainsString('example-one.it: FAILED', FakeMailer::$sent[0]['body']);
+    }
+
+    public function testMultipleDeletionsAreSummarizedInOneEmail(): void {
+        $this->enableSmtp();
+        $this->addDomain('example-one.it');
+        $this->addDomain('example-two.it');
+        $this->addDueTask('example-one.it');
+        $this->addDueTask('example-two.it');
+
+        $this->reap([], [CommandCatalog::OK_RESPONSE, self::REJECTED_RESPONSE]);
+
+        $this->assertCount(1, FakeMailer::$sent, 'one summary email, not one per domain');
+        $this->assertStringContainsString('example-one.it: deleted', FakeMailer::$sent[0]['body']);
+        $this->assertStringContainsString('example-two.it: FAILED', FakeMailer::$sent[0]['body']);
+    }
+
+    public function testEachOwningUserGetsOnlyTheirOwnDomains(): void {
+        R::exec("INSERT INTO users (id, email) VALUES (5, 'alice@example.it'), (6, 'bob@example.it')");
+        $this->enableSmtp(['recipient_mode' => 'both']);
+        $this->addDomain('example-one.it', 5);
+        $this->addDomain('example-two.it', 6);
+        $this->addDueTask('example-one.it');
+        $this->addDueTask('example-two.it');
+
+        $this->reap([], [CommandCatalog::OK_RESPONSE, CommandCatalog::OK_RESPONSE]);
+
+        $this->assertCount(3, FakeMailer::$sent, 'one system summary plus one per owning user');
+        $byRecipient = array_column(FakeMailer::$sent, 'body', 'to');
+        $this->assertStringContainsString('example-one.it', $byRecipient['alice@example.it']);
+        $this->assertStringNotContainsString('example-two.it', $byRecipient['alice@example.it']);
+        $this->assertStringContainsString('example-two.it', $byRecipient['bob@example.it']);
+    }
+
+    public function testDryRunNeverNotifies(): void {
+        $this->enableSmtp();
+        $this->addDomain('example-one.it');
+        $this->addDueTask('example-one.it');
+
+        $this->reap(['--dry-run'], []);
+
+        $this->assertSame([], FakeMailer::$sent);
+    }
+
+    public function testDisabledSmtpNeverNotifies(): void {
+        $this->addDomain('example-one.it'); // smtp stays disabled -- setUp()'s own default
+        $this->addDueTask('example-one.it');
+
+        $this->reap([], [CommandCatalog::OK_RESPONSE]);
+
+        $this->assertSame([], FakeMailer::$sent);
     }
 }
