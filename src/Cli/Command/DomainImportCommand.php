@@ -22,7 +22,9 @@ final class DomainImportCommand extends Command
     }
 
     public function options(): array {
-        return self::fileOption('domain names') + self::MUTATING_OPTIONS;
+        return self::fileOption('domain names') + [
+            'all-resellers' => 'also reconcile other resellers\' domains, not just --user\'s reseller\'s',
+        ] + self::MUTATING_OPTIONS;
     }
 
     public function run(): int {
@@ -40,7 +42,7 @@ final class DomainImportCommand extends Command
         $userId = $this->userId();
 
         $results = $this->withSession(
-            fn($nic) => DomainService::import($nic, $names, $this->scope())
+            fn($nic) => DomainService::import($nic, $names, $this->scope($this->hasOption('all-resellers')))
         );
 
         foreach ($results as $name => $steps) {

@@ -5,6 +5,7 @@ namespace Eppitnic\Tests\Unit;
 use Eppitnic\Api\Access;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\Scope;
+use Eppitnic\Service\DomainService;
 use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
@@ -114,6 +115,43 @@ final class ResellerScopingTest extends EppTestCase
 
         $this->assertSame(3, (int) R::getCell("SELECT reseller_id FROM domains WHERE domain = 'new.it'"), 'the registrant decides, not the actor');
         $this->assertSame(2, (int) R::getCell("SELECT user_id FROM history WHERE object = 'domains' AND action = 'create'"), 'history names the actor');
+    }
+
+    // ---------------------------------------------------------------
+    // importing
+    // ---------------------------------------------------------------
+
+    private static function response(string $name): string {
+        return file_get_contents(__DIR__ . "/../fixtures/responses/{$name}.xml");
+    }
+
+    public function testAnImportLeavesAnotherResellersDomainAlone(): void {
+        $results = DomainService::import($this->nic, ['three.it'], $this->alice);
+
+        $this->assertSame('held by another reseller', $results['three.it']['domain']);
+        $this->assertSame([], $this->transport->requests, 'the registry is never asked');
+        $this->assertSame(1, (int) R::getCell("SELECT active FROM domains WHERE domain = 'three.it'"));
+    }
+
+    public function testAnImportDeactivatesOnlyTheResellersOwnMissingDomain(): void {
+        $this->transport->queue(self::response('domain-info-error'));
+        DomainService::import($this->nic, ['two.it'], $this->alice);
+        $this->assertSame(0, (int) R::getCell("SELECT active FROM domains WHERE domain = 'two.it'"));
+
+        $this->transport->queue(self::response('domain-info-error'));
+        DomainService::import($this->nic, ['three.it'], $this->admin);
+        $this->assertSame(0, (int) R::getCell("SELECT active FROM domains WHERE domain = 'three.it'"), 'an admin reconciles any');
+    }
+
+    public function testAnImportWillNotFollowARegistrantIntoAnotherReseller(): void {
+        R::exec("INSERT INTO contacts (reseller_id, handle) VALUES (3, 'TESTHANDLE000001')");
+        $this->transport->queue(self::response('domain-info-ok'))->queue(self::response('contact-info-ok'));
+
+        $results = DomainService::import($this->nic, ['example-1.it'], $this->alice);
+
+        $this->assertSame('held by another reseller', $results['example-1.it']['registrant']);
+        $this->assertSame('skipped', $results['example-1.it']['domain_stored']);
+        $this->assertSame(0, (int) R::getCell("SELECT COUNT(*) FROM domains WHERE domain = 'example-1.it'"));
     }
 
     // ---------------------------------------------------------------

@@ -47,6 +47,7 @@ CREATE TABLE `users` (
   `api_token_expires`     bigint unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY (`api_token`),
+  UNIQUE KEY (`username`),
   -- RESTRICT, not CASCADE: MariaDB refuses a CHECK over a cascading column
   CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT `admins_belong_to_reseller_1` CHECK (`role` <> 'admin' OR `reseller_id` = 1)

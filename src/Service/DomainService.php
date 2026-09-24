@@ -3,6 +3,7 @@
 namespace Eppitnic\Service;
 
 use Algo26\IdnaConvert\ToUnicode;
+use Eppitnic\Api\Access;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
@@ -86,10 +87,12 @@ final class DomainService
      * @param Client $nic a logged-in client
      * @param string[] $names domains to import
      * @param Scope $scope who imports: a registrant not stored locally yet
-     *              goes to their reseller
+     *              goes to their reseller; a non-admin never touches a domain
+     *              or registrant another reseller holds
      * @return array<string, array{domain: string, registrant: string, contact_stored: string, domain_stored: string}>
-     *         per domain, each step's outcome: 'found'/'not found',
-     *         'stored'/'not stored', or 'skipped' if an earlier step stopped it
+     *         per domain, each step's outcome: 'found'/'not found'/'held by
+     *         another reseller', 'stored'/'not stored', or 'skipped' if an
+     *         earlier step stopped it
      */
     public static function import(Client $nic, array $names, Scope $scope): array {
         $idnDecoder = new ToUnicode();
@@ -114,10 +117,17 @@ final class DomainService
             $domain = new Domain($nic);
             $contact = new Contact($nic);
 
+            // another reseller's domain is theirs to reconcile, not the caller's
+            if (Access::domainHeldByAnotherReseller($name, $scope)) {
+                $result['domain'] = 'held by another reseller';
+                $results[$name] = $result;
+                continue;
+            }
+
             if ( ! $domain->fetch($name)) {
                 $result['domain'] = 'not found';
                 // the registry does not have it, so neither should we
-                $domain->deleteDomainDB($name, Scope::operator($scope->userId));
+                $domain->deleteDomainDB($name, $scope);
                 $results[$name] = $result;
                 continue;
             }
@@ -125,6 +135,13 @@ final class DomainService
 
             if ( ! $contact->fetch($domain->get('registrant'))) {
                 $result['registrant'] = 'not found';
+                $results[$name] = $result;
+                continue;
+            }
+            // the domain would follow its registrant into another reseller
+            $holder = R::getCell('SELECT reseller_id FROM contacts WHERE handle = ?', [$domain->get('registrant')]);
+            if ( ! $scope->isAdmin() && $holder !== null && (int) $holder !== $scope->resellerId) {
+                $result['registrant'] = 'held by another reseller';
                 $results[$name] = $result;
                 continue;
             }

@@ -92,6 +92,7 @@ final class AuthRemoteTest extends TestCase
         $this->seedUsers();
 
         $this->expectException(HttpForbiddenException::class);
+        $this->expectExceptionMessage('Your account is deactivated');
         Auth::verify($this->request(['REMOTE_USER' => 'gone']));
     }
 

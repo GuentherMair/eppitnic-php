@@ -187,6 +187,12 @@ $app->get('/v1/domains/{name}', function (Request $request, Response $response, 
     ['scope' => $scope, 'debug' => $debug] = Auth::actor($request);
     $name = $args['name'];
 
+    // before the registry: its answer carries the authinfo, which is ours for
+    // every reseller's domain. 404 so another reseller's names don't leak
+    if ( ! Access::canAccessDomain($name, $scope, true)) {
+        return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
+    }
+
     // the registry is authoritative: its answer is returned as-is, never
     // overlaid with the local row -- loadDB() re-initializes before its lookup
     // and leaves the object empty when that misses

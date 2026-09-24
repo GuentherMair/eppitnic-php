@@ -447,7 +447,11 @@ the per-user routes), `reseller list|create|set`, `user create
 notification switch. The 6.7 upgrade maps each existing user onto a reseller
 so nobody sees more than before (see UPGRADING.md). Also fixed on the way: a
 contact could be deleted at the registry by someone who didn't own it, and
-editing a contact or domain silently made the editor its owner. The poll
+editing a contact or domain silently made the editor its owner; any user
+could read any domain's authinfo via `GET /v1/domains/{name}`, and import (or
+deactivate) another reseller's domain (`domain import --all-resellers` keeps
+that for operators). The registry credit is admin-only now, and usernames
+are unique in the database (the upgrade aborts on colliding ones). The poll
 queue is no longer admin-only: everyone sees the messages about their
 reseller's domains, and managers can archive them.
 

@@ -28,9 +28,9 @@
 -- abort here leaves the database untouched. Covers two risks:
 --
 --   (a) Case-insensitive collisions in UNIQUE text columns moving to a
---       case-insensitive collation. Only tbl_domains.domain is actually at
---       risk (utf8mb3_bin, case-sensitive); the other two checks are cheap
---       insurance since they're already case-insensitive today.
+--       case-insensitive collation. tbl_domains.domain is at risk
+--       (utf8mb3_bin, case-sensitive), and tbl_users.username, which becomes
+--       unique; the other two checks are cheap insurance.
 --
 --   (b) Data violating PART 3's stricter `tasks` (renamed from `reminder`)
 --       shape (TEXT -> VARCHAR(255), nullable `date` -> NOT NULL) or
@@ -51,6 +51,21 @@ BEGIN
 
     -- (tbl_users.billingID is not checked: the column is dropped by this
     -- migration, so a case-insensitive collision in it cannot break anything.)
+
+    -- tbl_users.username: PART 5 makes it unique. Compared under the target
+    -- collation, which also equates accents and trailing spaces, not LOWER()
+    SELECT COUNT(*) INTO cnt FROM (
+        SELECT CONVERT(username USING utf8mb4) COLLATE utf8mb4_unicode_ci AS k
+        FROM tbl_users
+        WHERE username IS NOT NULL
+        GROUP BY k
+        HAVING COUNT(*) > 1
+    ) x;
+    IF cnt > 0 THEN
+        SET msg = CONCAT('Abort: tbl_users.username has ', cnt,
+                          ' collision group(s) ignoring case, accents and trailing spaces. Resolve before migrating.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = msg;
+    END IF;
 
     -- tbl_contacts.handle (unique, NOT NULL)
     SELECT COUNT(*) INTO cnt FROM (
@@ -462,7 +477,8 @@ CREATE TABLE `history` (
 -- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 12
 -- columns (default country, NS sets and the default set, active/admin flags,
 -- TOTP secrets, session/token limits, debug level, API token + expiry), each
--- AFTER to match the new column order.
+-- AFTER to match the new column order, and makes `username` unique (pre-flight
+-- checked in PART 1).
 --
 -- `dns` is dropped: a legacy-UI leftover nothing reads. Its sibling `techc`
 -- is used: it now holds a JSON list of default technical contacts, so the
@@ -488,7 +504,8 @@ ALTER TABLE users
   ADD COLUMN `debug` TINYINT DEFAULT 0 AFTER `max_idle_time`,
   ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug`,
   ADD COLUMN `api_token_expires` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `api_token`,
-  ADD UNIQUE KEY (`api_token`);
+  ADD UNIQUE KEY (`api_token`),
+  ADD UNIQUE KEY (`username`);
 
 -- techc: one bare handle -> a JSON list; blank -> NULL
 UPDATE users SET techc = NULL WHERE techc IS NOT NULL AND TRIM(techc) = '';
@@ -533,15 +550,13 @@ UPDATE resellers r JOIN users u ON u.id = 1
 SET r.techc = u.techc, r.countrycode = u.countrycode, r.nssets = u.nssets, r.dnsset = u.dnsset
 WHERE r.id = 1;
 
--- a blank username, or one another user shares (case-insensitively), gets
--- its id added, since reseller names are unique
+-- reseller names are unique like usernames: a blank one, or one taking
+-- reseller 1's name, gets the user's id added
 INSERT INTO resellers (name, max_operations, techc, countrycode, nssets, dnsset, `_migrated_user_id`)
 SELECT
   CASE
     WHEN TRIM(COALESCE(u.username, '')) = '' THEN CONCAT('user #', u.id)
-    WHEN u.username = 'Registrar (self)'
-      OR EXISTS (SELECT 1 FROM users u2 WHERE u2.id <> u.id AND u2.username = u.username)
-      THEN CONCAT(u.username, ' #', u.id)
+    WHEN u.username = 'Registrar (self)' THEN CONCAT(u.username, ' #', u.id)
     ELSE u.username
   END,
   COALESCE(u.max_operations, 0), u.techc, u.countrycode, u.nssets, u.dnsset, u.id

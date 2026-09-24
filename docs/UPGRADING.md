@@ -21,12 +21,15 @@ Destroyed by the migration, recoverable only from a backup:
    unused and can be archived. Use this, not `eppitnic setup` — that applies
    `config/mariadb-schema.sql` fresh, for a brand-new install, not a 6.x
    database being migrated in place.
-3. Reset every user password. 6.x stored MD5; 7.0 uses `password_hash()` and
-   can't convert the old hashes, so no login works until reset (see
-   "Resellers and users" in [INSTALL.md](INSTALL.md)).
-4. Review the resellers the migration created (below): rename them, set
+3. Create an admin. 6.x had no admin role, so the migration leaves none:
+   `bin/eppitnic user create NAME --password='...' --role=admin`.
+4. Reset every other user's password as that admin (Users view, or
+   `PUT /v1/changepassword/{id}`). 6.x stored MD5; 7.0 uses
+   `password_hash()` and can't convert the old hashes, so no login works
+   until reset.
+5. Review the resellers the migration created (below): rename them, set
    their quotas, and add further users to them.
-5. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
+6. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
    is gone, replaced by JSON/REST (documented in [API.md](API.md)) with
    JWT bearer tokens instead of PHP sessions.
 
@@ -38,8 +41,9 @@ The schema migrates itself on next initialization: `Config` compares
 dropping `tbl_` prefixes and converting to `utf8mb4`.
 
 Read-only pre-flight checks run first and abort untouched on a problem — in
-practice, domain names differing only in case that would collide under the
-new collation. Resolve those and re-run.
+practice, domain names or usernames (now unique too) that would collide
+under the new collation, which ignores case, accents and trailing spaces.
+Resolve those and re-run.
 
 It also decodes HTML entities 6.x stored in text columns (`Rossi & Figli` was
 held as `Rossi &amp; Figli`).

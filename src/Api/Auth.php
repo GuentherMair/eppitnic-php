@@ -148,18 +148,18 @@ final class Auth
     }
 
     /**
-     * Match $username against an active local user and synthesize the claims
-     * object JWT::decode() would return -- same shape as
-     * verifyFixedApiToken(), plus `remote_auth: true`. MFA is the front
-     * server's job, so has_totp is always false here.
+     * Match $username against a local user and synthesize the claims object
+     * JWT::decode() would return -- same shape as verifyFixedApiToken(), plus
+     * `remote_auth: true`. MFA is the front server's job, so has_totp is
+     * always false here. An inactive account is withAccount()'s to refuse.
      *
-     * @throws HttpForbiddenException if $username has no active local account
+     * @throws HttpForbiddenException if $username has no local account
      */
     private static function verifyRemoteUser(string $username, Request $request): object {
         $user = R::getRow("
             SELECT id, username, debug, max_token_age, max_idle_time
             FROM users
-            WHERE username = :username AND active = 1
+            WHERE username = :username
         ", [':username' => $username]);
 
         if (empty($user)) {

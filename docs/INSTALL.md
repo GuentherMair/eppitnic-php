@@ -163,9 +163,9 @@ The same script issues a fixed API token for scripted/headless access:
 bin/eppitnic user token admin
 ```
 
-`-x <days>` sets validity from now (e.g. `-x 365`). `-x 0` (default) never
-expires — prints a `WARNING`, since there's no automatic rotation. Prefer a
-finite `-x` unless a non-expiring credential is genuinely wanted.
+`--days=N` sets validity from now (e.g. `--days=365`). Omitted or `0`, it
+never expires — prints a `WARNING`, since there's no automatic rotation.
+Prefer a finite `--days` unless a non-expiring credential is genuinely wanted.
 
 ## Ownership coherence
 

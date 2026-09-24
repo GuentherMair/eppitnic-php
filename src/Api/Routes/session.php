@@ -131,7 +131,9 @@ $app->get('/v1/session/epp/credentials', function (Request $request, Response $r
     return Json::response($response, ['credentials' => $credentials]);
 });
 
+// the registrar's own balance, not a reseller's business
 $app->get('/v1/session/credit', function (Request $request, Response $response, array $args): Response {
+    Auth::requireAdmin($request);
     ['debug' => $debug] = Auth::actor($request);
 
     try {

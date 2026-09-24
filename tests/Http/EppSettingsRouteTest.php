@@ -156,6 +156,14 @@ final class EppSettingsRouteTest extends TestCase
         $this->assertSame(403, $this->getInterfaces($app, 0)->getStatusCode());
     }
 
+    public function testCreditRequiresAdmin(): void {
+        $app = $this->app();
+        $request = (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost/v1/session/credit')
+            ->withHeader('Authorization', 'Bearer ' . $this->token(0));
+
+        $this->assertSame(403, $app->handle($request)->getStatusCode(), 'the registrar\'s balance, not a reseller\'s');
+    }
+
     public function testInterfacesReturnsAnArrayWithoutLoopback(): void {
         $app = $this->app();
         $response = $this->getInterfaces($app);
