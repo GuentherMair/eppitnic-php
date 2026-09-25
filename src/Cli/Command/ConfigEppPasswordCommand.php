@@ -65,8 +65,8 @@ final class ConfigEppPasswordCommand extends Command
         }
 
         $outcome = $force
-            ? RegistryPasswordChange::adopt($password)
-            : RegistryPasswordChange::apply($password, true);
+            ? RegistryPasswordChange::adopt($password, $this->userId())
+            : RegistryPasswordChange::apply($password, true, 'manual', $this->userId());
 
         if ( ! $outcome['ok']) {
             $this->warn($outcome['error']);

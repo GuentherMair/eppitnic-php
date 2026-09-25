@@ -248,7 +248,7 @@ $app->post('/v1/poll-queue/archive', function (Request $request, Response $respo
 });
 
 $app->post('/v1/session/change-password', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    $userId = Auth::requireAdmin($request);
     $params = $request->getParsedBody() ?? [];
 
     // A supplied password must satisfy epp:pwType first, as `config
@@ -263,7 +263,7 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
     // the shared registry credential, not a per-user password. Stamping the
     // attempt is not optional: `poll process` reads the same
     // `lastPasswordUpdate`, and would rotate right after a manual change
-    $outcome = RegistryPasswordChange::apply($params['password'] ?? null, true);
+    $outcome = RegistryPasswordChange::apply($params['password'] ?? null, true, 'manual', $userId);
 
     if ( ! $outcome['ok']) {
         $status = match ($outcome['stage']) {

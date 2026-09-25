@@ -121,6 +121,9 @@ the network and the request headers:
 | `denied` | unknown username, wrong password, or wrong TOTP code | **yes** |
 | `secread` | turned away by the limit, or a credential disclosure | no |
 
+A registry password rotation is a `security` row too, with action `rotate` —
+see "Registry password rotation" in [INSTALL.md](INSTALL.md).
+
 Neither the attempted password nor the issued token is ever recorded. The
 response stays `Wrong username or password` whichever half was wrong, so it
 cannot be used to discover which usernames exist — the log is precise where the
@@ -389,7 +392,7 @@ Three details that matter to a browser client:
 
 ## Pagination convention
 
-Used by `GET /v1/tasks` (admin-only variant) and any future list-heavy
+Used by `GET /v1/tasks` and any future list-heavy
 endpoint that adopts it (not every list route
 does — see per-route notes, most domain/contact listings return the full
 scoped set unpaginated):
@@ -424,7 +427,7 @@ Auth column: `public` (no token), `user` (any valid token, self-scoped),
 | `GET /v1/session/epp/interfaces` | admin | this server's own IPv4 addresses (loopback excluded), `{"interfaces": ["..."]}` — what a UI offers as choices for the `interface` field, so a typo can't silently bind outgoing registry connections to nothing. Queried live via `net_get_interfaces()`, not cached |
 | `GET /v1/session/credit` | admin | live EPP registry account balance, `{"credit": "..."}`; 502 if the registry session fails |
 | `GET /v1/session/epp/credentials` | admin | the shared EPP registry credential itself — `{"credentials": {"server", "username", "password"}}`. Separate from `GET /v1/session/epp` on purpose: that one is what a settings screen loads, and a secret delivered as a side effect of rendering a page ends up in caches, proxy logs and screenshots. Exists because the password is rotated automatically — after `eppitnic poll process` acts on a `passwdReminder`, this is the only way short of a SQL client to learn the current one. When a rotation was interrupted the response also carries `pending_password` and a `note`: the registry holds one of the two and only it can say which. `404` when no password is configured. **Every retrieval is recorded** in `history` as a `security`/`secread` row: the acting user, the client IP, and the request headers. The password is not written, and `Authorization`, `Cookie` and `Proxy-Authorization` are stored as `[redacted]` — they are themselves credentials, and the log is read by more people than the password was shown to. A refused request records nothing |
-| `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — records the new password in the `settings` table, then logs into EPP with it to make the change. Body `{"password"?: "..."}` (random if omitted; 16 characters is the EPP maximum). 500/502/400 when the settings write, the registry connection or the registry itself fails. A failure before the registry is reached leaves the current credential untouched; one after it is settled by `eppitnic doctor epp-password` |
+| `POST /v1/session/change-password` | admin | rotates the **shared EPP registry** credential (not any user's login password) — records the new password in the `settings` table, then logs into EPP with it to make the change. Body `{"password"?: "..."}` (random if omitted; 16 characters is the EPP maximum). 500/502/400 when the settings write, the registry connection or the registry itself fails. A failure before the registry is reached leaves the current credential untouched; one after it is settled by `eppitnic doctor epp-password`. Recorded as a `security`/`rotate` history row and mailed to the SMTP system recipient, like every rotation |
 | `GET /v1/poll-queue` | user | raw `messages` table rows — an admin sees all, anyone else only messages about a domain (or pending transfer-in) of their reseller; account-level messages without a domain stay the admins' — `?active=1\|0` (default `1` = `archived_time IS NULL` only), newest first. `?limit=n` (1–500) returns only the newest `n`; `total` is how many matched either way: `{"messages": [...], "total": n}` |
 | `GET /v1/poll-queue/{id}` | user | single message, scoped the same way; 404 if missing or not the caller's to see |
 | `POST /v1/poll-queue/{id}/archive` | manager | within the same scope (404 otherwise); sets `archived_time`/`archived_user_id`; answers `{"archived": true, "id", "archived_time"}` |
@@ -561,10 +564,10 @@ the next run to retry.
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/tasks?page=&pageSize=&object=&action=&active=` | admin | paginated, unscoped, sees the raw queue including consumer-owned rows. `object=null`/`action=null` (literal string) filter to `IS NULL` |
+| `GET /v1/tasks?page=&pageSize=&object=&action=&active=` | user | paginated; the raw queue including consumer-owned rows, an admin all of it, anyone else the tasks of their reseller's domains. `object=null`/`action=null` (literal string) filter to `IS NULL` |
 | `GET /v1/domains/{name}/tasks` | user | scoped to domains the caller owns (or all, if admin); only `active = 1` rows with `object IS NULL` (the human-notice use case), and only `{id, date, domain, email, notice}` |
 | `POST /v1/domains/{name}/tasks` | user | body `{"date"*, "notice"*, "email"?}`. 403 if the domain isn't owned by the caller (and caller isn't admin) |
-| `DELETE /v1/tasks/{id}` | user | soft-delete (`active = 0`); 403 if the task's domain isn't owned by the caller |
+| `DELETE /v1/tasks/{id}` | user | soft-delete (`active = 0`) — for anyone in the domain's reseller a notice or scheduled deletion (`object` null or `registry`), for an admin any task; 403 otherwise. Deactivating a scheduled deletion is recorded in `history` against its domain (`update`, `{"domain", "scheduled_deletion": "deactivated", "date", "task_id"}`) |
 
 ### Cronjobs
 

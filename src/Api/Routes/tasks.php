@@ -2,12 +2,15 @@
 
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
+use Eppitnic\Persistence\History;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
 
+// A task belongs to its domain's reseller: anyone in it sees the reseller's
+// tasks, an admin all of them.
 $app->get('/v1/tasks', function (Request $request, Response $response, array $args): Response {
-    Auth::requireAdmin($request);
+    ['scope' => $scope] = Auth::actor($request);
     $params = $request->getQueryParams();
 
     $page = max(1, (int) ($params['page'] ?? 1));
@@ -15,6 +18,10 @@ $app->get('/v1/tasks', function (Request $request, Response $response, array $ar
 
     $where = ['1 = 1'];
     $bind = [];
+    if ( ! $scope->isAdmin()) {
+        $where[] = 'domain IN (SELECT domain FROM domains WHERE reseller_id = :reseller_id)';
+        $bind[':reseller_id'] = $scope->resellerId;
+    }
     if (isset($params['object']) && $params['object'] !== '') {
         $where[] = $params['object'] === 'null' ? 'object IS NULL' : 'object = :object';
         if ($params['object'] !== 'null') {
@@ -110,16 +117,30 @@ $app->delete('/v1/tasks/{id}', function (Request $request, Response $response, a
 
     $where = ['r.id = :id', 'r.domain = d.domain'];
     $bind = [':id' => $id];
+    // a DNS-sync event is the system's own bookkeeping, not the reseller's
     if ( ! $scope->isAdmin()) {
         $where[] = 'd.reseller_id = :reseller_id';
+        $where[] = "(r.object IS NULL OR r.object = 'registry')";
         $bind[':reseller_id'] = $scope->resellerId;
     }
-    $owns = (int) R::getCell("SELECT COUNT(*) FROM domains d, tasks r WHERE " . implode(' AND ', $where), $bind);
-    if ($owns !== 1) {
-        return Json::response($response, ['error' => "Task not found or does not belong to this reseller"], 403);
+    $task = R::getRow("
+        SELECT r.domain, r.date, r.object, r.action, r.active, d.id AS domain_id
+        FROM domains d, tasks r WHERE " . implode(' AND ', $where), $bind);
+    if (empty($task)) {
+        return Json::response($response, ['error' => "Task not found, or not yours to deactivate"], 403);
     }
 
     R::exec("UPDATE tasks SET active = 0 WHERE id = ?", [$id]);
+
+    // a cancelled deletion is a decision about the domain, so it is on record
+    if ($task['object'] === 'registry' && $task['action'] === 'delete' && (int) $task['active'] === 1) {
+        History::record('domains', (int) $task['domain_id'], 'update', [
+            'domain'             => $task['domain'],
+            'scheduled_deletion' => 'deactivated',
+            'date'               => $task['date'],
+            'task_id'            => $id,
+        ], $scope->userId);
+    }
 
     return Json::response($response, ['archived' => true, 'id' => $id]);
 });

@@ -26,7 +26,7 @@ final class DoctorEppPasswordCommand extends Command
             return 0;
         }
 
-        foreach (RegistryPasswordChange::reconcile() as $line) {
+        foreach (RegistryPasswordChange::reconcile($this->userId()) as $line) {
             $this->line($line);
         }
 

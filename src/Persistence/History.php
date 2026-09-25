@@ -31,7 +31,7 @@ final class History
     private const REDACTED_HEADERS = ['authorization', 'cookie', 'proxy-authorization'];
 
     /** the `history.action` enum */
-    public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied', 'request'];
+    public const ACTIONS = ['create', 'update', 'delete', 'secread', 'login', 'denied', 'request', 'rotate'];
 
     /** the `history.object` enum */
     public const OBJECTS = ['users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers'];
@@ -43,7 +43,7 @@ final class History
      * @param int $object_id the object's DB row id; for `security`, the acting
      *            user
      * @param string $action create/update/delete, or on a `security` row
-     *            secread/login/denied
+     *            secread/login/denied/rotate
      * @param array $data changed fields (or a minimal identifying set, for
      *              create/delete)
      * @param int|null $user_id acting user

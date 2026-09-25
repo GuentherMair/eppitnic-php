@@ -46,7 +46,10 @@ merely stored: `eppitnic poll process` rotates the shared EPP password when one
 is outstanding, rate-limited to one attempt per 24 hours by the `epp` setting's
 new `lastPasswordUpdate` timestamp. The new password is recorded locally before
 it is sent, so a run interrupted mid-change can be settled afterwards by asking
-the registry which password it holds. `Eppitnic\Support\PasswordGenerator`
+the registry which password it holds. Every rotation, automatic or manual, is
+a `security` history row with action `rotate` that an admin must acknowledge
+on the dashboard, and is mailed to the SMTP system recipient.
+`Eppitnic\Support\PasswordGenerator`
 generates it from a mixed character set rather than hex, which spent 16
 characters -- EPP's ceiling for the credential -- on 64 bits. Domain authinfo
 codes are drawn the same way, and every other random credential (API tokens,
@@ -453,7 +456,9 @@ deactivate) another reseller's domain (`domain import --all-resellers` keeps
 that for operators). The registry credit is admin-only now, and usernames
 are unique in the database (the upgrade aborts on colliding ones). The poll
 queue is no longer admin-only: everyone sees the messages about their
-reseller's domains, and managers can archive them.
+reseller's domains, and managers can archive them. So is the task list:
+everyone sees their reseller's domains' tasks and may deactivate a notice or
+a scheduled deletion.
 
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an

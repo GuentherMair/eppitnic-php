@@ -2,16 +2,21 @@
 
 namespace Eppitnic\Service;
 
+use Eppitnic\Api\ClientIp;
+use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Epp\Client;
 use Eppitnic\Config;
 use Eppitnic\Epp\Session;
+use Eppitnic\Persistence\History;
 use Eppitnic\Support\PasswordGenerator;
 use RedBeanPHP\R;
 
 /**
  * Changing the shared EPP registry credential, and recovering when a change
  * does not finish. PasswordGenerator makes the password; this carries it to
- * the registry and keeps that account and the `epp` setting in step.
+ * the registry and keeps that account and the `epp` setting in step. Every
+ * change that lands is a `security`/`rotate` history row and a mail to the
+ * system recipient.
  *
  * @category    Net
  * @package     Eppitnic\Service\RegistryPasswordChange
@@ -81,7 +86,7 @@ final class RegistryPasswordChange
             return $log;
         }
 
-        $outcome = self::apply(null, true);
+        $outcome = self::apply(null, true, 'reminder');
         if ( ! $outcome['ok']) {
             $log[] = "  FAILED: " . $outcome['error'];
             $log[] = $outcome['stage'] === 'persist'
@@ -109,10 +114,13 @@ final class RegistryPasswordChange
      *                    the registry is the authority on what it will accept.
      * @param bool $stampAttempt also record the attempt time, which the
      *             once-per-24h rotation limit reads
+     * @param string $trigger 'manual' or 'reminder' (poll process), for the record
+     * @param int|null $userId who asked for it; null for the automatic rotation
      * @return array{ok: bool, error: string, stage: string} stage is 'persist'
      *         (nothing was sent), 'connect', 'registry', or '' on success
      */
-    public static function apply(?string $newPassword = null, bool $stampAttempt = false): array {
+    public static function apply(?string $newPassword = null, bool $stampAttempt = false,
+                                 string $trigger = 'manual', ?int $userId = null): array {
         $newPassword ??= PasswordGenerator::forRegistry();
 
         // A failure here is the harmless one: nothing has been sent, so the
@@ -144,6 +152,7 @@ final class RegistryPasswordChange
         $session->logout();
 
         self::promotePending();
+        self::rotated($trigger, $userId);
 
         return ['ok' => true, 'stage' => '', 'error' => ''];
     }
@@ -155,7 +164,7 @@ final class RegistryPasswordChange
      *
      * @return array{ok: bool, error: string}
      */
-    public static function adopt(string $password): array {
+    public static function adopt(string $password, ?int $userId = null): array {
         if ( ! self::passwordWorks($password)) {
             return ['ok' => false, 'error' => 'the registry did not accept this password -- nothing was changed locally'];
         }
@@ -165,6 +174,7 @@ final class RegistryPasswordChange
         $epp['lastPasswordUpdate'] = time();
         unset($epp['pendingPassword']);
         Config::set('epp', $epp);
+        self::rotated('adopted', $userId);
 
         return ['ok' => true, 'error' => ''];
     }
@@ -174,9 +184,10 @@ final class RegistryPasswordChange
      * finish. Only it knows, so this asks: log in with the candidate, then, if
      * that is refused, with the stored one.
      *
+     * @param int|null $userId who asked; null when poll process settles it
      * @return array log lines
      */
-    public static function reconcile(): array {
+    public static function reconcile(?int $userId = null): array {
         $epp = Config::get('epp');
         $pending = $epp['pendingPassword'] ?? '';
         if ($pending === '') {
@@ -187,6 +198,7 @@ final class RegistryPasswordChange
 
         if (self::passwordWorks($pending)) {
             self::promotePending();
+            self::rotated('reconciled', $userId);
             $log[] = "  the registry accepted the new password: promoted, rotation complete";
             return $log;
         }
@@ -204,6 +216,44 @@ final class RegistryPasswordChange
         $log[] = "  'epp' setting as 'pendingPassword'; check the account status with the registry";
         $log[] = "  before running again.";
         return $log;
+    }
+
+    /** what each trigger means, for the mail */
+    private const TRIGGERS = [
+        'reminder'   => 'automatic, after a passwdReminder from the registry',
+        'manual'     => 'manual',
+        'reconciled' => 'an interrupted rotation, completed',
+        'adopted'    => 'a password already changed at the registry, adopted',
+    ];
+
+    /**
+     * Put a rotation that landed on record, and tell the system recipient.
+     * Never the password itself. The change has happened either way, so a
+     * failure here is logged rather than reported as a failed rotation.
+     */
+    private static function rotated(string $trigger, ?int $userId): void {
+        try {
+            History::record('security', (int) $userId, 'rotate', [
+                'event'   => 'epp_password_rotated',
+                'trigger' => $trigger,
+                'ip'      => ClientIp::get(),
+            ], $userId, LoginRateLimit::network());
+
+            $epp = Config::get('epp');
+            $by = $userId !== null ? R::getCell('SELECT username FROM users WHERE id = ?', [$userId]) : null;
+            Notifier::notifySystem('registry password rotated', implode("\n", array_filter([
+                "The EPP registry password of account '{$epp['username']}' at {$epp['server']} was changed.",
+                '',
+                'When:    ' . date('Y-m-d H:i:s T'),
+                'How:     ' . (self::TRIGGERS[$trigger] ?? $trigger),
+                $by ? "By:      {$by}" : null,
+                '',
+                'The new password is not part of this message. An admin can retrieve it',
+                'with GET /v1/session/epp/credentials.',
+            ], static fn($line) => $line !== null)));
+        } catch (\Throwable $e) {
+            error_log('RegistryPasswordChange: could not record the rotation: ' . $e->getMessage());
+        }
     }
 
     /**

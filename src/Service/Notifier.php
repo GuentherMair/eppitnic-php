@@ -330,6 +330,19 @@ final class Notifier
     }
 
     /**
+     * A security notice for the system recipient alone, whenever mail is on
+     * and a recipient is filled in: neither `recipient_mode` nor the message
+     * filters can silence it.
+     */
+    public static function notifySystem(string $subject, string $body): void {
+        $smtp = Config::get('smtp');
+        if (empty($smtp['enabled']) || ($smtp['recipient'] ?? '') === '') {
+            return;
+        }
+        self::send($smtp, $smtp['recipient'], '[eppitnic] ' . $subject, $body);
+    }
+
+    /**
      * The users of a reseller who receive its mail: active, notifications on,
      * an address on file -- each with their own filter.
      *

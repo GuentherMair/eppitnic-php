@@ -497,6 +497,13 @@ bin/eppitnic doctor epp-password
 If the registry accepts neither, the candidate is kept and logged — that's an
 account problem (expired, locked, unauthorised IP) to resolve at the registry.
 
+Every rotation that lands — automatic, manual (`config epp-password`, the
+API), a completed interrupted one, or an adopted password (`--force`) — is a
+`security` history row with action `rotate`, which an admin has to
+acknowledge on the dashboard before going on. It is also mailed to the SMTP
+system recipient, if one is filled in and mail is enabled, whatever the
+recipient mode and message filters say. Neither carries the password.
+
 ## Verifying against the live test registry
 
 The test suite proves the right XML is generated and that a recorded answer

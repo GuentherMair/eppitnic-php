@@ -64,8 +64,9 @@ CREATE TABLE `history` (
   `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers') NOT NULL,
   `object_id`             int(11) NOT NULL,
   -- 'request': a registration or transfer-in a user asked for (object
-  -- 'domains'), what the daily reseller quota counts
-  `action`                enum('create','update','delete','secread','login','denied','request') NOT NULL,
+  -- 'domains'), what the daily reseller quota counts; 'rotate': the
+  -- registry password changed (object 'security')
+  `action`                enum('create','update','delete','secread','login','denied','request','rotate') NOT NULL,
   -- client address masked to its rate-limit prefix (`security` rows only);
   -- own column, not JSON, so it can be indexed.
   `network`               varchar(64) DEFAULT NULL,

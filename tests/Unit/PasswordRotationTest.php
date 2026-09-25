@@ -4,9 +4,11 @@ namespace Eppitnic\Tests\Unit;
 
 use Eppitnic\Epp\Client;
 use Eppitnic\Config;
+use Eppitnic\Service\Notifier;
 use Eppitnic\Service\RegistryPasswordChange;
 use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeMailer;
 use Eppitnic\Tests\Support\FakeTransport;
 use RedBeanPHP\R;
 
@@ -36,13 +38,21 @@ final class PasswordRotationTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        R::exec('DROP TABLE IF EXISTS settings');
-        R::exec('DROP TABLE IF EXISTS messages');
+        foreach (['settings', 'messages', 'history', 'users'] as $table) {
+            R::exec("DROP TABLE IF EXISTS {$table}");
+        }
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
         R::exec('CREATE TABLE messages (id INTEGER PRIMARY KEY, type TEXT, data TEXT, archived_time TEXT)');
+        R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
+        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)');
+        R::exec("INSERT INTO users (id, username) VALUES (3, 'operator')");
 
         Config::loadForTesting(self::SETTINGS);
         $this->seedEpp(['password' => 'old-password']);
+        $this->seedSmtp(['enabled' => true, 'recipient' => 'noc@example.it']);
+        FakeMailer::reset();
+        Notifier::useMailerFactory(fn() => new FakeMailer(true));
 
         RegistryPasswordChange::useClientFactory(function (): Client {
             $client = new Client();
@@ -68,6 +78,7 @@ final class PasswordRotationTest extends EppTestCase
 
     protected function tearDown(): void {
         RegistryPasswordChange::useClientFactory(null);
+        Notifier::useMailerFactory(null);
         parent::tearDown();
     }
 
@@ -235,6 +246,97 @@ final class PasswordRotationTest extends EppTestCase
 
         $this->assertFalse($outcome['ok']);
         $this->assertSame('old-password', Config::get('epp')['password'], 'adopt() changed the password despite a refused login');
+    }
+
+    // ---------------------------------------------------------------
+    // every rotation that lands: on record, and mailed to the system recipient
+    // ---------------------------------------------------------------
+
+    public function testAManualRotationIsRecordedForTheActingUser(): void {
+        RegistryPasswordChange::apply('first-password', true, 'manual', 3);
+
+        $row = R::getRow("SELECT * FROM history WHERE object = 'security'");
+        $this->assertSame(['rotate', 3, 3], [$row['action'], (int) $row['user_id'], (int) $row['object_id']]);
+        $data = json_decode($row['data'], true);
+        $this->assertSame(['epp_password_rotated', 'manual'], [$data['event'], $data['trigger']]);
+        $this->assertStringNotContainsString('first-password', $row['data'], 'the password itself is never recorded');
+    }
+
+    public function testARotationMailsTheSystemRecipientWithoutThePassword(): void {
+        RegistryPasswordChange::apply('first-password', true, 'manual', 3);
+
+        $this->assertCount(1, FakeMailer::$sent);
+        $mail = FakeMailer::$sent[0];
+        $this->assertSame('noc@example.it', $mail['to']);
+        $this->assertSame('[eppitnic] registry password rotated', $mail['subject']);
+        $this->assertStringContainsString('By:      operator', $mail['body']);
+        $this->assertStringNotContainsString('first-password', $mail['body']);
+    }
+
+    public function testTheMailIgnoresRecipientModeAndFilters(): void {
+        $this->seedSmtp(['enabled' => true, 'recipient' => 'noc@example.it', 'recipient_mode' => 'none', 'message_types' => ['creditMsgData']]);
+
+        RegistryPasswordChange::apply('first-password', true, 'manual', 3);
+
+        $this->assertCount(1, FakeMailer::$sent);
+    }
+
+    public function testNoMailWithoutARecipientOrWithMailOff(): void {
+        $this->seedSmtp(['enabled' => true, 'recipient' => '']);
+        RegistryPasswordChange::apply('first-password', true, 'manual', 3);
+
+        $this->seedSmtp(['enabled' => false, 'recipient' => 'noc@example.it']);
+        $this->livePassword = 'first-password';
+        RegistryPasswordChange::apply('second-password', true, 'manual', 3);
+
+        $this->assertSame([], FakeMailer::$sent);
+        $this->assertSame(2, (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'rotate'"), 'recorded all the same');
+    }
+
+    public function testTheAutomaticRotationIsRecordedWithoutAUser(): void {
+        R::exec("INSERT INTO messages (type, data, archived_time) VALUES ('passwdReminder', '2026-09-01', NULL)");
+
+        RegistryPasswordChange::rotateOnReminder();
+
+        $row = R::getRow("SELECT * FROM history WHERE action = 'rotate'");
+        $this->assertNull($row['user_id']);
+        $this->assertSame('reminder', json_decode($row['data'], true)['trigger']);
+        $this->assertStringContainsString('passwdReminder', FakeMailer::$sent[0]['body']);
+    }
+
+    public function testACompletedInterruptedRotationAndAnAdoptionAreRotationsToo(): void {
+        $this->seedEpp(['password' => 'old-password', 'pendingPassword' => 'new-password']);
+        $this->livePassword = 'new-password';
+        RegistryPasswordChange::reconcile();
+
+        $this->livePassword = 'known-good';
+        RegistryPasswordChange::adopt('known-good', 3);
+
+        $triggers = array_map(
+            static fn($data) => json_decode($data, true)['trigger'],
+            R::getCol("SELECT data FROM history WHERE action = 'rotate' ORDER BY id")
+        );
+        $this->assertSame(['reconciled', 'adopted'], $triggers);
+    }
+
+    public function testARefusedChangeIsNotARotation(): void {
+        $this->livePassword = 'something-else';
+
+        $this->assertFalse(RegistryPasswordChange::apply('first-password', true, 'manual', 3)['ok']);
+
+        $this->assertSame(0, (int) R::getCell('SELECT COUNT(*) FROM history'));
+        $this->assertSame([], FakeMailer::$sent);
+    }
+
+    /**
+     * @param array<string, mixed> $overrides merged over mail-off defaults
+     */
+    private function seedSmtp(array $overrides): void {
+        Config::set('smtp', $overrides + [
+            'enabled' => false, 'host' => 'localhost', 'port' => null, 'sender' => 'eppitnic@example.it',
+            'recipient_mode' => 'system', 'recipient' => '', 'username' => '', 'password' => '',
+            'auth_type' => 'plain', 'message_types' => [], 'fulltext' => '',
+        ]);
     }
 
     /**
