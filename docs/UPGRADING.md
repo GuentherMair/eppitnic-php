@@ -1,122 +1,161 @@
 # Upgrading from 6.x
 
-**Back up the database first.** The migration drops two things for good and
-rebuilds every text column; re-running won't undo either. Rehearse on a
-staging copy.
+Upgrading a 6.x installation to 7.0 converts `config.xml`, migrates the
+database in place and replaces the web interface and CLI scripts with a REST
+API and `bin/eppitnic`. **Back up the database first:** the migration drops
+data for good and rebuilds every text column, and re-running it undoes
+neither. Rehearse on a staging copy.
 
-## Before you migrate: export what you want to keep
+## Prerequisites
 
-Destroyed by the migration, recoverable only from a backup:
+- PHP 8.1 or later, and [Composer](https://getcomposer.org/) — dependencies
+  are no longer shipped in the repository.
+- A full backup of the 6.x database, and a staging copy to rehearse on.
+- The 6.x `config.xml`.
+
+## Export what the migration destroys
+
+Recoverable only from a backup afterwards:
 
 - the **`accounting` table**, dropped in full — invoicing has left this
   codebase, to be reimplemented elsewhere
-- **`users.billing_id`**, dropped — export it if you need the mapping
+- **`users.billingID`**, dropped — export it if you need the mapping
 
-## What you need to do
+The migration also drops `users.dns`, which nothing reads.
 
-1. `composer install` — dependencies are no longer vendored, PHP 8.1+ is
-   required.
-2. `bin/eppitnic config migrate` — converts `config.xml` into
-   `config/config.php` plus the `settings` table. Afterwards `config.xml` is
-   unused and can be archived. Use this, not `eppitnic setup` — that applies
-   `config/mariadb-schema.sql` fresh, for a brand-new install, not a 6.x
-   database being migrated in place.
+## Upgrade step by step
+
+1. Install the dependencies:
+
+   ```bash
+   composer install
+   ```
+
+2. Convert the configuration and migrate the database:
+
+   ```bash
+   bin/eppitnic config migrate
+   ```
+
+   This converts `config.xml` into `config/config.php` plus the `settings`
+   table, and the first connection migrates the schema (see "What the
+   migration does"). Afterwards `config.xml` is unused and can be archived.
+   Don't use `eppitnic setup` here: it installs `config/mariadb-schema.sql`
+   into an empty database, for a new installation.
 3. Create an admin. 6.x had no admin role, so the migration leaves none:
-   `bin/eppitnic user create NAME --password='...' --role=admin`.
-4. Reset every other user's password as that admin (Users view, or
-   `PUT /v1/changepassword/{id}`). 6.x stored MD5; 7.0 uses
-   `password_hash()` and can't convert the old hashes, so no login works
-   until reset.
-5. Review the resellers the migration created (below): rename them, set
-   their quotas, and add further users to them.
-6. Point your client at the new REST API. The PHP/Smarty/jQuery web interface
-   is gone, replaced by JSON/REST (documented in [API.md](API.md)) with
-   JWT bearer tokens instead of PHP sessions.
 
-## What happens automatically
+   ```bash
+   bin/eppitnic user create <ADMIN_USERNAME> --password='<ADMIN_PASSWORD>' --role=admin
+   ```
 
-The schema migrates itself on next initialization: `Config` compares
-`settings.schema_version` against `SCHEMA_VERSION` and applies the
-`config/mariadb-schema-upgrade-*.sql` steps in order — from 6.x that means
-dropping `tbl_` prefixes and converting to `utf8mb4`.
+4. Reset every other user's password as that admin, through
+   `PUT /v1/changepassword/{id}`. 6.x stored MD5 hashes, which 7.0 cannot
+   convert, so no other login works until its password is reset.
+5. Review the resellers the migration created: rename them, set their
+   quotas, and add further users.
+6. Point the web server's document root at `public/`, with every request that
+   isn't a real file routed to `public/index.php` (see "Configure the web
+   server" in [INSTALL.md](INSTALL.md)).
+7. Replace the 6.x cron entries with the single `cron run` line (see
+   "Scheduled jobs" in [INSTALL.md](INSTALL.md)).
+8. Point your client at the REST API ([API.md](API.md)). The PHP/Smarty/jQuery
+   web interface is gone; clients authenticate with bearer tokens instead of
+   PHP sessions.
 
-Read-only pre-flight checks run first and abort untouched on a problem — in
-practice, domain names or usernames (now unique too) that would collide
-under the new collation, which ignores case, accents and trailing spaces.
-Resolve those and re-run.
+## What the migration does
 
-It also decodes HTML entities 6.x stored in text columns (`Rossi & Figli` was
-held as `Rossi &amp; Figli`).
+`Config` compares `settings.schema_version` with `SCHEMA_VERSION` on every
+initialization and applies the `config/mariadb-schema-upgrade-*.sql` steps in
+order. From 6.x that means:
 
-And it introduces **resellers**: contacts, domains and pending transfers no
-longer belong to a user but to a reseller, and the admin flag becomes a role
-(`admin`, `manager`, `user`). Nobody sees more afterwards than before:
+- **Pre-flight checks** run first, read-only, and abort with the database
+  untouched on a problem. In practice that is domain names or usernames
+  (usernames are unique now) that would collide under the new collation,
+  which ignores case, accents and trailing spaces. Resolve those and re-run.
+- Tables lose their `tbl_` prefix and are converted to `utf8mb4`; columns are
+  renamed from camelCase to snake_case, and `reminder` becomes `tasks`.
+- HTML entities 6.x stored in text columns are decoded (`Rossi &amp; Figli`
+  becomes `Rossi & Figli`).
+- **Resellers** are introduced: contacts, domains and pending transfers
+  belong to a reseller instead of a user, and every user gets a role
+  (`admin`, `manager`, `user`). Nobody sees more afterwards than before:
+  - reseller 1, "Registrar (self)", gets user 1 — the account 6.x filled in
+    when no owner was given — together with user 1's defaults;
+  - every other user gets a reseller of their own, named after the username,
+    with their daily quota and default tech contacts;
+  - every migrated user becomes their reseller's `manager` and keeps
+    receiving notification emails;
+  - contacts, domains and transfers follow their owner into that reseller.
 
-- reseller 1, "Registrar (self)", gets every admin and user 1 — the account
-  6.x filled in when no owner was given — together with user 1's defaults;
-- every other non-admin user gets a reseller of their own, named after the
-  username, with their daily quota and defaults, and becomes its `manager`;
-- contacts, domains and transfers follow their owner into that reseller;
-- every migrated user keeps receiving notification emails.
+The migration's verification part lists where every user landed (6i) and
+reports any domain whose registrant belongs to another reseller (6h).
 
-The migration's verification part lists the result (6i), and reports any
-domain whose registrant belongs to another reseller (6h).
+`handleID` (MyISAM, utf8mb3) is left alone; it belongs to no schema still in
+use. Drop it yourself once you have confirmed it is unneeded.
 
-`handleID` (MyISAM, utf8mb3) is left alone deliberately; it belongs to no
-schema still in use. Drop it yourself once confirmed unneeded.
+## Breaking changes for code using the library
 
-## Breaking changes to check your code against
-
-- The audit-trail table is `history`, not `changelog`, and records more than
-  changes: a `security`/`secread` row notes non-mutating events like an admin
-  retrieving the registry credential. `GET /v1/history/{object}/{object_id}`;
-  `security` rows are admin-only.
-- `Domain->get('tech')` always returns an array now (handle => handle). It
-  used to return a bare string for a single technical contact — drop any
-  branch special-casing that.
-- Contacts, domains and pending transfers belong to a reseller
-  (`reseller_id`), and routes scope everyone but an admin by it. A domain's
-  registrant must be one of the caller's reseller's contacts; pre-existing
-  disagreement is reported by `bin/eppitnic doctor ownership`.
-- `users.admin`, `users.max_operations` and the per-user defaults are gone:
-  use `users.role`, `resellers.max_operations`, and the reseller's defaults
-  (`/v1/resellers/{id}/settings`). The `admin` login claim is replaced by
-  `role`, `reseller_id` and `reseller_name`.
-- `Domain->check()` / `Contact->check()` return a `CheckResult`, not
-  `array|bool|int`. Replace `=== true` with `->available()`, `-1`/`-2`
-  sentinels with `->answered()`. `->all()` gives every answer keyed by name.
+- Classes moved from `Net/EPP` to `src/` under the `Eppitnic\` namespace and
+  are loaded by Composer's autoloader: `Net_EPP_IT_Domain` is
+  `Eppitnic\Epp\Domain`, `Net_EPP_Client` is `Eppitnic\Epp\Client`, and so on.
+- `Net_EPP_StorageDB` and `Net_EPP_StorageInterface` are gone; persistence
+  uses RedBeanPHP's `R::` facade directly. Custom storage backends need
+  rewriting.
+- The `CLI/`, `examples/` and `cronjobs/` scripts are gone, replaced by
+  `bin/eppitnic` commands. WSDL support is gone.
+- `Domain->get('tech')` always returns an array (handle => handle). It
+  returned a bare string for a single technical contact — drop any branch
+  special-casing that.
+- `Domain->check()` and `Contact->check()` return a `CheckResult` instead of
+  `array|bool|int`. Replace `=== true` with `->available()` and the `-1`/`-2`
+  sentinels with `->answered()`; `->all()` gives every answer keyed by name.
 - `Client->sendRequest()` returns an `HttpResponse`, so `$object->result` is
   `?HttpResponse`: `$result['code']` becomes `$result?->code`.
-- `Net_EPP_StorageDB` / `Net_EPP_StorageInterface` are gone; persistence uses
-  RedBeanPHP's `R::` facade directly. Custom storage backends need rewriting.
-- WSDL support is gone.
+- Contacts, domains and pending transfers are owned by a reseller
+  (`reseller_id`) instead of a user, and every read and write is scoped by a
+  `Scope`. A domain's registrant must be one of its reseller's contacts.
+- `users.maxOperations` and the per-user defaults (`techc`) moved to the
+  reseller: `resellers.max_operations` and `/v1/resellers/{id}/settings`.
 
-## Afterwards
+[COOKBOOK.md](COOKBOOK.md) shows the current library API.
+
+## Clean up after the upgrade
+
+Check that every domain and its registrant belong to the same reseller; 6.x
+never enforced it:
+
+```bash
+bin/eppitnic doctor ownership
+```
+
+See "Check that domains and registrants agree" in [INSTALL.md](INSTALL.md)
+for fixing a mismatch.
 
 Messages stored before this release may carry `type = 'unknown'` and an empty
-`domain` (mostly DNS validation failures). New messages parse correctly; for
-old rows:
+`domain` (mostly DNS validation failures). New messages parse correctly; to
+fix old rows:
 
-```
+```bash
 bin/eppitnic doctor reparse-messages --dry-run   # report what would change
 bin/eppitnic doctor reparse-messages             # rewrite type/domain
 ```
 
-Rewrites only those two columns — optional, nothing depends on it.
+It rewrites only those two columns, and is optional: nothing depends on it.
 
-6.x also wrapped EPP bodies as `__SERIALIZED:` + base64(serialize(…)) in
+6.x also stored EPP bodies as `__SERIALIZED:` + base64(serialize(…)) in
 `transactions.cl_trdata`, `responses.sv_httpdata`/`sv_httpheaders`/
-`extvaluereason`, and `msgqueue.sv_httpdata`/`sv_httpheaders`. Deprecated —
-nothing writes it, reads handle either shape, so this is optional cleanup:
+`extvaluereason`, and `msgqueue.sv_httpdata`/`sv_httpheaders`. Nothing writes
+that format any more and reads handle either shape, so rewriting them is
+optional cleanup:
 
-```
+```bash
 bin/eppitnic doctor normalize-payloads --dry-run   # count enveloped rows
 bin/eppitnic doctor normalize-payloads             # rewrite as plain bodies
 ```
 
-One-way — the envelope isn't recoverable afterwards; rows that can't be
-decoded are reported and left alone.
+The rewrite is one-way; rows that can't be decoded are reported and left
+alone.
 
-## Next steps
-
-Go back to [INSTALL.md](INSTALL.md) to complete setup and configuration.
+Then continue with [INSTALL.md](INSTALL.md) for the rest of the
+configuration: email notifications, safe networks, trusted proxies and
+session keep-alive.
