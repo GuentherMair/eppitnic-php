@@ -44,6 +44,7 @@ Detailed instructions can be found in:
 For more specific information see:
 
 * [COOKBOOK.md](docs/COOKBOOK.md)
+* [POWERDNS.md](docs/POWERDNS.md)
 * [REMOTE-AUTH.md](docs/REMOTE-AUTH.md)
 * [TESTING.md](docs/TESTING.md)
 * [API.md](docs/API.md)

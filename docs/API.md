@@ -612,7 +612,7 @@ change made here or on the command line is validated and audited identically
 `{"enabled": bool}` so every job has the same shape.
 
 `pdns` carries `apis`, the PowerDNS servers `pdns sync` applies every change
-to: `[{"protocol": "http"|"https", "host": "...", "port": 8081, "api_key_set": true}]`.
+to (see [POWERDNS.md](POWERDNS.md)): `[{"protocol": "http"|"https", "host": "...", "port": 8081, "api_key_set": true}]`.
 The API key is never returned; `api_key_set` stands in for it, and `history`
 records it redacted. `PATCH` takes the whole list, each entry with
 `protocol`, `host`, `port` and optionally `api_key`: an entry without a key

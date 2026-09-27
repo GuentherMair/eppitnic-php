@@ -380,53 +380,14 @@ bin/eppitnic config domain-reap-set frequency_minutes <N>  # default 15
 
 ### `pdns sync` — off by default
 
-Applies pending DNS changes to PowerDNS through its HTTP API: it creates a
-missing zone, sets the zone's apex NS records to the domain's nameservers, and
-deletes the zone once a domain is gone. Enable it only if PowerDNS serves your
-zones.
-
-Only domains delegated to your own DNS servers are synced: a change is queued
-when the domain's old or new nameservers include one of the hostnames in the
-`nameservers` list. A domain whose nameservers move away from that list gets
-its zone deleted, after the usual `delay_hours` grace. An empty list syncs
-nothing.
-
-Every PowerDNS server in the list receives every change, and a change counts
-as applied only when all of them accepted it; otherwise it is retried on the
-next run. Each server needs its API enabled and reachable from this host, in
-`pdns.conf`:
-
-```text
-api=yes
-api-key=<API_KEY>
-webserver=yes
-webserver-address=<LISTEN_ADDRESS>
-webserver-port=8081
-webserver-allow-from=<EPPITNIC_ADDRESS>
-```
-
-Then list the API servers and your DNS servers, and turn the job on:
+Keeps a PowerDNS zone for every domain delegated to your own DNS servers,
+through the PowerDNS HTTP API. Enable it only if PowerDNS serves your zones;
+setup, the settings and troubleshooting are in [POWERDNS.md](POWERDNS.md).
 
 ```bash
-bin/eppitnic config pdns-api                                                 # show, keys redacted
-bin/eppitnic config pdns-api add https://ns1.example.it:8081 --api-key=<API_KEY>
-bin/eppitnic config pdns-api remove https://ns1.example.it:8081
-bin/eppitnic config pdns-api clear
-bin/eppitnic config pdns-nameserver                                          # show
-bin/eppitnic config pdns-nameserver add ns1.example.it ns2.example.it
-bin/eppitnic config pdns-nameserver remove ns2.example.it
-bin/eppitnic config pdns-nameserver clear
 bin/eppitnic config pdns-set enabled true
-bin/eppitnic config pdns-set ttl <SECONDS>             # TTL of the NS records, default 3600
-bin/eppitnic config pdns-set delay_hours <HOURS>       # grace period before a delete is applied, default 12
 bin/eppitnic config pdns-set frequency_minutes <N>     # default 15
 ```
-
-`<API_KEY>` is the server's `api-key`; the port defaults to 8081. Each list
-holds up to 6 entries, and DNS servers must be hostnames, not IP addresses.
-DNS changes are queued only while `pdns sync` is enabled and both lists have
-at least one entry. `bin/eppitnic pdns sync --dry-run` prints the API requests
-a run would send, without the key and without sending them.
 
 ### `session keepalive` — follows the `keepalive` setting
 
