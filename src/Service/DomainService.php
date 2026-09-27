@@ -9,6 +9,7 @@ use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
 use Eppitnic\Persistence\Scope;
+use Eppitnic\Support\Warnings;
 use RedBeanPHP\R;
 
 /**
@@ -34,7 +35,7 @@ final class DomainService
      * @param int $actorId the acting user, for history; the domain belongs
      *              to its registrant's reseller (Domain::storeDB())
      * @param bool $persist write the result to the local database
-     * @return array{ok: bool, action?: string, domain?: Domain, error?: string}
+     * @return array{ok: bool, action?: string, domain?: Domain, error?: string, warnings?: string[]}
      */
     public static function createOrTransfer(Client $nic, array $params, int $actorId, bool $persist = true): array {
         $domain = new Domain($nic);
@@ -57,9 +58,19 @@ final class DomainService
             $domain->addNS($ns['name'] ?? $ns, $ns['ip'] ?? null);
         }
         $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
+        $warnings = [];
 
         if ($availability->available()) {
+            // prepared first, so the registry's DNS check finds it answering;
+            // never on a dry run, which persists nothing
+            $zone = $persist ? PowerDnsZones::provision($params['domain'], array_keys((array) $domain->get('ns'))) : null;
+            if ($zone !== null && $zone['warning'] !== null) {
+                $warnings[] = $zone['warning'];
+            }
             if ( ! $domain->create()) {
+                if ($zone !== null) {
+                    PowerDnsZones::undo($params['domain'], $zone, []);
+                }
                 return ['ok' => false, 'error' => $domain->getError()];
             }
             $action = 'created';
@@ -74,10 +85,12 @@ final class DomainService
             // a fresh registration is a DNS-sync 'create' event; a requested
             // transfer-in is NOT -- that only becomes real once PollProcessor
             // sees it complete
-            $domain->storeDB($actorId, $action === 'created');
+            if ( ! $domain->storeDB($actorId, $action === 'created')) {
+                $warnings[] = Warnings::localWrite("domain '{$params['domain']}'", $domain->getError());
+            }
         }
 
-        return ['ok' => true, 'action' => $action, 'domain' => $domain];
+        return ['ok' => true, 'action' => $action, 'domain' => $domain, 'warnings' => $warnings];
     }
 
     /**

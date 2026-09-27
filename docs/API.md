@@ -70,6 +70,25 @@ the object it is everywhere else. And `GET /v1/users/{id}` answers
 `{"users": [row]}` — a one-element **array** under the plural key, and an
 empty array rather than a `404` when the id doesn't exist.
 
+### Successful responses with warnings
+
+A write the registry accepted is a success, even when something after it
+did not work. The response then carries `warnings`, a list of messages, next
+to its usual fields; each is also written to the server log:
+
+```json
+{
+  "domain": { "domain": "example.it", "...": "..." },
+  "warnings": ["PowerDNS zone for example.it could not be prepared (http://pdns:8081: 401 Unauthorized); the next pdns sync retries it"]
+}
+```
+
+It appears on the domain and contact write routes when the local copy could
+not be updated after the registry change (a later sync reconciles it), and
+when a PowerDNS zone could not be prepared before a registration or a
+nameserver change (see [POWERDNS.md](POWERDNS.md)). Without warnings the
+field is absent. Don't repeat such a request: the registry change is done.
+
 ## Setup
 
 `GET /v1/setup`, `POST /v1/setup/verify` and `POST /v1/setup` are reachable

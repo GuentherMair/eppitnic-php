@@ -283,8 +283,8 @@ final class DnsSyncGateTest extends EppTestCase
     }
 
     // ---------------------------------------------------------------
-    // a delayed delete must not tear down a zone a later create/update
-    // brings back -- see Domain::queueDnsSync()
+    // the latest intent wins: a delayed delete must not tear down a zone a
+    // later create/update brings back, and vice versa -- see queueDnsSync()
     // ---------------------------------------------------------------
 
     public function testRestoringADomainSupersedesItsPendingDelete(): void {
@@ -311,6 +311,17 @@ final class DnsSyncGateTest extends EppTestCase
         $d->updateDB('example.it', Scope::operator(1), ['ns']);
 
         $this->assertSame(0, (int) R::getCell("SELECT active FROM tasks WHERE object = 'pdns' AND action = 'delete'"));
+    }
+
+    /** deleting a domain whose create has not synced yet cancels that create */
+    public function testADeleteSupersedesAPendingCreate(): void {
+        $this->seedOpenGate();
+        R::exec("INSERT INTO tasks (domain, date, notice, object, action, active) VALUES ('example.it', CURRENT_DATE, 'domain created', 'pdns', 'create', 1)");
+
+        (new Domain($this->nic))->deleteDomainDB('example.it', Scope::operator(1));
+
+        $this->assertSame(0, (int) R::getCell("SELECT active FROM tasks WHERE object = 'pdns' AND action = 'create'"));
+        $this->assertSame(1, (int) R::getCell("SELECT active FROM tasks WHERE object = 'pdns' AND action = 'delete'"));
     }
 
     /** a delete queued for an unrelated domain must never be touched */

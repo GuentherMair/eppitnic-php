@@ -24,7 +24,11 @@ HTTP API, so it works the same from a server and from a Docker container.
    webserver-address=<LISTEN_ADDRESS>
    webserver-port=8081
    webserver-allow-from=<EPPITNIC_ADDRESS>
+   default-soa-content=<PRIMARY_NS>. hostmaster.@ 0 10800 3600 604800 3600
    ```
+
+   `default-soa-content` is the SOA that zones created through the API get;
+   PowerDNS's own default names `a.misconfigured.dns.server.invalid`.
 
 2. From the eppitnic host, check that the API answers:
 
@@ -60,7 +64,8 @@ HTTP API, so it works the same from a server and from a Docker container.
    It prints each request (`GET`, `POST`, `PATCH` or `DELETE`, the URL and the
    JSON body) without sending it and without the API key.
 
-`<API_KEY>` is the `api-key` from step 1, `<LISTEN_ADDRESS>` the address
+`<API_KEY>` is the `api-key` from step 1, `<PRIMARY_NS>` your primary
+nameserver's hostname, `<LISTEN_ADDRESS>` the address
 PowerDNS's web server listens on, `<EPPITNIC_ADDRESS>` the address eppitnic's
 requests arrive from, and `<PDNS_HOST>` the PowerDNS host. Use `https://` if
 the API sits behind TLS; the certificate must be trusted by the eppitnic host.
@@ -82,8 +87,24 @@ listed, and the domain's nameservers include at least one hostname from the
 | Nameservers changed | only the old ones did (moved away) | delete |
 | Domain deleted | its nameservers include a listed server | delete |
 
-Queuing a create or an update cancels a delete still waiting for the same
-domain, so a domain that comes back keeps its zone.
+The latest intent wins: queuing a create or an update cancels a delete still
+waiting for the same domain, so a domain that comes back keeps its zone, and
+queuing a delete cancels a create or update that has not synced yet.
+
+## Zones are prepared before the registry is asked
+
+When a domain is registered, or its nameservers change, onto listed DNS
+servers, eppitnic creates or updates the zone on every API *before* sending
+the request to the registry. The registry's DNS check then finds the
+nameservers answering for the zone, so the domain goes live without waiting
+for the registry to check again.
+
+- If PowerDNS fails, the registration or change still goes ahead. The
+  response carries a warning, and the queued task retries on the next run.
+- If the registry refuses the request, the preparation is taken back: a zone
+  created for it is deleted, and an existing zone gets its previous NS
+  records again.
+- The queued task is still written, and re-applying it changes nothing.
 
 ## What a sync run does
 

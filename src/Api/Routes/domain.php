@@ -10,8 +10,10 @@ use Eppitnic\Persistence\Scope;
 use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\Service\DomainService;
 use Eppitnic\Service\EppSession;
+use Eppitnic\Service\PowerDnsZones;
 use Eppitnic\Support\Csv;
 use Eppitnic\Support\Validate;
+use Eppitnic\Support\Warnings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -255,7 +257,7 @@ $app->post('/v1/domains', function (Request $request, Response $response, array 
     }
 
     Access::recordRequest($params['domain'], $result['action'] === 'created' ? 'register' : 'transfer', $scope);
-    return Json::response($response, ['domain' => domainToArray($result['domain'])], 201);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])] + Warnings::field($result['warnings']), 201);
 });
 
 $app->post('/v1/domains/import', function (Request $request, Response $response, array $args): Response {
@@ -332,13 +334,30 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             // update() resets this to 0 on success, so it must be captured
             // beforehand
             $changes = $domain->changedFields();
+            $warnings = [];
+
+            // the new NS set's zone is prepared first, so the registry's DNS
+            // check finds it answering; the old set is what undo() restores
+            $zone = null;
+            if (in_array('ns', $changes, true)) {
+                $oldNs = array_keys(SerializedColumn::toArray((string) R::getCell('SELECT ns FROM domains WHERE domain = ?', [$name])));
+                $zone = PowerDnsZones::provision($name, array_keys((array) $domain->get('ns')));
+                if ($zone['warning'] !== null) {
+                    $warnings[] = $zone['warning'];
+                }
+            }
 
             if ( ! $domain->update()) {
+                if ($zone !== null) {
+                    PowerDnsZones::undo($name, $zone, $oldNs);
+                }
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            $domain->updateDB($name, $scope, $changes);
+            if ( ! $domain->updateDB($name, $scope, $changes)) {
+                $warnings[] = Warnings::localWrite("domain '{$name}'", $domain->getError());
+            }
 
-            return ['ok' => true, 'domain' => $domain];
+            return ['ok' => true, 'domain' => $domain, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -348,7 +367,7 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
         return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])] + Warnings::field($result['warnings']));
 });
 
 $app->post('/v1/domains/{name}/registrant', function (Request $request, Response $response, array $args): Response {
@@ -385,8 +404,10 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             if ( ! $domain->updateRegistrant()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            $domain->updateDB($name, $scope);
-            return ['ok' => true, 'domain' => $domain];
+            $warnings = $domain->updateDB($name, $scope)
+                ? []
+                : [Warnings::localWrite("domain '{$name}'", $domain->getError())];
+            return ['ok' => true, 'domain' => $domain, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -396,7 +417,7 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
         return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])] + Warnings::field($result['warnings']));
 });
 
 $app->post('/v1/domains/{name}/status', function (Request $request, Response $response, array $args): Response {
@@ -439,11 +460,16 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
         $sql .= " AND reseller_id = :reseller_id";
         $sqlParams[':reseller_id'] = $scope->resellerId;
     }
-    R::exec($sql, $sqlParams);
-    $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
-    History::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $scope->userId);
+    $warnings = [];
+    try {
+        R::exec($sql, $sqlParams);
+        $id = (int) R::getCell("SELECT id FROM domains WHERE domain = ?", [$name]);
+        History::record('domains', $id, 'update', ['status' => $result['domain']->get('status')], $scope->userId);
+    } catch (\Throwable $e) {
+        $warnings[] = Warnings::localWrite("domain '{$name}'", $e->getMessage());
+    }
 
-    return Json::response($response, ['domain' => domainToArray($result['domain'])]);
+    return Json::response($response, ['domain' => domainToArray($result['domain'])] + Warnings::field($warnings));
 });
 
 $app->delete('/v1/domains/{name}', function (Request $request, Response $response, array $args): Response {
@@ -491,8 +517,10 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             if ( ! $domain->delete($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
-            $domain->deleteDomainDB($name, $scope);
-            return ['ok' => true];
+            $warnings = $domain->deleteDomainDB($name, $scope)
+                ? []
+                : [Warnings::localWrite("domain '{$name}'", $domain->getError())];
+            return ['ok' => true, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -502,7 +530,7 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Json::response($response, ['deleted' => true, 'domain' => $name]);
+    return Json::response($response, ['deleted' => true, 'domain' => $name] + Warnings::field($result['warnings']));
 });
 
 $app->post('/v1/domains/{name}/restore', function (Request $request, Response $response, array $args): Response {
@@ -519,8 +547,10 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
             if ( ! $domain->restore($name)) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
-            $domain->restoreDomainDB($name, $scope);
-            return ['ok' => true];
+            $warnings = $domain->restoreDomainDB($name, $scope)
+                ? []
+                : [Warnings::localWrite("domain '{$name}'", $domain->getError())];
+            return ['ok' => true, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -530,7 +560,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Json::response($response, ['restored' => true, 'domain' => $name]);
+    return Json::response($response, ['restored' => true, 'domain' => $name] + Warnings::field($result['warnings']));
 });
 
 $app->post('/v1/domains/{name}/owner', function (Request $request, Response $response, array $args): Response {

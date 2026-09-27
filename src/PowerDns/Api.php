@@ -100,6 +100,31 @@ final class Api
         return ['ok' => false, 'message' => 'delete zone failed: ' . $this->errorMessage($response)];
     }
 
+    /**
+     * Look the zone up, create it if missing, then replace its apex NS set --
+     * what `pdns sync` does for a create or an update, on this one server.
+     *
+     * @param string[] $nameservers
+     * @return array{ok: bool, created: bool, message: string}
+     */
+    public function syncZone(string $zone, array $nameservers, int $ttl): array {
+        $exists = $this->zoneExists($zone);
+        if ( ! $exists['ok']) {
+            return ['ok' => false, 'created' => false, 'message' => $exists['message']];
+        }
+
+        $created = false;
+        if ( ! $exists['exists']) {
+            $outcome = $this->createZone($zone, $nameservers);
+            if ( ! $outcome['ok']) {
+                return ['ok' => false, 'created' => false, 'message' => $outcome['message']];
+            }
+            $created = true;
+        }
+
+        return ['created' => $created] + $this->replaceApexNs($zone, $nameservers, $ttl);
+    }
+
     private function zoneId(string $zone): string {
         return $this->fqdn($zone);
     }

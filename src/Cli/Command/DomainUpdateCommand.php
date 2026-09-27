@@ -6,6 +6,9 @@ use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\Scope;
+use Eppitnic\Persistence\SerializedColumn;
+use Eppitnic\Service\PowerDnsZones;
+use RedBeanPHP\R;
 
 /**
  * Change a domain's nameservers, technical contacts, admin contact or authinfo.
@@ -106,7 +109,21 @@ final class DomainUpdateCommand extends Command
 
                 $changes = $domain->changedFields();
 
+                // the new NS set's zone first, so the registry's DNS check
+                // finds it answering -- see PowerDnsZones
+                $zone = null;
+                if ( ! $this->isDryRun() && in_array('ns', $changes, true)) {
+                    $oldNs = array_keys(SerializedColumn::toArray((string) R::getCell('SELECT ns FROM domains WHERE domain = ?', [$row['domain']])));
+                    $zone = PowerDnsZones::provision($row['domain'], array_keys((array) $domain->get('ns')));
+                    if ($zone['warning'] !== null) {
+                        $this->warn("{$row['domain']}: {$zone['warning']}");
+                    }
+                }
+
                 if ( ! $domain->update()) {
+                    if ($zone !== null) {
+                        PowerDnsZones::undo($row['domain'], $zone, $oldNs);
+                    }
                     $this->itemFailed($row['domain'], $domain->getError());
                     continue;
                 }
@@ -114,7 +131,9 @@ final class DomainUpdateCommand extends Command
                 if ( ! $this->isDryRun()) {
                     // update() zeroes the mask on success, so it is passed
                     // explicitly -- see Domain::updateDB()
-                    $domain->updateDB($row['domain'], Scope::operator($this->userId()), $changes);
+                    if ( ! $domain->updateDB($row['domain'], Scope::operator($this->userId()), $changes)) {
+                        $this->warn("{$row['domain']}: updated at the registry, but not locally: {$domain->getError()}");
+                    }
                 }
 
                 $this->record("{$row['domain']} updated", [

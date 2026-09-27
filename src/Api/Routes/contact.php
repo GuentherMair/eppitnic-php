@@ -8,6 +8,7 @@ use Eppitnic\Epp\Contact;
 use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Support\Validate;
+use Eppitnic\Support\Warnings;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -131,8 +132,10 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
             if ( ! $contact->create()) {
                 return ['ok' => false, 'error' => $contact->getError()];
             }
-            $contact->storeDB($resellerId, $scope->userId);
-            return ['ok' => true, 'contact' => $contact];
+            $warnings = $contact->storeDB($resellerId, $scope->userId)
+                ? []
+                : [Warnings::localWrite("contact '{$contact->get('handle')}'", $contact->getError())];
+            return ['ok' => true, 'contact' => $contact, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -142,7 +145,7 @@ $app->post('/v1/contacts', function (Request $request, Response $response, array
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Json::response($response, ['contact' => contactToArray($result['contact'])], 201);
+    return Json::response($response, ['contact' => contactToArray($result['contact'])] + Warnings::field($result['warnings']), 201);
 });
 
 $app->patch('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
@@ -174,8 +177,10 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
             if ( ! $contact->update()) {
                 return ['ok' => false, 'status' => 400, 'error' => $contact->getError()];
             }
-            $contact->updateDB($handle, $scope);
-            return ['ok' => true, 'contact' => $contact];
+            $warnings = $contact->updateDB($handle, $scope)
+                ? []
+                : [Warnings::localWrite("contact '{$handle}'", $contact->getError())];
+            return ['ok' => true, 'contact' => $contact, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -185,7 +190,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
         return Json::response($response, ['error' => $result['error']], $result['status']);
     }
 
-    return Json::response($response, ['contact' => contactToArray($result['contact'])]);
+    return Json::response($response, ['contact' => contactToArray($result['contact'])] + Warnings::field($result['warnings']));
 });
 
 $app->delete('/v1/contacts/{handle}', function (Request $request, Response $response, array $args): Response {
@@ -204,8 +209,10 @@ $app->delete('/v1/contacts/{handle}', function (Request $request, Response $resp
             if ( ! $contact->delete($handle)) {
                 return ['ok' => false, 'error' => $contact->getError()];
             }
-            $contact->deleteContactDB($handle, $scope);
-            return ['ok' => true];
+            $warnings = $contact->deleteContactDB($handle, $scope)
+                ? []
+                : [Warnings::localWrite("contact '{$handle}'", $contact->getError())];
+            return ['ok' => true, 'warnings' => $warnings];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
@@ -215,5 +222,5 @@ $app->delete('/v1/contacts/{handle}', function (Request $request, Response $resp
         return Json::response($response, ['error' => $result['error']], 400);
     }
 
-    return Json::response($response, ['deleted' => true, 'handle' => $handle]);
+    return Json::response($response, ['deleted' => true, 'handle' => $handle] + Warnings::field($result['warnings']));
 });

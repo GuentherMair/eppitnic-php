@@ -190,7 +190,7 @@ final class PdnsSyncCommand extends Command
 
         $failures = [];
         foreach ($apis as $server) {
-            $outcome = $this->syncZone($server['api'], $zone, $nameservers);
+            $outcome = $server['api']->syncZone($zone, $nameservers, $this->ttl);
             if ( ! $outcome['ok']) {
                 $failures[] = "{$server['label']}: {$outcome['message']}";
             }
@@ -200,27 +200,6 @@ final class PdnsSyncCommand extends Command
             return ['status' => 'failed', 'message' => 'FAILED: ' . implode('; ', $failures)];
         }
         return ['status' => 'applied', 'message' => 'zone synced (' . count($nameservers) . ' NS records)'];
-    }
-
-    /**
-     * exists? -> create if missing -> always replace the apex NS set, on one
-     * server.
-     *
-     * @param string[] $nameservers
-     * @return array{ok: bool, message: string}
-     */
-    private function syncZone(Api $api, string $zone, array $nameservers): array {
-        $exists = $api->zoneExists($zone);
-        if ( ! $exists['ok']) {
-            return ['ok' => false, 'message' => $exists['message']];
-        }
-        if ( ! $exists['exists']) {
-            $created = $api->createZone($zone, $nameservers);
-            if ( ! $created['ok']) {
-                return $created;
-            }
-        }
-        return $api->replaceApexNs($zone, $nameservers, $this->ttl);
     }
 
     /**

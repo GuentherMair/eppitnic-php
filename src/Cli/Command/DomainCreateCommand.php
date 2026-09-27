@@ -63,6 +63,10 @@ final class DomainCreateCommand extends Command
                     continue;
                 }
 
+                foreach ($result['warnings'] as $warning) {
+                    $this->warn("{$row['domain']}: {$warning}");
+                }
+
                 $domain = $result['domain'];
                 $this->record(
                     sprintf('%-40s %s (authinfo %s)', $row['domain'], $result['action'], $domain->get('authinfo')),

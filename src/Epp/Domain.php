@@ -1249,12 +1249,13 @@ class Domain extends AbstractObject
                  ELSE 0 END
     ", [$domain, $notice, $action, json_encode(self::nsNames($ns), JSON_UNESCAPED_SLASHES)]) > 0;
 
-    // a delayed delete must never tear down a zone this call just
-    // (re)created -- see deleteDomainDB()/updateDB()'s delay_hours grace
-    if ($queued && $action !== 'delete') {
+    // the latest intent wins: a delayed delete must not tear down a zone just
+    // (re)created, nor a pending create/update rebuild one about to be deleted
+    if ($queued) {
       R::exec("
         UPDATE tasks SET active = 0, exit_code = 0, exit_message = ?
-        WHERE object = 'pdns' AND action = 'delete' AND domain = ? AND active = 1
+        WHERE object = 'pdns' AND domain = ? AND active = 1
+          AND " . ($action === 'delete' ? "action <> 'delete'" : "action = 'delete'") . "
       ", ["superseded by a later {$action}", $domain]);
     }
 
