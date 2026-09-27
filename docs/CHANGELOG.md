@@ -25,8 +25,8 @@ see [UPGRADING.md](UPGRADING.md).
   `config show` (credentials redacted), `config epp-server
   production|test|toggle`, `config epp-set`, `config epp-password`,
   `config safe-networks`, `config trusted-proxies`, `config keepalive`,
-  `config session-serialize`, `config pdns-api`, `config pdns-nameserver`
-  and the job-specific `config *-set` verbs.
+  `config session-serialize`, `config region-set`, `config pdns-api`,
+  `config pdns-nameserver` and the job-specific `config *-set` verbs.
   `Support\Validate::eppField()` holds the EPP field rules shared by setup,
   the CLI and the API, so an invalid username or password is refused when
   entered rather than at the next `<login>`.

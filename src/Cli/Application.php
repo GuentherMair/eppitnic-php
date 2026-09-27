@@ -14,6 +14,7 @@ use Eppitnic\Cli\Command\ConfigPdnsApiCommand;
 use Eppitnic\Cli\Command\ConfigPdnsNameserverCommand;
 use Eppitnic\Cli\Command\ConfigPdnsSetCommand;
 use Eppitnic\Cli\Command\ConfigPollProcessSetCommand;
+use Eppitnic\Cli\Command\ConfigRegionSetCommand;
 use Eppitnic\Cli\Command\ConfigRemoteAuthSetCommand;
 use Eppitnic\Cli\Command\ConfigSafeNetworksCommand;
 use Eppitnic\Cli\Command\ConfigSessionSerializeCommand;
@@ -132,6 +133,7 @@ final class Application
             'config pdns-nameserver'    => ConfigPdnsNameserverCommand::class,
             'config poll-process-set'   => ConfigPollProcessSetCommand::class,
             'config smtp-set'           => ConfigSmtpSetCommand::class,
+            'config region-set'         => ConfigRegionSetCommand::class,
             'config remote-auth-set'    => ConfigRemoteAuthSetCommand::class,
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
             'config safe-networks'      => ConfigSafeNetworksCommand::class,

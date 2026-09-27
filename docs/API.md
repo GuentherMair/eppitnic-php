@@ -648,6 +648,18 @@ invalid hostname, a duplicate or more than 6 entries is `400`.
 > password from auto-rotating on a `passwdReminder`, alongside the queue
 > drain and transfer reconciliation.
 
+### Regional settings
+
+The `region` setting: the time zone every request and CLI command runs in,
+and the locales passed to `setlocale()` for `LC_MONETARY` and `LC_TIME`.
+It goes through `Service\RegionSettings`, shared with `config region-set`,
+and changes are recorded in `history` (`object='region'`).
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/region` | admin | `{"region": {"timezone", "lc_monetary", "lc_time"}, "timezones": [...]}`. `timezones` lists every zone the server accepts, for a picker |
+| `PATCH /v1/region` | admin | body: any of the three fields; what is omitted stays. `400` for an unknown time zone, a value that isn't a locale name (`C`, `POSIX`, `it_IT`, `it_IT.UTF-8`, …), a blank value or an unknown field. Returns `{"region": {...}}` |
+
 ### Email (SMTP)
 
 The system-wide `smtp` setting that `poll process` and
