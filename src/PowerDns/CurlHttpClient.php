@@ -34,12 +34,11 @@ final class CurlHttpClient implements HttpClient
         $response = curl_exec($ch);
         if ($response === false) {
             $error = curl_error($ch);
-            curl_close($ch);
             return ['status' => 0, 'body' => '', 'error' => $error];
         }
 
+        // no curl_close(): a no-op since PHP 8.0, deprecated in 8.5
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         return ['status' => $status, 'body' => (string) $response, 'error' => ''];
     }
 }

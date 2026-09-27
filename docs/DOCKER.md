@@ -60,9 +60,15 @@ Every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`,
 so `DB_HOST` `host.docker.internal` in `config.php` reaches the Docker host.
 If the database is itself a compose service, use that service's name instead.
 
-A container's loopback isn't the host's: traffic to `host.docker.internal`
-arrives over the bridge interface with a non-loopback source address, so a
-MariaDB bound to `127.0.0.1` refuses it. Change three things on the host:
+On Docker Desktop (macOS, Windows), connections to `host.docker.internal`
+reach the host's MariaDB as coming from `localhost`, so a
+`'<DB_USER>'@'localhost'` account with a password works as it is. Unix-socket
+authentication does not: the container connects over TCP.
+
+On Docker Engine (Linux), a container's loopback isn't the host's: traffic to
+`host.docker.internal` arrives over the bridge interface with a non-loopback
+source address, so a MariaDB bound to `127.0.0.1` refuses it. Change three
+things on the host:
 
 1. Set `bind-address` in MariaDB's config from `127.0.0.1` to `0.0.0.0`, then
    restart MariaDB. This listens on the bridge too; it does not make the
@@ -80,6 +86,21 @@ MariaDB bound to `127.0.0.1` refuses it. Change three things on the host:
 
    Adjust `172.18.%.%` to the subnet from step 2. `<DB_USER>` and
    `<DB_PASSWORD>` are the credentials you give setup.
+
+## Change a published port
+
+If `127.0.0.1:8080` is already taken on the host, publish the web container
+elsewhere in a `compose.override.yaml` next to `compose.yaml`. Compose merges
+that file automatically (so does `./eppitnic`), and git ignores it:
+
+```yaml
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:8090:80"
+```
+
+Point the reverse proxy at the new port.
 
 ## Put a reverse proxy in front
 
