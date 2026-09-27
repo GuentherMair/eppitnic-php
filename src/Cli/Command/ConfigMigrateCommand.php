@@ -80,8 +80,8 @@ final class ConfigMigrateCommand extends Command
         $settings = [
           'region' => [
             'timezone'    => self::xmlStr($xml->timezone) ?: 'Europe/Rome',
-            'lc_monetary' => 'it_IT',    // no config.xml source
-            'lc_time'     => 'italian',  // no config.xml source
+            'lc_monetary' => 'it_IT.UTF-8',  // no config.xml source
+            'lc_time'     => 'it_IT.UTF-8',  // no config.xml source
           ],
           // jwt_psk is a signing secret, not just another placeholder --
           // generate a real one rather than leaving something that might
