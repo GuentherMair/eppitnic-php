@@ -1,27 +1,35 @@
 # Cookbook
 
-Using `eppitnic` as a PHP library. For the command line see `bin/eppitnic`,
-and for the REST API see `API.md`.
+Recipes for using `eppitnic` as a PHP library: open a registry session with
+`EppSession::run()` and work with `Domain`, `Contact` and `Session` objects
+inside its callback. For the command line see `bin/eppitnic --help`, and for
+the REST API see [API.md](API.md).
 
-Everything below assumes one require and a configured database:
+## Prerequisites
+
+- A configured installation: `config/config.php` and a populated database
+  (see [INSTALL.md](INSTALL.md)).
+- The registry credentials in the `epp` setting.
+
+Every snippet below assumes this preamble:
 
 ```php
 require 'vendor/autoload.php';
 
 use Eppitnic\Epp\Client;
-use Eppitnic\Service\EppSession;
 use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Epp\Session;
+use Eppitnic\Service\EppSession;
 ```
 
-## A session
+`$userId` is the id of the acting user (recorded in `history`), and
+`$resellerId` the id of the reseller that owns what you create. Values
+written `<LIKE_THIS>` are handles or codes you supply.
 
-`EppSession::run()` opens a session and hands you a logged-in client. With
-the `keepalive` setting off — the default — it logs out afterwards, including
-when your callback throws; with it on, it reuses whatever session
-`eppitnic session keepalive` is already keeping fresh and never logs out (see
-docs/INSTALL.md's "Session keep-alive").
+## Open a registry session
+
+`EppSession::run()` opens a session and hands you a logged-in client:
 
 ```php
 $credit = EppSession::run(function (Client $nic, Session $session) {
@@ -29,11 +37,16 @@ $credit = EppSession::run(function (Client $nic, Session $session) {
 });
 ```
 
-It throws `RuntimeException` if the registry is unreachable or refuses the
-login. Everything else below goes inside such a callback.
+With the `keepalive` setting off — the default — it logs out afterwards, even
+when your callback throws. With it on, it reuses the session
+`eppitnic session keepalive` keeps fresh and never logs out (see "Session
+keep-alive" in [INSTALL.md](INSTALL.md)).
 
-Doing it by hand is only worth it when you need the greeting without logging
-in — checking whether the registry is reachable at all:
+It throws `RuntimeException` if the registry is unreachable or refuses the
+login. Every snippet below runs inside such a callback, with `$nic` in scope.
+
+Opening a session by hand is only worth it to get the greeting without
+logging in, for example to check that the registry is reachable:
 
 ```php
 $nic = new Client();
@@ -44,7 +57,7 @@ if ($session->hello()) {
 }
 ```
 
-## Is a domain available?
+## Check whether a domain is available
 
 ```php
 $domain = new Domain($nic);
@@ -52,7 +65,7 @@ $domain = new Domain($nic);
 $answer = $domain->check('example.it');
 
 if ( ! $answer->answered()) {
-    // the registry never answered the question -- neither available nor taken
+    // the registry never answered -- neither available nor taken
     echo $answer->error(), "\n";
 } elseif ($answer->available()) {
     echo "free\n";
@@ -62,13 +75,13 @@ if ( ! $answer->answered()) {
 ```
 
 Pass an array for up to five names at once. `available('example.it')` and
-`reason('example.it')` then take the name, `all()` gives every answer keyed by
-name, and `availableNames()` gives just the free ones. Beyond five names, batch
-them yourself — the registry rejects a longer request.
+`reason('example.it')` then take the name, `all()` gives every answer keyed
+by name, and `availableNames()` gives just the free ones. Batch longer lists
+yourself — the registry rejects more than five names in one request.
 
 `Contact::check()` answers the same way, keyed by handle.
 
-## Reading a domain
+## Read a domain
 
 ```php
 $domain = new Domain($nic);
@@ -78,22 +91,23 @@ if ($domain->fetch('example.it')) {
     echo implode(', ', $domain->get('status')), "\n";
 
     // both always arrays, keyed by handle and by hostname
-    foreach ($domain->get('tech') as $handle) { ... }
-    foreach ($domain->get('ns') as $name => $ns) { ... }
+    echo implode(', ', array_keys($domain->get('tech'))), "\n";
+    echo implode(', ', array_keys($domain->get('ns'))), "\n";
 }
 ```
 
-A domain sponsored by another registrar needs its authinfo, and can return the
-linked contacts in the same round trip:
+A domain sponsored by another registrar needs its authinfo, and can return
+the linked contacts in the same round trip:
 
 ```php
-$domain->fetch('example.it', 'THE-AUTHINFO', 'all');
+$domain->fetch('example.it', '<AUTHINFO>', 'all');
 $contacts = $domain->get('infcontacts');
 ```
 
-## Creating a contact
+## Create a contact
 
-The registry assigns nothing: pick a handle, and check it is free.
+The registry assigns no handles: pick one and check it is free.
+`generateHandle()` does both.
 
 ```php
 $contact = new Contact($nic);
@@ -111,118 +125,128 @@ $contact->set('email', 'mario.rossi@example.it');
 
 // an authinfo is generated for you; set one explicitly to choose it
 
-// a registrant also needs these; an admin/tech contact is entityType 0
+// a registrant also needs these; an admin/tech contact is entitytype 0
 $contact->set('nationalitycode', 'IT');
 $contact->set('entitytype', 2);
 $contact->set('regcode', '01234567897');   // a partita IVA; the checksum is verified
 
-// and, for this entity type, consent to publication -- see below
+// required for this entity type -- see below
 $contact->setConsent();
 
 if ( ! $contact->create()) {
     throw new RuntimeException($contact->getError());
 }
-$contact->storeDB($userId);   // optional: keep a local copy
+$contact->storeDB($resellerId, $userId);   // optional: keep a local copy
 ```
 
 Consent to publication is not free to choose. Only entity type 1 (a natural
 person) and entity type 3 (a freelancer) may withhold it; every other
-registrant is published in the public whois by law, and the registry enforces
-that — `setConsent()` omitted on the contact above is refused with EPP code
-`2308` and extended reason `8028`, *"consentForPublishing cannot be set to
-false if entity type != 1 and entity type != 3"*. An admin or technical
-contact is entity type 0, carries no registrant block at all, and is
-unaffected.
+registrant is published in the public whois by law. Without `setConsent()`
+the contact above is refused with EPP code `2308` and extended reason `8028`,
+*"consentForPublishing cannot be set to false if entity type != 1 and entity
+type != 3"*. An admin or technical contact is entity type 0, carries no
+registrant block, and is unaffected.
 
-The registration code is checked too, not merely required. For entity type 2 it
-is a partita IVA, and the registry verifies its check digit — the last of the
-eleven, chosen so that the whole number adds up to a multiple of ten under the
-usual Luhn variant. A code that does not add up is refused with EPP code `2004`
-and extended reason `8027`, *"Registrant: invalid reg code"*. Note that the
-familiar placeholder `01234567890` is **not** valid: its check digit should be
-`7`.
+The registration code is checked, not merely required. For entity type 2 it
+is a partita IVA, and the registry verifies its check digit: the last of the
+eleven, chosen so that the whole number adds up to a multiple of ten under
+the usual Luhn variant. A code that does not add up is refused with EPP code
+`2004` and extended reason `8027`, *"Registrant: invalid reg code"*. The
+familiar placeholder `01234567890` is **not** valid — its check digit should
+be `7`.
 
-## Registering a domain
+## Register a domain
 
-`DomainService::createOrTransfer()` is the whole flow: it checks the name, and
-either registers it or requests its transfer if somebody else holds it.
+`DomainService::createOrTransfer()` is the whole flow: it checks the name,
+then registers it, or requests its transfer if somebody else holds it.
 
 ```php
 use Eppitnic\Service\DomainService;
 
 $result = DomainService::createOrTransfer($nic, [
     'domain'     => 'example.it',
-    'registrant' => 'REGISTRANT-HANDLE',
-    'admin'      => 'ADMIN-HANDLE',
-    'tech'       => ['TECH-HANDLE'],
+    'registrant' => '<REGISTRANT_HANDLE>',
+    'admin'      => '<ADMIN_HANDLE>',
+    'tech'       => ['<TECH_HANDLE>'],
     'ns'         => ['ns1.example.it', 'ns2.example.it'],
 ], $userId);
 
+if ( ! $result['ok']) {
+    throw new RuntimeException($result['error']);
+}
 // $result['action'] is 'created' or 'transfer-requested'
 ```
 
-The object API underneath, if you want the pieces separately:
+It also stores the domain locally, where it belongs to the registrant's
+reseller.
+
+The object API underneath, to use the pieces separately:
 
 ```php
 $domain = new Domain($nic);
 $domain->set('domain', 'example.it');
-$domain->set('registrant', 'REGISTRANT-HANDLE');
-$domain->addTECH('TECH-HANDLE');
+$domain->set('registrant', '<REGISTRANT_HANDLE>');
+$domain->set('admin', '<ADMIN_HANDLE>');
+$domain->addTECH('<TECH_HANDLE>');
 $domain->addNS('ns1.example.it');
 $domain->addNS('ns2.example.it', ['192.0.2.1']);   // glue, when below the domain
 $domain->set('authinfo', $domain->authinfo());     // 16 random characters, mixed classes
 
-$domain->create();
+if ( ! $domain->create()) {
+    throw new RuntimeException($domain->getError());
+}
 ```
 
-## Changing a domain
+## Change a domain
 
-Updates are a diff against what was fetched, so fetch first. Adding a
-nameserver that is already there, or removing one that is not, is simply no
-change — `update()` sends only what differs.
+An update is a diff against what was fetched, so fetch first. Adding a
+nameserver that is already there, or removing one that is not, is no change —
+`update()` sends only what differs.
 
 ```php
+use Eppitnic\Persistence\Scope;
+
 $domain = new Domain($nic);
 $domain->fetch('example.it');
 
 $domain->addNS('ns3.example.it');
 $domain->remNS('ns1.example.it');
-$domain->addTECH('OTHER-TECH');
-$domain->set('admin', 'NEW-ADMIN');
+$domain->addTECH('<OTHER_TECH_HANDLE>');
+$domain->set('admin', '<NEW_ADMIN_HANDLE>');
 
-// capture this before update(), which resets it to 0 on success
-$changes = $domain->get('changes');
+// capture this before update(), which clears it on success
+$changes = $domain->changedFields();
 
 if ($domain->update()) {
-    $domain->updateDB('example.it', $userId, true, $changes);
+    $domain->updateDB('example.it', Scope::operator($userId), $changes);
 }
 ```
 
-The registrant is **not** part of this. It is a separate EPP command that
-requires the authinfo to change with it:
+The registrant is **not** part of this. Changing it is a separate EPP command,
+and the authinfo must change with it:
 
 ```php
-$domain->set('registrant', 'NEW-REGISTRANT');
+$domain->set('registrant', '<NEW_REGISTRANT_HANDLE>');
 $domain->set('authinfo', $domain->authinfo());
 $domain->updateRegistrant();
 ```
 
-## Transfers
+## Transfer a domain
 
 ```php
 $domain = new Domain($nic);
 
-$domain->transfer('example.it', 'THE-AUTHINFO');    // claim it
-$domain->transferApprove('example.it', $authinfo);  // agree to someone's claim
-$domain->transferReject('example.it', $authinfo);
-$domain->transferCancel('example.it', $authinfo);   // withdraw your own
-$domain->transferStatus('example.it', $authinfo);   // then get('trStatus')
+$domain->transfer('example.it', '<AUTHINFO>');         // claim it
+$domain->transferApprove('example.it', '<AUTHINFO>');  // agree to someone's claim
+$domain->transferReject('example.it', '<AUTHINFO>');
+$domain->transferCancel('example.it', '<AUTHINFO>');   // withdraw your own
+$domain->transferStatus('example.it', '<AUTHINFO>');   // then get('trStatus')
 ```
 
-## The poll queue
+## Read the poll queue
 
-Messages arrive one at a time. Reading one does not remove it — acknowledging
-it does, and that is what reveals the next.
+Messages arrive one at a time. Reading one does not remove it; acknowledging
+it does, and that reveals the next.
 
 ```php
 EppSession::run(function (Client $nic, Session $session) {
@@ -235,10 +259,10 @@ EppSession::run(function (Client $nic, Session $session) {
 });
 ```
 
-`eppitnic poll process` does this on a schedule and reconciles
-transfer state afterwards; prefer it over rolling your own loop.
+Prefer `eppitnic poll process`, which does this on a schedule and also
+applies completed transfers and registry password reminders.
 
-## Errors
+## Handle errors
 
 Every method returns `false` on failure, with the registry's own words behind
 `getError()`:
@@ -250,29 +274,34 @@ if ( ! $domain->create()) {
 }
 ```
 
-Setting `$domain->debug = true` makes `getError()` include the full request and
-response, and records every command to the `transactions`/`responses` tables.
-Those rows hold the raw XML — registrant names, addresses and authinfo codes —
-so it is off by default and driven per user by `users`.`debug`.
+Pass `true` as `EppSession::run()`'s second argument (or set
+`$domain->debug = true`) to make `getError()` include the full request and
+response and record every command in the `transactions`/`responses` tables.
 
-## Local storage
+> **Warning:** those rows hold the raw XML — registrant names, addresses and
+> authinfo codes. Debug is off by default; the API turns it on per user
+> through `users`.`debug`.
 
-The `*DB()` methods keep a local mirror; nothing calls them for you.
+## Keep a local copy in the database
+
+The `*DB()` methods maintain a local mirror of registry objects; nothing
+calls them for you except `DomainService` and the CLI/API.
 
 ```php
 use Eppitnic\Persistence\Scope;
 
 $scope = new Scope($userId, $resellerId, 'user');  // or Scope::operator($userId)
 
-$domain->storeDB($userId);                   // insert or replace, as $userId
-$domain->loadDB('example.it', $scope);       // read it back
+$domain->storeDB($userId);                        // insert or replace, as $userId
+$domain->loadDB('example.it', $scope);            // read it back
 $domain->updateDB('example.it', $scope, $changes);
 $domain->listDomains($scope);
-$domain->deleteDomainDB('example.it', $scope);   // deactivates
+$domain->deleteDomainDB('example.it', $scope);    // deactivates
 ```
 
-A `Scope` limits reads and writes to one reseller's rows; an admin one
+A `Scope` limits reads and writes to one reseller's rows; an admin scope
 (`Scope::operator()`, what the CLI uses) reaches every reseller's. A stored
-domain always belongs to its registrant contact's reseller. Deletes are soft:
-a domain row stays, because `domains`.`registrant` is a foreign key onto
-`contacts`.`handle`.
+domain always belongs to its registrant contact's reseller.
+
+Deletes are soft: a domain row stays, because `domains`.`registrant` is a
+foreign key onto `contacts`.`handle`.
