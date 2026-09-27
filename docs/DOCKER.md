@@ -155,8 +155,10 @@ server or a different one.
    ./eppitnic alpha domain info example.it
    ```
 
-Only the port and the `/data` folder differ between instances;
-`EPPITNIC_CONFIG_DIR` and `EPPITNIC_VAR_DIR` never need setting.
+Only the port and the `/data` folder differ between instances — `/data`
+holds the instance's `config.php` and self-test notes, while its logs go to
+`docker compose logs <service>`; `EPPITNIC_CONFIG_DIR` and `EPPITNIC_VAR_DIR`
+never need setting.
 
 ## Rebuild or start over
 
