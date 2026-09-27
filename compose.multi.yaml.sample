@@ -5,9 +5,9 @@
 # two-instance deployment, or run it alongside the real one with
 # `docker compose -f compose.multi.yaml.sample up`.
 #
-# Each instance needs its own web + scheduler pair -- the scheduler is not
-# optional, see docs/INSTALL.md's "Scheduled jobs": without it that instance's EPP
-# password reminder is never acted on. Every service carries
+# Each instance needs its own web + scheduler pair: the scheduler's `cron run`
+# includes `poll process` (docs/INSTALL.md's "Scheduled jobs"), without which
+# that instance's EPP password reminder is never acted on. Every service carries
 #   extra_hosts: ["host.docker.internal:host-gateway"]
 # so DB_HOST=host.docker.internal reaches a database on the Docker host (see
 # compose.yaml's comment on why that still needs the server listening beyond

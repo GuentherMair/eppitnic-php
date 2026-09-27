@@ -43,9 +43,9 @@ services:
     #   EPPITNIC_DEBUG: "true"   # never in production -- see docs/INSTALL.md's "Configure the web server"
     restart: unless-stopped
 
-  # `poll process` every 5 minutes is not optional -- it's the only thing
-  # that acts on the registry's passwdReminder, so without it the shared EPP
-  # credential expires and every call starts failing. See docker/crontab.
+  # Runs `eppitnic cron run` every minute (docker/crontab), which runs the
+  # due jobs -- among them `poll process`, the only thing acting on the
+  # registry's passwdReminder. Without it the shared EPP credential expires.
   scheduler:
     image: eppitnic
     command: ["crond", "-f", "-L", "/dev/stdout"]
