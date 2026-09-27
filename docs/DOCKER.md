@@ -1,187 +1,240 @@
-# Docker
+# Running eppitnic with Docker
 
-## Rootless mode
-
-Please consider running the images in rootless mode. For more details see the
-[official documentation](https://docs.docker.com/engine/security/rootless/).
-
-If so, you will need to configure the official Docker repository and might want
-to install these packages instead of those indicated in the following section:
-
-```
-apt install uidmap docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-```
-
-**Note:** setting the `DB_HOST` to `host.docker.internal` will not work; either
-use a hostname from DNS or an IP address when connecting.
-
-**Note:** `./data` looks unowned from the host. `docker/entrypoint.sh` chowns
-it to the container's `www-data`, and rootless mode maps that through
-`/etc/subuid` to a host id far outside your own — so `ls -l` shows a bare
-number and you cannot read the files without `sudo`. That is correct, not
-damage. Recovering a `./data` salvaged from elsewhere only needs it readable
-by the container's user before the first start:
-
-```
-chown -R $(id -u):$(id -g) ./data
-```
-
-The entrypoint takes it from there on every start.
+`docker compose up -d` brings up one eppitnic instance: a `web` container
+(nginx and php-fpm) serving the REST API on `127.0.0.1:8080`, a `scheduler`
+sidecar running `eppitnic cron run` every minute, and an `eppitnic-cli`
+service for one-shot commands. No database is included — the instance
+connects to a MariaDB you provide.
 
 ## Prerequisites
 
-Docker Engine plus the **Compose v2** and **Buildx** plugins. On Ubuntu, the
-`docker.io` apt package ships neither — install both explicitly:
+- Docker Engine with the **Compose v2** and **Buildx** plugins. On Ubuntu the
+  `docker.io` package ships neither:
 
+  ```bash
+  apt install docker-compose-v2 docker-buildx
+  ```
+
+  Without Compose v2, `docker compose` is not a command at all (the older,
+  hyphenated `docker-compose` is not supported). Without Buildx it still
+  runs, with a `configured to build using Bake, but buildx isn't installed`
+  warning.
+- A MariaDB database and user for eppitnic, reachable from the containers
+  (see "Connect to a database on the host").
+- The EPP registry credentials, entered during setup.
+
+## Start an instance
+
+1. Build and start the stack from the repository root:
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+2. Run the first-time setup, either interactively:
+
+   ```bash
+   docker compose run --rm eppitnic-cli setup
+   ```
+
+   or in a browser at `http://127.0.0.1:8080/setup.html`. Set the database
+   host to `host.docker.internal` for a database on the Docker host. Setup
+   writes `config.php` to `./data/config/`.
+3. Confirm the API answers:
+
+   ```bash
+   curl http://127.0.0.1:8080/
+   ```
+
+   The expected output is `Hello, World!`.
+4. Put a TLS-terminating reverse proxy in front (see "Put a reverse proxy in
+   front") and set `trusted_proxies`.
+
+The scheduler starts working once `config.php` exists. `cron run` decides
+each minute which jobs are due from their `enabled` and `frequency_minutes`
+settings — see "Scheduled jobs" in [INSTALL.md](INSTALL.md).
+
+## Connect to a database on the host
+
+Every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`,
+so `DB_HOST` `host.docker.internal` in `config.php` reaches the Docker host.
+If the database is itself a compose service, use that service's name instead.
+
+A container's loopback isn't the host's: traffic to `host.docker.internal`
+arrives over the bridge interface with a non-loopback source address, so a
+MariaDB bound to `127.0.0.1` refuses it. Change three things on the host:
+
+1. Set `bind-address` in MariaDB's config from `127.0.0.1` to `0.0.0.0`, then
+   restart MariaDB. This listens on the bridge too; it does not make the
+   database internet-reachable unless you forward the port.
+2. Firewall it anyway. Find the bridge subnet with
+   `docker network inspect eppitnic_default | grep Subnet`, allow port 3306
+   only from that subnet, and confirm nothing allows it from the public
+   interface.
+3. Grant access from the bridge rather than `localhost`:
+
+   ```sql
+   GRANT ALL PRIVILEGES ON eppitnic.* TO '<DB_USER>'@'172.18.%.%' IDENTIFIED BY '<DB_PASSWORD>';
+   FLUSH PRIVILEGES;
+   ```
+
+   Adjust `172.18.%.%` to the subnet from step 2. `<DB_USER>` and
+   `<DB_PASSWORD>` are the credentials you give setup.
+
+## Put a reverse proxy in front
+
+`web` publishes plain HTTP on `127.0.0.1:8080` only; nothing in the image
+terminates TLS or knows the real hostname. Port 8080 leaves port 80 free for
+the proxy.
+
+Use `config/nginx-proxy.sample` or `config/apache-proxy.sample`: each
+terminates TLS at the real `server_name`/`ServerName` and proxies to
+`127.0.0.1:8080`. If you change the published port in `compose.yaml`, change
+the sample's target port to match. (`config/nginx-vhost.sample` and
+`config/apache-vhost.sample` are for a bare-metal install without Docker.)
+
+Then list the proxy in `trusted_proxies`, or `X-Forwarded-For` is ignored and
+every client shares one login rate-limit bucket. Docker's NAT usually rewrites
+traffic from the host to a published port so it arrives from the bridge
+gateway, not `127.0.0.1`. Find the address that actually arrives:
+
+```bash
+curl -s -H "Authorization: Bearer <TOKEN>" http://127.0.0.1:8080/v1/trusted-proxies
 ```
-apt install docker-compose-v2 docker-buildx
+
+The `peer` field is the address to add (`<TOKEN>` is an admin's JWT or API
+token). Then add it:
+
+```bash
+docker compose run --rm eppitnic-cli config trusted-proxies add <PEER_ADDRESS>
 ```
 
-Without Compose v2, `docker compose` isn't a recognized command at all (older
-`docker-compose`, hyphenated, is a different, unsupported tool). Without
-Buildx, `docker compose up` still runs, but with a `configured to build using
-Bake, but buildx isn't installed` warning.
+See "Login rate limiting" in [INSTALL.md](INSTALL.md) for what the setting
+controls.
 
-Only `web` (`web-alpha` in the multi-instance sample) declares `build: .`.
-`scheduler` and `eppitnic-cli` deliberately don't, even though they run the
-same `image: eppitnic` — building the identical `Dockerfile` to the identical
-tag from more than one service races on the final export/tag step even under
-Buildx/Bake (it shares the build steps between them, but not that last one),
-failing with `image "docker.io/library/eppitnic:latest": already exists`. If
-you ever add a service that needs this image, give it `image: eppitnic`
-without its own `build:` — Compose builds it once, from whichever service
-owns it, and the rest just start from the result.
+## Run CLI commands
 
-`docker compose up -d` brings up one instance: nginx + php-fpm in one
-container serving `public/` on `127.0.0.1:8080`, plus a scheduler sidecar on the
-same image running `poll process` every five minutes (see "Scheduled jobs" in
-[INSTALL.md](INSTALL.md) — it can't be skipped) and `session keepalive` every
-minute (a no-op unless the `keepalive` setting is on). Neither container
-provides a
-database; every service carries `extra_hosts: ["host.docker.internal:host-gateway"]`
-so `DB_HOST=host.docker.internal` in `config.php` reaches one on the Docker
-host — or point `DB_HOST` at another compose service's name if the database
-is a container too.
+CLI commands run in a one-shot `eppitnic-cli` container rather than through
+`docker exec`, because the ones most needed — `setup`, `doctor ownership`,
+`doctor epp-password` — are needed exactly when the stack isn't healthy:
 
-## Reaching a database on the host
-
-A container's loopback isn't the host's — traffic to `host.docker.internal`
-arrives at the host over the bridge interface, with a real (non-loopback)
-source address. A MariaDB bound to `127.0.0.1` refuses it regardless of
-`extra_hosts`; it never had a chance to see the connection. Three changes on
-the host, none of them exposing the database to the internet — the bridge
-network isn't routed anywhere by the host's public interface unless you
-explicitly forward it:
-
-1. **`bind-address`** in MariaDB's config — `127.0.0.1` → `0.0.0.0`, then
-   restart. This puts it on every interface, the bridge included; it is not
-   the same as making it internet-reachable.
-2. **Firewall it anyway**, defense in depth: `docker network inspect
-   eppitnic_default | grep Subnet` for the bridge's actual subnet, then allow
-   port 3306 from only that subnet and confirm nothing already allows it from
-   the public interface.
-3. **A grant that matches the bridge, not `localhost`** —
-   `GRANT ALL PRIVILEGES ON eppitnic.* TO 'username'@'172.18.%.%' IDENTIFIED BY '<password>'; FLUSH PRIVILEGES;`
-   (adjust the wildcard to the subnet from step 2).
-
-## Putting a reverse proxy in front
-
-`web` publishes on `127.0.0.1:8080` only, plain HTTP — nothing in the image
-terminates TLS or knows the real hostname, by design (see
-`docker/nginx.conf`'s own comment). Port 8080, not 80: that leaves 80 free
-for the proxy itself, or for `config/nginx-vhost.sample`/
-`config/apache-vhost.sample` to bind directly on a bare-metal install. Put a
-normal host webserver in front of the container: `config/nginx-proxy.sample`
-or `config/apache-proxy.sample`, which terminate TLS at the real
-`server_name`/`ServerName` and proxy to `127.0.0.1:8080`. These are the
-Docker-facing counterparts of the two vhost samples above. Changed
-`compose.yaml`'s published port? Update the proxy sample's target port to
-match.
-
-One thing both proxy samples call out and is easy to get wrong: a request
-proxied through `127.0.0.1` to a published container port does not
-necessarily arrive with a source address of `127.0.0.1` — Docker's NAT for
-host-to-published-port traffic commonly rewrites it to the bridge gateway
-address instead (`docker network inspect eppitnic_default` shows the real
-one). Set the `trusted_proxies` setting (see INSTALL.md's "Login rate
-limiting") to whatever address actually shows up — Settings → Trusted proxies
-shows it, and can add it — not to `127.0.0.1`. Get it wrong and `X-Forwarded-For` is silently ignored, so every
-client behind the proxy shares one rate-limit bucket.
-
-The image adds only `docker-php-ext-install pdo_mysql` to
-`php:8.5-fpm-alpine` — everything else this codebase touches (`curl`, `dom`,
-`simplexml`, `mbstring`, `posix`, …) already ships in it. `xsd/` is left out;
-nothing reads it at runtime, only its filenames appear as `xsi:schemaLocation`
-literals.
-
-Configuration splits the same way as bare-metal (see "Configuration" in
-[INSTALL.md](INSTALL.md)), except `config/config.php` and the self-test notes
-(`var/selftest/`) move outside the image to `EPPITNIC_CONFIG_DIR` /
-`EPPITNIC_VAR_DIR` (`/data/config`, `/data/var` by default, both under
-`compose.yaml`'s one `/data` volume). The rest of `config/`
-(`constants.php`, `mariadb-schema*.sql`) stays inside the image — don't shadow
-it with a bind mount, both are read on every request. Neither variable
-normally needs setting; only what `/data` maps to and which port is published
-vary between instances.
-
-CLI verbs run as a third, one-shot service rather than `docker exec` into a
-running container — `doctor ownership`, `doctor epp-password`, `setup` are
-wanted precisely when the stack *isn't* healthy, and `exec` needs something
-already running:
-
-```
+```bash
 docker compose run --rm eppitnic-cli domain info example.it
 ```
 
-or via the wrapper script at the repo root, which adds picking an instance by
-name:
+The `./eppitnic` wrapper at the repository root does the same, with the
+instance name first (`default` for `compose.yaml`'s single instance):
 
-```
+```bash
 ./eppitnic default domain info example.it
 ```
 
-`docker compose run` allocates a TTY by default, which is what lets
-`Cli\Command::confirm()` prompt before a destructive verb. Scripted use needs
-both `-T` (no TTY) and `--yes` — either alone still refuses:
+`docker compose run` allocates a TTY, which lets destructive commands ask for
+confirmation. Unattended use needs both `-T` (no TTY) and `--yes`; either
+alone still refuses:
 
-```
+```bash
 ./eppitnic -T default domain delete example.it --yes
 ```
 
-Two instances on one host: `compose.multi.yaml.sample` — the same three
-services twice, different ports and `/data` folders, each with its own
-`eppitnic-cli-<name>` service (`./eppitnic alpha ...`, `./eppitnic beta ...`).
+## Run several instances on one host
 
-`pdns sync` is deliberately not scheduled in the image: it shells out to
-`pdnsutil`, not part of a PHP image, against zones the container can't reach.
-Run it from the PowerDNS host itself, against the same database.
+`compose.multi.yaml.sample` runs two instances, `alpha` and `beta`: the same
+three services each, published on `127.0.0.1:8081` and `127.0.0.1:8082`,
+with their own `./data/alpha` and `./data/beta` folders. Each needs its own
+scheduler, and each instance's `config.php` may point at the same database
+server or a different one.
 
-## Tearing down, rebuilding, and starting over
+1. Copy `compose.multi.yaml.sample` to `compose.yaml`, renaming or adding
+   instances as needed.
+2. Start the stack with `docker compose up -d --build` and run setup once per
+   instance, e.g. `./eppitnic alpha setup`.
+3. Reach each instance's CLI by name:
+
+   ```bash
+   ./eppitnic alpha domain info example.it
+   ```
+
+Only the port and the `/data` folder differ between instances;
+`EPPITNIC_CONFIG_DIR` and `EPPITNIC_VAR_DIR` never need setting.
+
+## Rebuild or start over
 
 To pick up a code or `Dockerfile` change, keeping the build cache:
 
-```
+```bash
 docker compose down
 docker compose up -d --build
 ```
 
-For a genuinely clean rebuild — discard the built image and the build
-cache, not just the containers:
+For a clean rebuild that discards the built image and the build cache:
 
-```
+```bash
 docker compose down --rmi all
 docker compose build --no-cache
 docker compose up -d
 ```
 
 `--rmi all` removes every image the compose file references, including the
-pulled `php:8.5-fpm-alpine` and `composer:2` base images, so the next build
-re-pulls those too. Removing the image alone doesn't clear BuildKit's layer
-cache — a plain `docker compose build` afterward could still hand back
-something close to what was just deleted — `--no-cache` is what forces an
-actual rebuild.
+`php:8.5-fpm-alpine` and `composer:2` base images, so the next build pulls
+them again. `--no-cache` is what clears BuildKit's layer cache; removing the
+image alone doesn't.
 
-Neither command touches `./data`: it's a bind mount, not a named volume, so
-`config/config.php` and `var/selftest/` survive regardless. `eppitnic-cli`
-needs no separate handling — it only ever runs via `docker compose run --rm`,
-so there's never a lingering container for it.
+Neither command touches `./data`. It is a bind mount, not a named volume, so
+`config.php` and the self-test notes survive.
+
+## Run Docker in rootless mode
+
+Rootless mode is recommended; see the
+[official documentation](https://docs.docker.com/engine/security/rootless/).
+It needs Docker's own apt repository, and these packages instead of the ones
+in "Prerequisites":
+
+```bash
+apt install uidmap docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+Two differences from the default setup:
+
+- `host.docker.internal` does not reach the host. Set the database host to a
+  DNS name or an IP address.
+- `./data` looks unowned from the host. `docker/entrypoint.sh` chowns it to
+  the container's `www-data`, which rootless mode maps through `/etc/subuid`
+  to a host id far from your own, so `ls -l` shows a bare number and reading
+  the files needs `sudo`. That is expected. To reuse a `./data` copied from
+  elsewhere, make it yours before the first start and the entrypoint takes
+  over from there:
+
+  ```bash
+  chown -R $(id -u):$(id -g) ./data
+  ```
+
+## Sync DNS to PowerDNS from Docker
+
+The image does not include `pdnsutil`, so `pdns sync` cannot do its work
+inside the container. To use it, run `bin/eppitnic pdns sync` on the PowerDNS
+host against the same database.
+
+While `pdns.enabled` is on, the scheduler's `cron run` also attempts
+`pdns sync`. Those attempts fail and record the error on the task rows, which
+stay queued until a successful run on the PowerDNS host retires them.
+
+## How the image is put together
+
+- **One build owner.** Only `web` (`web-alpha` in the multi-instance sample)
+  declares `build: .`; `scheduler` and `eppitnic-cli` use `image: eppitnic`
+  without building. Several services building the same `Dockerfile` to the
+  same tag race on the final export step and fail with
+  `image "docker.io/library/eppitnic:latest": already exists`. Give any new
+  service that uses the image `image: eppitnic` and no `build:`.
+- **Extensions.** The image adds only `pdo_mysql` to `php:8.5-fpm-alpine`;
+  everything else the code uses (`curl`, `dom`, `simplexml`, `mbstring`,
+  `posix`, …) ships with the base image. `xsd/` is left out: nothing reads it
+  at runtime.
+- **Configuration.** As on bare metal (see "Configuration" in
+  [INSTALL.md](INSTALL.md)), except `config.php` and the self-test notes live
+  outside the image, in `EPPITNIC_CONFIG_DIR` and `EPPITNIC_VAR_DIR`
+  (`/data/config` and `/data/var`, both under the one `./data:/data` bind
+  mount). The rest of `config/` — `constants.php` and the schema files — stays
+  in the image and is read on every request, so don't bind-mount over
+  `config/`.
