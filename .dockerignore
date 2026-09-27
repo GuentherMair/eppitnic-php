@@ -21,3 +21,4 @@ compose*.yaml
 compose*.yaml.sample
 Dockerfile
 .dockerignore
+data/

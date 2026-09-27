@@ -21,7 +21,9 @@ set -eu
 #                                                         # required, or Command::confirm()
 #                                                         # refuses -- see docs/DOCKER.md
 
-compose_file="${EPPITNIC_COMPOSE_FILE:-compose.yaml}"
+# only when set: an explicit -f would stop Compose merging compose.override.yaml
+compose_args=""
+[ -n "${EPPITNIC_COMPOSE_FILE:-}" ] && compose_args="-f ${EPPITNIC_COMPOSE_FILE}"
 
 # anything before the instance name is a `docker compose run` flag (-T, ...);
 # anything from the instance name on is the instance plus the eppitnic verb
@@ -49,5 +51,5 @@ shift
 service="eppitnic-cli"
 [ "$instance" = "default" ] || service="eppitnic-cli-${instance}"
 
-# shellcheck disable=SC2086  # run_flags is deliberately word-split
-exec docker compose -f "$compose_file" run --rm $run_flags "$service" "$@"
+# shellcheck disable=SC2086  # compose_args/run_flags are deliberately word-split
+exec docker compose $compose_args run --rm $run_flags "$service" "$@"

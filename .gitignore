@@ -2,6 +2,10 @@
 /vendor/
 /config/config.php
 
+# a Docker instance's config.php and notes, and local-only compose overrides
+/data/
+compose.override.yaml
+
 # self-test leftovers (see Eppitnic\Selftest\Leftovers)
 /var/
 
