@@ -1,43 +1,64 @@
 # Testing
 
-## Setup
+Two levels of tests: the PHPUnit suite runs offline and proves the right EPP
+XML is generated and parsed, and `selftest` runs against nic.it's public test
+registry and proves the registry still accepts it.
 
+## Run the test suite
+
+1. Install the dependencies, including the development ones:
+
+   ```bash
+   composer install
+   ```
+
+2. Run the suite from the repository root:
+
+   ```bash
+   vendor/bin/phpunit
+   ```
+
+   `composer test` does the same. The run ends with
+   `OK, but some tests were skipped!`: four poll-message cases in
+   `Wire\ResponseParsingTest` skip by design, since `passwdReminder` and
+   `creditMsgData` are not about a particular domain.
+
+The suite needs no MariaDB and no network: it runs on
+`Config::loadForTesting()` and a fake transport. Some tests open an in-memory
+SQLite database (`ext-pdo_sqlite`, bundled with PHP by default) to exercise
+real `Config::set()` writes.
+
+### Run part of the suite
+
+Narrow a run the usual PHPUnit ways — by suite (`unit`, `wire`, `http`,
+`cli`), directory or test name:
+
+```bash
+vendor/bin/phpunit --testsuite wire
+vendor/bin/phpunit tests/Cli
+vendor/bin/phpunit --filter <TEST_NAME>
 ```
-composer install
-```
 
-That's enough for almost the whole suite: it runs on `Config::loadForTesting()`
-and a fake transport, with no MariaDB and no network.
+### Tests that need a local MariaDB
 
-A few tests (`Setup\InstallerTest`, `Setup\SchemaInstallerTest`) additionally
-drive a real, disposable database — `mysql:host=localhost` as the current
-shell user, no password (i.e. local socket auth), with privileges to create
-and drop a database. Without one reachable, those tests skip themselves
-rather than fail.
+`Setup\InstallerTest` and `Setup\SchemaInstallerTest` also drive a real,
+disposable database: `mysql:host=localhost` as the current shell user with no
+password (local socket authentication), with privileges to create and drop a
+database. Without one reachable, those tests skip themselves rather than
+fail, and the skipped count goes up accordingly.
 
-Some tests also open an in-memory SQLite database (`ext-pdo_sqlite`, bundled
-with PHP by default) to exercise real `Config::set()` writes.
+### Captured registry responses
 
-A handful of `Wire\ResponseParsingTest` cases always skip: they need captured
-registry fixtures from `tests/capture-responses.php`, a maintainer-only tool
-that anonymises real registry responses out of a populated installation's
-database. Not something to set up for ordinary test runs.
-
-## Running
-
-```
-vendor/bin/phpunit
-```
-
-(equivalently `composer test`). Narrow it the usual PHPUnit ways, e.g.
-`vendor/bin/phpunit tests/Cli` or `--filter SomeTestName`.
+`Wire\ResponseParsingTest` parses real registry answers stored in
+`tests/fixtures/responses/`. They were captured with
+`tests/capture-responses.php`, a maintainer tool that anonymises responses out
+of a populated installation's database; ordinary test runs don't need it.
 
 ## Test against the live test registry
 
-The test suite proves the right XML is generated and that recorded answers
-parse; `selftest` proves the registry still accepts that XML. It registers,
-reads back, changes and deletes real contacts and a real domain at the
-public test registry.
+`selftest` registers, reads back, changes and deletes real contacts and a
+real domain at the public test registry, checking each answer against what
+was sent.
 
 Point the installation at the test registry first, with a test account in the
 `epp` setting (see "Switch between the test and production registry" in
