@@ -33,7 +33,7 @@ Here is a list of a few very simple reasons:
 6. DB driven session keepalive
 
 
-# Detailed instructions
+# Documentation
 
 Detailed instructions can be found in:
 
