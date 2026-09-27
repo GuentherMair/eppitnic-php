@@ -1,464 +1,213 @@
 # Changelog
 
 ## Version 7.0.0
-PHP 8.5 migration: compatibility fixes, cleanups, and typo fixes across all
-folders. The project imports all dependencies through composer and requires
-PHP >=8.1. Table prefixes ('tbl_') were also dropped.
+7.0 turns the library into a self-contained registrar backend: a JSON/REST
+API with its own authentication, a single `bin/eppitnic` CLI, scheduled jobs,
+resellers, and a Docker image. Upgrading from 6.7 needs a few manual steps —
+see [UPGRADING.md](UPGRADING.md).
 
-The legacy PHP/Smarty/jQuery web interface has been retired and replaced by a
-JSON/REST API (`public/`, routed via Slim) intended for a new frontend
-client. Authentication moved from PHP sessions to bearer-token JWTs
-(`firebase/php-jwt`), with optional TOTP-based MFA and long-lived API tokens
-for scripted access; passwords are now hashed with `password_hash()` instead
-of MD5.
+### Platform, layout and configuration
 
-`Net_EPP_StorageDB`/`Net_EPP_StorageInterface` have been removed. Contact,
-Domain and Session persistence now talk to RedBeanPHP's `R::` facade
-directly, and configuration moved out of `config.xml`: the database
-credentials live in `config/config.php` (the one thing that must be a file,
-since it is needed to reach the database at all) and everything else in the
-`settings` table, read through `Eppitnic\Config`. `eppitnic config migrate`
-converts an existing `config.xml` into both. As part of this, DNS-sync events
-are queued in `tasks` (`object='pdns'`) and consumed by `eppitnic pdns sync`.
+- PHP 8.1 or later; the Docker image runs 8.5. Every dependency comes
+  through Composer; none are vendored in the repository any more.
+- The library lives in `src/` under the `Eppitnic\` namespace
+  (`Eppitnic\Epp\Domain`, `Eppitnic\Epp\Contact`, …).
+  `Net_EPP_StorageDB`/`Net_EPP_StorageInterface` are gone: persistence talks
+  to RedBeanPHP's `R::` facade directly.
+- Tables lose their `tbl_` prefix and move to `utf8mb4`; the upgrade also
+  decodes the HTML entities 6.x stored in text columns.
+- `config.xml` is replaced by `config/config.php` (database credentials only)
+  plus the `settings` table, read through `Eppitnic\Config`.
+  `eppitnic config migrate` converts an existing `config.xml`. The `debug`,
+  `passwordexpirydays`, `passwordexpirynext` and `cookie_dir` settings and the
+  `users.dns` column are not carried over.
+- Settings are inspected and changed with `config` verbs instead of SQL:
+  `config show` (credentials redacted), `config epp-server
+  production|test|toggle`, `config epp-set`, `config epp-password`,
+  `config safe-networks`, `config trusted-proxies`, `config keepalive`,
+  `config session-serialize` and the job-specific `config *-set` verbs.
+  `Support\Validate::eppField()` holds the EPP field rules shared by setup,
+  the CLI and the API, so an invalid username or password is refused when
+  entered rather than at the next `<login>`.
+- Invoicing has been removed: the upgrade drops the `accounting` table and
+  `users.billing_id`. It will be reimplemented separately.
+- WSDL support and the PHP/Smarty/jQuery web interface have been dropped.
 
-Users gained defaults for new contacts and domains: `countrycode`, a list of
-technical contacts in `techc` (a single handle there still reads as a list of
-one), and named sets of nameservers in `nssets` with the default one in
-`dnsset`. They are read and written per user through
-`/v1/users/{id}/settings` and `/v1/users/{id}/nssets`.
+### Command line: `bin/eppitnic`
 
-Invoicing has been removed from this codebase along with the `InvoicingCDR`
-class: the `/v1/accounting` routes, the `accounting` table and the
-`users.billing_id` column are all gone. It will be reimplemented differently.
+Everything runnable lives behind one entry point, `bin/eppitnic`; the
+`CLI/`, `examples/` and `cronjobs/` folders are absorbed into its verbs.
 
-Domain scoping is now uniform: every domain route filters non-admins by the
-domain's own owner (`domains.user_id`), and pending transfers by whoever
-requested them (`transfers.user_id`). `GET /v1/domains/expiring` previously
-filtered by the registrant contact's owner instead, so a domain whose
-registrant belonged to another user was missing from its owner's renewals list
-and present in that other user's — where every write route refused it.
-Relatedly, a domain's registrant must now be a contact the caller owns
-(`POST /v1/domains`, `POST /v1/domains/{name}/registrant`), which is what kept
-those two notions of ownership able to drift apart in the first place.
-
-The registry's `passwdReminder` poll messages are now acted on rather than
-merely stored: `eppitnic poll process` rotates the shared EPP password when one
-is outstanding, rate-limited to one attempt per 24 hours by the `epp` setting's
-new `lastPasswordUpdate` timestamp. The new password is recorded locally before
-it is sent, so a run interrupted mid-change can be settled afterwards by asking
-the registry which password it holds. Every rotation, automatic or manual, is
-a `security` history row with action `rotate` that an admin must acknowledge
-on the dashboard, and is mailed to the SMTP system recipient.
-`Eppitnic\Support\PasswordGenerator`
-generates it from a mixed character set rather than hex, which spent 16
-characters -- EPP's ceiling for the credential -- on 64 bits. Domain authinfo
-codes are drawn the same way, and every other random credential (API tokens,
-the JWT signing key, contact handles, transaction ids) now comes from the same
-class, in whichever form its consumer actually needs. The unused `debug`,
-`epp.passwordexpirydays` and `epp.passwordexpirynext` settings, and the unused
-`users.dns` column, have been dropped.
-
-EPP sessions can now be kept alive across requests instead of the previous
-connect-per-request hello/login/logout on every operation. The new
-`keepalive` setting (`bin/eppitnic config keepalive on|off`) is off by
-default; turned on, `EppSession::run()` reuses one authenticated session
-while it is fresh and never logs out, `eppitnic session keepalive` refreshes
-it from cron before nic.it's own idle timeout, and any EPP command that finds
-the shared session gone logs in again and retries automatically. The cURL
-cookie jar backing every session, shared or not, moved from a file
-(`cookie_dir`, now removed) to process memory, which also fixes concurrent
-requests silently stepping on each other's cookies through that file. See
-docs/INSTALL.md's "Session keep-alive" for the operational detail.
-
-`Domain->get('tech')` now always returns an array (keyed handle => handle).
-It previously returned a bare string whenever the domain had exactly one
-technical contact — the common case — which silently corrupted callers that
-handled the result uniformly: `array_keys((array) $domain->get('tech'))`
-evaluated to `[0]` instead of the handle, so the REST API reported a tech
-contact of `0` and update diffs computed from it never removed the outgoing
-contact. Callers that special-cased the string return can drop that branch.
-
-A `Contact` built without an explicit authinfo now has one. Its constructor
-generated a code and then called `initValues()`, which blanks every entry in
-`FIELDS` — and `authinfo` is one — so every contact created without one was
-sent to the registry with an empty `<contact:pw>`: a transfer credential
-shipped blank. `Domain`, whose `initValues()` assigns each field by name, was
-never affected. The generated default is not treated as a change, so `update()`
-still sends an authinfo only when one was actually asked for.
-
-Nothing rejected the empty one, which is why it went unnoticed for so long. The
-`authInfo` element is mandatory in `contact:create`, but its content is
-`eppcom:pwAuthInfoType` — an unrestricted `normalizedString`, so an empty value
-validates and the registry accepts it. The familiar min-6/max-16 rule is
-`epp:pwType`, which governs the `<login>` password and nothing else; several
-docblocks here confused the two and now say which is which.
-
-Everything runnable now lives behind one entry point, `bin/eppitnic`: the
-`CLI/`, `examples/` and `cronjobs/` folders are gone, absorbed into verbs.
-See "Scheduled jobs" in [INSTALL.md](INSTALL.md) for crontab lines.
-
-A new `eppitnic domain sync` reconciles domains already known locally
-against the registry in bounded phases: `domain check` finds domains the
-registry no longer holds, and `domain info` reconciles drifted nameservers,
-contacts, authinfo, DNSSEC, status and expiry back onto the local row. Each
-run advances a persisted cursor (the `domain_sync` setting's `cursor_id`)
-through the active `domains` table by a configurable `batch_size` (default
-25), wrapping back to the start once exhausted, so a continuously-scheduled
-job eventually revisits every domain without ever issuing an unbounded
-number of registry calls in one tick. Every registrant/admin/tech contact
-linked to a domain touched in a phase is also refreshed locally via `contact
-info` (never `contact check`: a domain naming it as linked is by itself
-sufficient justification to fetch and store it), closing the gap left by
-`domains.admin`/`domains.tech` carrying no foreign key to `contacts.handle`.
-Off by default — `eppitnic config domain-sync on` turns it on; scheduled
-unconditionally in `docker/crontab`, a no-op while off, exactly like
-`session keepalive`. See "Domain reconciliation" in
-[INSTALL.md](INSTALL.md).
-
-`reminder` is now `tasks`, and every row a consumer owns says so through a
-new `object` column (`'pdns'` for a DNS-sync event, `'registry'` for a
-scheduled domain deletion) instead of being told apart by shape. A consumer
-also records what happened once it has actually run a row: `executed_time`,
-`exit_code` (0 success, nonzero failure) and `exit_message`. Only a success
-retires the row (`active=0`); a failure or a skip records the result but
-stays active, so the next run retries it — unchanged from `pdns sync`'s
-existing behaviour, just now visible instead of silent. A new
-`eppitnic domain reap-deletions` is the `object='registry'`, `action='delete'`
-counterpart to `pdns sync`: it is what actually deletes a domain at the
-registry once a `DELETE /v1/domains/{name}?mode=expiry|date` schedule comes
-due — previously nothing consumed those rows at all. Both parts of that pair
-are required in the job's own query, not just the write side, so a `registry`
-row of any other shape is never touched. `GET /v1/reminders` and its siblings
-are now `GET /v1/tasks`.
-
-The `changelog` table is now `history`, because not everything it records is a
-change: it gained a `security` object type and `secread`, `login` and `denied`
-actions, so that an admin retrieving the shared registry credential through the
-new `GET /v1/session/epp/credentials` is recorded along with the address and
-headers the request arrived with. The password itself is never written, and
-`Authorization`, `Cookie` and `Proxy-Authorization` are stored as `[redacted]` —
-the log is read by more people than the credential was shown to. `user_id`
-became nullable, since a login attempt at a username that does not exist has
-nobody to attribute it to.
-
-Login attempts are recorded the same way and rate-limited from those rows:
-past `login_ratelimit.max_failures` within `login_ratelimit.timespan` seconds,
-`POST /v1/users/authenticate` answers `429` with a `Retry-After` header. The
-window slides, so a block lifts itself with no lock to clear. Failures are
-counted per network rather than per address — IPv4 `/24` and IPv6 `/48`, since
-an IPv6 customer is handed an allocation and a per-address limit would stop
-nobody.
-
-That work uncovered an authentication bypass predating it: `ClientIp` preferred
-`X-Forwarded-For` over the connecting address with no check on who sent it, and
-`safe_networks` skips MFA for addresses it recognises — so **any request
-carrying `X-Forwarded-For: 127.0.0.1` skipped MFA**. The header is now believed
-only when the peer that actually connected is listed in the new
-`trusted_proxies` setting, which defaults to empty; **set it if the API runs
-behind a reverse proxy**, or every client shares one rate-limit bucket and none
-matches `safe_networks`. `ClientIp` was also IPv4-only throughout
-(`FILTER_FLAG_IPV4`, `ip2long()`); matching is now done on packed bytes, so
-both families work, and an address is never inside a range of the other family.
-
-The trail is readable over the API: `GET /v1/history` with filters for
-`object`, `object_id`, `action`, `network`, `acknowledged`, `since` and `until`,
-and `POST /v1/history/{id}/acknowledge` to mark a security entry reviewed —
-recording who and when rather than a flag, since for a security log who
-dismissed an alert matters as much as that somebody did. Exposing it meant
-fixing what was already there: `GET /v1/history/{object}/{object_id}` answered
-for any object anybody named, and a `users` snapshot carries an email address
-and an admin flag, so any valid token could read every user's history.
-`History::visibleTo()` is now the single place that decides — an admin sees
-everything, everyone else the history of objects they own — and filters narrow
-what is visible without ever widening it.
-
-The cookbook's contact-creation example was wrong in two ways that only a live
-registry reveals: it withheld consent to publication for an entity type that
-may not (refused with `2308` / `8028`), and its registration code
-`01234567890` fails the partita IVA checksum the registry verifies (`2004` /
-`8027` — the check digit should be `7`). Both are corrected and the rules
-stated. The same placeholder remains in the test fixtures, which compare
-generated XML and reach no registry.
-
-Login passwords now have to meet a rule, where previously they did not have to
-meet any: `password_hash()` was reached from four places and none of them looked
-at what it was given, so a single character was stored happily. At least 12
-characters with a lower-case letter, an upper-case letter, a digit and one
-character that is neither — taken from the only complexity the codebase already
-expressed, `PasswordGenerator::forRegistry()`'s four character classes. Its
-length is deliberately not taken from there: 16 is EPP's ceiling for a registry
-credential, a protocol constraint on that one field with no bearing on a password
-this application hashes itself. Enforced by `Support\PasswordPolicy` at the three
-routes that set a password and in `Persistence\User::create()`, and stated as
-data so the installer can show it before anything is typed. **Existing passwords
-are not affected** — the rule applies where a password is set, never where one is
-checked, so nobody is locked out of an account created before it.
+First-run setup no longer needs a hand-edited config: `eppitnic setup`
+(interactive, or scriptable with `--db-name=` and similar flags) and a
+browser installer (`public/setup.html`, served automatically while
+`config/config.php` doesn't exist) both drive `Setup\Installer`. It probes
+the database credentials with a throwaway connection, applies the schema,
+creates the first admin, and writes `config/config.php` last, so a failed
+setup is simply re-run.
 
 `eppitnic selftest run` exercises the library against the registry's public
-test endpoint: it registers, reads back, changes and deletes real contacts and
-a real domain, checking each answer against what was sent, and reports one line
-per operation. `--domain=NAME` registers a name you choose rather than a generated one, so its
-zone can exist beforehand and the nameservers given with `--ns` actually pass
-the registry's checks — with a generated name they never can, and the run's
-nameserver assertions are inert. In that mode it pauses ten seconds after each
-delegation change to let those checks finish. It refuses to run anywhere else — the check is an allowlist of
-test endpoints made before a session is opened, with no flag to defeat it.
-Because nic.it keeps a contact linked to a domain until that domain is purged,
-30 days after its delete, the contacts that were on the domain when
-it was deleted cannot be removed on the day; those attempts are reported as
-deferred rather than failed, and `eppitnic selftest reap` clears them later
-from the note the run leaves in `var/selftest/`. Nothing else waits — a
-leftover domain, or a contact from a run that failed before creating one, is
-deleted on sight.
+test endpoint: it registers, reads back, changes and deletes real contacts
+and a real domain, checking each answer against what was sent, and reports
+one line per operation. It refuses to run against any other endpoint.
+`--domain=NAME` registers a name whose zone you prepared, so the nameservers
+given with `--ns` pass the registry's checks; the run then pauses ten seconds
+after each delegation change. nic.it keeps a contact linked to a deleted
+domain until it is purged 30 days later, so those contact deletes are
+reported as deferred and cleared later by `eppitnic selftest reap`, from the
+note the run leaves in `var/selftest/`.
 
-WSDL support has been dropped.
+### REST API and authentication
 
-First-run setup no longer requires a terminal. `Config` throws
-`Setup\ConfigMissing` when `config/config.php` is absent, rather than
-prompting from inside `connect()` the way it used to when attached to a TTY;
-`eppitnic setup` (interactive, or scriptable via `--db-name=` and similar
-flags) and a REST/HTML installer (`GET/POST /v1/setup`, `POST
-/v1/setup/verify`, `public/setup.html` — served automatically from
-`public/index.php` for as long as `config/config.php` doesn't exist) both
-drive the same `Setup\Installer`, which probes candidate credentials with a
-throwaway PDO connection before committing to them and creates the first
-admin account, since `POST /v1/users` needs an admin token nothing yet holds.
-Nothing in PHP used to apply `config/mariadb-schema.sql` at all — an empty
-database fell into the schema-versioning code's legacy `'060700'` baseline and
-failed on the 6.7-to-7.0 upgrade's first `ALTER TABLE`; `Setup\SchemaInstaller`
-now tells an empty database apart from an existing installation before
-`Config`'s migration chain ever runs. `config/config.php` is written last,
-once every other step has succeeded, so a setup that fails partway through is
-simply re-run rather than left half-configured.
+A JSON/REST API (Slim 4, `public/`, documented in [API.md](API.md)) replaces
+the web interface. Authentication uses bearer-token JWTs
+(`firebase/php-jwt`) with optional TOTP-based MFA, long-lived fixed API
+tokens for scripted access, or — via the `remote_auth` setting — a front web
+server's own login (`REMOTE_USER`, or a header from a trusted proxy; see
+[REMOTE-AUTH.md](REMOTE-AUTH.md)).
 
-`docker compose up -d` now brings up a whole instance: nginx and php-fpm in
-one container (`Dockerfile`, `docker/`), a scheduler sidecar running the same
-image for `poll process`, and a `eppitnic-cli` service for one-shot verbs like
-`setup` or `doctor ownership` — see [DOCKER.md](DOCKER.md), and
-`compose.multi.yaml.sample` for running more than one instance on the same
-host. `config/config.php` and the self-test notes move outside the image
-entirely, to whatever `EPPITNIC_CONFIG_DIR`/`EPPITNIC_VAR_DIR` point at
-(`Setup\ConfigFile`, `Selftest\Leftovers`), so a bind mount never has to shadow
-`config/` itself — the schema files and `constants.php` living there are read
-on every request and every `Config` construction. `composer.json` now also
-declares `ext-pdo_mysql`, the one extension the image needed to add on top of
-`php:8.5-fpm-alpine`; every DSN this codebase builds is `mysql:` regardless, so
-its absence is now a Composer error instead of a runtime one.
+- Passwords are hashed with `password_hash()` instead of MD5, so existing
+  6.x passwords must be reset. Any password set from now on needs at least
+  12 characters with a lower-case letter, an upper-case letter, a digit and
+  one other character; the rule is enforced by `Support\PasswordPolicy`
+  wherever a password is set, never at login.
+- Logins are rate-limited per network — IPv4 `/24` and IPv6 `/48` by
+  default — through the `login_ratelimit` setting: past `max_failures` within
+  `timespan` seconds, `POST /v1/users/authenticate` answers `429` with a
+  `Retry-After` header.
+- `X-Forwarded-For` is believed only from a peer listed in the new
+  `trusted_proxies` setting, which is empty by default. **Set it if the API
+  runs behind a reverse proxy**, or every client shares one rate-limit bucket
+  and none matches `safe_networks`. Address matching works for IPv4 and
+  IPv6 alike.
 
-That image was then run against a fresh server, which is where the rest of it
-was found. The `web` container publishes on `127.0.0.1:8080` rather than `:80`,
-so port 80 is left for a host webserver — either the existing
-`config/nginx-vhost.sample`/`config/apache-vhost.sample` (the former renamed
-from `config/nginx.sample`, to pair with the Apache one) standing alone on a
-bare-metal install, or the new `config/nginx-proxy.sample` /
-`config/apache-proxy.sample`, which terminate TLS and forward to the
-container. Both proxy samples call out the trap that makes them worth having:
-a request proxied to a published container port does not arrive with a source
-address of `127.0.0.1`, so `trusted_proxies` set to that value silently
-ignores `X-Forwarded-For` and puts every client in one rate-limit bucket.
-Only the `web` service declares `build:` now — three services building the
-same `Dockerfile` to the same tag race on the export step, even under
-Buildx — and the image no longer runs `docker-php-ext-enable opcache`, which
-this base image compiles into the core rather than shipping as a module.
+### Resellers and roles
 
-Two failures in that image made the difference between "down" and "answering
-wrongly", which is the worse of the two. `php:8.5-fpm-alpine` ships pool files
-(`docker.conf`, `zz-docker.conf`) defining an incomplete `[www]` pool
-alongside this image's own `[eppitnic]` one, and php-fpm refuses to start at
-all if *any* pool lacks a `user` while running as root — so the container came
-up with nginx alone, returning 502 indefinitely, because `docker/start-web.sh`
-used a bare `wait`, which blocks until *every* child exits rather than the
-first. Both pool files are now removed at build time, and `start-web.sh` polls
-both children and takes the survivor down with the casualty, so
-`restart: unless-stopped` actually restarts.
+Contacts, domains and pending transfers belong to a **reseller** instead of a
+user, and everyone in a reseller works on all of its objects. Users belong to
+one reseller for good and have a role: `admin` (only in reseller 1,
+"Registrar (self)", which can never be deactivated), `manager` (also manages
+the reseller's users, defaults and NS sets) or `user`. Role and reseller are
+checked against the database on every request, so deactivating a user or a
+reseller takes effect at once.
 
-`Epp\Transport\Curl` now throws instead of calling `exit()` when its debug
-file is not writable. It is reached from `Client`'s constructor, inside a
-request: exiting wrote a line of plain text over whatever the route was about
-to answer, so a JSON client got neither JSON nor a status code. As a
-`\RuntimeException` it lands in the handling both tiers already have for an
-unusable registry connection — 502 from the API, `LOGIN_FAILED` from the CLI.
+- A domain always belongs to its registrant's reseller, so the registrant of
+  a new domain or a registrant change must be one of the caller's reseller's
+  contacts.
+- The daily quota, the default country code, the default tech contacts
+  (`techc`, now a list) and named NS sets (`nssets`, default in `dnsset`)
+  are per reseller. The quota counts transfer-in requests as well as
+  registrations, at request time.
+- Everyone sees the poll messages and tasks about their reseller's domains;
+  managers can archive messages, and anyone in the reseller may deactivate a
+  notice or a scheduled deletion.
+- New: `/v1/resellers`, `/v1/resellers/{id}/settings` and `/nssets`,
+  `reseller list|create|set`, `user create --role --reseller`, and
+  `domain set-owner --new-reseller`. Usernames are unique.
 
-New CLI verbs for the settings that previously had no route but a SQL client:
-`config show [<key>]` prints the `settings` table, redacting `jwt_psk` and the
-EPP credential through the same allow-list `GET /v1/session/epp` uses;
-`config epp-server [production|test|toggle]` moves between `https://epp.nic.it`
-and `https://epp.pubtest.nic.it`; `config epp-set <field> <value>` sets
-`interface`, `lang`, `cl_trid_prefix` or `username`; and `config epp-password`
-changes the shared registry credential, or with `--force` adopts one already
-valid there (verified by a real login first, never written on the strength of
-being typed twice). The group lists `show` first and the one-time `migrate`
-last.
+The upgrade maps each existing user onto a reseller so nobody sees more than
+before.
 
-Those checks now also apply to first-run setup, which had none: `epp_username`,
-`epp_password` and `epp_cl_trid_prefix` were stored exactly as given, so the
-browser installer could seed a username longer than `eppcom:clIDType` allows,
-or a password over `epp:pwType`'s 16 characters, and the mismatch only showed
-at the next `<login>` — with an error from the registry, about a value entered
-days earlier. `Support\Validate::eppField()` is the one place holding those
-rules now, shared by setup, both `config epp-*` verbs and
-`POST /v1/session/change-password`, and setup runs them before it creates the
-admin user, so a rejected install is still re-runnable. That endpoint also
-stamps `lastPasswordUpdate` like every other deliberate change: it feeds the
-once-per-24h guard in `RegistryPasswordChange::rotateOnReminder()`, so leaving
-it untouched let an automatic rotation start moments after an operator had
-changed the credential by hand.
+### Audit trail
 
-`contact create` no longer dies with a fatal error when `--authinfo` is
-omitted — it read a protected property from outside the class to decide
-whether to generate one — and `Epp\Contact::setEntityType()`'s range check
-was `($tmp < 1) && ($tmp > 7)`, which no value satisfies, so nothing was ever
-rejected. `contact create --help` now spells out the entity types 1–7, and the
-expected format for `--province`, `--voice`, `--countrycode` and
-`--nationalitycode`; `domain create --help` states that `--admin`, `--tech`
-(1–6) and `--ns` (2–6) are required and how many of each the registry accepts.
+A new `history` table records who changed what: contacts, domains, users,
+resellers, and the EPP, SMTP, job, remote-auth and trusted-proxy settings.
+Its `security` entries record logins (`login`), failed logins (`denied`),
+rate-limit blocks and credential disclosures (`secread`) and registry
+password rotations (`rotate`), each with the client address and request
+headers. Passwords and tokens are never written, and `Authorization`,
+`Cookie` and `Proxy-Authorization` are stored as `[redacted]`.
 
-The five scheduled jobs (`poll process`, `pdns sync`, `session keepalive`,
-`domain sync`, `domain reap-deletions`) had inconsistent, CLI-only settings
-and no crontab beyond one line each. `pdnsutil_path`/`pdnsutil_ttl` are now
-one `pdns` settings object (`enabled`, `path`, `ttl`, `delay_hours`,
-`frequency_minutes`, `last_run_at`), defaulting to `/usr/bin/pdnsutil`;
-`domain_sync` and a new `domain_reap_deletions` row gained the same
-`enabled`/`frequency_minutes`/`last_run_at` shape (`domain_reap_deletions`
-defaults **on**, since it only ever acts on a deletion a user already
-scheduled through the app); a new `poll_process` row gained
-`frequency_minutes`/`last_run_at` but deliberately no `enabled` — rotating
-the shared EPP password on a `passwdReminder` is not optional, so that job
-has no kill switch. `Service\CronjobSettings` is now the one place that
-validates, persists and audits (`history`, `object='cronjobs'`) a change to
-any of these, shared by both a new `config pdns-set`/`domain-sync-set`/
-`domain-reap-set`/`poll-process-set` CLI shape and the new admin-only
-`GET`/`PATCH /v1/cronjobs*` API — neither reimplements the other's rules.
-`domain sync --batch-size` is now a per-run override only; it no longer
-persists as a side effect of a single run.
+`GET /v1/history` reads the trail, filtered and scoped to what the caller may
+see: an admin everything, everyone else their reseller's objects. Admins
+acknowledge `security` entries one by one or in bulk, recording who and when.
 
-A new `eppitnic cron run` decides internally which of those four jobs are
-actually due (`enabled` where applicable, `frequency_minutes` elapsed since
-`last_run_at`) and runs only those, invoking `session keepalive`
-unconditionally every tick alongside them — the one job with no frequency
-of its own. It is now the **only** verb `docker/crontab` and a fresh
-install's crontab need to schedule, replacing what used to be five
-separate lines. The DNS-sync `INSERT` gate in `Epp\Domain` moved from
-`pdnsutil_path IS NOT NULL` to `pdns.enabled = true` accordingly.
+### Registry password rotation
 
-The frontend's "EPP settings" page is now "Settings" (`/admin/settings`,
-`nav.settings`), with the previously scattered credential-reveal,
-password-rotation and account-balance controls folded into one "Registry
-EPP settings" block, each nested under the row it belongs to rather than
-in its own card. A new "Scheduled Tasks" table lists all five jobs
-(enabled/execution frequency at a glance); clicking one opens a dialog
-editing that job's own fields through `PATCH /v1/cronjobs/{job}`.
-`history`'s object filter gained `cronjobs`.
+The registry's `passwdReminder` poll messages are acted on: `eppitnic poll
+process` rotates the shared EPP password when one is outstanding, at most
+once per 24 hours (tracked in the `epp` setting's `lastPasswordUpdate`). The
+new password is recorded locally before it is sent, so an interrupted
+rotation is settled afterwards by `eppitnic doctor epp-password`, which asks
+the registry which one it holds. Every rotation, automatic or manual, is a
+`security`/`rotate` history entry and is mailed to the SMTP system recipient.
+Admins can read the current credential through
+`GET /v1/session/epp/credentials`, and every retrieval is logged.
 
-The same "Registry EPP settings" block's other 7 plain `epp.*` fields
-(`server`, `server_deleted`, `port`, `interface`, `username`, `lang`,
-`cl_trid_prefix`) are now editable the same way, through a new
-`Service\EppSettings` -- the class `config epp-set`/`config epp-server`
-and the new admin-only `PATCH /v1/session/epp` share, so a change made on
-the command line or through the API is validated and audited identically
-(`history`, `object='epp'`, a gap `config epp-set`/`config epp-server`
-previously had neither). `server`/`server_deleted` must now be a valid
-`https://` URL and `port` 1-65535 -- both previously unvalidated;
-`username`/`lang`/`cl_trid_prefix` cannot be unset, since every one of
-them is structurally required for any EPP call to succeed at all. The
-`interface` field (`CURLOPT_INTERFACE`, confirmed still read by
-`Client`/`Transport\Curl`, not dead) is now chosen from a dropdown of this
-server's own IPv4 addresses (`GET /v1/session/epp/interfaces`, loopback
-excluded), queried fresh each time the edit dialog opens, rather than
-typed freehand. `lang` is a two-way toggle between `it`/`en`. The
-read-only list's labels are translated instead of showing raw field
-names, and `username` moved to the end, right before "Password set".
-`History::OBJECTS` (the `object` allow-list `POST /v1/history/acknowledge`
-checks against) had drifted out of sync with the schema's own ENUM since
-`cronjobs` was added; both `cronjobs` and `epp` are in it now.
+`Support\PasswordGenerator` draws the password from a mixed character set,
+since hex spent EPP's 16-character ceiling on 64 bits. Domain authinfo codes
+are drawn the same way, and every other random credential (API tokens, the
+JWT signing key, contact handles, transaction ids) comes from the same class.
 
-`poll_process` gained the `enabled` flag it was originally built without on
-purpose -- rotating the shared EPP password on a `passwdReminder` still
-runs from here by default (`enabled: true`), but an operator who wants to
-turn it off now can, through the same `config poll-process-set enabled
-<true|false>` / `PATCH /v1/cronjobs/poll_process` path every other job
-uses. `poll process` itself gained the matching guard (a no-op while off,
-same as `pdns sync`/`domain sync`/`domain reap-deletions`), and a
-`--dry-run` flag it always silently rejected as an unknown option is now
-declared, so that rejection's own explanatory message is what a caller
-actually sees. The frontend's cronjobs dialog shows a warning, naming what
-stops working, while the checkbox is unchecked.
+### Scheduled jobs
 
-`domain_sync` (domains and their linked contacts) is now **on by default**
-too, alongside `domain_reap_deletions`/`poll_process` -- only `pdns`
-remains off, since it depends on PowerDNS actually serving the zones.
+`eppitnic cron run` is the only verb a crontab needs: it runs whichever jobs
+are due (`enabled`, and `frequency_minutes` elapsed since `last_run_at`) and
+`session keepalive` on every tick. Each job's settings are validated and
+audited by `Service\CronjobSettings`, shared by the `config *-set` verbs and
+`GET`/`PATCH /v1/cronjobs`. See "Scheduled jobs" in [INSTALL.md](INSTALL.md).
 
-`poll process` and `domain reap-deletions` can now email what they find,
-through a new `smtp` setting and `Service\Notifier` (validate/persist/
-audit, the same shape as `CronjobSettings`/`EppSettings`; new admin-only
-`GET`/`PATCH /v1/smtp`, `config smtp-set`). `recipient_mode` (system/
-user/both/none — `none` turns notifications off without unsetting the
-rest of the configuration) decides who is a recipient class at all, and
-each class is judged only by its own `message_types`/`fulltext` filter —
-the system's own settings, or, for `user`/`both`, the notified domain's
-owning local user's own filter (new `GET`/`PATCH
-/v1/users/{id}/notifications`, self-service). A message with no
-associated domain (an account-level registry message such as
-`passwdReminder`) can only ever reach the system recipient. `domain
-reap-deletions` sends one summary per run covering every outcome,
-success and failure alike, rather than one email per domain.
-`phpmailer/phpmailer` is the new dependency this sends through — no
-mail-sending library existed before, and PHP's own `mail()` has no SMTP
-AUTH of its own. `history.object` gained `smtp`; `History::OBJECTS`
-(which had already drifted out of sync with the schema's own ENUM once
-before) is corrected again. A new admin-only `POST /v1/smtp/test` sends
-one real message against whatever is currently in the form (merged over
-the saved config, nothing persisted or audited), surfaced as a "Send
-test email" button in the settings UI, split across three tabs (SMTP
-settings, authentication, message filters).
+| Job | Default | What it does |
+|---|---|---|
+| `poll process` | on | drains the poll queue, applies completed transfers, rotates the registry password |
+| `domain sync` | on | reconciles local domains and their contacts against the registry |
+| `domain reap-deletions` | on | deletes domains whose scheduled deletion is due |
+| `pdns sync` | off | applies queued DNS changes through `pdnsutil` |
+| `session keepalive` | off | keeps the shared EPP session alive |
 
-Authentication can now be delegated to a front web server (Apache/nginx
-doing Basic auth, LDAP, OIDC…) via the new `remote_auth` setting
-(`config remote-auth-set`, admin-only `GET`/`PATCH /v1/remote-auth`, and a
-"Remote authentication" section in the settings UI; see
-`docs/REMOTE-AUTH.md`). With it enabled, `Api\Auth` trusts the CGI
-`REMOTE_USER`/`REDIRECT_REMOTE_USER` server variable (server mode), or a
-configurable request header read only from a `trusted_proxies` peer
-(header mode), mapping the name to an existing active local user; a
-`Bearer` token, when sent, still always takes precedence. A remote
-username with no matching local account is **403**; `GET
-/v1/users/renew-token` is **400** under remote auth, since there is no JWT
-to renew. `history.object` gained `remote_auth`.
+`reminder` is now `tasks`, and a row a job consumes says so in its `object`
+and `action` columns (`pdns` for a DNS change; `registry`/`delete` for a
+deletion scheduled with `DELETE /v1/domains/{name}?mode=expiry|date`). A job
+records `executed_time`, `exit_code` and `exit_message`; only a success
+retires the row, so a failure is retried on the next run.
 
-`trusted_proxies` can now be edited without SQL: `config trusted-proxies
-[add|remove|clear]` (the same list editing `config safe-networks` does,
-now shared through `CidrListCommand`), admin-only `GET`/`PUT
-/v1/trusted-proxies`, and a "Trusted proxies" section in the settings UI,
-which shows the address the admin's own request arrived from. Entries
-are stored canonically, catch-all ranges (`0.0.0.0/0`, `::/0`) are
-refused, and every change is recorded in `history`
-(`object='trusted_proxies'`).
+`domain sync` works through the active domains in batches (`batch_size`,
+default 25, overridable per run with `--batch-size`) from a persisted cursor,
+wrapping around once exhausted. It finds domains the registry no longer
+holds, reconciles drifted nameservers, contacts, authinfo, DNSSEC, status and
+expiry, and refreshes every contact linked to a domain it touched.
 
-**Resellers and roles.** Contacts, domains and pending transfers belong to a
-reseller instead of a user, and everyone in a reseller works on all of its
-objects. Users belong to one reseller for good and have a role instead of the
-admin flag: `admin` (only in reseller 1, "Registrar (self)", which can never be
-deactivated), `manager` (also manages the reseller's users, defaults and NS
-sets) or `user`. The daily quota, the defaults and NS sets move from the user
-to the reseller; the quota now counts transfer-in requests as well as
-registrations, at request time. A domain always belongs to its registrant's
-reseller. Role and reseller are checked against the database on every request,
-so deactivating a user or a reseller takes effect at once. New: `GET`/`POST`/
-`PATCH /v1/resellers`, `/v1/resellers/{id}/settings` and `/nssets` (replacing
-the per-user routes), `reseller list|create|set`, `user create
---role --reseller`, `domain set-owner --new-reseller`, and a per-user
-notification switch. The 6.7 upgrade maps each existing user onto a reseller
-so nobody sees more than before (see UPGRADING.md). Also fixed on the way: a
-contact could be deleted at the registry by someone who didn't own it, and
-editing a contact or domain silently made the editor its owner; any user
-could read any domain's authinfo via `GET /v1/domains/{name}`, and import (or
-deactivate) another reseller's domain (`domain import --all-resellers` keeps
-that for operators). The registry credit is admin-only now, and usernames
-are unique in the database (the upgrade aborts on colliding ones). The poll
-queue is no longer admin-only: everyone sees the messages about their
-reseller's domains, and managers can archive them. So is the task list:
-everyone sees their reseller's domains' tasks and may deactivate a notice or
-a scheduled deletion.
+With the `keepalive` setting on, API requests share one authenticated EPP
+session instead of logging in and out for every operation, and any command
+that finds the session gone logs in again and retries. `session_serialize`
+optionally locks commands on that shared session against each other. The
+cURL cookie jar lives in process memory instead of a file, so concurrent
+requests no longer step on each other's cookies.
+
+`poll process` and `domain reap-deletions` can email what they find through
+the new `smtp` setting (`phpmailer/phpmailer`, `config smtp-set`,
+`/v1/smtp`). `recipient_mode` (`system`, `user`, `both` or `none`) decides
+who receives them, each recipient filtered by its own `message_types` and
+`fulltext`; account-level messages such as `passwdReminder` only ever reach
+the system recipient.
+
+### Docker
+
+`docker compose up -d` brings up a whole instance: nginx and php-fpm in one
+container published on `127.0.0.1:8080`, a scheduler sidecar running
+`cron run`, and an `eppitnic-cli` service for one-shot verbs. `config.php` and
+the self-test notes live outside the image, wherever `EPPITNIC_CONFIG_DIR`
+and `EPPITNIC_VAR_DIR` point. `config/nginx-vhost.sample` and
+`config/apache-vhost.sample` serve a bare-metal install;
+`config/nginx-proxy.sample` and `config/apache-proxy.sample` terminate TLS in
+front of the container. See [DOCKER.md](DOCKER.md).
+
+### Library fixes
+
+- `Domain->get('tech')` always returns an array (keyed handle => handle). It
+  returned a bare string for a single technical contact, which broke callers
+  that handled the result uniformly; callers that special-cased the string
+  can drop that branch.
+- A `Contact` built without an explicit authinfo now has one. The generated
+  code was blanked by `initValues()`, so such contacts were created with an
+  empty `<contact:pw>`. The registry accepts that: `eppcom:pwAuthInfoType`
+  has no minimum length, and the min-6/max-16 rule is `epp:pwType`, which
+  only governs the `<login>` password.
+- `Epp\Contact::setEntityType()` rejects values outside 1–7; its range check
+  could never fail.
+- `Epp\Transport\Curl` throws instead of calling `exit()` when its debug file
+  is not writable, so the API answers `502` and the CLI `LOGIN_FAILED` rather
+  than printing plain text over the response.
 
 ## Version 6.7
 Fixed a minor bug which kept the `Domain->storeDB(...)` method from removing an
