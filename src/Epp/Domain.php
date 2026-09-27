@@ -883,8 +883,8 @@ class Domain extends AbstractObject
     foreach (self::FIELDS as $field => $serialized) {
       $data[$field] = $serialized ? serialize($this->$field) : $this->$field;
     }
-    $data['cr_date'] = $this->crDate;
-    $data['ex_date'] = $this->exDate;
+    $data['cr_date'] = self::dateOnly($this->crDate);
+    $data['ex_date'] = self::dateOnly($this->exDate);
 
     // replaced rather than updated (re-transfer-in / re-register / re-import),
     // preserving last_invoice
@@ -996,8 +996,8 @@ class Domain extends AbstractObject
       $data['reseller_id'] = self::resellerOf($this->registrant);
     }
 
-    $data['cr_date'] = $this->crDate;
-    $data['ex_date'] = $this->exDate;
+    $data['cr_date'] = self::dateOnly($this->crDate);
+    $data['ex_date'] = self::dateOnly($this->exDate);
 
     if ( ! $this->storageUpdate($domain, $data, $scope)) {
       return FALSE;
@@ -1259,6 +1259,14 @@ class Domain extends AbstractObject
     }
 
     return $queued;
+  }
+
+  /**
+   * The date part of a registry timestamp ("2026-09-27T15:56:37.000+02:00"),
+   * which a DATE column refuses in strict SQL mode.
+   */
+  private static function dateOnly(?string $value): ?string {
+    return preg_match('/^\d{4}-\d{2}-\d{2}/', (string) $value, $m) === 1 ? $m[0] : $value;
   }
 
   /** @return string[] lowercased, trailing-dot-stripped hostnames */
