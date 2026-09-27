@@ -27,7 +27,7 @@ final class CronjobSettingsTest extends EppTestCase
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
 
         Config::loadForTesting(static::SETTINGS + [
-            'pdns' => ['enabled' => false, 'path' => null, 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
+            'pdns' => ['enabled' => false, 'apis' => [], 'nameservers' => [], 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
             'domain_sync' => ['enabled' => false, 'batch_size' => 25, 'cursor_id' => 7, 'frequency_minutes' => 5, 'last_run_at' => null],
             'domain_reap_deletions' => ['enabled' => true, 'frequency_minutes' => 15, 'last_run_at' => null],
             'poll_process' => ['enabled' => true, 'frequency_minutes' => 5, 'last_run_at' => null],
@@ -43,6 +43,30 @@ final class CronjobSettingsTest extends EppTestCase
 
     public function testFieldsListsAJobsOwnFieldsOnly(): void {
         $this->assertSame(['enabled', 'frequency_minutes'], CronjobSettings::fields('poll_process'));
+    }
+
+    public function testFieldsIncludesApisAndNameserversForPdns(): void {
+        $this->assertSame(
+            ['enabled', 'apis', 'nameservers', 'ttl', 'delay_hours', 'frequency_minutes'],
+            CronjobSettings::fields('pdns')
+        );
+    }
+
+    /** apis/nameservers are lists, not a bare value -- each has its own subcommand */
+    public function testScalarFieldsExcludesApisAndNameservers(): void {
+        $this->assertSame(['enabled', 'ttl', 'delay_hours', 'frequency_minutes'], CronjobSettings::scalarFields('pdns'));
+    }
+
+    public function testListFieldCommandPointsAtConfigPdnsApi(): void {
+        $this->assertSame('config pdns-api', CronjobSettings::listFieldCommand('pdns', 'apis'));
+    }
+
+    public function testListFieldCommandPointsAtConfigPdnsNameserver(): void {
+        $this->assertSame('config pdns-nameserver', CronjobSettings::listFieldCommand('pdns', 'nameservers'));
+    }
+
+    public function testListFieldCommandIsNullForAScalarField(): void {
+        $this->assertNull(CronjobSettings::listFieldCommand('pdns', 'ttl'));
     }
 
     public function testGetReturnsTheStoredSettings(): void {
@@ -74,9 +98,9 @@ final class CronjobSettingsTest extends EppTestCase
     }
 
     public function testSetWithNullUnsetsAField(): void {
-        CronjobSettings::set('pdns', ['path' => '/usr/bin/pdnsutil'], 1, true);
-        CronjobSettings::set('pdns', ['path' => null], 1);
-        $this->assertNull(Config::get('pdns')['path']);
+        CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
+        CronjobSettings::set('pdns', ['apis' => null], 1);
+        $this->assertNull(Config::get('pdns')['apis']);
     }
 
     public function testSetRejectsAnUnknownField(): void {
@@ -95,14 +119,55 @@ final class CronjobSettingsTest extends EppTestCase
         $this->assertFalse(Config::get('poll_process')['enabled']);
     }
 
-    public function testSetRejectsANonExecutablePathWithoutForce(): void {
+    public function testSetRejectsAnInvalidApisEntry(): void {
         $this->expectException(\InvalidArgumentException::class);
-        CronjobSettings::set('pdns', ['path' => '/nonexistent/pdnsutil'], 1);
+        CronjobSettings::set('pdns', ['apis' => [['protocol' => 'ftp', 'host' => 'ns1', 'port' => 8081, 'api_key' => 'k']]], 1);
     }
 
-    public function testForceAcceptsANonExecutablePath(): void {
-        $result = CronjobSettings::set('pdns', ['path' => '/nonexistent/pdnsutil'], 1, true);
-        $this->assertSame('/nonexistent/pdnsutil', $result['path']);
+    public function testSetAcceptsAValidApisEntry(): void {
+        $result = CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
+        $this->assertSame('ns1', $result['apis'][0]['host']);
+    }
+
+    public function testSetRejectsANewApisEntryWithNoKey(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        CronjobSettings::set('pdns', ['apis' => [['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => '']]], 1);
+    }
+
+    public function testSetKeepsTheStoredApiKeyWhenBlank(): void {
+        CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
+
+        $result = CronjobSettings::set('pdns', ['apis' => [['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => '']]], 1);
+
+        $this->assertSame('stored-key', $result['apis'][0]['api_key']);
+    }
+
+    /** @return array{protocol: string, host: string, port: int, api_key: string} */
+    private static function validApi(): array {
+        return ['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => 'stored-key'];
+    }
+
+    public function testSetAcceptsAValidNameserversList(): void {
+        $result = CronjobSettings::set('pdns', ['nameservers' => ['ns1.example.it']], 1);
+        $this->assertSame(['ns1.example.it'], $result['nameservers']);
+    }
+
+    public function testSetNormalizesNameservers(): void {
+        $result = CronjobSettings::set('pdns', ['nameservers' => ['NS1.Example.IT.']], 1);
+        $this->assertSame(['ns1.example.it'], $result['nameservers']);
+    }
+
+    public function testSetRejectsAnIpAddressAsANameserver(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        CronjobSettings::set('pdns', ['nameservers' => ['192.0.2.1']], 1);
+    }
+
+    public function testSetRejectsMoreThanSixNameservers(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        CronjobSettings::set('pdns', ['nameservers' => [
+            'ns1.example.it', 'ns2.example.it', 'ns3.example.it',
+            'ns4.example.it', 'ns5.example.it', 'ns6.example.it', 'ns7.example.it',
+        ]], 1);
     }
 
     public function testSetRejectsAFrequencyOutOfRange(): void {
@@ -126,6 +191,27 @@ final class CronjobSettingsTest extends EppTestCase
         $this->assertSame('update', $row['action']);
         $this->assertStringContainsString('pdns', $row['data']);
         $this->assertStringContainsString('7200', $row['data']);
+    }
+
+    public function testHistoryRedactsApiKeys(): void {
+        CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 42);
+
+        $row = R::getRow("SELECT * FROM history WHERE object = 'cronjobs'");
+        $this->assertStringNotContainsString('stored-key', $row['data']);
+        $this->assertStringContainsString('api_key_set', $row['data']);
+    }
+
+    public function testPublicViewRedactsApis(): void {
+        CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
+
+        $view = CronjobSettings::publicView('pdns');
+
+        $this->assertTrue($view['apis'][0]['api_key_set']);
+        $this->assertArrayNotHasKey('api_key', $view['apis'][0]);
+    }
+
+    public function testPublicViewOfAJobWithoutApisIsUnaffected(): void {
+        $this->assertSame(CronjobSettings::get('poll_process'), CronjobSettings::publicView('poll_process'));
     }
 
     public function testKeepaliveSetGoesThroughTheSameHistoryTrail(): void {

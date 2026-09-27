@@ -22,29 +22,32 @@ abstract class AbstractCronjobSetCommand extends Command
     }
 
     public function options(): array {
-        return self::LOCAL_MUTATING_OPTIONS + [
-            'force' => "skip the 'path' field's is_executable() check, where that field exists",
-        ];
+        return self::LOCAL_MUTATING_OPTIONS;
     }
 
     public function run(): int {
         $this->database();
 
         $job = $this->job();
-        $fields = CronjobSettings::fields($job);
+        $fields = CronjobSettings::scalarFields($job);
 
         $field = $this->arguments[0] ?? null;
+        if ($field !== null && ! in_array($field, $fields, true)) {
+            $via = CronjobSettings::listFieldCommand($job, $field);
+            if ($via !== null) {
+                throw new UsageError("{$job}.{$field} is edited via '{$via}', not this command");
+            }
+        }
         if ($field === null || ! in_array($field, $fields, true)) {
             throw new UsageError('give a field (' . implode(', ', $fields) . ') and, optionally, a value to set it to');
         }
 
         // no value = unset, falling back to the job's own default
         $value = $this->arguments[1] ?? null;
-        $force = $this->hasOption('force');
         $label = "{$job}.{$field}";
 
         try {
-            [, $preview] = CronjobSettings::preview($job, [$field => $value], $force);
+            [, $preview] = CronjobSettings::preview($job, [$field => $value]);
         } catch (\InvalidArgumentException $e) {
             throw new UsageError($e->getMessage());
         }
@@ -68,7 +71,7 @@ abstract class AbstractCronjobSetCommand extends Command
         }
 
         try {
-            CronjobSettings::set($job, [$field => $value], $this->userId(), $force);
+            CronjobSettings::set($job, [$field => $value], $this->userId());
         } catch (\InvalidArgumentException $e) {
             throw new UsageError($e->getMessage());
         }

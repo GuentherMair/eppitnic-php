@@ -24,12 +24,14 @@ final class CronjobSettings
      * is null: it is a bare bool, not an object, so get()/set() special-case
      * it rather than forcing it into a shape it was never given.
      *
-     * validators: 'bool', 'positive-int', 'range:MIN,MAX', 'executable-path'.
+     * validators: 'bool', 'positive-int', 'range:MIN,MAX', 'pdns-apis',
+     * 'pdns-nameservers'.
      */
     private const JOBS = [
         'pdns' => ['pdns', [
             'enabled'          => 'bool',
-            'path'             => 'executable-path',
+            'apis'             => 'pdns-apis',
+            'nameservers'      => 'pdns-nameservers',
             'ttl'              => 'positive-int',
             'delay_hours'      => 'positive-int',
             'frequency_minutes' => 'range:1,1440',
@@ -56,6 +58,17 @@ final class CronjobSettings
         ]],
     ];
 
+    /**
+     * validator => the command that edits that field directly. A field
+     * whose validator is listed here takes more than one bare value (a
+     * list, not a scalar), so `config <job>-set` won't offer it -- see
+     * scalarFields()/listFieldCommand().
+     */
+    private const LIST_FIELD_COMMANDS = [
+        'pdns-apis'        => 'config pdns-api',
+        'pdns-nameservers' => 'config pdns-nameserver',
+    ];
+
     /** @return string[] every job name, for CLI usage text and GET /v1/cronjobs */
     public static function jobs(): array {
         return array_keys(self::JOBS);
@@ -64,6 +77,30 @@ final class CronjobSettings
     /** @return string[] the fields $job accepts, in declared order */
     public static function fields(string $job): array {
         return array_keys(self::job($job)[1]);
+    }
+
+    /**
+     * fields(), minus any field `config <job>-set` cannot take a single
+     * bare value for -- see LIST_FIELD_COMMANDS.
+     *
+     * @return string[]
+     */
+    public static function scalarFields(string $job): array {
+        [, $fields] = self::job($job);
+        return array_keys(array_filter(
+            $fields,
+            fn(string $validator) => ! array_key_exists($validator, self::LIST_FIELD_COMMANDS)
+        ));
+    }
+
+    /**
+     * @return string|null the command that edits $field directly, or null if
+     *         $field takes a bare value (or does not exist -- the caller
+     *         is expected to have checked that already)
+     */
+    public static function listFieldCommand(string $job, string $field): ?string {
+        [, $fields] = self::job($job);
+        return self::LIST_FIELD_COMMANDS[$fields[$field] ?? ''] ?? null;
     }
 
     /**
@@ -80,6 +117,19 @@ final class CronjobSettings
     }
 
     /**
+     * get(), with any secret withheld -- `pdns.apis`'s api_key becomes
+     * api_key_set. What every output path (GET /v1/cronjobs, `config show`,
+     * CLI output, `history`) shows; get() stays raw for PdnsSyncCommand.
+     */
+    public static function publicView(string $job): array {
+        $settings = self::get($job);
+        if (array_key_exists('apis', $settings)) {
+            $settings['apis'] = PowerDnsApis::redact((array) ($settings['apis'] ?? []));
+        }
+        return $settings;
+    }
+
+    /**
      * Validate and coerce $changes, and compute what the job's full settings
      * would be afterward -- without writing anything. What a caller uses to
      * show "already set to X" / a confirm prompt with the real, coerced
@@ -88,7 +138,7 @@ final class CronjobSettings
      * @param array $changes field => new value, or null to unset it
      * @return array{0: array, 1: array} [validated changes, resulting full settings]
      */
-    public static function preview(string $job, array $changes, bool $force = false): array {
+    public static function preview(string $job, array $changes): array {
         [$key, $fields] = self::job($job);
 
         $unknown = array_diff(array_keys($changes), array_keys($fields));
@@ -99,16 +149,18 @@ final class CronjobSettings
             );
         }
 
+        $current = $key === null ? [] : Config::get($key);
+
         $validated = [];
         foreach ($changes as $field => $value) {
-            $validated[$field] = $value === null ? null : self::validate($fields[$field], $field, $value, $force);
+            $validated[$field] = $value === null ? null : self::validate($fields[$field], $field, $value, $current);
         }
 
         if ($key === null) {
             // keepalive: the only field is 'enabled', and it *is* the setting
             return [$validated, ['enabled' => $validated['enabled'] ?? (bool) Config::get('keepalive')]];
         }
-        return [$validated, $validated + Config::get($key)];
+        return [$validated, $validated + $current];
     }
 
     /**
@@ -119,16 +171,20 @@ final class CronjobSettings
      *
      * @param array $changes field => new value, or null to unset it. Only
      *              the given fields change; everything else is untouched.
-     * @param bool $force skip the `path` field's is_executable() check
      * @return array the job's full settings after the change
      */
-    public static function set(string $job, array $changes, int $userId, bool $force = false): array {
+    public static function set(string $job, array $changes, int $userId): array {
         [$key] = self::job($job);
-        [$validated, $result] = self::preview($job, $changes, $force);
+        [$validated, $result] = self::preview($job, $changes);
 
         Config::set($key ?? 'keepalive', $key === null ? $result['enabled'] : $result);
 
-        History::record('cronjobs', 0, 'update', ['job' => $job, 'changes' => $validated], $userId);
+        // audited redacted -- a real api_key must never reach `history`
+        $audited = $validated;
+        if (array_key_exists('apis', $audited) && $audited['apis'] !== null) {
+            $audited['apis'] = PowerDnsApis::redact($audited['apis']);
+        }
+        History::record('cronjobs', 0, 'update', ['job' => $job, 'changes' => $audited], $userId);
 
         return $result;
     }
@@ -156,7 +212,8 @@ final class CronjobSettings
         return self::JOBS[$job];
     }
 
-    private static function validate(string $validator, string $field, mixed $value, bool $force): mixed {
+    /** @param array $current the job's full settings before this change */
+    private static function validate(string $validator, string $field, mixed $value, array $current): mixed {
         if ($validator === 'bool') {
             return self::parseBool($field, $value);
         }
@@ -167,12 +224,11 @@ final class CronjobSettings
             [$min, $max] = array_map('intval', explode(',', substr($validator, 6)));
             return self::parseInt($field, $value, $min, $max);
         }
-        if ($validator === 'executable-path') {
-            $path = (string) $value;
-            if ( ! $force && ! is_executable($path)) {
-                throw new \InvalidArgumentException("'{$path}' is not executable -- pass --force/force to set it anyway");
-            }
-            return $path;
+        if ($validator === 'pdns-apis') {
+            return PowerDnsApis::validate((array) $value, (array) ($current['apis'] ?? []));
+        }
+        if ($validator === 'pdns-nameservers') {
+            return PowerDnsNameservers::validate((array) $value);
         }
         throw new \LogicException("no validator implemented for '{$validator}'"); // unreachable, guards a typo in JOBS
     }

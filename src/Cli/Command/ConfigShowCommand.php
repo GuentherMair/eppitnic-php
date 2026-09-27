@@ -5,6 +5,7 @@ namespace Eppitnic\Cli\Command;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
+use Eppitnic\Service\PowerDnsApis;
 
 /**
  * Show the current `settings` table -- all there is to inspect, once
@@ -57,6 +58,11 @@ final class ConfigShowCommand extends Command
         // limit like the rest of this table.
         if ($key === 'session_cookies') {
             return '[redacted]';
+        }
+
+        if ($key === 'pdns' && is_array($value)) {
+            $value['apis'] = PowerDnsApis::redact((array) ($value['apis'] ?? []));
+            return $value;
         }
 
         if ($key === 'epp' && is_array($value)) {

@@ -16,7 +16,7 @@ $app->get('/v1/cronjobs', function (Request $request, Response $response, array 
 
     $jobs = [];
     foreach (CronjobSettings::jobs() as $job) {
-        $jobs[$job] = CronjobSettings::get($job);
+        $jobs[$job] = CronjobSettings::publicView($job);
     }
 
     return Json::response($response, ['jobs' => $jobs]);
@@ -26,14 +26,12 @@ $app->patch('/v1/cronjobs/{job}', function (Request $request, Response $response
     $user_id = Auth::requireAdmin($request);
     $job = $args['job'];
     $body = $request->getParsedBody() ?? [];
-    $force = (bool) ($body['force'] ?? false);
-    unset($body['force']);
 
     try {
-        $settings = CronjobSettings::set($job, $body, $user_id, $force);
+        CronjobSettings::set($job, $body, $user_id);
     } catch (\InvalidArgumentException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 400);
     }
 
-    return Json::response($response, ['job' => $job, 'settings' => $settings]);
+    return Json::response($response, ['job' => $job, 'settings' => CronjobSettings::publicView($job)]);
 });

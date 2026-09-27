@@ -3,33 +3,46 @@
 namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
+use Eppitnic\PowerDns\Api;
+use Eppitnic\PowerDns\CurlHttpClient;
+use Eppitnic\PowerDns\DryRunHttpClient;
+use Eppitnic\PowerDns\HttpClient;
 use Eppitnic\Service\CronjobSettings;
+use Eppitnic\Service\PowerDnsApis;
 use RedBeanPHP\R;
 
 /**
- * Apply pending DNS-sync events to PowerDNS through `pdnsutil`, which must be
- * on the PATH or named by the `pdns` setting's `path` field. create and
- * update share one idempotent path; a delete waits `--delay-hours`, and
- * archives on success. A no-op while `pdns.enabled` is off -- see
- * `config pdns-set enabled true`.
+ * Apply pending DNS-sync events to every server in the `pdns` setting's
+ * `apis` list, over the PowerDNS authoritative HTTP API. Every server gets
+ * every change; a row is `applied` only once all of them succeed, else it
+ * stays active with a per-server message in `exit_message`. create and
+ * update share one idempotent path; a delete waits `--delay-hours`. A
+ * no-op while `pdns.enabled` is off, or `apis` is empty -- see
+ * `config pdns-set enabled true` and `config pdns-api add`.
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic pdns sync >> /var/log/eppitnic/pdns-sync.log 2>&1
  */
 final class PdnsSyncCommand extends Command
 {
     public function describe(): string {
-        return 'apply pending DNS-sync events to PowerDNS via pdnsutil';
+        return 'apply pending DNS-sync events to PowerDNS via its HTTP API';
     }
 
     public function options(): array {
         return [
             'delay-hours=' => 'hours to wait before applying a delete (default: pdns.delay_hours)',
-            'dry-run'      => 'print the pdnsutil invocations without running any',
+            'dry-run'      => 'print the requests that would be sent to each PowerDNS API, without sending them',
         ];
     }
 
-    private string $pdnsutil = 'pdnsutil';
     private int $ttl = 3600;
+
+    /** test seam; overrides both the real curl client and the dry-run one */
+    private ?HttpClient $httpClient = null;
+
+    public function setHttpClient(HttpClient $client): void {
+        $this->httpClient = $client;
+    }
 
     public function run(): int {
         $this->database();
@@ -40,9 +53,24 @@ final class PdnsSyncCommand extends Command
             return 0;
         }
 
+        $servers = (array) ($cfg['apis'] ?? []);
+        if ($servers === []) {
+            $this->line('pdns sync is on but no PowerDNS API is configured (see: eppitnic config pdns-api add)');
+            return 0;
+        }
+
         $delayHours = (int) $this->option('delay-hours', $cfg['delay_hours'] ?: 12);
-        $this->pdnsutil = (string) ($cfg['path'] ?: 'pdnsutil');
         $this->ttl = (int) ($cfg['ttl'] ?: 3600);
+
+        // an injected client (tests) always wins; otherwise --dry-run gets a
+        // client that answers itself, so the real one is used nowhere else
+        $dryRunHttp = $this->httpClient === null && $this->isDryRun() ? new DryRunHttpClient() : null;
+        $http = $this->httpClient ?? $dryRunHttp ?? new CurlHttpClient();
+
+        $apis = array_map(
+            static fn(array $server) => ['label' => PowerDnsApis::baseUrl($server), 'api' => new Api($http, $server)],
+            $servers
+        );
 
         $rows = R::getAll("SELECT * FROM tasks WHERE object = 'pdns' AND active = 1 AND date <= CURRENT_DATE ORDER BY id ASC");
         if ($rows === []) {
@@ -55,8 +83,8 @@ final class PdnsSyncCommand extends Command
 
         foreach ($rows as $row) {
             $outcome = $row['action'] === 'delete'
-                ? $this->applyDelete($row, $delayHours)
-                : $this->applyUpsert($row);
+                ? $this->applyDelete($row, $delayHours, $apis)
+                : $this->applyUpsert($row, $apis);
 
             $this->record(
                 sprintf('[%s] %-40s %-8s %s', $row['id'], $row['domain'], $row['action'], $outcome['message']),
@@ -95,6 +123,10 @@ final class PdnsSyncCommand extends Command
             }
         }
 
+        if ($dryRunHttp !== null) {
+            $this->printDryRun($dryRunHttp);
+        }
+
         $this->line('');
         $this->line(sprintf('%d event(s) %s, %d failed', $applied,
             $this->isDryRun() ? 'would be applied' : 'applied', $failed));
@@ -104,9 +136,10 @@ final class PdnsSyncCommand extends Command
 
     /**
      * @param array<string, mixed> $row
+     * @param array<int, array{label: string, api: Api}> $apis
      * @return array{status: string, message: string}
      */
-    private function applyDelete(array $row, int $delayHours): array {
+    private function applyDelete(array $row, int $delayHours, array $apis): array {
         $age = $this->rowAgeInHours($row);
 
         if ($age === null) {
@@ -119,9 +152,17 @@ final class PdnsSyncCommand extends Command
             return ['status' => 'deferred', 'message' => "not due yet (delay {$delayHours}h)"];
         }
 
-        [$code, $output] = $this->pdnsutil('delete-zone ' . escapeshellarg((string) $row['domain']));
-        if ($code !== 0) {
-            return ['status' => 'failed', 'message' => 'FAILED: ' . implode(' ', $output)];
+        $zone = (string) $row['domain'];
+        $failures = [];
+        foreach ($apis as $server) {
+            $outcome = $server['api']->deleteZone($zone);
+            if ( ! $outcome['ok']) {
+                $failures[] = "{$server['label']}: {$outcome['message']}";
+            }
+        }
+
+        if ($failures !== []) {
+            return ['status' => 'failed', 'message' => 'FAILED: ' . implode('; ', $failures)];
         }
         return ['status' => 'applied', 'message' => 'zone deleted'];
     }
@@ -130,9 +171,10 @@ final class PdnsSyncCommand extends Command
      * create and update, which are the same operation -- see the class note.
      *
      * @param array<string, mixed> $row
+     * @param array<int, array{label: string, api: Api}> $apis
      * @return array{status: string, message: string}
      */
-    private function applyUpsert(array $row): array {
+    private function applyUpsert(array $row, array $apis): array {
         $zone = (string) $row['domain'];
 
         $domainRow = R::getRow("SELECT ns FROM domains WHERE domain = ?", [$zone]);
@@ -146,32 +188,39 @@ final class PdnsSyncCommand extends Command
             return ['status' => 'skipped', 'message' => 'SKIPPED: domain has no nameservers on record'];
         }
 
-        if ( ! $this->zoneExists($zone)) {
-            $nsArgs = implode(' ', array_map('escapeshellarg', $nameservers));
-            [$code, $output] = $this->pdnsutil('create-zone ' . escapeshellarg($zone) . ' ' . $nsArgs);
-            if ($code !== 0) {
-                return ['status' => 'failed', 'message' => 'FAILED to create zone: ' . implode(' ', $output)];
+        $failures = [];
+        foreach ($apis as $server) {
+            $outcome = $this->syncZone($server['api'], $zone, $nameservers);
+            if ( ! $outcome['ok']) {
+                $failures[] = "{$server['label']}: {$outcome['message']}";
             }
         }
 
-        [$code, $output] = $this->pdnsutil(
-            'delete-rrset ' . escapeshellarg($zone) . ' ' . escapeshellarg($zone) . ' NS'
-        );
-        if ($code !== 0) {
-            return ['status' => 'failed', 'message' => 'FAILED to clear apex NS records: ' . implode(' ', $output)];
+        if ($failures !== []) {
+            return ['status' => 'failed', 'message' => 'FAILED: ' . implode('; ', $failures)];
         }
-
-        foreach ($nameservers as $ns) {
-            $content = escapeshellarg(rtrim((string) $ns, '.') . '.');
-            [$code, $output] = $this->pdnsutil(
-                'add-record ' . escapeshellarg($zone) . ' ' . escapeshellarg($zone) . " NS {$this->ttl} {$content}"
-            );
-            if ($code !== 0) {
-                return ['status' => 'failed', 'message' => "FAILED to add NS record {$ns}: " . implode(' ', $output)];
-            }
-        }
-
         return ['status' => 'applied', 'message' => 'zone synced (' . count($nameservers) . ' NS records)'];
+    }
+
+    /**
+     * exists? -> create if missing -> always replace the apex NS set, on one
+     * server.
+     *
+     * @param string[] $nameservers
+     * @return array{ok: bool, message: string}
+     */
+    private function syncZone(Api $api, string $zone, array $nameservers): array {
+        $exists = $api->zoneExists($zone);
+        if ( ! $exists['ok']) {
+            return ['ok' => false, 'message' => $exists['message']];
+        }
+        if ( ! $exists['exists']) {
+            $created = $api->createZone($zone, $nameservers);
+            if ( ! $created['ok']) {
+                return $created;
+            }
+        }
+        return $api->replaceApexNs($zone, $nameservers, $this->ttl);
     }
 
     /**
@@ -196,49 +245,14 @@ final class PdnsSyncCommand extends Command
         return ($now - $created) / 3600;
     }
 
-    /**
-     * A zone this run has already created counts as existing, even though the
-     * dry run never created it -- otherwise the preview shows a create-zone
-     * followed by records added to a zone it claims is missing.
-     *
-     * @var array<string, true>
-     */
-    private array $pretendCreated = [];
-
-    private function zoneExists(string $zone): bool {
-        if ($this->isDryRun()) {
-            return isset($this->pretendCreated[$zone]);
-        }
-        [$code] = $this->pdnsutil('list-zone ' . escapeshellarg($zone));
-        return $code === 0;
-    }
-
-    /**
-     * @return array{0: int, 1: string[]} exit code, output lines
-     */
-    private function pdnsutil(string $args): array {
-        $command = escapeshellcmd($this->pdnsutil) . ' ' . $args;
-
-        if ($this->isDryRun()) {
-            // straight to stdout: the invocations are the point of the exercise
-            echo $command, "\n";
-            if (str_starts_with($args, 'create-zone ')) {
-                $this->pretendCreated[$this->zoneArgument($args)] = true;
+    /** Every request a dry run built, never the API key (headers are not printed). */
+    private function printDryRun(DryRunHttpClient $client): void {
+        foreach ($client->sentRequests() as $request) {
+            // straight to stdout: the requests are the point of the exercise
+            echo $request['method'], ' ', $request['url'], "\n";
+            if ($request['body'] !== null) {
+                echo $request['body'], "\n";
             }
-            return [0, []];
         }
-
-        $output = [];
-        $code = 0;
-        exec($command . ' 2>&1', $output, $code);
-        return [$code, $output];
-    }
-
-    /**
-     * The zone name out of a built argument string, for the dry run's
-     * bookkeeping. Single-quoted by escapeshellarg().
-     */
-    private function zoneArgument(string $args): string {
-        return preg_match("/^create-zone '([^']*)'/", $args, $m) === 1 ? $m[1] : '';
     }
 }

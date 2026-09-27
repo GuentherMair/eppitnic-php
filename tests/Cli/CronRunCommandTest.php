@@ -37,7 +37,7 @@ final class CronRunCommandTest extends EppTestCase
     }
 
     private const DEFAULTS = [
-        'pdns'                  => ['enabled' => false, 'path' => null, 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
+        'pdns'                  => ['enabled' => false, 'apis' => [], 'nameservers' => [], 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
         'domain_sync'           => ['enabled' => false, 'batch_size' => 25, 'cursor_id' => 0, 'frequency_minutes' => 5, 'last_run_at' => null],
         'domain_reap_deletions' => ['enabled' => true, 'frequency_minutes' => 15, 'last_run_at' => null],
         'poll_process'          => ['enabled' => true, 'frequency_minutes' => 5, 'last_run_at' => null],

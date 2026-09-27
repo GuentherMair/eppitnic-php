@@ -4,20 +4,20 @@ namespace Eppitnic\Tests\Cli;
 
 use Eppitnic\Cli\Command\PdnsSyncCommand;
 use Eppitnic\Config;
+use Eppitnic\PowerDns\HttpClient;
 use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeHttpClient;
 use RedBeanPHP\R;
 
 /**
- * Applying DNS-sync events to PowerDNS. `pdnsutil` is reached through a
- * setting, so a stub script exercises the real exec() path -- what runs, in
- * what order, and what a non-zero exit does -- with no PowerDNS server
+ * Applying DNS-sync events to PowerDNS over its HTTP API. A FakeHttpClient
+ * stands in for every configured server, so what runs, in what order, and
+ * what a non-2xx/404 response does is exercised with no real PowerDNS
  * anywhere.
  */
 final class PdnsSyncTest extends EppTestCase
 {
-    private string $stub;
-    private string $log;
-    private string $failFile;
+    private FakeHttpClient $http;
 
     protected function setUp(): void {
         parent::setUp();
@@ -31,70 +31,36 @@ final class PdnsSyncTest extends EppTestCase
                  active INTEGER DEFAULT 1, executed_time TEXT, exit_code INTEGER, exit_message TEXT, created_time TEXT)');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, ns TEXT)');
 
-        $dir = sys_get_temp_dir() . '/pdns-sync-test-' . getmypid();
-        @mkdir($dir, 0o755, true);
-        $this->stub = $dir . '/pdnsutil';
-        $this->log = $dir . '/calls.log';
-        $this->failFile = $dir . '/fail';
-        @unlink($this->log);
-        @unlink($this->failFile);
-
-        // Records every invocation and answers according to two marker files:
-        // 'fail' makes everything fail, 'zone-<name>' means that zone exists.
-        file_put_contents($this->stub, <<<SH
-            #!/bin/sh
-            echo "\$@" >> "{$this->log}"
-            if [ -f "{$this->failFile}" ]; then echo "stub failure"; exit 1; fi
-            if [ "\$1" = "list-zone" ]; then
-              [ -f "{$dir}/zone-\$2" ] && exit 0
-              exit 1
-            fi
-            if [ "\$1" = "create-zone" ]; then touch "{$dir}/zone-\$2"; fi
-            exit 0
-            SH);
-        chmod($this->stub, 0o755);
-        $this->zoneDir = $dir;
+        $this->http = new FakeHttpClient();
 
         Config::loadForTesting(self::SETTINGS + [
             'pdns' => [
-                'enabled' => true, 'path' => $this->stub, 'ttl' => 3600,
-                'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
+                'enabled' => true,
+                'apis' => [['protocol' => 'http', 'host' => 'ns1.test', 'port' => 8081, 'api_key' => 'k1']],
+                'nameservers' => ['ns1.example.com'],
+                'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
             ],
         ]);
-    }
-
-    private string $zoneDir = '';
-
-    protected function tearDown(): void {
-        foreach (glob($this->zoneDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-        @rmdir($this->zoneDir);
-        parent::tearDown();
-    }
-
-    /**
-     * @param string[] $args
-     */
-    private function sync(array $args = []): string {
-        $command = new PdnsSyncCommand($args);
-
-        ob_start();
-        $this->exitCode = $command->run();
-        $command->flush();
-        return (string) ob_get_clean();
     }
 
     private int $exitCode = 0;
 
     /**
-     * @return string[] the arguments of each pdnsutil call, in order
+     * @param string[] $args
+     * @param bool $useFakeHttp false lets the command build its own client
+     *             (the real dry-run one, under --dry-run) -- for the tests
+     *             that are about that client's own behaviour
      */
-    private function calls(): array {
-        if ( ! is_file($this->log)) {
-            return [];
+    private function sync(array $args = [], bool $useFakeHttp = true): string {
+        $command = new PdnsSyncCommand($args);
+        if ($useFakeHttp) {
+            $command->setHttpClient($this->http);
         }
-        return array_values(array_filter(explode("\n", (string) file_get_contents($this->log))));
+
+        ob_start();
+        $this->exitCode = $command->run();
+        $command->flush();
+        return (string) ob_get_clean();
     }
 
     private function addDomain(string $name, array $nameservers): void {
@@ -124,7 +90,7 @@ final class PdnsSyncTest extends EppTestCase
 
         $this->assertSame(0, $this->exitCode);
         $this->assertStringContainsString('no pending DNS-sync events', $output);
-        $this->assertSame([], $this->calls());
+        $this->assertSame([], $this->http->calls());
     }
 
     /**
@@ -138,13 +104,27 @@ final class PdnsSyncTest extends EppTestCase
 
         $this->sync();
 
-        $this->assertSame([
-            'list-zone example-one.it',
-            'create-zone example-one.it ns1.example.com ns2.example.com',
-            'delete-rrset example-one.it example-one.it NS',
-            'add-record example-one.it example-one.it NS 3600 ns1.example.com.',
-            'add-record example-one.it example-one.it NS 3600 ns2.example.com.',
-        ], $this->calls());
+        $calls = $this->http->calls();
+        $this->assertCount(3, $calls);
+        $this->assertSame('GET', $calls[0]['method']);
+        $this->assertStringEndsWith('/zones/example-one.it.', $calls[0]['url']);
+
+        $this->assertSame('POST', $calls[1]['method']);
+        $this->assertStringEndsWith('/zones', $calls[1]['url']);
+        $posted = json_decode($calls[1]['body'], true);
+        $this->assertSame('example-one.it.', $posted['name']);
+        $this->assertSame('Native', $posted['kind']);
+        $this->assertSame(['ns1.example.com.', 'ns2.example.com.'], $posted['nameservers']);
+
+        $this->assertSame('PATCH', $calls[2]['method']);
+        $patched = json_decode($calls[2]['body'], true);
+        $this->assertSame('REPLACE', $patched['rrsets'][0]['changetype']);
+        $this->assertSame('NS', $patched['rrsets'][0]['type']);
+        $this->assertSame(3600, $patched['rrsets'][0]['ttl']);
+        $this->assertSame(
+            ['ns1.example.com.', 'ns2.example.com.'],
+            array_column($patched['rrsets'][0]['records'], 'content')
+        );
 
         $row = R::getRow('SELECT active, exit_code, exit_message FROM tasks WHERE id = 1');
         $this->assertSame(0, (int) $row['active'], 'the row was not archived');
@@ -156,17 +136,14 @@ final class PdnsSyncTest extends EppTestCase
      * An existing zone is not re-created; only its NS set is reconciled.
      */
     public function testAnUpdateSkipsTheZoneCreation(): void {
-        touch($this->zoneDir . '/zone-example-one.it');
+        $this->http = new FakeHttpClient(['example-one.it.']);
         $this->addDomain('example-one.it', ['ns1.example.com']);
         $this->addEvent('example-one.it', 'update');
 
         $this->sync();
 
-        $this->assertSame([
-            'list-zone example-one.it',
-            'delete-rrset example-one.it example-one.it NS',
-            'add-record example-one.it example-one.it NS 3600 ns1.example.com.',
-        ], $this->calls());
+        $methods = array_column($this->http->calls(), 'method');
+        $this->assertSame(['GET', 'PATCH'], $methods);
     }
 
     public function testADeleteWaitsOutTheGracePeriod(): void {
@@ -174,7 +151,7 @@ final class PdnsSyncTest extends EppTestCase
 
         $output = $this->sync();
 
-        $this->assertSame([], $this->calls(), 'the zone was torn down inside the grace period');
+        $this->assertSame([], $this->http->calls(), 'the zone was torn down inside the grace period');
         $this->assertStringContainsString('not due yet', $output);
         $row = R::getRow('SELECT active, executed_time FROM tasks WHERE id = 1');
         $this->assertSame(1, (int) $row['active'], 'a deferred row was archived');
@@ -182,20 +159,35 @@ final class PdnsSyncTest extends EppTestCase
     }
 
     public function testADeleteRunsOnceItIsDue(): void {
+        $this->http = new FakeHttpClient(['example-one.it.']);
         $this->addEvent('example-one.it', 'delete', '-13 hours');
 
         $this->sync();
 
-        $this->assertSame(['delete-zone example-one.it'], $this->calls());
+        $calls = $this->http->calls();
+        $this->assertCount(1, $calls);
+        $this->assertSame('DELETE', $calls[0]['method']);
         $this->assertSame(0, (int) R::getCell('SELECT active FROM tasks WHERE id = 1'));
     }
 
     public function testTheGracePeriodIsConfigurable(): void {
+        $this->http = new FakeHttpClient(['example-one.it.']);
         $this->addEvent('example-one.it', 'delete', '-2 hours');
 
         $this->sync(['--delay-hours=1']);
 
-        $this->assertSame(['delete-zone example-one.it'], $this->calls());
+        $this->assertSame('DELETE', $this->http->calls()[0]['method']);
+    }
+
+    /** deleting an already-gone zone (404) still counts as success */
+    public function testADeleteOfAnAlreadyGoneZoneSucceeds(): void {
+        $this->addEvent('example-one.it', 'delete', '-13 hours');
+
+        $this->sync();
+
+        $row = R::getRow('SELECT active, exit_message FROM tasks WHERE id = 1');
+        $this->assertSame(0, (int) $row['active']);
+        $this->assertStringContainsString('deleted', $row['exit_message']);
     }
 
     /**
@@ -207,17 +199,17 @@ final class PdnsSyncTest extends EppTestCase
 
         $output = $this->sync();
 
-        $this->assertSame([], $this->calls());
+        $this->assertSame([], $this->http->calls());
         $this->assertStringContainsString('no usable created_time', $output);
         $this->assertSame(1, (int) R::getCell('SELECT active FROM tasks WHERE id = 1'));
     }
 
     /**
-     * A failing pdnsutil leaves the row active, so the next run retries it --
-     * but the failure is now recorded, unlike before.
+     * A failing server leaves the row for the next run -- but the failure is
+     * now recorded.
      */
     public function testAFailedCallLeavesTheRowForTheNextRun(): void {
-        touch($this->failFile);
+        $this->http->failAll(500, '{"error":"stub failure"}');
         $this->addDomain('example-one.it', ['ns1.example.com']);
         $this->addEvent('example-one.it', 'create');
 
@@ -228,6 +220,39 @@ final class PdnsSyncTest extends EppTestCase
         $this->assertSame(1, (int) $row['active'], 'a failed row was archived');
         $this->assertSame(1, (int) $row['exit_code']);
         $this->assertStringContainsString('FAILED', $row['exit_message']);
+        $this->assertStringContainsString('stub failure', $row['exit_message']);
+    }
+
+    /**
+     * Every configured API gets every change; a row succeeds only when all of
+     * them do, and the failing one's own message is in exit_message.
+     */
+    public function testAFailureOnOneOfSeveralApisKeepsTheRowActive(): void {
+        Config::loadForTesting(self::SETTINGS + [
+            'pdns' => [
+                'enabled' => true,
+                'apis' => [
+                    ['protocol' => 'http', 'host' => 'ns1.test', 'port' => 8081, 'api_key' => 'k1'],
+                    ['protocol' => 'http', 'host' => 'ns2.test', 'port' => 8081, 'api_key' => 'k2'],
+                ],
+                'nameservers' => ['ns1.example.com'],
+                'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
+            ],
+        ]);
+        $this->http->failHost('ns2.test', 422, '{"error":"bad NS content"}');
+        $this->addDomain('example-one.it', ['ns1.example.com']);
+        $this->addEvent('example-one.it', 'create');
+
+        $this->sync();
+
+        $row = R::getRow('SELECT active, exit_message FROM tasks WHERE id = 1');
+        $this->assertSame(1, (int) $row['active'], 'a partial failure was archived');
+        $this->assertStringContainsString('ns2.test', $row['exit_message']);
+        $this->assertStringContainsString('bad NS content', $row['exit_message']);
+
+        // the succeeding server still got every call -- every API gets every change
+        $ns1Calls = array_filter($this->http->calls(), fn($c) => str_contains($c['url'], 'ns1.test'));
+        $this->assertSame(['GET', 'POST', 'PATCH'], array_column($ns1Calls, 'method'));
     }
 
     public function testADomainMissingLocallyIsSkipped(): void {
@@ -235,7 +260,7 @@ final class PdnsSyncTest extends EppTestCase
 
         $output = $this->sync();
 
-        $this->assertSame([], $this->calls());
+        $this->assertSame([], $this->http->calls());
         $this->assertStringContainsString('domain not found locally', $output);
         $row = R::getRow('SELECT active, exit_code, exit_message FROM tasks WHERE id = 1');
         $this->assertSame(1, (int) $row['active'], 'a skip stays active for the next run');
@@ -249,26 +274,57 @@ final class PdnsSyncTest extends EppTestCase
 
         $output = $this->sync();
 
-        $this->assertSame([], $this->calls());
+        $this->assertSame([], $this->http->calls());
         $this->assertStringContainsString('no nameservers on record', $output);
     }
 
+    public function testNoApisConfiguredIsNotAnError(): void {
+        Config::loadForTesting(self::SETTINGS + [
+            'pdns' => ['enabled' => true, 'apis' => [], 'nameservers' => ['ns1.example.com'], 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
+        ]);
+        $this->addDomain('example-one.it', ['ns1.example.com']);
+        $this->addEvent('example-one.it', 'create');
+
+        $output = $this->sync();
+
+        $this->assertSame(0, $this->exitCode);
+        $this->assertStringContainsString('no PowerDNS API is configured', $output);
+        $this->assertSame([], $this->http->calls());
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM tasks WHERE id = 1'), 'nothing was touched');
+    }
+
+    /** `apis => null` (unset) must read exactly like `apis => []` */
+    public function testApisSetToNullIsTreatedAsNoApisConfigured(): void {
+        Config::loadForTesting(self::SETTINGS + [
+            'pdns' => ['enabled' => true, 'apis' => null, 'nameservers' => ['ns1.example.com'], 'ttl' => 3600, 'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null],
+        ]);
+
+        $output = $this->sync();
+
+        $this->assertStringContainsString('no PowerDNS API is configured', $output);
+        $this->assertSame([], $this->http->calls());
+    }
+
     /**
-     * A dry run runs nothing and archives nothing -- the events still stand.
+     * A dry run runs nothing over the network and archives nothing -- the
+     * events still stand. Uses the command's own dry-run client, not the
+     * FakeHttpClient, since this is about that path.
      */
     public function testDryRunTouchesNeitherPowerDnsNorTheQueue(): void {
         $this->addDomain('example-one.it', ['ns1.example.com']);
         $this->addEvent('example-one.it', 'create');
 
-        $output = $this->sync(['--dry-run']);
+        $output = $this->sync(['--dry-run'], useFakeHttp: false);
 
-        $this->assertSame([], $this->calls(), 'pdnsutil was run under --dry-run');
         $row = R::getRow('SELECT active, executed_time FROM tasks WHERE id = 1');
         $this->assertSame(1, (int) $row['active'], 'a row was archived under --dry-run');
         $this->assertNull($row['executed_time'], 'a result was recorded under --dry-run');
 
-        $this->assertStringContainsString('create-zone', $output);
-        $this->assertStringContainsString('add-record', $output);
+        $this->assertStringContainsString('POST', $output);
+        $this->assertStringContainsString('/zones', $output);
+        $this->assertStringContainsString('PATCH', $output);
+        $this->assertStringContainsString('ns1.example.com.', $output);
+        $this->assertStringNotContainsString('k1', $output, 'the API key leaked into the dry-run output');
     }
 
     /**
@@ -282,21 +338,21 @@ final class PdnsSyncTest extends EppTestCase
         $output = $this->sync();
 
         $this->assertStringContainsString('no pending DNS-sync events', $output);
-        $this->assertSame([], $this->calls());
+        $this->assertSame([], $this->http->calls());
     }
 
     /**
-     * The preview must not claim a zone is missing after showing the
-     * create-zone that would have made it -- two events for the same domain
-     * would otherwise print two creates.
+     * The preview must not claim a zone is missing after showing the POST
+     * that would have created it -- two events for the same domain would
+     * otherwise print two creates.
      */
     public function testDryRunRemembersZonesItWouldHaveCreated(): void {
         $this->addDomain('example-one.it', ['ns1.example.com']);
         $this->addEvent('example-one.it', 'create');
         $this->addEvent('example-one.it', 'update');
 
-        $output = $this->sync(['--dry-run']);
+        $output = $this->sync(['--dry-run'], useFakeHttp: false);
 
-        $this->assertSame(1, substr_count($output, 'create-zone'), 'the same zone was created twice in the preview');
+        $this->assertSame(1, substr_count($output, 'POST'), 'the same zone was created twice in the preview');
     }
 }

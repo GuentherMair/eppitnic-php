@@ -211,16 +211,6 @@ Two differences from the default setup:
   chown -R $(id -u):$(id -g) ./data
   ```
 
-## Sync DNS to PowerDNS from Docker
-
-The image does not include `pdnsutil`, so `pdns sync` cannot do its work
-inside the container. To use it, run `bin/eppitnic pdns sync` on the PowerDNS
-host against the same database.
-
-While `pdns.enabled` is on, the scheduler's `cron run` also attempts
-`pdns sync`. Those attempts fail and record the error on the task rows, which
-stay queued until a successful run on the PowerDNS host retires them.
-
 ## How the image is put together
 
 - **One build owner.** Only `web` (`web-alpha` in the multi-instance sample)

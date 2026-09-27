@@ -12,13 +12,14 @@ use RedBeanPHP\R;
  * `config pdns-set` -- a thin AbstractCronjobSetCommand wrapper over
  * CronjobSettings, which does the actual validation/persistence/history
  * write; see CronjobSettingsTest for that layer's own coverage. This test
- * is about the CLI shape: unset-by-omission, --force, confirm/dry-run/
- * already-set, and that an unknown field is a UsageError.
+ * is about the CLI shape: unset-by-omission, confirm/dry-run/already-set,
+ * and that an unknown field (or `apis`/`nameservers`, which have their own
+ * subcommands) is a UsageError.
  */
 final class ConfigPdnsSetCommandTest extends EppTestCase
 {
     private const DEFAULT_PDNS = [
-        'enabled' => false, 'path' => null, 'ttl' => 3600,
+        'enabled' => false, 'apis' => [], 'nameservers' => [], 'ttl' => 3600,
         'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
     ];
 
@@ -49,29 +50,18 @@ final class ConfigPdnsSetCommandTest extends EppTestCase
         return $this->capture(fn() => $this->assertSame(0, $command->run()));
     }
 
-    public function testSetsPathToAnExecutableFile(): void {
-        // php's own binary is guaranteed executable wherever this test runs
-        $php = PHP_BINARY;
-        $this->runCommand(['--yes', 'path', $php]);
-        $this->assertSame($php, Config::get('pdns')['path']);
-    }
-
-    public function testRejectsANonExecutablePathWithoutForce(): void {
+    /** apis is a list -- config pdns-set won't take it, config pdns-api does */
+    public function testRejectsApisAndPointsAtConfigPdnsApi(): void {
         $this->expectException(UsageError::class);
-        (new ConfigPdnsSetCommand(['--yes', 'path', '/nonexistent/pdnsutil']))->run();
+        $this->expectExceptionMessageMatches("/config pdns-api/");
+        (new ConfigPdnsSetCommand(['--yes', 'apis', 'whatever']))->run();
     }
 
-    public function testForceAcceptsANonExecutablePath(): void {
-        $this->runCommand(['--yes', '--force', 'path', '/nonexistent/pdnsutil']);
-        $this->assertSame('/nonexistent/pdnsutil', Config::get('pdns')['path']);
-    }
-
-    public function testUnsettingPathGivesNoValue(): void {
-        $this->runCommand(['--yes', '--force', 'path', '/nonexistent/pdnsutil']);
-        $this->assertNotNull(Config::get('pdns')['path']);
-
-        $this->runCommand(['--yes', 'path']);
-        $this->assertNull(Config::get('pdns')['path']);
+    /** nameservers is a list -- config pdns-set won't take it, config pdns-nameserver does */
+    public function testRejectsNameserversAndPointsAtConfigPdnsNameserver(): void {
+        $this->expectException(UsageError::class);
+        $this->expectExceptionMessageMatches("/config pdns-nameserver/");
+        (new ConfigPdnsSetCommand(['--yes', 'nameservers', 'whatever']))->run();
     }
 
     public function testSetsTtlToAPositiveInteger(): void {

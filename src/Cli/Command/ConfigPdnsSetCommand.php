@@ -3,8 +3,9 @@
 namespace Eppitnic\Cli\Command;
 
 /**
- * Set or unset one `pdns` field: enabled, path, ttl, delay_hours, or
- * frequency_minutes. See AbstractCronjobSetCommand and CronjobSettings.
+ * Set or unset one `pdns` field: enabled, ttl, delay_hours, or
+ * frequency_minutes. See `config pdns-api`/`config pdns-nameserver` for
+ * the `apis`/`nameservers` lists, and AbstractCronjobSetCommand for the rest.
  */
 final class ConfigPdnsSetCommand extends AbstractCronjobSetCommand
 {
@@ -13,6 +14,6 @@ final class ConfigPdnsSetCommand extends AbstractCronjobSetCommand
     }
 
     public function describe(): string {
-        return 'set or unset a pdns.* setting: enabled, path, ttl, delay_hours, frequency_minutes';
+        return 'set or unset a pdns.* setting: enabled, ttl, delay_hours, frequency_minutes';
     }
 }

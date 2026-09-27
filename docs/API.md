@@ -606,10 +606,24 @@ change made here or on the command line is validated and audited identically
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/cronjobs` | admin | every job's current settings, as `{"jobs": {"pdns": {...}, "domain_sync": {...}, "domain_reap_deletions": {...}, "poll_process": {...}, "keepalive": {...}}}`. Job-state fields (`cursor_id`, `last_run_at`) are included read-only, not part of what `PATCH` accepts |
-| `PATCH /v1/cronjobs/{job}` | admin | body = partial field map for that job, e.g. `{"enabled": true, "frequency_minutes": 10}`. `400` with `{"error": "..."}` on an unknown job/field or a failed validator (the same message the CLI produces). `{"force": true}` in the body skips `pdns.path`'s `is_executable()` check, like `config pdns-set path --force`. Returns `{"job": "...", "settings": {...}}`, the job's full updated settings |
+| `PATCH /v1/cronjobs/{job}` | admin | body = partial field map for that job, e.g. `{"enabled": true, "frequency_minutes": 10}`. `400` with `{"error": "..."}` on an unknown job/field or a failed validator (the same message the CLI produces). Returns `{"job": "...", "settings": {...}}`, the job's full updated settings |
 
 `keepalive` is stored as a bare boolean; this route wraps it as
 `{"enabled": bool}` so every job has the same shape.
+
+`pdns` carries `apis`, the PowerDNS servers `pdns sync` applies every change
+to: `[{"protocol": "http"|"https", "host": "...", "port": 8081, "api_key_set": true}]`.
+The API key is never returned; `api_key_set` stands in for it, and `history`
+records it redacted. `PATCH` takes the whole list, each entry with
+`protocol`, `host`, `port` and optionally `api_key`: an entry without a key
+keeps the stored key of the same protocol, host and port, and a new server
+without one is `400`, as are duplicates and more than 6 servers.
+
+`pdns` also carries `nameservers`, the DNS server hostnames PowerDNS answers
+for: `["ns1.example.it", "ns2.example.it"]`, lower-case without a trailing
+dot. Only domains whose nameservers include one of them are synced, and an
+empty list syncs nothing. `PATCH` takes the whole list; an IP address, an
+invalid hostname, a duplicate or more than 6 entries is `400`.
 
 > **Warning:** turning `poll_process` off also stops the shared registry
 > password from auto-rotating on a `passwdReminder`, alongside the queue

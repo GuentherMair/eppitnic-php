@@ -902,15 +902,9 @@ class Domain extends AbstractObject
     History::record('domains', $this->storageId($this->domain), 'create', ['domain' => $this->domain], $actorId);
 
     if ($notifyDNS) {
-      // DNS-sync queue: `eppitnic pdns sync` picks this up to (re)create the
-      // zone. The SELECT is the gate -- a row is only written when
-      // pdns.enabled is actually true, so nothing queues up for a sync job
-      // nobody has turned on.
-      R::exec("
-        INSERT INTO tasks (domain, date, notice, object, action)
-        SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
-        WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
-      ", [$this->domain, 'domain created']);
+      // `eppitnic pdns sync` picks this up to (re)create the zone -- see
+      // queueDnsSync() for the gate.
+      $this->queueDnsSync($this->domain, 'domain created', 'create', $this->ns);
     }
 
     return TRUE;
@@ -980,6 +974,12 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
+    // read before storageUpdate() overwrites it -- queueDnsSync() needs the
+    // old NS set too, to notice a domain moving away from it
+    $oldNs = in_array('ns', $changes, true)
+      ? SerializedColumn::toArray((string) R::getCell("SELECT ns FROM domains WHERE domain = ?", [$domain]))
+      : [];
+
     $data = array(
       'status'  => serialize($this->status),
     );
@@ -1005,14 +1005,14 @@ class Domain extends AbstractObject
 
     History::record('domains', $this->storageId($domain), 'update', $data, $scope->userId);
 
-    // DNS-sync queue: only nameserver changes require a pdnsutil update, and
-    // only when pdns.enabled is actually true -- see storeDB()
-    if (in_array('ns', $changes, true)) {
-      R::exec("
-        INSERT INTO tasks (domain, date, notice, object, action)
-        SELECT ?, CURRENT_DATE, ?, 'pdns', 'update' FROM settings
-        WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
-      ", [$domain, 'nameservers changed']);
+    // only nameserver changes need a PowerDNS update. Try the new NS set
+    // first; if nothing was queued for it (e.g. it doesn't touch a
+    // configured nameserver), the domain may have just moved away from one
+    // the old NS set did touch, so a delete is tried against that instead.
+    if (in_array('ns', $changes, true)
+      && ! $this->queueDnsSync($domain, 'nameservers changed', 'update', $this->ns)
+    ) {
+      $this->queueDnsSync($domain, 'nameservers changed (moved away)', 'delete', $oldNs);
     }
 
     return TRUE;
@@ -1196,17 +1196,15 @@ class Domain extends AbstractObject
    * @return bool status
    */
   public function deleteDomainDB(string $domain, Scope $scope): bool {
+    $ns = SerializedColumn::toArray((string) R::getCell("SELECT ns FROM domains WHERE domain = ?", [$domain]));
+
     if ( ! $this->storageSetActive($domain, 0, $scope, 'delete', ['domain' => $domain])) {
       return FALSE;
     }
 
-    // DNS-sync queue: `eppitnic pdns sync` tears the zone down (delay-gated),
-    // and only when pdns.enabled is actually true -- see storeDB()
-    R::exec("
-      INSERT INTO tasks (domain, date, notice, object, action)
-      SELECT ?, CURRENT_DATE, ?, 'pdns', 'delete' FROM settings
-      WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
-    ", [$domain, 'domain deleted']);
+    // `eppitnic pdns sync` tears the zone down (delay-gated) -- see
+    // queueDnsSync()
+    $this->queueDnsSync($domain, 'domain deleted', 'delete', $ns);
 
     return TRUE;
   }
@@ -1223,14 +1221,51 @@ class Domain extends AbstractObject
       return FALSE;
     }
 
-    // DNS-sync queue: symmetric with deleteDomainDB() -- the zone needs to
-    // come back, same pdns.enabled gate
-    R::exec("
-      INSERT INTO tasks (domain, date, notice, object, action)
-      SELECT ?, CURRENT_DATE, ?, 'pdns', 'create' FROM settings
-      WHERE `key` = 'pdns' AND value LIKE '%\"enabled\":true%'
-    ", [$domain, 'domain restored']);
+    // symmetric with deleteDomainDB() -- the zone needs to come back
+    $ns = SerializedColumn::toArray((string) R::getCell("SELECT ns FROM domains WHERE domain = ?", [$domain]));
+    $this->queueDnsSync($domain, 'domain restored', 'create', $ns);
 
     return TRUE;
+  }
+
+  /**
+   * Queue a DNS-sync event for `pdns sync`, gated on `pdns.enabled`, a
+   * non-empty `pdns.apis`, and $ns touching a configured `pdns.nameservers`
+   * (an empty `nameservers` list means nothing ever syncs). `CASE` keeps
+   * the JSON functions from ever seeing invalid JSON.
+   *
+   * @param array $ns the domain's ns column shape (hostname => details)
+   * @return bool whether a row was actually queued
+   */
+  private function queueDnsSync(string $domain, string $notice, string $action, array $ns): bool {
+    $queued = R::exec("
+      INSERT INTO tasks (domain, date, notice, object, action)
+      SELECT ?, CURRENT_DATE, ?, 'pdns', ? FROM settings
+      WHERE `key` = 'pdns'
+        AND CASE WHEN JSON_VALID(value)
+                 THEN JSON_VALUE(value, '$.enabled') = 1
+                  AND JSON_LENGTH(value, '$.apis') > 0
+                  AND JSON_OVERLAPS(JSON_EXTRACT(value, '$.nameservers'), ?)
+                 ELSE 0 END
+    ", [$domain, $notice, $action, json_encode(self::nsNames($ns), JSON_UNESCAPED_SLASHES)]) > 0;
+
+    // a delayed delete must never tear down a zone this call just
+    // (re)created -- see deleteDomainDB()/updateDB()'s delay_hours grace
+    if ($queued && $action !== 'delete') {
+      R::exec("
+        UPDATE tasks SET active = 0, exit_code = 0, exit_message = ?
+        WHERE object = 'pdns' AND action = 'delete' AND domain = ? AND active = 1
+      ", ["superseded by a later {$action}", $domain]);
+    }
+
+    return $queued;
+  }
+
+  /** @return string[] lowercased, trailing-dot-stripped hostnames */
+  private static function nsNames(array $ns): array {
+    return array_map(
+      static fn(int|string $name) => rtrim(strtolower((string) $name), '.'),
+      array_keys($ns)
+    );
   }
 }

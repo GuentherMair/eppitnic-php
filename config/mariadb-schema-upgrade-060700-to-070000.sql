@@ -840,15 +840,10 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('session_serialize', 'false'),
   ('session_cookies', '{}'),
   ('session_timestamp', '0'),
-  -- pdns: `pdns sync`'s settings, gated by `enabled` (off by default) --
-  -- see the DNS-sync INSERT gates in src/Epp/Domain.php, which read this
-  -- same key. path: pdnsutil binary (a real path, not PATH-relative,
-  -- since is_executable() must be able to check it -- `config pdns-set
-  -- path` with no value unsets it back to a plain `pdnsutil` PATH lookup).
-  -- ttl: seconds new NS records get. delay_hours: how long a queued
-  -- deletion waits before it is actually applied. frequency_minutes/
-  -- last_run_at: `cron run`'s own due-check bookkeeping.
-  ('pdns', '{"enabled":false,"path":"/usr/bin/pdnsutil","ttl":3600,"delay_hours":12,"frequency_minutes":15,"last_run_at":null}'),
+  -- pdns: enabled, apis and nameservers must all be non-empty to queue a
+  -- sync (PowerDnsApis/PowerDnsNameservers). ttl: NS TTL. delay_hours:
+  -- delete grace period. frequency_minutes/last_run_at: cron bookkeeping.
+  ('pdns', '{"enabled":false,"apis":[],"nameservers":[],"ttl":3600,"delay_hours":12,"frequency_minutes":15,"last_run_at":null}'),
   -- domain_sync: periodic `domain sync` reconciliation against the registry
   -- (domain check/domain info), plus a refresh of every linked contact via
   -- contact info. enabled: on by default -- turn off via

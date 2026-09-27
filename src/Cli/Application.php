@@ -10,6 +10,8 @@ use Eppitnic\Cli\Command\ConfigEppServerCommand;
 use Eppitnic\Cli\Command\ConfigEppSetCommand;
 use Eppitnic\Cli\Command\ConfigKeepaliveCommand;
 use Eppitnic\Cli\Command\ConfigMigrateCommand;
+use Eppitnic\Cli\Command\ConfigPdnsApiCommand;
+use Eppitnic\Cli\Command\ConfigPdnsNameserverCommand;
 use Eppitnic\Cli\Command\ConfigPdnsSetCommand;
 use Eppitnic\Cli\Command\ConfigPollProcessSetCommand;
 use Eppitnic\Cli\Command\ConfigRemoteAuthSetCommand;
@@ -126,6 +128,8 @@ final class Application
             'config domain-sync-set'    => ConfigDomainSyncSetCommand::class,
             'config domain-reap-set'    => ConfigDomainReapSetCommand::class,
             'config pdns-set'           => ConfigPdnsSetCommand::class,
+            'config pdns-api'           => ConfigPdnsApiCommand::class,
+            'config pdns-nameserver'    => ConfigPdnsNameserverCommand::class,
             'config poll-process-set'   => ConfigPollProcessSetCommand::class,
             'config smtp-set'           => ConfigSmtpSetCommand::class,
             'config remote-auth-set'    => ConfigRemoteAuthSetCommand::class,

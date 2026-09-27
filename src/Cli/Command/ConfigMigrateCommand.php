@@ -128,9 +128,9 @@ final class ConfigMigrateCommand extends Command
           'session_serialize' => false,
           'session_cookies'   => [],
           'session_timestamp' => 0,
-          // no config.xml source -- off, PATH lookup, defaults throughout
+          // no config.xml source -- off, no APIs, defaults throughout
           'pdns' => [
-            'enabled' => false, 'path' => null, 'ttl' => 3600,
+            'enabled' => false, 'apis' => [], 'nameservers' => [], 'ttl' => 3600,
             'delay_hours' => 12, 'frequency_minutes' => 15, 'last_run_at' => null,
           ],
         ];

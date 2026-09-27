@@ -25,7 +25,8 @@ see [UPGRADING.md](UPGRADING.md).
   `config show` (credentials redacted), `config epp-server
   production|test|toggle`, `config epp-set`, `config epp-password`,
   `config safe-networks`, `config trusted-proxies`, `config keepalive`,
-  `config session-serialize` and the job-specific `config *-set` verbs.
+  `config session-serialize`, `config pdns-api`, `config pdns-nameserver`
+  and the job-specific `config *-set` verbs.
   `Support\Validate::eppField()` holds the EPP field rules shared by setup,
   the CLI and the API, so an invalid username or password is refused when
   entered rather than at the next `<login>`.
@@ -152,7 +153,7 @@ audited by `Service\CronjobSettings`, shared by the `config *-set` verbs and
 | `poll process` | on | drains the poll queue, applies completed transfers, rotates the registry password |
 | `domain sync` | on | reconciles local domains and their contacts against the registry |
 | `domain reap-deletions` | on | deletes domains whose scheduled deletion is due |
-| `pdns sync` | off | applies queued DNS changes through `pdnsutil` |
+| `pdns sync` | off | applies DNS changes for domains on your nameservers through the PowerDNS HTTP API |
 | `session keepalive` | off | keeps the shared EPP session alive |
 
 `reminder` is now `tasks`, and a row a job consumes says so in its `object`
