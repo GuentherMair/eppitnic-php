@@ -8,15 +8,21 @@ use Eppitnic\Config;
 use Eppitnic\Service\EppSettings;
 
 /**
- * Show, set, or toggle which endpoint `epp.server` points at -- a local write
- * only, leaving username/password/cl_trid_prefix alone. nic.it issues separate
- * credentials per registry, so change those too, not just the host.
+ * Show, set, or toggle which registry `epp.server` and `epp.server_deleted`
+ * point at -- a local write only, leaving username/password/cl_trid_prefix
+ * alone: nic.it issues separate credentials per registry.
  */
 final class ConfigEppServerCommand extends Command
 {
     private const ENDPOINTS = [
         'production' => 'https://epp.nic.it',
         'test'       => 'https://epp.pubtest.nic.it',
+    ];
+
+    /** the `-deleted` endpoint `domain restore` talks to, per registry */
+    private const DELETED_ENDPOINTS = [
+        'production' => 'https://epp-deleted.nic.it',
+        'test'       => 'https://epp-deleted.pubtest.nic.it',
     ];
 
     public function describe(): string {
@@ -74,8 +80,9 @@ final class ConfigEppServerCommand extends Command
         }
 
         $new = self::ENDPOINTS[$target];
+        $newDeleted = self::DELETED_ENDPOINTS[$target];
 
-        if ($new === $current) {
+        if ($new === $current && $newDeleted === ($epp['server_deleted'] ?? null)) {
             $this->line("epp.server is already {$new} ({$target})");
             return 0;
         }
@@ -92,18 +99,21 @@ final class ConfigEppServerCommand extends Command
         }
 
         if ($this->isDryRun()) {
-            $this->line("would set epp.server: '{$current}' -> '{$new}'");
+            $this->line("would set epp.server: '{$current}' -> '{$new}', epp.server_deleted -> '{$newDeleted}'");
             return 0;
         }
 
-        EppSettings::set(['server' => $new], $this->userId());
+        EppSettings::set(['server' => $new, 'server_deleted' => $newDeleted], $this->userId());
 
         $this->warn(
             "username/password/cl_trid_prefix were left untouched -- production and the " .
             "public test registry normally use separate accounts. Verify those match " .
             "{$target} before running anything against it."
         );
-        $this->record("epp.server set to {$new} ({$target})", ['server' => $new, 'which' => $target]);
+        $this->record(
+            "epp.server set to {$new}, epp.server_deleted to {$newDeleted} ({$target})",
+            ['server' => $new, 'server_deleted' => $newDeleted, 'which' => $target]
+        );
         return 0;
     }
 }

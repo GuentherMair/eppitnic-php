@@ -348,6 +348,13 @@ abstract class Command
      */
     protected function database(): void {
         Config::init();
+
+        // as public/index.php does for the web tier; otherwise the CLI runs
+        // in the host's (a container's: UTC) zone until a Client sets it
+        $timezone = Config::all()['region']['timezone'] ?? null;
+        if (is_string($timezone) && $timezone !== '') {
+            date_default_timezone_set($timezone);
+        }
     }
 
     /**

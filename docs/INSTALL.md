@@ -212,10 +212,12 @@ bin/eppitnic config epp-server production   # -> https://epp.nic.it
 bin/eppitnic config epp-server toggle       # switch to whichever it isn't
 ```
 
-This changes the local `server` setting only. `username`, `password` and
-`cl_trid_prefix` stay as they are, although production and the test registry
-normally use separate accounts. `--dry-run` shows the change without writing
-it; `--yes` skips the confirmation.
+This changes the local `server` and `server_deleted` settings only, the
+latter to `https://epp-deleted.nic.it` or `https://epp-deleted.pubtest.nic.it`.
+`username`, `password` and `cl_trid_prefix` stay as they are, although
+production and the test registry normally use separate accounts. `--dry-run`
+shows the change without writing it; `--yes` skips the confirmation.
+
 
 Run `bin/eppitnic` for the full list of commands, and see
 [COOKBOOK.md](COOKBOOK.md) for using the library from PHP.

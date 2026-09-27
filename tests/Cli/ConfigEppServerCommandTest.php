@@ -105,6 +105,46 @@ final class ConfigEppServerCommandTest extends EppTestCase
         $this->assertSame('', (string) stream_get_contents($errors));
     }
 
+    public function testSetsTheDeletedEndpointWithTheServer(): void {
+        $command = new ConfigEppServerCommand(['--yes', 'production']);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+        $this->capture(fn() => $this->assertSame(0, $command->run()));
+
+        $this->assertSame('https://epp-deleted.nic.it', Config::get('epp')['server_deleted']);
+
+        $command = new ConfigEppServerCommand(['--yes', 'test']);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+        $this->capture(fn() => $this->assertSame(0, $command->run()));
+
+        $this->assertSame('https://epp-deleted.pubtest.nic.it', Config::get('epp')['server_deleted']);
+    }
+
+    /** the test server with production's deleted endpoint is only half set */
+    public function testFixesAMismatchedDeletedEndpoint(): void {
+        Config::set('epp', ['server_deleted' => 'https://epp-deleted.nic.it'] + static::SETTINGS['epp']);
+
+        $command = new ConfigEppServerCommand(['--yes', 'test']);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+        $output = $this->capture(fn() => $this->assertSame(0, $command->run()));
+
+        $this->assertStringNotContainsString('already', $output);
+        $this->assertSame('https://epp-deleted.pubtest.nic.it', Config::get('epp')['server_deleted']);
+    }
+
+    /** any command connecting to the database takes region.timezone, not the host's */
+    public function testRunsInTheConfiguredTimezone(): void {
+        $previous = date_default_timezone_get();
+        date_default_timezone_set('UTC');
+        Config::set('region', ['timezone' => 'Pacific/Auckland'] + static::SETTINGS['region']);
+
+        try {
+            $this->capture(fn() => (new ConfigEppServerCommand([]))->run());
+            $this->assertSame('Pacific/Auckland', date_default_timezone_get());
+        } finally {
+            date_default_timezone_set($previous);
+        }
+    }
+
     public function testDryRunReportsWithoutWriting(): void {
         $command = new ConfigEppServerCommand(['--dry-run', 'production']);
         $command->useErrorStream(fopen('php://memory', 'w+'));

@@ -28,7 +28,7 @@ abstract class EppTestCase extends TestCase
         'region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
         'epp' => [
             'server'             => 'https://epp.pubtest.nic.it',
-            'server_deleted'     => 'https://epp-deleted.nic.it',
+            'server_deleted'     => 'https://epp-deleted.pubtest.nic.it',
             'port'               => null,
             'interface'          => '',
             'username'           => 'TEST-REG',
