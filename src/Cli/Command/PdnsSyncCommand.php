@@ -3,6 +3,7 @@
 namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
+use Eppitnic\Persistence\SerializedColumn;
 use Eppitnic\PowerDns\Api;
 use Eppitnic\PowerDns\CurlHttpClient;
 use Eppitnic\PowerDns\DryRunHttpClient;
@@ -182,8 +183,7 @@ final class PdnsSyncCommand extends Command
             return ['status' => 'skipped', 'message' => 'SKIPPED: domain not found locally'];
         }
 
-        $nsData = empty($domainRow['ns']) ? [] : unserialize($domainRow['ns']);
-        $nameservers = array_keys((array) $nsData);
+        $nameservers = array_keys(SerializedColumn::toArray($domainRow['ns'] ?? null));
         if ($nameservers === []) {
             return ['status' => 'skipped', 'message' => 'SKIPPED: domain has no nameservers on record'];
         }

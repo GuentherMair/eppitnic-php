@@ -135,6 +135,18 @@ final class PdnsSyncTest extends EppTestCase
     /**
      * An existing zone is not re-created; only its NS set is reconciled.
      */
+    /** a row still in 6.x's `__SERIALIZED:` envelope reads like a plain one */
+    public function testNameserversInTheLegacyEnvelopeAreRead(): void {
+        $ns = serialize(['ns1.example.com' => 'ns1.example.com', 'ns2.example.com' => 'ns2.example.com']);
+        R::exec('INSERT INTO domains (domain, ns) VALUES (?, ?)', ['example-legacy.it', '__SERIALIZED:' . base64_encode($ns)]);
+        $this->addEvent('example-legacy.it', 'create');
+
+        $output = $this->sync();
+
+        $this->assertSame(0, $this->exitCode);
+        $this->assertStringContainsString('zone synced (2 NS records)', $output);
+    }
+
     public function testAnUpdateSkipsTheZoneCreation(): void {
         $this->http = new FakeHttpClient(['example-one.it.']);
         $this->addDomain('example-one.it', ['ns1.example.com']);
