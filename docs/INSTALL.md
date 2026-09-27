@@ -8,7 +8,8 @@ schedule one cron line. To run it in containers instead, see
 ## Quick start
 
 You need PHP 8.1 or later with the curl, XML and PDO MySQL extensions,
-[Composer](https://getcomposer.org/), MariaDB or MySQL, and a web server.
+[Composer](https://getcomposer.org/), MariaDB or MySQL, a web server with
+TLS, and the credentials of your nic.it EPP account.
 
 1. Install the dependencies from the repository root:
 
@@ -24,36 +25,95 @@ You need PHP 8.1 or later with the curl, XML and PDO MySQL extensions,
    FLUSH PRIVILEGES;
    ```
 
-3. Configure a virtual host from `config/apache-vhost.sample` or
-   `config/nginx-vhost.sample` (see "Configure the web server").
-4. Run the setup, either on the command line:
+3. Give the web server user write access to `config/`:
 
    ```bash
-   bin/eppitnic setup
+   chown <WEB_USER> config/
+   ```
+
+   Setup writes `config/config.php` there, readable by its owner only. Run
+   every `bin/eppitnic` command below — and the cron job — as that same user.
+4. Configure a virtual host from `config/apache-vhost.sample` or
+   `config/nginx-vhost.sample` (see "Configure the web server").
+5. Run the setup, either on the command line:
+
+   ```bash
+   sudo -u <WEB_USER> bin/eppitnic setup
    ```
 
    or in a browser at `https://<YOUR_HOSTNAME>/setup.html`. Both ask for the
-   database credentials from step 2 and the first admin account, and
-   optionally for the EPP registry account.
-5. Confirm the API answers:
+   database credentials from step 2, the first admin account, and the EPP
+   account's username and password.
+6. If the EPP account is one for the public test registry, switch to it:
+
+   ```bash
+   sudo -u <WEB_USER> bin/eppitnic config epp-server test
+   ```
+
+7. Add the scheduler to the web server user's crontab (see "Scheduled jobs"),
+   and create its log directory, writable by that user:
+
+   ```text
+   * * * * *  /path/to/bin/eppitnic cron run >> /var/log/eppitnic/cron.log 2>&1
+   ```
+
+`<DATABASE_NAME>`, `<DB_USER>` and `<DB_PASSWORD>` are yours to choose.
+`<WEB_USER>` is the user the web server runs PHP as (`www-data` on Debian and
+Ubuntu), and `<YOUR_HOSTNAME>` the virtual host's name.
+
+### Verify the installation
+
+1. Check the API routing — the route is public:
 
    ```bash
    curl -i https://<YOUR_HOSTNAME>/v1/network-check
    ```
 
    The expected result is a JSON body, `{"safe_network": ..., "client_ip": ...}`.
-6. Add the scheduler to the web server user's crontab (see "Scheduled jobs"):
+   An HTML 404 means the front-controller rule is missing (see "Configure the
+   web server").
+2. Log in as the admin created during setup, and keep the `token` from the
+   answer:
 
-   ```text
-   * * * * *  /path/to/bin/eppitnic cron run >> /var/log/eppitnic/cron.log 2>&1
+   ```bash
+   curl -s -X POST https://<YOUR_HOSTNAME>/v1/users/authenticate \
+     -H "Content-Type: application/json" \
+     -d '{"username":"<ADMIN_USERNAME>","password":"<ADMIN_PASSWORD>"}' | jq -r .token
    ```
 
-`<DATABASE_NAME>`, `<DB_USER>` and `<DB_PASSWORD>` are yours to choose;
-`<YOUR_HOSTNAME>` is the virtual host's name.
+3. Check the stored EPP configuration (local only, no registry contact):
 
-To prove the registry connection end to end, run `selftest` against the
-public test registry (see "Test against the live test registry" in
-[TESTING.md](TESTING.md)).
+   ```bash
+   curl -s https://<YOUR_HOSTNAME>/v1/session/epp \
+     -H "Authorization: Bearer <TOKEN>" | jq .
+   ```
+
+   `server` must be the registry you intend, and `password_set` `true`.
+4. Log in to the registry end to end, by asking it for the account's credit:
+
+   ```bash
+   curl -s https://<YOUR_HOSTNAME>/v1/session/credit \
+     -H "Authorization: Bearer <TOKEN>" | jq .
+   ```
+
+   The expected result is `{"credit": ...}`. A `502` means the registry
+   login failed: check the EPP username and password, and that the registry
+   accepts connections from this server's address (on a server with several
+   addresses, choose the outgoing one with `config epp-set interface`).
+   `sudo -u <WEB_USER> bin/eppitnic session credit` runs the same check from
+   the command line.
+
+`<TOKEN>` is the value printed in step 2.
+
+### After the first start
+
+- Behind a reverse proxy, list it in `trusted_proxies` (see "Login rate
+  limiting").
+- A browser client served from another origin needs that origin in
+  `allowed_origins` (see "Configuration").
+- To exercise the whole registry lifecycle against the public test registry,
+  run `selftest` (see "Test against the live test registry" in
+  [TESTING.md](TESTING.md)).
 
 ## Set up without the installer
 

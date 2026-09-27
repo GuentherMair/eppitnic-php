@@ -47,30 +47,3 @@ For more specific information see:
 * [REMOTE-AUTH.md](docs/REMOTE-AUTH.md)
 * [TESTING.md](docs/TESTING.md)
 * [API.md](docs/API.md)
-
-
-# Verify
-
-In order to get a bearer token log in using the username + password configured during setup:
-
-```
-curl -s -X POST https://<YOUR_HOSTNAME>/v1/users/authenticate \
-  -H "Content-Type: application/json" \
-  -d '{"username":"<ADMIN_USERNAME>","password":"<ADMIN_PASSWORD>"}' | jq .
-```
-
-Verify the current EPP configuration using the bearer token (this is NOT an
-end-to-end test towards the registry yet):
-
-```
-curl -s -X GET https://<YOUR_HOSTNAME>/v1/session/epp \
-  -H "Authorization: Bearer <TOKEN>" | jq .
-```
-
-A last test for end-to-end connectivity obviously depends on selecting an
-existing domain name:
-
-```
-curl -s -X GET https://<YOUR_HOSTNAME>/v1/domains/<EXISTING_DOMAIN_NAME> \
-    -H "Authorization: Bearer <TOKEN>" | jq .
-```
