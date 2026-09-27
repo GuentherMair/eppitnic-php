@@ -177,8 +177,8 @@ class Client
     // is hex because a clTRID is an identifier, not a secret -- a database key,
     // quoted back by the registry, and what someone greps a log for
     $this->clTRID = $this->EPPCfg->cl_trid_prefix."-".time()."-".substr(PasswordGenerator::token(3), 0, 5);
-    if (strlen($this->clTRID) > 32) {
-      $this->clTRID = substr($this->clTRID, -32);
+    if (strlen($this->clTRID) > 64) {
+      $this->clTRID = substr($this->clTRID, -64);
     }
     return $this->clTRID;
   }

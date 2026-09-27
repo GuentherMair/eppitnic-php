@@ -86,7 +86,7 @@ CREATE TABLE `history` (
 
 CREATE TABLE `transactions` (
   `id`                    serial,
-  `cl_trid`               varchar(32),
+  `cl_trid`               varchar(64),
   `cl_trtype`             varchar(32),
   `cl_trobject`           varchar(256),
   `cl_trdata`             text COMMENT 'plain EPP body; rows written before 7.0 may carry a deprecated __SERIALIZED: envelope -- read via StoredPayload::decode(), strip with: eppitnic doctor normalize-payloads'
@@ -94,7 +94,7 @@ CREATE TABLE `transactions` (
 
 CREATE TABLE `responses` (
   `id`                    serial,
-  `cl_trid`               varchar(32),
+  `cl_trid`               varchar(64),
   `sv_trid`               varchar(64),
   `sv_code`               varchar(4),
   `status`                tinyint unsigned,
@@ -107,7 +107,7 @@ CREATE TABLE `responses` (
 
 CREATE TABLE `msgqueue` (
   `id`                    serial,
-  `cl_trid`               varchar(32),
+  `cl_trid`               varchar(64),
   `sv_trid`               varchar(64),
   `sv_code`               varchar(4),
   `status`                tinyint unsigned,
@@ -181,7 +181,7 @@ CREATE TABLE `transfers` (
 
 CREATE TABLE `messages` (
   `id`                    serial,
-  `cl_trid`               varchar(32),
+  `cl_trid`               varchar(64),
   `sv_trid`               varchar(64),
   `type`                  varchar(64) NOT NULL,
   `domain`                varchar(255),

@@ -147,11 +147,12 @@ final class Validate
                 ? null
                 : "lang must be 'it' or 'en'",
 
-            // set_clTRID() appends 17 characters, and epp:trIDStringType caps
-            // the whole clTRID at 64, so the prefix must leave room
-            'cl_trid_prefix' => ($value !== '' && strlen($value) <= 47)
+            // set_clTRID() appends 17 characters; 32 keeps the clTRID well
+            // inside epp:trIDStringType's 64. ASCII A-Z and 0-9 only:
+            // stricter than the schema's token
+            'cl_trid_prefix' => preg_match('/^[A-Z0-9]{1,32}$/', $value) === 1
                 ? null
-                : 'cl_trid_prefix must be 1 to 47 characters',
+                : 'cl_trid_prefix must be 1 to 32 characters, A-Z and 0-9 only',
 
             // eppcom:clIDType: 3 to 16 characters. '-REG' is nic.it's account
             // convention rather than a schema rule, but every real account has
@@ -173,5 +174,15 @@ final class Validate
 
             default => null,
         };
+    }
+
+    /**
+     * $raw reduced to what eppField() accepts as a cl_trid_prefix, for values
+     * nobody typed as one (derived from a username, carried over from 6.x).
+     * Falls back to the schema's placeholder when nothing usable is left.
+     */
+    public static function toClTridPrefix(string $raw): string {
+        $prefix = substr((string) preg_replace('/[^A-Z0-9]/', '', strtoupper($raw)), 0, 32);
+        return $prefix !== '' ? $prefix : 'EPPITNIC';
     }
 }

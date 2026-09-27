@@ -7,6 +7,7 @@ use Eppitnic\Config;
 use Eppitnic\Setup\ConfigFile;
 use Eppitnic\Setup\DatabaseCredentials;
 use Eppitnic\Support\PasswordGenerator;
+use Eppitnic\Support\Validate;
 
 /**
  * Convert a 6.x config.xml into config/config.php and the `settings` table. A
@@ -103,7 +104,8 @@ final class ConfigMigrateCommand extends Command
             'username'       => self::xmlStr($xml->username),
             'password'       => self::xmlStr($xml->password),
             'lang'           => self::xmlStr($xml->lang),
-            'cl_trid_prefix' => self::xmlStr($xml->clTRIDprefix),
+            // 6.x accepted anything here; reduced to what `config epp-set` accepts
+            'cl_trid_prefix' => Validate::toClTridPrefix(self::xmlStr($xml->clTRIDprefix)),
             // config.xml's passwordexpiry* are not carried over: nothing read
             // them. Rotation now follows the registry's passwdReminder, and
             // this timestamp rate-limits it to one attempt per 24h. 0 means

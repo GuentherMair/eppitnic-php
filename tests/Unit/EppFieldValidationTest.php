@@ -21,7 +21,8 @@ final class EppFieldValidationTest extends TestCase
             'IPv4 interface'            => ['interface', '203.0.113.5'],
             'Italian'                   => ['lang', 'it'],
             'English'                   => ['lang', 'en'],
-            'prefix at the ceiling'     => ['cl_trid_prefix', str_repeat('A', 47)],
+            'prefix at the ceiling'     => ['cl_trid_prefix', str_repeat('A', 32)],
+            'prefix with digits'        => ['cl_trid_prefix', 'ACME2'],
             'shortest username'         => ['username', 'AB-REG'],
             'ordinary username'         => ['username', 'MYCOMPANY-REG'],
             'shortest password'         => ['password', str_repeat('a', 6)],
@@ -40,9 +41,13 @@ final class EppFieldValidationTest extends TestCase
             'not an address at all'   => ['interface', 'eth0'],
             'unsupported language'    => ['lang', 'fr'],
             'empty prefix'            => ['cl_trid_prefix', ''],
-            // epp:trIDStringType caps the whole clTRID at 64, and
             // Client::set_clTRID() appends 17 characters to this
-            'prefix one over'         => ['cl_trid_prefix', str_repeat('A', 48)],
+            'prefix one over'         => ['cl_trid_prefix', str_repeat('A', 33)],
+            // ASCII A-Z and 0-9 only, stricter than the schema's token
+            'lower-case prefix'       => ['cl_trid_prefix', 'acme'],
+            'prefix with a hyphen'    => ['cl_trid_prefix', 'ACME-1'],
+            'prefix with underscore'  => ['cl_trid_prefix', 'ACME_1'],
+            'non-ASCII prefix'        => ['cl_trid_prefix', 'ÄCME'],
             // eppcom:clIDType is 3 to 16
             'username one over'       => ['username', 'MYLONGCOMPANY-REG'],
             'username without -REG'   => ['username', 'MYCOMPANY'],
@@ -85,6 +90,28 @@ final class EppFieldValidationTest extends TestCase
             'inner space'    => ['password', 'abc def'],
             'newline'        => ['lang', "it\n"],
         ];
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function clTridPrefixSources(): array {
+        return [
+            'already acceptable'    => ['ACME', 'ACME'],
+            'lower-case'            => ['acme', 'ACME'],
+            'punctuation dropped'   => ['my.co_1', 'MYCO1'],
+            'non-ASCII dropped'     => ['Ärzte', 'RZTE'],
+            'cut to the ceiling'    => [str_repeat('A', 60), str_repeat('A', 32)],
+            'nothing usable'        => ['--', 'EPPITNIC'],
+        ];
+    }
+
+    #[DataProvider('clTridPrefixSources')]
+    public function testToClTridPrefixYieldsAnAcceptablePrefix(string $raw, string $expected): void {
+        $prefix = Validate::toClTridPrefix($raw);
+
+        $this->assertSame($expected, $prefix);
+        $this->assertNull(Validate::eppField('cl_trid_prefix', $prefix));
     }
 
     /**

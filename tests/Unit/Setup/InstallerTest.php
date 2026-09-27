@@ -113,7 +113,12 @@ final class InstallerTest extends TestCase
                 'epp_password',
             ],
             'prefix leaving no room'        => [
-                ['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => str_repeat('A', 48)],
+                ['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => str_repeat('A', 33)],
+                'epp_cl_trid_prefix',
+            ],
+            // a prefix typed as such is refused, not silently rewritten
+            'lower-case prefix'             => [
+                ['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => 'test'],
                 'epp_cl_trid_prefix',
             ],
         ];
@@ -145,6 +150,8 @@ final class InstallerTest extends TestCase
             'username and password'    => [['epp_username' => 'TEST-REG', 'epp_password' => 'good-enough']],
             // derived from the username when omitted -- "TEST-REG" -> "TEST"
             'prefix left to derive'    => [['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => '']],
+            // derived from a username that isn't a valid prefix as it stands
+            'prefix derived and fixed' => [['epp_username' => 'my.co-REG']],
         ];
     }
 

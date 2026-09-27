@@ -78,8 +78,8 @@ final class Installer
 
     /**
      * The clTRID prefix to store: the one given, or the registrar part of the
-     * username ("ABCD-REG" -> "ABCD"). Its own method so validateEpp() checks
-     * the value install() will actually store.
+     * username made acceptable ("abcd-REG" -> "ABCD"). Its own method so
+     * validateEpp() checks the value install() will actually store.
      *
      * @param array<string, mixed> $input every requirements() field, snake_case
      */
@@ -87,7 +87,8 @@ final class Installer
         // `?? ''` rather than a bare read: the field is optional and an API
         // client that simply leaves it out is normal, so the key's absence is
         // not a programming error to warn about
-        return (string) (($input['epp_cl_trid_prefix'] ?? '') ?: (strtok($eppUsername, '-') ?: $eppUsername));
+        return (string) (($input['epp_cl_trid_prefix'] ?? '')
+            ?: Validate::toClTridPrefix(strtok($eppUsername, '-') ?: $eppUsername));
     }
 
     /**

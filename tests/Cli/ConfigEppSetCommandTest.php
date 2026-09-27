@@ -69,15 +69,15 @@ final class ConfigEppSetCommandTest extends EppTestCase
         (new ConfigEppSetCommand(['--yes', 'lang', 'fr']))->run();
     }
 
-    public function testSetsClTridPrefixUpToFortySevenCharacters(): void {
-        $prefix = str_repeat('A', 47);
+    public function testSetsClTridPrefixUpToThirtyTwoCharacters(): void {
+        $prefix = str_repeat('A', 32);
         $this->runCommand(['--yes', 'cl_trid_prefix', $prefix]);
         $this->assertSame($prefix, Config::get('epp')['cl_trid_prefix']);
     }
 
-    public function testRejectsAClTridPrefixOverFortySevenCharacters(): void {
+    public function testRejectsAClTridPrefixOverThirtyTwoCharacters(): void {
         $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'cl_trid_prefix', str_repeat('A', 48)]))->run();
+        (new ConfigEppSetCommand(['--yes', 'cl_trid_prefix', str_repeat('A', 33)]))->run();
     }
 
     public function testSetsAUsernameEndingInReg(): void {
