@@ -40,7 +40,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"   # Linux; a no-op where the engine already provides it
     # environment:
-    #   EPPITNIC_DEBUG: "true"   # never in production -- see docs/INSTALL.md's "Web server"
+    #   EPPITNIC_DEBUG: "true"   # never in production -- see docs/INSTALL.md's "Configure the web server"
     restart: unless-stopped
 
   # `poll process` every 5 minutes is not optional -- it's the only thing

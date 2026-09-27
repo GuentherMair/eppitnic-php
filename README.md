@@ -11,7 +11,7 @@
 4. either a MariaDB/MySQL or another database
 
 None of the above if you'd rather run the whole thing in Docker instead — see
-the "Docker" section below.
+[DOCKER.md](docs/DOCKER.md).
 
 
 # ** Warning **
@@ -37,8 +37,8 @@ Here is a list of a few very simple reasons:
 
 Detailed instructions can be found in:
 
-* [UPGRADING.md](docs/UPGRADING.md)
 * [INSTALL.md](docs/INSTALL.md)
+* [UPGRADING.md](docs/UPGRADING.md)
 * [DOCKER.md](docs/DOCKER.md)
 
 For more specific information see:
@@ -47,26 +47,6 @@ For more specific information see:
 * [REMOTE-AUTH.md](docs/REMOTE-AUTH.md)
 * [TESTING.md](docs/TESTING.md)
 * [API.md](docs/API.md)
-
-
-# Quick Start
-
-1. MariaDB/MySQL database + user:
-   * `CREATE DATABASE <DATABASENAME>;`
-   * `GRANT ALL PRIVILEGES ON <DATABASENAME>.* TO '<USERNAME>'@'localhost' IDENTIFIED BY '<PASSWORD>';`
-   * `FLUSH ALL PRIVILEGES;`
-2. Webserver Virtual Host (see config/apache-vhost.sample and config/nginx-vhost.sample;
-   config/*-proxy.sample instead if fronting a Docker install, see docs/DOCKER.md)
-3. run `composer install`
-4. choose a setup method (CLI or web UI) and follow the instructions provided:
-   * CLI: run `bin/eppitnic setup`
-   * web UI: open the URL you set up for your webserver
-5. verify everything is working, then add at least the following cronjobs (see
-   docs/INSTALL.md's "Scheduled jobs" for the full list and crontab lines):
-   * `bin/eppitnic poll process`
-   * `bin/eppitnic domain sync` (off by default -- `bin/eppitnic config domain-sync on`)
-   * `bin/eppitnic domain reap-deletions`
-   * `bin/eppitnic pdns sync` (only if PowerDNS serves your zones)
 
 
 # Verify
