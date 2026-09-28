@@ -8,8 +8,9 @@ see [UPGRADING.md](UPGRADING.md).
 
 ### Platform, layout and configuration
 
-- PHP 8.1 or later; the Docker image runs 8.5. Every dependency comes
-  through Composer; none are vendored in the repository any more.
+- PHP 8.1 or later with the intl extension; the Docker image runs 8.5.
+  Every dependency comes through Composer; none are vendored in the
+  repository any more.
 - The library lives in `src/` under the `Eppitnic\` namespace
   (`Eppitnic\Epp\Domain`, `Eppitnic\Epp\Contact`, …).
   `Net_EPP_StorageDB`/`Net_EPP_StorageInterface` are gone: persistence talks

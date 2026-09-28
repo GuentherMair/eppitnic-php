@@ -7,7 +7,7 @@ schedule one cron line. To run it in containers instead, see
 
 ## Quick start
 
-You need PHP 8.1 or later with the curl, XML and PDO MySQL extensions,
+You need PHP 8.1 or later with the curl, XML, PDO MySQL and intl extensions,
 [Composer](https://getcomposer.org/), MariaDB or MySQL, a web server with
 TLS, and the credentials of your nic.it EPP account.
 

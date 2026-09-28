@@ -8,8 +8,9 @@ neither. Rehearse on a staging copy.
 
 ## Prerequisites
 
-- PHP 8.1 or later, and [Composer](https://getcomposer.org/) — dependencies
-  are no longer shipped in the repository.
+- PHP 8.1 or later with the intl extension, and
+  [Composer](https://getcomposer.org/) — dependencies are no longer shipped in
+  the repository.
 - A full backup of the 6.x database, and a staging copy to rehearse on.
 - The 6.x `config.xml`.
 

@@ -3,6 +3,7 @@
 namespace Eppitnic\Cli\Command;
 
 use Eppitnic\Cli\Command;
+use Eppitnic\Support\Money;
 
 /**
  * The account's remaining credit, which the registry reports as an extension
@@ -22,7 +23,8 @@ final class SessionCreditCommand extends Command
             return LOGIN_FAILED;
         }
 
-        $this->record(sprintf('%.2f EUR', $credit), ['credit' => $credit]);
+        // the text for people, in region.lc_monetary; --json keeps the bare number
+        $this->record(Money::euro($credit), ['credit' => $credit]);
         return 0;
     }
 }

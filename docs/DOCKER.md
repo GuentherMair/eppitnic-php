@@ -240,9 +240,11 @@ Two differences from the default setup:
   same tag race on the final export step and fail with
   `image "docker.io/library/eppitnic:latest": already exists`. Give any new
   service that uses the image `image: eppitnic` and no `build:`.
-- **Extensions.** The image adds only `pdo_mysql` to `php:8.5-fpm-alpine`;
-  everything else the code uses (`curl`, `dom`, `simplexml`, `mbstring`,
-  `posix`, …) ships with the base image. `xsd/` is left out: nothing reads it
+- **Extensions.** The image adds `pdo_mysql` and `intl` to
+  `php:8.5-fpm-alpine`, with ICU's full locale data (`icu-data-full`): musl
+  has no locale data of its own, so amounts are formatted per
+  `region.lc_monetary` through ICU. Everything else the code uses (`curl`,
+  `dom`, `simplexml`, `mbstring`, `posix`, …) ships with the base image. `xsd/` is left out: nothing reads it
   at runtime.
 - **Configuration.** As on bare metal (see "Configuration" in
   [INSTALL.md](INSTALL.md)), except `config.php` and the self-test notes live

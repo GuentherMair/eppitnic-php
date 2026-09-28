@@ -102,7 +102,19 @@ final class ReadOnlyCommandTest extends EppTestCase
             $this->assertSame(0, $command->run());
         });
 
-        $this->assertStringContainsString('1234.56', $output);
+        // grouped and separated per region.lc_monetary (it_IT here), in euros
+        $this->assertStringContainsString('1.234,56 €', $output);
+    }
+
+    public function testSessionCreditKeepsTheBareNumberInJson(): void {
+        $command = new SessionCreditCommand(['--json']);
+
+        $output = $this->withRegistry($command, [], function () use ($command) {
+            $this->assertSame(0, $command->run());
+            $command->flush();
+        });
+
+        $this->assertStringContainsString('"credit":1234.56', str_replace(' ', '', $output));
     }
 
     public function testExportRejectsAnUnknownSource(): void {

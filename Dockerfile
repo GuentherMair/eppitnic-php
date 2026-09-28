@@ -11,14 +11,17 @@
 # build fails outright, and --ignore-platform-req would only silence the check
 # until the next extension is added.
 #
-# pdo_mysql is the one extension this base image lacks, verified against real
-# usage: the DSN is always mysql: (Config, Setup\DatabaseCredentials) and
-# SchemaInstaller's own `SHOW TABLES` check is MySQL-only. The alpine images
-# ship no compiler, so $PHPIZE_DEPS goes in and comes straight back out -- it
-# is build tooling, not something to ship.
+# pdo_mysql and intl are the extensions this base image lacks. pdo_mysql,
+# verified against real usage: the DSN is always mysql: (Config,
+# Setup\DatabaseCredentials) and SchemaInstaller's `SHOW TABLES` is MySQL-only.
+# intl formats amounts per region.lc_monetary: musl ships no locale data, ICU
+# does -- icu-data-full, since icu-libs alone brings English only and ICU then
+# quietly falls back to en_US. The alpine images ship no compiler, so
+# $PHPIZE_DEPS and icu-dev go in and come straight back out -- build tooling.
 FROM php:8.5-fpm-alpine AS base
-RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
-    && docker-php-ext-install pdo_mysql \
+RUN apk add --no-cache icu-libs icu-data-full \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev \
+    && docker-php-ext-install pdo_mysql intl \
     && apk del .build-deps
 
 FROM base AS builder
