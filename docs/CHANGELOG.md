@@ -31,6 +31,10 @@ see [UPGRADING.md](UPGRADING.md).
   `Support\Validate::eppField()` holds the EPP field rules shared by setup,
   the CLI and the API, so an invalid username or password is refused when
   entered rather than at the next `<login>`.
+- The `epp` setting gains `registrar_tag`, the registrar's `-REG` ID that
+  poll messages name it by, so the login can be an EPP user of any name up
+  to 64 characters. Setup asks for it first, and `config migrate` takes it
+  from 6.x's username.
 - Invoicing has been removed: the upgrade drops the `accounting` table and
   `users.billing_id`. It will be reimplemented separately.
 - WSDL support and the PHP/Smarty/jQuery web interface have been dropped.

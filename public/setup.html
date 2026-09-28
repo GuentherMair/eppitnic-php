@@ -68,7 +68,7 @@
   <section class="step collapsed" id="step-epp" hidden>
     <button type="button" class="step-head" aria-expanded="false"><span class="marker">3</span>EPP credentials<span class="done"></span><svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="step-body">
-      <p class="intro">Optional. Domain and contact operations will not work until these are set, but you can add them later.</p>
+      <p class="intro">The registrar tag (e.g. <code>MYCOMPANY-REG</code>) is required: registry messages name your registrar by it. The EPP username starts as the same value; change it if you log in as an EPP user. The password can be added later, but domain and contact operations need it.</p>
       <div id="epp-fields"></div>
       <button type="submit" class="action">Install</button>
       <div class="result" id="submit-result"></div>
@@ -301,6 +301,24 @@
   document.addEventListener('input', function (e) {
     if (e.target.id === 'field-admin_password' || e.target.id === 'field-admin_password_confirm') {
       checkPassword();
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // registrar tag -> EPP username
+  // ---------------------------------------------------------------
+
+  // The username follows the tag until typed into; emptying it again
+  // hands it back to the tag.
+  var usernameOwn = false;
+
+  document.addEventListener('input', function (e) {
+    var username = document.getElementById('field-epp_username');
+    if (!username) { return; }
+    if (e.target === username) {
+      usernameOwn = username.value !== '';
+    } else if (e.target.id === 'field-registrar_tag' && !usernameOwn) {
+      username.value = e.target.value;
     }
   });
 

@@ -7,7 +7,7 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Service\EppSettings;
 
 /**
- * `config epp-set <field> [value]` over the 7 plain `epp.*` fields --
+ * `config epp-set <field> [value]` over the 8 plain `epp.*` fields --
  * `server`/`server_deleted`/`port`/`interface`/`username`/`lang`/
  * `cl_trid_prefix`. See EppSettings, the single place that validates,
  * persists and audits a change here (also used by `PATCH /v1/session/epp`

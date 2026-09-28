@@ -40,7 +40,7 @@ $app->get('/v1/session/epp', function (Request $request, Response $response, arr
 });
 
 /**
- * The 7 plain `epp.*` fields -- see EppSettings, the same class `config
+ * The 8 plain `epp.*` fields -- see EppSettings, the same class `config
  * epp-set`/`config epp-server` use, so a change made here or on the command
  * line is validated and audited identically (`history`, `object='epp'`).
  * `password` is not one of these -- POST /v1/session/change-password.

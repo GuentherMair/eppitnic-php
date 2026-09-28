@@ -40,7 +40,7 @@ final class InstallerTest extends TestCase
         $this->assertSame([
             'db_type', 'db_host', 'db_name', 'db_charset', 'db_user', 'db_password',
             'admin_username', 'admin_password', 'admin_email',
-            'epp_username', 'epp_password', 'epp_cl_trid_prefix',
+            'registrar_tag', 'epp_username', 'epp_password', 'epp_cl_trid_prefix',
         ], $names);
     }
 
@@ -55,8 +55,8 @@ final class InstallerTest extends TestCase
         // db_type/db_host/db_charset default in
         // DatabaseCredentials::fromArray() and db_password may be blank, so
         // none of those block install(); db_name/db_user have no fallback and
-        // the admin fields are checked
-        $required = ['db_name', 'db_user', 'admin_username', 'admin_password'];
+        // the admin fields and the registrar tag are checked
+        $required = ['db_name', 'db_user', 'admin_username', 'admin_password', 'registrar_tag'];
 
         foreach (Installer::requirements() as $field) {
             $expected = in_array($field['name'], $required, true);
@@ -102,8 +102,12 @@ final class InstallerTest extends TestCase
      */
     public static function unacceptableEppInput(): array {
         return [
+            'no registrar tag'              => [['registrar_tag' => ''], 'registrar_tag'],
+            'tag without -REG'              => [['registrar_tag' => 'MYCOMPANY'], 'registrar_tag'],
+            'maintainer account as tag'     => [['registrar_tag' => 'MYCOMPANY-MNT'], 'registrar_tag'],
+            'lower-case tag'                => [['registrar_tag' => 'mycompany-REG'], 'registrar_tag'],
             'username over 64'              => [['epp_username' => str_repeat('A', 61) . '-REG'], 'epp_username'],
-            'username without -REG'         => [['epp_username' => 'MYCOMPANY'], 'epp_username'],
+            'username under 3'              => [['epp_username' => 'AB'], 'epp_username'],
             'password over pwType\'s 16'    => [
                 ['epp_username' => 'TEST-REG', 'epp_password' => 'far-too-long-a-password'],
                 'epp_password',
@@ -132,26 +136,27 @@ final class InstallerTest extends TestCase
         $this->useThrowawayConfigPath();
 
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/' . preg_quote($field, '/') . '/');
-        Installer::install($this->minimalInput() + $epp);
+        $this->expectExceptionMessageMatches('/^' . preg_quote($field, '/') . '/');
+        Installer::install($epp + $this->minimalInput());
     }
 
     /**
-     * The complement, and why the check is per-field rather than "the epp block
-     * must be complete": seeding none is a normal install, and so is a username
-     * with no password. Both get past this and fail on the database instead.
+     * The complement: only the registrar tag is required. The username
+     * defaults to it and the password may follow later; each of these gets
+     * past validation and fails on the database instead.
      *
      * @return array<string, array{0: array<string, string>}>
      */
     public static function acceptableEppInput(): array {
         return [
-            'no epp block at all'      => [[]],
+            'the tag alone'            => [[]],
             'username, no password'    => [['epp_username' => 'TEST-REG']],
             'username and password'    => [['epp_username' => 'TEST-REG', 'epp_password' => 'good-enough']],
-            // derived from the username when omitted -- "TEST-REG" -> "TEST"
-            'prefix left to derive'    => [['epp_username' => 'TEST-REG', 'epp_cl_trid_prefix' => '']],
-            // derived from a username that isn't a valid prefix as it stands
-            'prefix derived and fixed' => [['epp_username' => 'my.co-REG']],
+            'EPP user without suffix'  => [['epp_username' => 'mario.rossi']],
+            // derived from the tag when omitted -- "TEST-REG" -> "TEST"
+            'prefix left to derive'    => [['epp_cl_trid_prefix' => '']],
+            // derived from a tag that isn't a valid prefix as it stands
+            'prefix derived and fixed' => [['registrar_tag' => 'MY.CO-REG']],
         ];
     }
 
@@ -166,11 +171,11 @@ final class InstallerTest extends TestCase
         // input cannot reach -- so anything but InvalidArgumentException means
         // the EPP block was accepted, which is what is being asserted
         $this->expectException(\RuntimeException::class);
-        Installer::install($this->minimalInput() + $epp);
+        Installer::install($epp + $this->minimalInput());
     }
 
     /**
-     * Enough to get past the admin checks, with a DSN nothing can connect to.
+     * Enough to get past the admin and registrar tag checks, with a DSN nothing can connect to.
      *
      * @return array<string, string>
      */
@@ -179,6 +184,7 @@ final class InstallerTest extends TestCase
             'db_type' => 'mysql', 'db_host' => '127.0.0.1', 'db_port' => '1',
             'db_name' => 'x', 'db_user' => 'x', 'db_password' => 'x',
             'admin_username' => 'admin', 'admin_password' => 'Setup-Admin-42!',
+            'registrar_tag' => 'TEST-REG',
         ];
     }
 
@@ -215,6 +221,7 @@ final class InstallerTest extends TestCase
                 'db_charset' => 'utf8', 'db_user' => self::dbUser(), 'db_password' => '',
                 'admin_username' => 'setupadmin', 'admin_password' => 'Setup-Admin-42!',
                 'admin_email' => 'admin@example.test',
+                'registrar_tag' => 'MY.CO-REG', 'epp_username' => 'mario.rossi',
             ]);
 
             $this->assertSame(SCHEMA_VERSION, $result['schema_version']);
@@ -231,6 +238,11 @@ final class InstallerTest extends TestCase
             $this->assertSame('admin', $adminRow['role']);
             $this->assertSame(1, (int) $adminRow['reseller_id'], 'the first admin belongs to the registrar itself');
             $this->assertSame('Registrar (self)', R::getCell('SELECT name FROM resellers WHERE id = 1'));
+
+            $epp = Config::get('epp');
+            $this->assertSame('MY.CO-REG', $epp['registrar_tag']);
+            $this->assertSame('mario.rossi', $epp['username'], 'a given username wins over the tag');
+            $this->assertSame('MYCO', $epp['cl_trid_prefix'], 'derived from the tag, not the username');
 
             // a second install() against the now-configured fixture must
             // refuse, not silently create a second admin

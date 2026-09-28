@@ -20,7 +20,7 @@ final class Config
      * setting, so a field added later is withheld until it is named here.
      */
     public const EPP_PUBLIC_FIELDS = [
-        'server', 'server_deleted', 'port', 'interface',
+        'server', 'server_deleted', 'port', 'interface', 'registrar_tag',
         'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
     ];
 

@@ -90,6 +90,7 @@ class Client
       'server'          => $serverOverride ?: $epp['server'],
       'port'            => $epp['port'],
       'interface'       => $epp['interface'],
+      'registrar_tag'   => $epp['registrar_tag'] ?? '',
       'username'        => $epp['username'],
       'password'        => $epp['password'],
       'lang'            => $epp['lang'],

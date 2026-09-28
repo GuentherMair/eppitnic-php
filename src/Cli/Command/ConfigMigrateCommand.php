@@ -101,6 +101,8 @@ final class ConfigMigrateCommand extends Command
             'server_deleted' => 'https://epp-deleted.nic.it', // no config.xml source
             'port'           => $port !== '' ? (int) $port : null,
             'interface'      => self::xmlStr($xml->interface),
+            // 6.x only knew the registrar's own -REG login
+            'registrar_tag'  => str_ends_with(self::xmlStr($xml->username), '-REG') ? self::xmlStr($xml->username) : '',
             'username'       => self::xmlStr($xml->username),
             'password'       => self::xmlStr($xml->password),
             'lang'           => self::xmlStr($xml->lang),

@@ -85,9 +85,9 @@ final class ConfigEppSetCommandTest extends EppTestCase
         $this->assertSame('MYCOMPANY-REG', Config::get('epp')['username']);
     }
 
-    public function testRejectsAUsernameNotEndingInReg(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'username', 'MYCOMPANY']))->run();
+    public function testAcceptsAnEppUserWithoutSuffix(): void {
+        $this->runCommand(['--yes', 'username', 'mario.rossi']);
+        $this->assertSame('mario.rossi', Config::get('epp')['username']);
     }
 
     public function testRejectsAUsernameOutsideThreeToSixtyFourCharacters(): void {

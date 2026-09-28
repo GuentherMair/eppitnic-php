@@ -20,6 +20,9 @@ final class EppFieldValidationTest extends TestCase
         return [
             'IPv4 interface'            => ['interface', '203.0.113.5'],
             'Italian'                   => ['lang', 'it'],
+            'registrar tag'             => ['registrar_tag', 'MYCOMPANY-REG'],
+            'registrar tag with a dot'  => ['registrar_tag', 'MY.CO-REG'],
+            'registrar tag at 64'       => ['registrar_tag', str_repeat('A', 60) . '-REG'],
             'English'                   => ['lang', 'en'],
             'prefix at the ceiling'     => ['cl_trid_prefix', str_repeat('A', 32)],
             'prefix with digits'        => ['cl_trid_prefix', 'ACME2'],
@@ -27,6 +30,8 @@ final class EppFieldValidationTest extends TestCase
             'ordinary username'         => ['username', 'MYCOMPANY-REG'],
             'username at the ceiling'   => ['username', str_repeat('A', 60) . '-REG'],
             'past clIDType\'s 16'       => ['username', 'MYLONGCOMPANY-REG'],
+            'maintainer account'        => ['username', 'MYCOMPANY-MNT'],
+            'EPP user, no suffix'       => ['username', 'mario.rossi'],
             'shortest password'         => ['password', str_repeat('a', 6)],
             'password at the ceiling'   => ['password', str_repeat('a', 16)],
         ];
@@ -50,10 +55,14 @@ final class EppFieldValidationTest extends TestCase
             'prefix with a hyphen'    => ['cl_trid_prefix', 'ACME-1'],
             'prefix with underscore'  => ['cl_trid_prefix', 'ACME_1'],
             'non-ASCII prefix'        => ['cl_trid_prefix', 'ÄCME'],
+            'tag without -REG'        => ['registrar_tag', 'MYCOMPANY'],
+            'maintainer account tag'  => ['registrar_tag', 'MYCOMPANY-MNT'],
+            'lower-case tag'          => ['registrar_tag', 'mycompany-REG'],
+            'tag that is only -REG'   => ['registrar_tag', '-REG'],
+            'tag over 64'             => ['registrar_tag', str_repeat('A', 61) . '-REG'],
             // 3 to 64, wider than eppcom:clIDType's 16
             'username one under'      => ['username', 'RE'],
             'username one over'       => ['username', str_repeat('A', 61) . '-REG'],
-            'username without -REG'   => ['username', 'MYCOMPANY'],
             // epp:pwType is 6 to 16, for both <pw> and <newPW>
             'password one under'      => ['password', str_repeat('a', 5)],
             'password one over'       => ['password', str_repeat('a', 17)],

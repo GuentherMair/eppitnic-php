@@ -38,6 +38,7 @@ final class Installer
             ['name' => 'admin_username',     'label' => 'Admin username',    'default' => 'admin',     'secret' => false, 'group' => 'admin',    'required' => true],
             ['name' => 'admin_password',     'label' => 'Admin password',    'default' => '',          'secret' => true,  'group' => 'admin',    'required' => true],
             ['name' => 'admin_email',        'label' => 'Admin e-mail',      'default' => '',          'secret' => false, 'group' => 'admin',    'required' => false],
+            ['name' => 'registrar_tag',      'label' => 'Registrar tag (ends in -REG)', 'default' => '', 'secret' => false, 'group' => 'epp',      'required' => true],
             ['name' => 'epp_username',       'label' => 'EPP username',      'default' => '',          'secret' => false, 'group' => 'epp',      'required' => false],
             ['name' => 'epp_password',       'label' => 'EPP password',      'default' => '',          'secret' => true,  'group' => 'epp',      'required' => false],
             ['name' => 'epp_cl_trid_prefix', 'label' => 'EPP clTRID prefix', 'default' => '',          'secret' => false, 'group' => 'epp',      'required' => false],
@@ -76,19 +77,29 @@ final class Installer
         return ['server_version' => $version];
     }
 
+    /** @param array<string, mixed> $input every requirements() field, snake_case */
+    private static function registrarTag(array $input): string {
+        return trim((string) ($input['registrar_tag'] ?? ''));
+    }
+
+    /** the EPP login: the one given, else the registrar tag's own account */
+    private static function eppUsername(array $input): string {
+        return trim((string) ($input['epp_username'] ?? '')) ?: self::registrarTag($input);
+    }
+
     /**
-     * The clTRID prefix to store: the one given, or the registrar part of the
-     * username made acceptable ("abcd-REG" -> "ABCD"). Its own method so
+     * The clTRID prefix to store: the one given, or the registrar tag without
+     * "-REG", made acceptable ("my.co-REG" -> "MYCO"). Its own method so
      * validateEpp() checks the value install() will actually store.
      *
      * @param array<string, mixed> $input every requirements() field, snake_case
      */
-    private static function clTridPrefix(array $input, string $eppUsername): string {
+    private static function clTridPrefix(array $input): string {
         // `?? ''` rather than a bare read: the field is optional and an API
         // client that simply leaves it out is normal, so the key's absence is
         // not a programming error to warn about
         return (string) (($input['epp_cl_trid_prefix'] ?? '')
-            ?: Validate::toClTridPrefix(strtok($eppUsername, '-') ?: $eppUsername));
+            ?: Validate::toClTridPrefix(preg_replace('/-REG$/', '', self::registrarTag($input))));
     }
 
     /**
@@ -100,26 +111,27 @@ final class Installer
      * @throws \InvalidArgumentException on a value the registry would refuse
      */
     private static function validateEpp(array $input): void {
-        $username = (string) ($input['epp_username'] ?? '');
-        if ($username === '') {
-            return; // nothing is seeded without one -- see install()'s step 7
+        if (self::registrarTag($input) === '') {
+            throw new \InvalidArgumentException('registrar_tag is required.');
         }
 
+        // the tag first: the username and the prefix default from it
         $candidates = [
-            'username'       => $username,
+            'registrar_tag'  => self::registrarTag($input),
+            'username'       => self::eppUsername($input),
             'password'       => (string) ($input['epp_password'] ?? ''),
-            'cl_trid_prefix' => self::clTridPrefix($input, $username),
+            'cl_trid_prefix' => self::clTridPrefix($input),
         ];
 
         foreach ($candidates as $field => $value) {
-            // an omitted password is left at the schema placeholder, same as
-            // an install that seeds no EPP block at all; only a supplied one
-            // has to satisfy epp:pwType
+            // an omitted password stays at the schema placeholder, to be set
+            // later; only a supplied one has to satisfy epp:pwType
             if ($field === 'password' && $value === '') {
                 continue;
             }
             if ($error = Validate::eppField($field, $value)) {
-                throw new \InvalidArgumentException('epp_' . $error);
+                // named as the setup field that carried it
+                throw new \InvalidArgumentException(($field === 'registrar_tag' ? '' : 'epp_') . $error);
             }
         }
     }
@@ -194,16 +206,13 @@ final class Installer
             role: 'admin',
         );
 
-        // 7. seed epp, if given -- optional: a fresh install still boots with
-        // it left at the schema placeholder, same as today, just configured
-        // by hand afterward instead of interactively at this point
-        if (($input['epp_username'] ?? '') !== '') {
-            $epp = Config::get('epp');
-            $epp['username']       = (string) $input['epp_username'];
-            $epp['password']       = (string) ($input['epp_password'] ?? '');
-            $epp['cl_trid_prefix'] = self::clTridPrefix($input, $epp['username']);
-            Config::set('epp', $epp);
-        }
+        // 7. seed epp: the tag always, the password only if given
+        $epp = Config::get('epp');
+        $epp['registrar_tag']  = self::registrarTag($input);
+        $epp['username']       = self::eppUsername($input);
+        $epp['password']       = (string) ($input['epp_password'] ?? '');
+        $epp['cl_trid_prefix'] = self::clTridPrefix($input);
+        Config::set('epp', $epp);
 
         // 8. the commit point
         ConfigFile::write($creds);

@@ -7,7 +7,7 @@ use Eppitnic\Persistence\History;
 use Eppitnic\Support\Validate;
 
 /**
- * The 7 plain `epp.*` fields (everything but `password`/`pendingPassword`,
+ * The 8 plain `epp.*` fields (everything but `password`/`pendingPassword`,
  * which `config epp-password`/`RegistryPasswordChange` own) -- shared by
  * `config epp-set`/`config epp-server` and `PATCH /v1/session/epp`, so
  * neither reimplements the other's validation, and both audit through the
@@ -43,6 +43,7 @@ final class EppSettings
         'server_deleted' => false,
         'port'           => false,
         'interface'      => false,
+        'registrar_tag'  => true,
         'username'       => true,
         'lang'           => true,
         'cl_trid_prefix' => true,

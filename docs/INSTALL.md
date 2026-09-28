@@ -42,8 +42,10 @@ TLS, and the credentials of your nic.it EPP account.
    ```
 
    or in a browser at `https://<YOUR_HOSTNAME>/setup.html`. Both ask for the
-   database credentials from step 2, the first admin account, and the EPP
-   account's username and password.
+   database credentials from step 2, the first admin account, your registrar
+   tag (the `…-REG` ID nic.it gave you), and the EPP account's username and
+   password. The username starts as the registrar tag; change it if you log
+   in as an EPP user.
 6. If the EPP account is one for the public test registry, switch to it:
 
    ```bash
@@ -128,8 +130,18 @@ To do by hand what `eppitnic setup` does:
    bin/eppitnic user create <ADMIN_USERNAME> --password='<ADMIN_PASSWORD>' --role=admin
    ```
 
+4. Set the registrar tag and the EPP account (see "Change the EPP account
+   settings"):
+
+   ```bash
+   bin/eppitnic config epp-set registrar_tag <REGISTRAR_TAG>
+   bin/eppitnic config epp-set username <EPP_USERNAME>
+   ```
+
 `eppitnic setup` also takes every answer as a flag (`--db-name=`,
-`--admin-username=`, …) for a scripted install.
+`--admin-username=`, `--registrar-tag=`, …) for a scripted install.
+`--registrar-tag` is required; `--epp-username` defaults to it, and the
+clTRID prefix to the tag without `-REG`.
 
 ## Configuration
 
@@ -139,7 +151,8 @@ Configuration is split in two:
    `eppitnic setup` refuses to run again and the setup routes answer `404`.
 2. Everything else lives in the `settings` table, seeded by
    `config/mariadb-schema.sql`. `jwt_psk` is generated on first connection,
-   and setup fills in the EPP `username`, `password` and `cl_trid_prefix`.
+   and setup fills in the EPP `registrar_tag`, `username`, `password` and
+   `cl_trid_prefix`.
    Everything else can stay at its default. Leave `epp.lastPasswordUpdate`
    at `0` on a fresh install (see "Registry password rotation").
 
@@ -189,9 +202,9 @@ isn't. Admins can make the same changes through `GET`/`PATCH /v1/region`.
 
 ### Change the EPP account settings
 
-Give a value to set one of the `epp` setting's 7 plain fields, or omit it to
-unset the field. `server`, `username`, `lang` and `cl_trid_prefix` are
-required and cannot be unset; `server` also has a preset verb (see "Switch
+Give a value to set one of the `epp` setting's 8 plain fields, or omit it to
+unset the field. `server`, `registrar_tag`, `username`, `lang` and
+`cl_trid_prefix` are required and cannot be unset; `server` also has a preset verb (see "Switch
 between the test and production registry").
 
 ```bash
@@ -201,8 +214,15 @@ bin/eppitnic config epp-set port 8443                          # 1-65535, or omi
 bin/eppitnic config epp-set interface 203.0.113.5              # IPv4 only, or omit the value to unset
 bin/eppitnic config epp-set lang it                            # 'it' or 'en'
 bin/eppitnic config epp-set cl_trid_prefix MYPREFIX            # 1-32 characters, A-Z and 0-9 only
-bin/eppitnic config epp-set username MYCOMPANY-REG             # 3-64 characters, ending '-REG'
+bin/eppitnic config epp-set registrar_tag MYCOMPANY-REG        # upper case, ending '-REG', up to 64 characters
+bin/eppitnic config epp-set username mario.rossi               # 3-64 characters
 ```
+
+`registrar_tag` is your registrar's ID, the name registry poll messages use
+for you: `poll process` compares it with a transfer's acting registrar to
+tell a transfer away from you from one to you. `username` is the login,
+which is the registrar tag itself unless you log in as an EPP user. An
+installation without a tag uses the username in its place.
 
 Admins can make the same changes through `GET`/`PATCH /v1/session/epp`. Every
 change is recorded in `history` (`object='epp'`).

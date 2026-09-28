@@ -206,7 +206,7 @@ final class SharedBehaviourTest extends EppTestCase
      */
     public function testTheEppAllowListNamesOnlyNonSecretFields(): void {
         $this->assertSame([
-            'server', 'server_deleted', 'port', 'interface',
+            'server', 'server_deleted', 'port', 'interface', 'registrar_tag',
             'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
         ], Config::EPP_PUBLIC_FIELDS);
 

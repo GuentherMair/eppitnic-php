@@ -96,6 +96,14 @@ class PollProcessor
   }
 
   /**
+   * Who we are in poll messages: the registrar tag, or the login name on an
+   * installation that predates the tag (then always the -REG account).
+   */
+  private function registrarTag(): string {
+    return (string) ($this->client->EPPCfg->registrar_tag ?: $this->client->EPPCfg->username);
+  }
+
+  /**
    * Reconcile transfer state from the unarchived poll messages: outgoing
    * transfers deactivate locally, pending ones are noted, and open incoming
    * requests are completed, rejected or left. Needs a logged-in session.
@@ -116,7 +124,7 @@ class PollProcessor
           // acID is the *acting* client: per RFC 5731 the registrar that
           // approved the transfer, i.e. the losing one. So acID being us means
           // the domain left us; anything else means it came to us
-          if ($msg['ac_id'] == $this->client->EPPCfg->username) {
+          if ($msg['ac_id'] == $this->registrarTag()) {
             $transferOut[$msg['domain']] = $msg;
           } else {
             $transferIn[$msg['domain']] = $msg;

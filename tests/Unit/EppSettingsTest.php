@@ -29,9 +29,9 @@ final class EppSettingsTest extends EppTestCase
         Config::loadForTesting(static::SETTINGS);
     }
 
-    public function testFieldsListsAllSevenInOrder(): void {
+    public function testFieldsListsAllEightInOrder(): void {
         $this->assertSame(
-            ['server', 'server_deleted', 'port', 'interface', 'username', 'lang', 'cl_trid_prefix'],
+            ['server', 'server_deleted', 'port', 'interface', 'registrar_tag', 'username', 'lang', 'cl_trid_prefix'],
             EppSettings::fields()
         );
     }
@@ -47,7 +47,7 @@ final class EppSettingsTest extends EppTestCase
 
     public function testSetValidatesThroughTheSharedEppFieldRules(): void {
         $this->expectException(\InvalidArgumentException::class);
-        EppSettings::set(['username' => 'TOO-SHORT'], 1);
+        EppSettings::set(['username' => 'AB'], 1);
     }
 
     public function testSetRejectsAnUnknownField(): void {

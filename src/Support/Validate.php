@@ -154,16 +154,17 @@ final class Validate
                 ? null
                 : 'cl_trid_prefix must be 1 to 32 characters, A-Z and 0-9 only',
 
+            // the registrar's own ID, as poll messages name it (acID, reID);
+            // EPP users log in under other names
+            'registrar_tag' => preg_match('/^[A-Z0-9][A-Z0-9._-]{0,59}-REG$/', $value) === 1
+                ? null
+                : "registrar_tag must end in '-REG', in upper case, at most 64 characters",
+
             // 3 to 64: eppcom:clIDType's 16 is too short for real nic.it
-            // accounts. '-REG' is nic.it's account convention rather than a
-            // schema rule, but every real account has it
-            'username' => match (true) {
-                strlen($value) < 3, strlen($value) > 64 =>
-                    'username must be 3 to 64 characters',
-                ! str_ends_with($value, '-REG') =>
-                    "username must end in '-REG' (nic.it's registrar account convention)",
-                default => null,
-            },
+            // accounts. No suffix rule: EPP users need not end in -REG or -MNT
+            'username' => (strlen($value) < 3 || strlen($value) > 64)
+                ? 'username must be 3 to 64 characters'
+                : null,
 
             // epp:pwType: 6 to 16 characters, for <pw> and <newPW> alike. The
             // registry's ceiling, not PasswordPolicy, which governs local
