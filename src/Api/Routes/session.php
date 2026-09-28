@@ -8,6 +8,7 @@ use Eppitnic\Persistence\History;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Service\EppSettings;
 use Eppitnic\Service\RegistryPasswordChange;
+use Eppitnic\Support\Money;
 use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -144,7 +145,11 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
         return Json::response($response, ['error' => $e->getMessage()], 502);
     }
 
-    return Json::response($response, ['credit' => $credit]);
+    return Json::response($response, [
+        'credit' => $credit,
+        // the text for people, in region.lc_monetary
+        'credit_formatted' => $credit === null ? null : Money::euro($credit),
+    ]);
 });
 
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
