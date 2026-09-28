@@ -24,6 +24,9 @@ final class Config
         'username', 'lang', 'cl_trid_prefix', 'lastPasswordUpdate',
     ];
 
+    /** seconds a process waits for another one's schema migration to finish */
+    private const MIGRATE_LOCK_WAIT = 60;
+
     private static ?self $instance = null;
     private array $settings = [];
 
@@ -202,6 +205,40 @@ final class Config
      * recurse. Public for Setup\Installer, where a fresh database is a no-op.
      */
     public static function migrate(): void {
+        if (self::storedVersion() === SCHEMA_VERSION) {
+            return;
+        }
+
+        // Web and cron share the database: one process migrates, the others
+        // wait here and then find the stamp current. The lock dies with the
+        // connection, so a crashed migration never leaves it held.
+        $lock = "CONCAT('eppitnic-migrate-', MD5(DATABASE()))";
+        if ((int) R::getCell("SELECT GET_LOCK({$lock}, ?)", [self::MIGRATE_LOCK_WAIT]) !== 1) {
+            throw new \RuntimeException(
+                'Another process is migrating the database schema; try again once it has finished.'
+            );
+        }
+        try {
+            self::migrateLocked();
+        } finally {
+            R::getCell("SELECT RELEASE_LOCK({$lock})");
+        }
+    }
+
+    /**
+     * @return string|null the stamped schema version, the pre-versioning
+     *                     baseline without a `settings` table, null unstamped
+     */
+    private static function storedVersion(): ?string {
+        if (empty(R::getAll("SHOW TABLES LIKE 'settings'"))) {
+            return '060700';
+        }
+        $stamp = R::getCell("SELECT `value` FROM settings WHERE `key` = 'schema_version'");
+        return $stamp === null || $stamp === false ? null : json_decode($stamp, true);
+    }
+
+    /** migrate()'s work, run while holding the migration lock */
+    private static function migrateLocked(): void {
         if (empty(R::getAll("SHOW TABLES LIKE 'settings'"))) {
             // no stamp to read: assume the pre-versioning baseline and let the
             // loop find its way from there by the normal filename lookup

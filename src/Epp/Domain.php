@@ -1238,6 +1238,13 @@ class Domain extends AbstractObject
    * @return bool whether a row was actually queued
    */
   private function queueDnsSync(string $domain, string $notice, string $action, array $ns): bool {
+    // one JSON_CONTAINS per nameserver rather than JSON_OVERLAPS, which
+    // MariaDB only has from 10.9; no nameservers means nothing to match
+    $names = self::nsNames($ns);
+    $overlap = $names === []
+      ? '0'
+      : '(' . implode(' OR ', array_fill(0, count($names), "JSON_CONTAINS(JSON_EXTRACT(value, '$.nameservers'), ?)")) . ')';
+
     $queued = R::exec("
       INSERT INTO tasks (domain, date, notice, object, action)
       SELECT ?, CURRENT_DATE, ?, 'pdns', ? FROM settings
@@ -1245,9 +1252,12 @@ class Domain extends AbstractObject
         AND CASE WHEN JSON_VALID(value)
                  THEN JSON_VALUE(value, '$.enabled') = 1
                   AND JSON_LENGTH(value, '$.apis') > 0
-                  AND JSON_OVERLAPS(JSON_EXTRACT(value, '$.nameservers'), ?)
+                  AND {$overlap}
                  ELSE 0 END
-    ", [$domain, $notice, $action, json_encode(self::nsNames($ns), JSON_UNESCAPED_SLASHES)]) > 0;
+    ", array_merge(
+      [$domain, $notice, $action],
+      array_map(static fn(string $name) => json_encode($name, JSON_UNESCAPED_SLASHES), $names)
+    )) > 0;
 
     // the latest intent wins: a delayed delete must not tear down a zone just
     // (re)created, nor a pending create/update rebuild one about to be deleted

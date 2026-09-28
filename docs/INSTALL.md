@@ -143,8 +143,10 @@ Configuration is split in two:
    Everything else can stay at its default. Leave `epp.lastPasswordUpdate`
    at `0` on a fresh install (see "Registry password rotation").
 
-`allowed_origins` has no setup question and no CLI verb. For a browser
-client served from another origin, set it in the database:
+`allowed_origins` has no setup question and no CLI verb. Every browser
+client needs its origin listed, including a frontend served from the API's
+own host: browsers send `Origin` on same-origin writes too. Set it in the
+database:
 
 ```sql
 UPDATE settings SET value = '["https://<APP_HOSTNAME>"]' WHERE `key` = 'allowed_origins';
@@ -156,8 +158,9 @@ It takes effect with the next request. Clients without an `Origin` header
 The schema is versioned: `settings.schema_version` (`MMmmrr`, e.g. `070000`)
 is compared with `SCHEMA_VERSION` in `config/constants.php` on every
 initialization, and the `config/mariadb-schema-upgrade-{from}-to-{to}.sql`
-files are applied in sequence. A new migration is one more such file plus a
-bumped `SCHEMA_VERSION`.
+files are applied in sequence. One process per database migrates at a
+time; others wait up to 60 seconds for it. A new migration is one more such
+file plus a bumped `SCHEMA_VERSION`.
 
 ### Show the current settings
 

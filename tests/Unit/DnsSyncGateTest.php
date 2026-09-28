@@ -14,9 +14,9 @@ use RedBeanPHP\R;
  * serves their zones (docs/INSTALL.md). The insert is gated on
  * `pdns.enabled`, a non-empty `pdns.apis`, and the domain's NS set touching
  * a configured `pdns.nameservers` entry -- read via `JSON_VALUE`/
- * `JSON_LENGTH`/`JSON_OVERLAPS`, guarded by `JSON_VALID` so invalid JSON
+ * `JSON_LENGTH`/`JSON_CONTAINS`, guarded by `JSON_VALID` so invalid JSON
  * never reaches them. SQLite lacks a MariaDB-compatible `JSON_VALUE`/
- * `JSON_LENGTH`/`JSON_OVERLAPS` (its own `JSON_EXTRACT` is close enough to
+ * `JSON_LENGTH`/`JSON_CONTAINS` (its own `JSON_EXTRACT` is close enough to
  * use as-is), so this test registers shims matching what MariaDB 11.8
  * actually returns (a JSON boolean is `'1'`/`'0'`, not `'true'`/`'false'`).
  */
@@ -89,16 +89,14 @@ final class DnsSyncGateTest extends EppTestCase
             return is_array($value) ? count($value) : null;
         });
 
-        // MariaDB: 1 on a shared element, 0 against an empty list, NULL if
-        // either side is not a JSON array (in particular, a missing path,
-        // which JSON_EXTRACT already answers NULL for)
-        @$pdo->sqliteCreateFunction('JSON_OVERLAPS', static function (?string $a, ?string $b): ?int {
-            $left = json_decode((string) $a, true);
-            $right = json_decode((string) $b, true);
-            if ( ! is_array($left) || ! is_array($right)) {
+        // MariaDB: 1 if the array holds the candidate, 0 if not, NULL for a
+        // missing target (JSON_EXTRACT already answers NULL for a missing path)
+        @$pdo->sqliteCreateFunction('JSON_CONTAINS', static function (?string $target, ?string $candidate): ?int {
+            if ($target === null) {
                 return null;
             }
-            return array_intersect($left, $right) !== [] ? 1 : 0;
+            $list = json_decode($target, true);
+            return is_array($list) && in_array(json_decode((string) $candidate, true), $list, true) ? 1 : 0;
         });
     }
 
@@ -211,7 +209,7 @@ final class DnsSyncGateTest extends EppTestCase
         $this->assertNotSame([], $this->dnsSyncRows());
     }
 
-    /** invalid JSON must not reach JSON_VALUE/JSON_LENGTH/JSON_OVERLAPS -- the CASE guard's whole job */
+    /** invalid JSON must not reach JSON_VALUE/JSON_LENGTH/JSON_CONTAINS -- the CASE guard's whole job */
     public function testInvalidJsonMeansNoInsertAndNoError(): void {
         $this->seedPdns('not json');
 
