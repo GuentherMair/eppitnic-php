@@ -154,12 +154,12 @@ final class Validate
                 ? null
                 : 'cl_trid_prefix must be 1 to 32 characters, A-Z and 0-9 only',
 
-            // eppcom:clIDType: 3 to 16 characters. '-REG' is nic.it's account
-            // convention rather than a schema rule, but every real account has
-            // it, so one without is almost certainly a mistake
+            // 3 to 64: eppcom:clIDType's 16 is too short for real nic.it
+            // accounts. '-REG' is nic.it's account convention rather than a
+            // schema rule, but every real account has it
             'username' => match (true) {
-                strlen($value) < 3, strlen($value) > 16 =>
-                    'username must be 3 to 16 characters (EPP clIDType)',
+                strlen($value) < 3, strlen($value) > 64 =>
+                    'username must be 3 to 64 characters',
                 ! str_ends_with($value, '-REG') =>
                     "username must end in '-REG' (nic.it's registrar account convention)",
                 default => null,

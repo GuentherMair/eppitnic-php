@@ -201,7 +201,7 @@ bin/eppitnic config epp-set port 8443                          # 1-65535, or omi
 bin/eppitnic config epp-set interface 203.0.113.5              # IPv4 only, or omit the value to unset
 bin/eppitnic config epp-set lang it                            # 'it' or 'en'
 bin/eppitnic config epp-set cl_trid_prefix MYPREFIX            # 1-32 characters, A-Z and 0-9 only
-bin/eppitnic config epp-set username MYCOMPANY-REG             # 3-16 characters, ending '-REG'
+bin/eppitnic config epp-set username MYCOMPANY-REG             # 3-64 characters, ending '-REG'
 ```
 
 Admins can make the same changes through `GET`/`PATCH /v1/session/epp`. Every

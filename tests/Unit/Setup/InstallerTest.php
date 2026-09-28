@@ -102,7 +102,7 @@ final class InstallerTest extends TestCase
      */
     public static function unacceptableEppInput(): array {
         return [
-            'username over clIDType\'s 16'  => [['epp_username' => 'MYLONGCOMPANY-REG'], 'epp_username'],
+            'username over 64'              => [['epp_username' => str_repeat('A', 61) . '-REG'], 'epp_username'],
             'username without -REG'         => [['epp_username' => 'MYCOMPANY'], 'epp_username'],
             'password over pwType\'s 16'    => [
                 ['epp_username' => 'TEST-REG', 'epp_password' => 'far-too-long-a-password'],

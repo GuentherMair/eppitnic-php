@@ -90,9 +90,9 @@ final class ConfigEppSetCommandTest extends EppTestCase
         (new ConfigEppSetCommand(['--yes', 'username', 'MYCOMPANY']))->run();
     }
 
-    public function testRejectsAUsernameOutsideThreeToSixteenCharacters(): void {
+    public function testRejectsAUsernameOutsideThreeToSixtyFourCharacters(): void {
         $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'username', 'A-VERY-LONG-USERNAME-REG']))->run();
+        (new ConfigEppSetCommand(['--yes', 'username', str_repeat('A', 61) . '-REG']))->run();
     }
 
     public function testRejectsAnUnknownField(): void {
