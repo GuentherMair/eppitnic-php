@@ -9,6 +9,7 @@ use Firebase\JWT\Key;
 use Firebase\JWT\SignatureInvalidException;
 use Eppitnic\Config;
 use Eppitnic\Persistence\Scope;
+use Eppitnic\Service\EppSettings;
 use OTPHP\TOTP;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -230,6 +231,7 @@ final class Auth
         $decoded->data->role = $account['role'];
         $decoded->data->reseller_id = (int) $account['reseller_id'];
         $decoded->data->reseller_name = $account['reseller_name'];
+        $decoded->data->registry = EppSettings::environment();
         return $decoded;
     }
 

@@ -7,6 +7,7 @@ use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
 use Eppitnic\Persistence\User;
+use Eppitnic\Service\EppSettings;
 use Eppitnic\Support\PasswordPolicy;
 use Eppitnic\Support\PasswordGenerator;
 use Eppitnic\Support\Validate;
@@ -137,6 +138,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
         'debug'         => (bool) $user[0]['debug'],
         'max_token_age'   => $user[0]['max_token_age'],
         'max_idle_time'   => $user[0]['max_idle_time'],
+        'registry'        => EppSettings::environment(),
     ]));
 });
 

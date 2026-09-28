@@ -60,6 +60,16 @@ final class AuthAccountTest extends TestCase
         $this->assertSame('Two', Auth::verify($this->request(3))->data->reseller_name);
     }
 
+    /** the registry the UI colours itself by follows epp.server live, not the token */
+    public function testTheRegistryComesFromTheCurrentSetting(): void {
+        Config::loadForTesting([
+            'jwt_psk' => 'test-signing-key-for-this-suite-only',
+            'epp'     => ['server' => 'https://epp.pubtest.nic.it'],
+        ]);
+
+        $this->assertSame('test', Auth::verify($this->request(3))->data->registry);
+    }
+
     public function testADeactivatedUserIsRefusedAtOnce(): void {
         R::exec('UPDATE users SET active = 0 WHERE id = 3');
 

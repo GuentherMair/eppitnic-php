@@ -21,6 +21,22 @@ use Eppitnic\Support\Validate;
  */
 final class EppSettings
 {
+    /** epp.server's host for each registry `config epp-server` switches between */
+    public const REGISTRY_HOSTS = [
+        'production' => 'epp.nic.it',
+        'test'       => 'epp.pubtest.nic.it',
+    ];
+
+    /**
+     * Which registry epp.server points at, for the UI to tell apart.
+     *
+     * @return string 'production', 'test', or 'custom' for any other endpoint
+     */
+    public static function environment(): string {
+        $host = strtolower((string) parse_url((string) (Config::all()['epp']['server'] ?? ''), PHP_URL_HOST));
+        return array_flip(self::REGISTRY_HOSTS)[$host] ?? 'custom';
+    }
+
     /** field => required. An optional field's blank/null value unsets it. */
     private const FIELDS = [
         'server'         => true,
