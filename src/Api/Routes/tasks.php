@@ -3,6 +3,7 @@
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
 use Eppitnic\Persistence\History;
+use Eppitnic\Support\Validate;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use RedBeanPHP\R;
@@ -88,6 +89,10 @@ $app->post('/v1/domains/{name}/tasks', function (Request $request, Response $res
 
     if (empty($params['date']) || empty($params['notice'])) {
         return Json::response($response, ['error' => 'date and notice are required'], 400);
+    }
+
+    if (($error = Validate::futureDateError($params['date'])) !== null) {
+        return Json::response($response, ['error' => $error], 400);
     }
 
     $where = ['domain = :domain'];

@@ -512,6 +512,9 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
         if ($mode === 'date' && empty($date)) {
             return Json::response($response, ['error' => 'date is required when mode=date'], 400);
         }
+        if ($mode === 'date' && ($error = Validate::futureDateError($date)) !== null) {
+            return Json::response($response, ['error' => $error], 400);
+        }
 
         $row = R::getRow("SELECT id, ex_date FROM domains WHERE domain = :domain" . ($scope->isAdmin() ? '' : ' AND reseller_id = :reseller_id'), array_filter([
             ':domain' => $name,
@@ -519,6 +522,11 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
         ], fn($v) => $v !== null));
         if (empty($row)) {
             return Json::response($response, ['error' => "Domain '{$name}' not found"], 404);
+        }
+
+        $scheduled = (int) R::getCell("SELECT COUNT(*) FROM tasks WHERE domain = ? AND object = 'registry' AND action = 'delete' AND active = 1", [$name]);
+        if ($scheduled > 0) {
+            return Json::response($response, ['error' => "A deletion of '{$name}' is already scheduled"], 409);
         }
 
         // object='registry', action='delete': `domain reap-deletions` reads
@@ -530,6 +538,12 @@ $app->delete('/v1/domains/{name}', function (Request $request, Response $respons
             ':date'   => $date ?: $row['ex_date'],
             ':notice' => 'scheduled deletion',
         ]);
+        History::record('domains', (int) $row['id'], 'update', [
+            'domain'             => $name,
+            'scheduled_deletion' => 'scheduled',
+            'date'               => $date ?: $row['ex_date'],
+            'task_id'            => (int) R::getInsertID(),
+        ], $scope->userId);
 
         return Json::response($response, ['scheduled' => true, 'domain' => $name, 'date' => $date ?: $row['ex_date']]);
     }

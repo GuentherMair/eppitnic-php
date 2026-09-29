@@ -104,6 +104,22 @@ final class Validate
     }
 
     /**
+     * A real calendar day in `YYYY-MM-DD` form that is today or later.
+     *
+     * @return string|null the problem, or null when $value is acceptable
+     */
+    public static function futureDateError(mixed $value): ?string {
+        if ( ! is_string($value)) {
+            return 'date must be a day in YYYY-MM-DD form';
+        }
+        $parsed = \DateTime::createFromFormat('!Y-m-d', $value);
+        if ($parsed === false || $parsed->format('Y-m-d') !== $value) {
+            return 'date must be a day in YYYY-MM-DD form';
+        }
+        return $value < date('Y-m-d') ? 'date must not be in the past' : null;
+    }
+
+    /**
      * basic .it domain name shape check -- not a full RFC-1035 validator,
      * just enough to reject obvious garbage before it reaches the registry
      */
