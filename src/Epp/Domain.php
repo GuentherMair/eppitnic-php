@@ -2,13 +2,13 @@
 
 namespace Eppitnic\Epp;
 
-use Algo26\IdnaConvert\ToIdn;
 use Eppitnic\Persistence\History;
 
 use Eppitnic\Persistence\ChangeTracking;
 use Eppitnic\Persistence\LocalStorage;
 use Eppitnic\Persistence\Scope;
 use Eppitnic\Persistence\SerializedColumn;
+use Eppitnic\Support\Idn;
 use RedBeanPHP\R;
 
 /**
@@ -113,9 +113,6 @@ class Domain extends AbstractObject
   // infContacts
   protected $infcontacts;
 
-  // IDN <=> punycode converter class
-  protected $idn;
-
   // DNSSEC status (enabled or not)
   protected $dnssec_status;
 
@@ -130,7 +127,6 @@ class Domain extends AbstractObject
     parent::__construct($client);
 
     $this->initValues();
-    $this->idn = new ToIdn();
     $this->dnssec_status = @isset($this->client->EPPCfg->dnssec->active) ? (int)$this->client->EPPCfg->dnssec->active : 0;
   }
 
@@ -365,7 +361,7 @@ class Domain extends AbstractObject
    */
   public function remNS(string $name): string|false {
     // DNS names must be in punycode format (if below an IDN domain)
-    $name = $this->idn->convert($name);
+    $name = Idn::ascii($name);
     if (isset($this->ns[$name])) {
       unset($this->ns[$name]);
       $this->markChanged('ns');
@@ -379,94 +375,64 @@ class Domain extends AbstractObject
    * add a nameserver
    *
    * @param string $name NS name
-   * @param mixed $addr ip addresses to set (an array of two, one or a string)
+   * @param array|string|null $addr glue addresses: one, or an array of up to
+   *                     two; null keeps a nameserver already set as it is,
+   *                     an empty array sets it without glue
    * @return string|false value set or FALSE on error
    */
   public function addNS(string $name, array|string|null $addr = null): string|false {
-    $dns1 = "";
-    $dns2 = "";
-    $ip_changed = FALSE;
-
     // don't allow empty values
     if (empty($name)) {
       return FALSE;
     }
 
     // DNS names must be in punycode format (if below an IDN domain)
-    $name = $this->idn->convert($name);
+    $name = Idn::ascii($name);
 
-    // handle IP addresses (if set)
-    if (is_array($addr)) {
-      switch (count($addr)) {
-        case 2:
-          $dns1 = strtolower($addr[0]);
-          $dns2 = strtolower($addr[1]);
-          break;
-        case 1:
-          $dns1 = strtolower($addr[0]);
-          break;
-        case 0:
-          break;
-        default:
-          $this->setError("The address must be an array of one or two elements.");
-          return FALSE;
-          break;
+    // validated before $this->ns is touched, so a bad address leaves nothing
+    // half-added
+    $given = is_array($addr) ? array_values($addr) : ($addr === null || $addr === '' ? array() : array($addr));
+    if (count($given) > 2) {
+      $this->setError("The address must be an array of one or two elements.");
+      return FALSE;
+    }
+    $ips = array();
+    foreach ($given as $ip) {
+      $ip = strtolower(trim((string)$ip));
+      if ($ip === '') {
+        continue;
       }
-    } else if ( ! empty($addr)) {
-      $dns1 = $addr;
+      if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== FALSE) {
+        $type = 'v4';
+      } else if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== FALSE) {
+        $type = 'v6';
+      } else {
+        $this->setError("Address '".$ip."' is not a valid IPv4 or IPv6 address.");
+        return FALSE;
+      }
+      $ips[] = array('type' => $type, 'address' => $ip);
     }
 
-    // if a nameserver by this name was already set and IPs didn't change stop
-    // here
+    // a nameserver by this name already set is left alone unless addresses
+    // were given and they differ; then it is replaced. 'ip' is absent for a
+    // glueless one -- the ordinary case
     if (isset($this->ns[$name])) {
-      // every address on this NS record. 'ip' is absent for a glueless
-      // nameserver -- the ordinary case -- so re-adding one warned twice and
-      // passed null to foreach()
-      $ip_list = array();
-      foreach ($this->ns[$name]['ip'] ?? array() as $ip) {
-        $ip_list[] = $ip['address'];
-      }
-
-      // verify if a new IP was added to this NS record
-      if ( ! empty($dns1) && ! in_array($dns1, $ip_list)) {
-        $ip_changed = TRUE;
-      }
-      if ( ! empty($dns2) && ! in_array($dns2, $ip_list)) {
-        $ip_changed = TRUE;
-      }
-
-      // if any new IP was added, remove the NS record first, then procede else
-      // there was no change and we bail out
-      if ($ip_changed) {
-        $this->remNS($name);
-      } else {
+      if ($addr === null) {
         return $name;
       }
+      $held = array_column($this->ns[$name]['ip'] ?? array(), 'address');
+      $wanted = array_column($ips, 'address');
+      sort($held);
+      sort($wanted);
+      if ($held === $wanted) {
+        return $name;
+      }
+      $this->remNS($name);
     }
 
-    // assign NS name
     $this->ns[$name]['name'] = $name;
-
-    // assign IP address 1 (if set)
-    if ( ! empty($dns1)) {
-      if (@gethostbyaddr($dns1) == "") {
-        $this->setError("Address '".$dns1."' is not a valid IPv4 or IPv6 address.");
-        return FALSE;
-      } else {
-        $type = strpos($dns1, '.') ? 'v4' : 'v6';
-        $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns1);
-      }
-    }
-
-    // assign IP address 2 (if set)
-    if ( ! empty($dns2)) {
-      if (@gethostbyaddr($dns2) == "") {
-        $this->setError("Address '".$dns2."' is not a valid IPv4 or IPv6 address.");
-        return FALSE;
-      } else {
-        $type = strpos($dns2, '.') ? 'v4' : 'v6';
-        $this->ns[$name]['ip'][] = array('type' => $type, 'address' => $dns2);
-      }
+    foreach ($ips as $ip) {
+      $this->ns[$name]['ip'][] = $ip;
     }
 
     // if we get to this point, something has changed

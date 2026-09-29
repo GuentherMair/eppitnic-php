@@ -274,6 +274,37 @@ final class DomainService
     }
 
     /**
+     * Normalise the nameservers of a domain update: each entry is a name, or
+     * an object {name, ip?} whose `ip` holds one or two glue addresses.
+     *
+     * @return array|string list of {name: string, ip: string[]|null} (null
+     *         when the entry carries no `ip`), or the error
+     */
+    public static function nameserverEntries(mixed $nameservers): array|string {
+        if ( ! is_array($nameservers)) {
+            return 'ns must be a list of nameservers';
+        }
+        $entries = [];
+        foreach ($nameservers as $i => $ns) {
+            $name = is_array($ns) ? ($ns['name'] ?? null) : $ns;
+            if ( ! is_string($name) || trim($name) === '') {
+                return "ns[{$i}] needs a name";
+            }
+            $ip = is_array($ns) ? ($ns['ip'] ?? null) : null;
+            if ($ip !== null) {
+                $ip = is_array($ip) ? array_values($ip) : [$ip];
+                foreach ($ip as $address) {
+                    if ( ! is_string($address)) {
+                        return "ns[{$i}].ip must be a list of addresses";
+                    }
+                }
+            }
+            $entries[] = ['name' => trim($name), 'ip' => $ip];
+        }
+        return $entries;
+    }
+
+    /**
      * Validate the DS records of a domain update: each needs keytag,
      * algorithm, digesttype and digest as non-empty strings or numbers.
      *

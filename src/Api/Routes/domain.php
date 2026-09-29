@@ -13,6 +13,7 @@ use Eppitnic\Service\DomainService;
 use Eppitnic\Service\EppSession;
 use Eppitnic\Service\PowerDnsZones;
 use Eppitnic\Support\Csv;
+use Eppitnic\Support\Idn;
 use Eppitnic\Support\Validate;
 use Eppitnic\Support\Warnings;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -302,8 +303,16 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
         }
     }
 
+    $nameservers = [];
+    if (array_key_exists('ns', $params)) {
+        $nameservers = DomainService::nameserverEntries($params['ns']);
+        if (is_string($nameservers)) {
+            return Json::response($response, ['error' => $nameservers], 400);
+        }
+    }
+
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $scope, $dnssec) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $scope, $dnssec, $nameservers) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -320,8 +329,14 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
             // list, we add what's missing and remove what's no longer present
             if (array_key_exists('ns', $params)) {
                 $current = array_keys((array) $domain->get('ns'));
-                $target = array_map(fn($ns) => $ns['name'] ?? $ns, (array) $params['ns']);
-                foreach (array_diff($target, $current) as $add) $domain->addNS($add);
+                $target = [];
+                // addNS() leaves a nameserver alone unless its addresses changed
+                foreach ($nameservers as $ns) {
+                    if ($domain->addNS($ns['name'], $ns['ip']) === false) {
+                        return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
+                    }
+                    $target[] = Idn::ascii($ns['name']);
+                }
                 foreach (array_diff($current, $target) as $rem) $domain->remNS($rem);
             }
             if (array_key_exists('tech', $params)) {
