@@ -12,7 +12,7 @@ use PHPMailer\PHPMailer\PHPMailer;
  */
 final class FakeMailer extends PHPMailer
 {
-    /** @var array<int, array{to: string, subject: string, body: string, host: string, username: string, password: string}> */
+    /** @var array<int, array{to: string, subject: string, body: string, host: string, username: string, password: string, charset: string}> */
     public static array $sent = [];
 
     /** Makes the next send() throw, as a real SMTP failure would. */
@@ -36,6 +36,7 @@ final class FakeMailer extends PHPMailer
             'host'     => $this->Host,
             'username' => $this->Username,
             'password' => $this->Password,
+            'charset'  => $this->CharSet,
         ];
         return true;
     }

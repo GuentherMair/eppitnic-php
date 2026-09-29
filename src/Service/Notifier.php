@@ -440,6 +440,7 @@ final class Notifier
 
     private static function configureMailer(PHPMailer $mail, array $smtp): void {
         $mail->isSMTP();
+        $mail->CharSet = PHPMailer::CHARSET_UTF8;
         $mail->Host = $smtp['host'];
         if ($smtp['port'] !== null) {
             $mail->Port = (int) $smtp['port'];

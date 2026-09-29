@@ -176,6 +176,13 @@ final class NotifierTest extends EppTestCase
         $this->assertStringContainsString('passwdReminder', FakeMailer::$sent[0]['subject']);
     }
 
+    public function testMailsAreSentAsUtf8(): void {
+        Notifier::set(self::ENABLED_SYSTEM, 1);
+        Notifier::notifyPoll('passwdReminder', null, 'a reminder');
+
+        $this->assertSame('utf-8', FakeMailer::$sent[0]['charset']);
+    }
+
     public function testRecipientModeNoneSendsNothing(): void {
         R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2)");
         R::exec("INSERT INTO users (id, email) VALUES (5, 'owner@example.it')");
