@@ -1163,7 +1163,8 @@ class Domain extends AbstractObject
       $row['status'] = [];
       return $row;
     }, R::getAll("
-      SELECT concat(domain, ' (transfer-in)') as domain, registrant, reseller_id
+      SELECT concat(domain, ' (transfer-in)') as domain, registrant, reseller_id,
+        (SELECT r.name FROM resellers r WHERE r.id = transfers.reseller_id) AS reseller_name
       FROM transfers WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params));
 
@@ -1177,7 +1178,8 @@ class Domain extends AbstractObject
     }
 
     $active = R::getAll("
-      SELECT domain, registrant, reseller_id, status
+      SELECT domain, registrant, reseller_id, status,
+        (SELECT r.name FROM resellers r WHERE r.id = domains.reseller_id) AS reseller_name
       FROM domains WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params);
     // status is a serialized column, in either of the two shapes the table holds

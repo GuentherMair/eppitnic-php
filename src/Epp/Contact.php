@@ -671,7 +671,9 @@ class Contact extends AbstractObject
     if ($activeOnly) {
       $where[] = 'active = 1';
     }
-    $rows = R::getAll("SELECT handle, org, name, entitytype, status, reseller_id FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
+    $rows = R::getAll("SELECT handle, org, name, entitytype, status, reseller_id,
+      (SELECT r.name FROM resellers r WHERE r.id = contacts.reseller_id) AS reseller_name
+      FROM contacts WHERE " . implode(' AND ', $where) . " ORDER BY org, name ASC", $params);
 
     // status is a serialized column, in either of the two shapes the table holds
     return array_map(static function (array $row): array {

@@ -20,6 +20,9 @@ final class ContactListTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec('CREATE TABLE resellers (id INTEGER PRIMARY KEY, name TEXT)');
+        R::exec("INSERT INTO resellers (id, name) VALUES (1, 'Registrar (self)')");
         R::exec('DROP TABLE IF EXISTS contacts');
         R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, org TEXT, name TEXT,
                  entitytype INTEGER, status TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
@@ -72,5 +75,13 @@ final class ContactListTest extends EppTestCase
 
         $this->assertArrayNotHasKey('G', $this->statuses());
         $this->assertArrayHasKey('G', $this->statuses(false));
+    }
+
+    public function testEachRowNamesItsReseller(): void {
+        $this->insert('A', serialize([]));
+
+        $rows = (new Contact($this->nic))->listContacts(Scope::operator(1));
+
+        $this->assertSame('Registrar (self)', $rows[0]['reseller_name']);
     }
 }

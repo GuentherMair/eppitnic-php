@@ -19,6 +19,9 @@ final class DomainListTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
+        R::exec('DROP TABLE IF EXISTS resellers');
+        R::exec('CREATE TABLE resellers (id INTEGER PRIMARY KEY, name TEXT)');
+        R::exec("INSERT INTO resellers (id, name) VALUES (1, 'Registrar (self)')");
         R::exec('DROP TABLE IF EXISTS domains');
         R::exec('DROP TABLE IF EXISTS transfers');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT,
@@ -81,5 +84,14 @@ final class DomainListTest extends EppTestCase
         $transferIn = current(array_filter($rows, fn($row) => $row['domain'] === 'g.it (transfer-in)'));
 
         $this->assertSame([], $transferIn['status']);
+    }
+
+    public function testEachRowNamesItsReseller(): void {
+        $this->insert('a.it', serialize([]));
+        R::exec("INSERT INTO transfers (domain, registrant, reseller_id) VALUES ('b.it', 'REG1', 1)");
+
+        $rows = (new Domain($this->nic))->listDomains(Scope::operator(1));
+
+        $this->assertSame(['Registrar (self)', 'Registrar (self)'], array_column($rows, 'reseller_name'));
     }
 }
