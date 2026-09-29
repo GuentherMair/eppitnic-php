@@ -163,8 +163,9 @@ Success response — every claim plus a `token`:
   the client's convenience only: the server looks both up on every request.
 - `has_totp` / `needs_totp` — whether the account has MFA configured, and
   whether *this* login required it (false from a safe network).
-  `totp_verified` mirrors `has_totp` on a successful login; it exists because
-  `renew-token` reuses the same claims shape.
+  `totp_verified` is true only when a TOTP code was checked for this token
+  (never after a safe-network login). The server reads `has_totp` from the
+  account on every request, not from the token.
 - `max_token_age` — token lifetime in minutes, default `240` (4h) when the
   user record doesn't set one. `null`, `0` and negative values all mean the
   default. `renew-token` re-signs the same claim, so a renewed token keeps the
@@ -222,7 +223,7 @@ rate-limited and failure-recorded like `authenticate`. A wrong credential is
 |---|---|---|
 | `POST /v1/users/authenticate/password` | `new_password` | `400` unless a change is pending, or if the new password fails the password rule (`error` and `password_policy`) or equals the current one. On success the flag is cleared, the change is recorded in `history` (`users` update, `security`/`rotate` `password_changed`), and the answer is that of a login: `403` `mfa_enrollment`, or `200` with the token body above |
 | `POST /v1/users/authenticate/mfa` | — | `400` unless enrollment is pending (and no password change is). Returns `{"secret", "uri"}` |
-| `PUT /v1/users/authenticate/mfa` | `totp` | verifies the code against the secret from `POST`, stores it, clears the flag and answers `200` with the token body (`has_totp`, `totp_verified` true). `401` on a wrong code, counted |
+| `PUT /v1/users/authenticate/mfa` | `totp` | verifies the code against the secret from `POST`, stores it, clears the flag and answers `200` with the token body (`has_totp` and `totp_verified` true). `401` on a wrong code, counted |
 
 For a session that is already open, a flag set afterwards ends it: the next
 request answers `403` `Password change required`, or `MFA enrollment
@@ -269,7 +270,8 @@ rate-limit bucket and none ever matches `safe_networks`.
 ### MFA gate
 
 Some routes require the *current* token to be MFA-verified — not
-`has_totp` without `totp_verified` — or they answer `403`
+`has_totp` without `totp_verified`, unless the request itself comes from a
+`safe_networks` address — or they answer `403`
 `{"error": "MFA verification required"}`:
 
 - every `admin` route (`Auth::requireAdmin()`: role `admin` plus the MFA check)
@@ -278,9 +280,10 @@ Some routes require the *current* token to be MFA-verified — not
 - `PUT /v1/changepassword/{id}` and `DELETE /v1/users/{id}/totp`, even on
   one's own account
 
-No credential issued today fails this check: a login JWT carries
-`totp_verified` whenever the account has TOTP, and fixed API tokens and remote
-auth carry `has_totp: false`.
+A login JWT passes when a code was checked at login, or when the account has
+no TOTP. A token from a safe-network login carries no `totp_verified` and
+passes only on requests from a safe network. Fixed API tokens and remote auth
+carry `has_totp: false`.
 
 ### Set up TOTP (MFA) for a user
 

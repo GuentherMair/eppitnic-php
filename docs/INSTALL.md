@@ -585,7 +585,8 @@ registry query failed, and `0` otherwise.
 
 Logins from a `safe_networks` range need only the password, not the MFA
 code. The default, `["127.0.0.1/32"]`, exempts logins from the machine
-itself:
+itself. The token of such a login is not MFA-verified: routes behind the MFA
+gate (admin, manager) accept it only on requests from a safe network.
 
 ```bash
 bin/eppitnic config safe-networks

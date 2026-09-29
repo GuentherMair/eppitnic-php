@@ -24,6 +24,7 @@ final class EppCredentialsTest extends TestCase
     private const SETTINGS = [
         'jwt_psk' => 'test-signing-key-for-this-suite-only',
         'trusted_proxies' => [],
+        'safe_networks' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
         'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
         'epp'     => [
@@ -121,7 +122,11 @@ final class EppCredentialsTest extends TestCase
      * a stolen first-factor token would still reach it.
      */
     public function testAnAdminWithUnfinishedMfaIsRefused(): void {
-        $response = $this->get($this->app(), ['admin' => 1, 'has_totp' => true, 'totp_verified' => false]);
+        $app = $this->app();
+        TestAccounts::ensure(1, 'admin');
+        R::exec("UPDATE users SET totp_secret = 'x' WHERE id = 1");
+        $response = $this->get($app, ['admin' => 1, 'has_totp' => true, 'totp_verified' => false]);
+        R::exec('UPDATE users SET totp_secret = NULL WHERE id = 1');
 
         $this->assertSame(403, $response->getStatusCode());
         $this->assertStringNotContainsString('a-known-test-password', (string) $response->getBody());

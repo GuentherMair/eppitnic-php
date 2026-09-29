@@ -120,8 +120,10 @@ $checkCredentials = static function (Request $request, Response $response): arra
 /**
  * What a login answers with once the credentials are right: the pending
  * password change or MFA enrollment (403, no token), else the token.
+ * `totp_verified` is set only when a code was checked: by checkCredentials()
+ * off the safe networks, or by the caller ($codeChecked) on enrolment.
  */
-$continueLogin = static function (Request $request, Response $response, array $user): Response {
+$continueLogin = static function (Request $request, Response $response, array $user, bool $codeChecked = false): Response {
     $hasTotp   = !empty($user['totp_secret']);
     $onSafeNet = Auth::onSafeNetwork();
     $needsTotp = $hasTotp && !$onSafeNet;
@@ -172,7 +174,7 @@ $continueLogin = static function (Request $request, Response $response, array $u
         'username'      => $user['username'],
         'has_totp'      => $hasTotp,
         'needs_totp'    => $needsTotp,
-        'totp_verified' => $hasTotp,
+        'totp_verified' => $needsTotp || $codeChecked,
         'debug'         => (bool) $user['debug'],
         'max_token_age'   => $user['max_token_age'],
         'max_idle_time'   => $user['max_idle_time'],
@@ -284,7 +286,7 @@ $app->put('/v1/users/authenticate/mfa', function (Request $request, Response $re
 
     History::record('users', (int) $user['id'], 'update', ['has_totp' => true, 'must_enroll_mfa' => 0], (int) $user['id']);
 
-    return $continueLogin($request, $response, $user);
+    return $continueLogin($request, $response, $user, true);
 });
 
 /**

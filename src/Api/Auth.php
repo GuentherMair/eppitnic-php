@@ -231,6 +231,8 @@ final class Auth
         // Sessions only: a signed token carries `exp`, while remote-auth and
         // fixed-token claims are synthesized and never went through a login
         if (isset($decoded->exp)) {
+            // not the token's word: TOTP enrolled after login counts too
+            $decoded->data->has_totp = (bool) $account['has_totp'];
             if ((int) $account['must_change_password'] === 1) {
                 throw new HttpForbiddenException($request, 'Password change required');
             }
@@ -312,8 +314,8 @@ final class Auth
     }
 
     /**
-     * require that MFA, if enabled for this user, has already been verified
-     * this session
+     * require MFA for a user who has it: a code checked at login
+     * (`totp_verified`), or a request from a safe network
      *
      * @param Request $request the incoming HTTP request
      * @return object decoded JWT claims
@@ -321,7 +323,7 @@ final class Auth
      */
     public static function requireMfa(Request $request): object {
         $decoded = self::verify($request);
-        if (!empty($decoded->data->has_totp) && empty($decoded->data->totp_verified)) {
+        if (!empty($decoded->data->has_totp) && empty($decoded->data->totp_verified) && !self::onSafeNetwork()) {
             throw new HttpForbiddenException($request, 'MFA verification required');
         }
         return $decoded;

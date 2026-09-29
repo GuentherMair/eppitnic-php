@@ -21,7 +21,7 @@ final class AuthAccountTest extends TestCase
 {
     protected function setUp(): void {
         parent::setUp();
-        Config::loadForTesting(['jwt_psk' => 'test-signing-key-for-this-suite-only']);
+        Config::loadForTesting(['jwt_psk' => 'test-signing-key-for-this-suite-only', 'safe_networks' => []]);
 
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
@@ -114,6 +114,7 @@ final class AuthAccountTest extends TestCase
     }
 
     public function testAManagerActingForSomeoneElseNeedsMfa(): void {
+        R::exec("UPDATE users SET totp_secret = 'x' WHERE id = 2");
         $this->expectException(HttpForbiddenException::class);
         $this->expectExceptionMessage('MFA verification required');
         Auth::actorFor($this->request(2, 'manager', true), 3);
