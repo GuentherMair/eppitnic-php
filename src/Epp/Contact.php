@@ -417,6 +417,8 @@ class Contact extends AbstractObject
         $this->schoolcode =      (string)($extcon->infData->registrant->schoolCode ?? '');
       }
 
+      // set() above marked consent as changed; a fetch leaves nothing pending
+      $this->clearChanges();
       return TRUE;
     } else {
       return FALSE;
