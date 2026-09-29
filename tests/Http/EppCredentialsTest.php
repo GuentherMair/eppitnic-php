@@ -26,7 +26,7 @@ final class EppCredentialsTest extends TestCase
         'trusted_proxies' => [],
         'safe_networks' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
         'epp'     => [
             'server'   => 'https://epp.pubtest.nic.it',
             'username' => 'TEST-REG',

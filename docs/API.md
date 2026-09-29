@@ -707,8 +707,8 @@ and changes are recorded in `history` (`object='region'`).
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/region` | admin | `{"region": {"timezone", "lc_monetary", "lc_time"}, "timezones": [...]}`. `timezones` lists every zone the server accepts, for a picker |
-| `PATCH /v1/region` | admin | body: any of the three fields; what is omitted stays. `400` for an unknown time zone, a value that isn't a locale name (`C`, `POSIX`, `it_IT`, `it_IT.UTF-8`, …), a blank value or an unknown field. Returns `{"region": {...}}` |
+| `GET /v1/region` | admin | `{"region": {"timezone", "lc_monetary"}, "timezones": [...]}`. `timezones` lists every zone the server accepts, for a picker |
+| `PATCH /v1/region` | admin | body: either field; what is omitted stays. `400` for an unknown time zone, a value that isn't a locale name (`C`, `POSIX`, `it_IT`, `it_IT.UTF-8`, …), a blank value or an unknown field. Returns `{"region": {...}}` |
 
 ### DNSSEC
 

@@ -25,7 +25,7 @@ abstract class EppTestCase extends TestCase
      * existing test's behaviour.
      */
     protected const SETTINGS = [
-        'region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
         'epp' => [
             'server'             => 'https://epp.pubtest.nic.it',
             'server_deleted'     => 'https://epp-deleted.pubtest.nic.it',

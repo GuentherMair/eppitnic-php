@@ -7,7 +7,7 @@ use Eppitnic\Persistence\History;
 
 /**
  * The `region` setting: the time zone every request and CLI command runs in,
- * and the locales handed to setlocale(LC_MONETARY/LC_TIME). Shared by
+ * and the locale amounts are formatted in (Support\Money). Shared by
  * `config region-set` and the admin-only `/v1/region`.
  *
  * @category    Net
@@ -17,7 +17,7 @@ use Eppitnic\Persistence\History;
  */
 final class RegionSettings
 {
-    public const FIELDS = ['timezone', 'lc_monetary', 'lc_time'];
+    public const FIELDS = ['timezone', 'lc_monetary'];
 
     /** @return array field => its current value */
     public static function get(): array {
@@ -83,7 +83,7 @@ final class RegionSettings
         return $value;
     }
 
-    /** a locale name as setlocale() takes it: C, POSIX, it_IT, it_IT.UTF-8, … */
+    /** a locale name: C, POSIX, it_IT, it_IT.UTF-8, … */
     private static function parseLocale(string $field, string $value): string {
         $pattern = '/^(C|POSIX|[A-Za-z]{2,}(_[A-Za-z]{2})?(\.[A-Za-z0-9-]+)?(@[A-Za-z0-9]+)?)$/';
         if (strlen($value) > 64 || preg_match($pattern, $value) !== 1) {

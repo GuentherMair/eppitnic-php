@@ -21,7 +21,7 @@ final class TrustedProxiesRouteTest extends TestCase
         'jwt_psk'         => 'test-signing-key-for-this-suite-only',
         'trusted_proxies' => ['10.0.0.0/8'],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
     ];
 
     private function app(): \Slim\App {

@@ -191,20 +191,18 @@ bin/eppitnic config show epp      # just one
 Secrets (`jwt_psk`, the registry password) are never printed; `epp` reports
 `password_set` and `rotation_pending` instead, like `GET /v1/session/epp`.
 
-### Set the time zone and locales
+### Set the time zone and locale
 
 The `region` setting holds the time zone every request and CLI command runs
-in, including the scheduled jobs, and the locales passed to `setlocale()`:
+in, including the scheduled jobs, and the locale amounts are formatted in:
 
 ```bash
 bin/eppitnic config region-set timezone Europe/Rome
 bin/eppitnic config region-set lc_monetary it_IT.UTF-8
-bin/eppitnic config region-set lc_time it_IT.UTF-8
 ```
 
-The time zone must be a zone name PHP knows. Use a locale that is installed
-on the server (`locale -a` lists them); `setlocale()` silently ignores one that
-isn't. Admins can make the same changes through `GET`/`PATCH /v1/region`.
+The time zone must be a zone name PHP knows. The locale is read through ICU,
+so it needs no system locale. Admins can make the same changes through `GET`/`PATCH /v1/region`.
 
 ### Turn DNSSEC on or off
 

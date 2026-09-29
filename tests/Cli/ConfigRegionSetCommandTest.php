@@ -51,7 +51,7 @@ final class ConfigRegionSetCommandTest extends EppTestCase
 
     public function testAFieldCannotBeUnset(): void {
         $this->expectException(UsageError::class);
-        (new ConfigRegionSetCommand(['--yes', 'lc_time']))->run();
+        (new ConfigRegionSetCommand(['--yes', 'lc_monetary']))->run();
     }
 
     public function testDryRunWritesNothing(): void {

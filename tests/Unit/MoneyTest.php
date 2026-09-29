@@ -33,7 +33,7 @@ final class MoneyTest extends TestCase
 
     #[DataProvider('amounts')]
     public function testFormatsInTheConfiguredLocale(string $locale, float $amount, string $expected): void {
-        Config::loadForTesting(['region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => $locale, 'lc_time' => $locale]]);
+        Config::loadForTesting(['region' => ['timezone' => 'Europe/Rome', 'lc_monetary' => $locale]]);
 
         $this->assertSame($expected, Money::euro($amount));
     }

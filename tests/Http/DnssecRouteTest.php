@@ -18,7 +18,7 @@ final class DnssecRouteTest extends TestCase
         'jwt_psk'         => 'test-signing-key-for-this-suite-only',
         'trusted_proxies' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
         'remote_auth'     => ['enabled' => false, 'header' => null],
         'dnssec'          => ['active' => 0],
     ];

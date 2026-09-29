@@ -21,7 +21,7 @@ final class RegionRouteTest extends TestCase
         'jwt_psk'         => 'test-signing-key-for-this-suite-only',
         'trusted_proxies' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
         'remote_auth'     => ['enabled' => false, 'header' => null],
     ];
 
@@ -72,11 +72,11 @@ final class RegionRouteTest extends TestCase
 
     public function testPatchChangesOnlyTheGivenFieldsAndAuditsThem(): void {
         $app = $this->app();
-        $response = $this->request($app, 'PATCH', ['timezone' => 'Europe/Berlin', 'lc_time' => 'de_DE.UTF-8']);
+        $response = $this->request($app, 'PATCH', ['timezone' => 'Europe/Berlin', 'lc_monetary' => 'de_DE.UTF-8']);
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame(
-            ['timezone' => 'Europe/Berlin', 'lc_monetary' => 'it_IT', 'lc_time' => 'de_DE.UTF-8'],
+            ['timezone' => 'Europe/Berlin', 'lc_monetary' => 'de_DE.UTF-8'],
             self::body($response)['region']
         );
         $this->assertSame('Europe/Berlin', Config::get('region')['timezone']);
@@ -89,7 +89,8 @@ final class RegionRouteTest extends TestCase
             'unknown time zone'  => [['timezone' => 'Mars/Olympus']],
             'blank time zone'    => [['timezone' => '']],
             'locale with spaces' => [['lc_monetary' => 'it IT']],
-            'locale with a path' => [['lc_time' => '../etc']],
+            'locale with a path' => [['lc_monetary' => '../etc']],
+            'the dropped lc_time' => [['lc_time' => 'it_IT.UTF-8']],
             'unknown field'      => [['currency' => 'EUR']],
         ];
     }

@@ -814,7 +814,7 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   ('schema_version', '"070000"')
   ON DUPLICATE KEY UPDATE `value` = '"070000"';
 INSERT INTO `settings` (`key`, `value`) VALUES
-  ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT.UTF-8","lc_time":"it_IT.UTF-8"}'),
+  ('region', '{"timezone":"Europe/Rome","lc_monetary":"it_IT.UTF-8"}'),
   ('jwt_psk', '""'),
   ('safe_networks', '["127.0.0.1/32"]'),
   -- Proxies whose X-Forwarded-For is trusted; empty = none (else

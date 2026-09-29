@@ -26,7 +26,7 @@ final class AllowedOriginsRouteTest extends TestCase
         'allowed_methods' => ['GET', 'PUT', 'OPTIONS'],
         'trusted_proxies' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'          => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
     ];
 
     private function app(): \Slim\App {

@@ -24,7 +24,7 @@ final class SmtpRouteTest extends TestCase
         'jwt_psk' => 'test-signing-key-for-this-suite-only',
         'trusted_proxies' => [],
         'login_ratelimit' => ['max_failures' => 10, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 64],
-        'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT', 'lc_time' => 'italian'],
+        'region'  => ['timezone' => 'Europe/Rome', 'lc_monetary' => 'it_IT'],
         'smtp'    => [
             'enabled' => false, 'host' => 'localhost', 'port' => null, 'sender' => '',
             'recipient_mode' => 'system', 'recipient' => '', 'username' => '', 'password' => 'a-known-test-password',

@@ -24,13 +24,6 @@ if ( ! ConfigFile::exists()) {
     return;
 }
 
-// get timing for later logging
-$time_start = microtime(true);
-$region = Config::get('region');
-date_default_timezone_set($region['timezone']);
-setlocale(LC_MONETARY, $region['lc_monetary']);
-setlocale(LC_TIME, $region['lc_time']);
-
 // initialize app
 $app = AppFactory::create();
 
