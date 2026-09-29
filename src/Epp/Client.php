@@ -67,6 +67,9 @@ class Client
    */
   public bool $keepalive = false;
 
+  /** @var (callable(string): Transport)|null test-only, see useTransportFactory() */
+  private static $transportFactory = null;
+
   private $clTRID;
   private $headers = array('content-type' => 'text/xml; charset=UTF-8');
 
@@ -133,6 +136,20 @@ class Client
 
     // set client transaction ID
     $this->set_clTRID();
+
+    if (self::$transportFactory !== null) {
+      $this->httpClient = (self::$transportFactory)($this->EPPCfg->server);
+    }
+  }
+
+  /**
+   * Test-only: have every Client built from now on use the transport the
+   * factory returns for its server URL. Null restores the real one.
+   *
+   * @param callable(string): Transport|null $factory
+   */
+  public static function useTransportFactory(?callable $factory): void {
+    self::$transportFactory = $factory;
   }
 
   /**

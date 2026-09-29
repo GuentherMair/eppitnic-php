@@ -1,0 +1,111 @@
+<?php
+
+namespace Eppitnic\Tests\Http;
+
+use Eppitnic\Api\Middleware;
+use Eppitnic\Config;
+use Eppitnic\Epp\Client;
+use Eppitnic\Tests\Support\CommandCatalog;
+use Eppitnic\Tests\Support\EppTestCase;
+use Eppitnic\Tests\Support\FakeTransport;
+use Eppitnic\Tests\Support\TestAccounts;
+use Psr\Http\Message\ResponseInterface;
+use RedBeanPHP\R;
+use Slim\Factory\AppFactory;
+use Slim\Psr7\Factory\ServerRequestFactory;
+
+/**
+ * POST /v1/domains/{name}/restore talks to the epp.server_deleted host.
+ */
+// domain.php declares functions: each test loads it in a process of its own
+#[\PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses]
+final class DomainTransferRestoreRouteTest extends EppTestCase
+{
+    private const DELETED = 'https://epp-deleted.pubtest.nic.it';
+
+    /** @var array<string, FakeTransport> server URL => what that client sent */
+    private array $byServer = [];
+
+    protected function setUp(): void {
+        parent::setUp();
+        $this->configure(self::DELETED);
+
+        if ( ! R::hasDatabase('default')) {
+            R::setup('sqlite::memory:');
+        }
+        foreach (['transfers', 'contacts', 'domains', 'history', 'users', 'resellers'] as $table) {
+            R::exec("DROP TABLE IF EXISTS {$table}");
+        }
+        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT,
+                 registrant TEXT NOT NULL, techc TEXT, dns TEXT)');
+        R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
+        R::exec("INSERT INTO contacts (handle, reseller_id) VALUES ('MINE1234MINE5678', 2)");
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('ours.it', 2)");
+
+        $this->byServer = [];
+        Client::useTransportFactory(function (string $server): FakeTransport {
+            $t = new FakeTransport();
+            $t->queue(CommandCatalog::GREETING_RESPONSE);
+            $t->queueAll(CommandCatalog::OK_RESPONSE, 5);
+            return $this->byServer[$server] = $t;
+        });
+    }
+
+    protected function tearDown(): void {
+        Client::useTransportFactory(null);
+        parent::tearDown();
+    }
+
+    private function configure(string $serverDeleted): void {
+        $settings = static::SETTINGS;
+        $settings['epp']['server_deleted'] = $serverDeleted;
+        Config::loadForTesting($settings + [
+            'jwt_psk'         => 'test-signing-key-for-this-suite-only',
+            'allowed_origins' => [],
+            'allowed_headers' => [],
+            'allowed_methods' => [],
+            'safe_networks'   => ['127.0.0.1/32'],
+            'trusted_proxies' => [],
+            'login_ratelimit' => ['max_failures' => 0, 'timespan' => 900, 'ipv4_prefix' => 24, 'ipv6_prefix' => 48],
+        ]);
+    }
+
+    private function post(string $path, array $body = []): ResponseInterface {
+        $app = AppFactory::create();
+        Middleware::register($app);
+        require EPPITNIC_ROOT . '/src/Api/Routes/domain.php';
+
+        $token = TestAccounts::issueToken([
+            'id' => 4, 'role' => 'user', 'reseller_id' => 2, 'has_totp' => false, 'max_token_age' => 60,
+        ])['token'];
+
+        return $app->handle(
+            (new ServerRequestFactory())->createServerRequest('POST', "http://localhost{$path}")
+                ->withHeader('Authorization', "Bearer {$token}")
+                ->withHeader('Content-Type', 'application/json')
+                ->withParsedBody($body)
+        );
+    }
+
+    public function testRestoreReachesTheServerDeletedHost(): void {
+        $response = $this->post('/v1/domains/ours.it/restore');
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame([self::DELETED], array_keys($this->byServer));
+        $this->assertStringContainsString(
+            '<domain:name>ours.it</domain:name>',
+            implode('', $this->byServer[self::DELETED]->requests)
+        );
+    }
+
+    public function testRestoreWithoutServerDeletedContactsNobody(): void {
+        $this->configure('');
+        $response = $this->post('/v1/domains/ours.it/restore');
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame([], $this->byServer);
+    }
+}

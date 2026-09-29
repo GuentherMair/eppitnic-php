@@ -3,6 +3,7 @@
 use Eppitnic\Api\Access;
 use Eppitnic\Api\Auth;
 use Eppitnic\Api\Json;
+use Eppitnic\Config;
 use Eppitnic\Epp\Client;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
@@ -541,6 +542,12 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
         return domainForbidden($response, $name);
     }
 
+    // restores are served from a host of their own
+    $endpoint = Config::get('epp')['server_deleted'] ?? '';
+    if ($endpoint === '') {
+        return Json::response($response, ['error' => "The 'epp' setting has no server_deleted endpoint configured"], 409);
+    }
+
     try {
         $result = EppSession::run(function ($nic) use ($name, $scope) {
             $domain = new Domain($nic);
@@ -551,7 +558,7 @@ $app->post('/v1/domains/{name}/restore', function (Request $request, Response $r
                 ? []
                 : [Warnings::localWrite("domain '{$name}'", $domain->getError())];
             return ['ok' => true, 'warnings' => $warnings];
-        }, $debug);
+        }, $debug, new Client($endpoint));
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
     }
