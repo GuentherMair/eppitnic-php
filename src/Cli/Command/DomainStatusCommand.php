@@ -16,7 +16,6 @@ final class DomainStatusCommand extends Command
         'clientUpdateProhibited',
         'clientTransferProhibited',
         'clientHold',
-        'clientLock',
     ];
 
     public function describe(): string {

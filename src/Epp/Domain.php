@@ -78,10 +78,10 @@ class Domain extends AbstractObject
    */
   private const FIELDS_WITH_ADDERS = array('ns', 'tech', 'dnssec');
 
-  /** the client-side states a domain accepts, for updateStatus() */
+  /** the states a registrar may set, for updateStatus(); clientLock is view-only */
   private const CLIENT_STATES = array(
     'clientDeleteProhibited', 'clientUpdateProhibited', 'clientTransferProhibited',
-    'clientHold', 'clientLock',
+    'clientHold',
   );
 
   protected $reseller_id;       // use just in case of an updateRegistrant + change of agent
@@ -804,7 +804,7 @@ class Domain extends AbstractObject
    * update domain status
    *
    * @param string $state clientDeleteProhibited, clientUpdateProhibited,
-   *               clientTransferProhibited, clientHold, clientLock
+   *               clientTransferProhibited, clientHold
    * @param string $adddel add, rem (optional, defaults to add)
    * @return bool status
    */
