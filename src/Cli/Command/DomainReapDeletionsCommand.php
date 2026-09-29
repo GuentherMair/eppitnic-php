@@ -21,12 +21,19 @@ use RedBeanPHP\R;
  * `pdns`/`domain_sync` (see `config domain-reap-set`). Every real run
  * (not `--dry-run`) sends one Notifier::notifyDeletions() summary of
  * every outcome, success and failure alike (see `smtp`'s own `enabled`
- * gate).
+ * gate). A refused deletion is retried; the third refusal deactivates the
+ * task (`tasks.attempts`).
  *
  *   0-59/15 * * * *  /path/to/bin/eppitnic domain reap-deletions >> /var/log/eppitnic/domain-reap-deletions.log 2>&1
  */
 final class DomainReapDeletionsCommand extends Command
 {
+    /** refusals after which a scheduled deletion is given up on */
+    private const MAX_REFUSALS = 3;
+
+    /** `tasks.exit_message` is a varchar(255) */
+    private const EXIT_MESSAGE_LENGTH = 255;
+
     public function describe(): string {
         return 'delete domains whose scheduled deletion is now due';
     }
@@ -67,6 +74,10 @@ final class DomainReapDeletionsCommand extends Command
                 $domain = new Domain($nic);
                 $ok = $domain->delete($row['domain']);
                 $message = $ok ? 'domain deleted' : ($domain->getError() ?: 'registry refused the delete');
+                $gaveUp = ! $ok && (int) $row['attempts'] + 1 >= self::MAX_REFUSALS;
+                if ($gaveUp) {
+                    $message = 'gave up after ' . self::MAX_REFUSALS . ' refusals: ' . $message;
+                }
 
                 // a dry run reached a synthetic success, so neither the local
                 // row nor the task itself must be touched
@@ -82,7 +93,7 @@ final class DomainReapDeletionsCommand extends Command
                 if ( ! $ok) {
                     $this->itemFailed($row['domain'], $message);
                 }
-                $this->markExecuted((int) $row['id'], $ok, $message);
+                $this->markExecuted((int) $row['id'], $ok, $gaveUp, $message);
 
                 if ( ! $this->isDryRun()) {
                     $outcomes[] = [
@@ -103,18 +114,19 @@ final class DomainReapDeletionsCommand extends Command
     }
 
     /**
-     * Only a success is terminal -- see PdnsSyncCommand's own note. A failed
-     * attempt still records what happened, but stays active so the next run
-     * retries it.
+     * A success is terminal, and so is the last permitted refusal; an earlier
+     * one records what happened and counts an attempt, but stays active so
+     * the next run retries it.
      */
-    private function markExecuted(int $id, bool $success, string $message): void {
+    private function markExecuted(int $id, bool $success, bool $gaveUp, string $message): void {
         if ($this->isDryRun()) {
             return;
         }
         R::exec(
             "UPDATE tasks SET executed_time = CURRENT_TIMESTAMP, exit_code = ?, exit_message = ?"
-            . ($success ? ", active = 0" : "") . " WHERE id = ?",
-            [$success ? 0 : 1, $message, $id]
+            . ($success ? '' : ', attempts = attempts + 1')
+            . ($success || $gaveUp ? ', active = 0' : '') . " WHERE id = ?",
+            [$success ? 0 : 1, mb_substr($message, 0, self::EXIT_MESSAGE_LENGTH), $id]
         );
     }
 }

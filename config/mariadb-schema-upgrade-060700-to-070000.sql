@@ -348,6 +348,7 @@ ALTER TABLE reminder
   ADD COLUMN `executed_time` TIMESTAMP NULL DEFAULT NULL AFTER `created_time`,
   ADD COLUMN `exit_code` TINYINT AFTER `executed_time`,
   ADD COLUMN `exit_message` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `exit_code`,
+  ADD COLUMN `attempts` TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER `exit_message`,
   ADD PRIMARY KEY (`id`),
   ADD KEY `domain` (`domain`),
   ADD KEY `action` (`action`),

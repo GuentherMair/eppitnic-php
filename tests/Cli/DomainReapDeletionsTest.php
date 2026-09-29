@@ -32,7 +32,7 @@ final class DomainReapDeletionsTest extends EppTestCase
                  notify_enabled INTEGER DEFAULT 0, notify_message_types TEXT, notify_fulltext TEXT)');
         R::exec('CREATE TABLE tasks (id INTEGER PRIMARY KEY, domain TEXT, date TEXT, notice TEXT,
                  object TEXT, action TEXT, active INTEGER DEFAULT 1, executed_time TEXT,
-                 exit_code INTEGER, exit_message TEXT, created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
+                 exit_code INTEGER, exit_message TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, value TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, data TEXT)');
@@ -152,6 +152,48 @@ final class DomainReapDeletionsTest extends EppTestCase
         $this->assertSame(1, (int) $row['active'], 'a failed deletion was retired');
         $this->assertSame(1, (int) $row['exit_code']);
         $this->assertStringContainsString('prohibits operation', $row['exit_message']);
+    }
+
+    public function testTheThirdRefusalGivesUpOnTheTask(): void {
+        $this->addDomain('example-one.it');
+        $id = $this->addDueTask('example-one.it');
+
+        foreach ([1, 2, 3] as $run) {
+            $this->reap([], [self::REJECTED_RESPONSE]);
+            $this->assertSame($run, (int) R::getCell('SELECT attempts FROM tasks WHERE id = ?', [$id]));
+        }
+
+        $row = R::getRow('SELECT active, exit_message FROM tasks WHERE id = ?', [$id]);
+        $this->assertSame(0, (int) $row['active']);
+        $this->assertStringContainsString('gave up after 3 refusals', $row['exit_message']);
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM domains WHERE domain = ?', ['example-one.it']));
+
+        $this->reap([], []);
+        $this->assertSame(3, (int) R::getCell('SELECT attempts FROM tasks WHERE id = ?', [$id]), 'a given-up task ran again');
+    }
+
+    public function testEveryRefusalIsMailedIncludingTheLast(): void {
+        $this->enableSmtp();
+        $this->addDomain('example-one.it');
+        $this->addDueTask('example-one.it');
+
+        foreach ([1, 2, 3] as $run) {
+            $this->reap([], [self::REJECTED_RESPONSE]);
+        }
+
+        $this->assertCount(3, FakeMailer::$sent);
+        $this->assertStringContainsString('gave up after 3 refusals', FakeMailer::$sent[2]['body']);
+        $this->assertStringNotContainsString('gave up', FakeMailer::$sent[1]['body']);
+    }
+
+    public function testALongRefusalIsCutToTheColumnWidth(): void {
+        $this->addDomain('example-one.it');
+        $id = $this->addDueTask('example-one.it');
+        $long = str_replace('Object status prohibits operation', str_repeat('x', 600), self::REJECTED_RESPONSE);
+
+        $this->reap([], [$long]);
+
+        $this->assertSame(255, mb_strlen((string) R::getCell('SELECT exit_message FROM tasks WHERE id = ?', [$id])));
     }
 
     public function testARowDatedInTheFutureIsNotPickedUp(): void {

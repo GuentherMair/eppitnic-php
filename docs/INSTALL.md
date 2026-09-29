@@ -460,7 +460,9 @@ exits `0` while `keepalive` is off (see "Session keep-alive").
 `pdns sync` and `domain reap-deletions` consume rows from the `tasks` table
 (`object` `pdns` and `registry`). Only a successful run retires a row; a
 failure records `exit_code` and `exit_message` and leaves the row active, so
-the next run retries it.
+the next run retries it. A scheduled deletion the registry refuses is retried
+twice; the third refusal deactivates the task, its `exit_message` saying it
+gave up (`tasks.attempts` counts the refusals).
 
 ## Email notifications
 

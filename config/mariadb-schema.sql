@@ -218,6 +218,7 @@ CREATE TABLE `tasks` (
   `executed_time`         timestamp NULL DEFAULT NULL,
   `exit_code`             tinyint,
   `exit_message`          varchar(255),
+  `attempts`              tinyint unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY (`domain`),
   KEY (`action`),
