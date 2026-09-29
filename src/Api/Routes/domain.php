@@ -402,10 +402,12 @@ $app->post('/v1/domains/{name}/registrant', function (Request $request, Response
             // as part of the change
             $domain->set('authinfo', $params['authinfo'] ?? $domain->authinfo());
 
+            // updateRegistrant() resets the change set on success
+            $changes = $domain->changedFields();
             if ( ! $domain->updateRegistrant()) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            $warnings = $domain->updateDB($name, $scope)
+            $warnings = $domain->updateDB($name, $scope, $changes)
                 ? []
                 : [Warnings::localWrite("domain '{$name}'", $domain->getError())];
             return ['ok' => true, 'domain' => $domain, 'warnings' => $warnings];

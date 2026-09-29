@@ -61,6 +61,7 @@ final class DomainSetRegistrantCommand extends Command
                 // change the authinfo, so one is always set
                 $domain->set('authinfo', (string) $this->option('authinfo', $domain->authinfo()));
 
+                $changes = $domain->changedFields();
                 if ( ! $domain->updateRegistrant()) {
                     $this->itemFailed($name, $domain->getError());
                     continue;
@@ -68,7 +69,7 @@ final class DomainSetRegistrantCommand extends Command
 
                 if ( ! $this->isDryRun()) {
                     // updateDB() moves the domain to the new registrant's reseller
-                    $domain->updateDB($name, Scope::operator($this->userId()));
+                    $domain->updateDB($name, Scope::operator($this->userId()), $changes);
                 }
 
                 $this->record(

@@ -807,7 +807,11 @@ class Domain extends AbstractObject
     );
 
     // query server
-    return $this->ExecuteQuery("domain-update", $this->domain);
+    if ($this->ExecuteQuery("domain-update", $this->domain)) {
+      $this->resetChangeTracking();
+      return TRUE;
+    }
+    return FALSE;
   }
 
   /**
