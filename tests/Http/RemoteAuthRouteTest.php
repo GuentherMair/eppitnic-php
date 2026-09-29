@@ -70,9 +70,15 @@ final class RemoteAuthRouteTest extends TestCase
 
     public function testMeWithoutRemoteAuthHasNoSuchClaim(): void {
         $app = $this->app(['enabled' => false, 'header' => null]);
-        $response = $this->get($app, '/v1/users/me');
+        $token = TestAccounts::issueToken(['id' => 2, 'username' => 'someone', 'has_totp' => false, 'max_token_age' => 60])['token'];
 
-        $this->assertSame(401, $response->getStatusCode());
+        $response = $app->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', 'http://localhost/v1/users/me')
+                ->withHeader('Authorization', "Bearer {$token}")
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertArrayNotHasKey('remote_auth', self::body($response));
     }
 
     public function testRenewTokenIsRejectedUnderRemoteAuth(): void {

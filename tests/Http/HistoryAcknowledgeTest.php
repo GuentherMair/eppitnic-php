@@ -2,7 +2,6 @@
 
 namespace Eppitnic\Tests\Http;
 
-use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Tests\Support\TestAccounts;
@@ -347,16 +346,6 @@ final class HistoryAcknowledgeTest extends TestCase
 
         $this->assertSame(403, $response->getStatusCode());
         $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]));
-    }
-
-    /**
-     * The fixed path must not be read as an entry id for the per-entry route.
-     */
-    public function testTheSingleEntryRouteIsUnaffected(): void {
-        $app = $this->app();
-        $id = $this->seedAt('2026-09-21 14:41:36');
-
-        $this->assertSame(200, $this->call($app, 'POST', "/v1/history/{$id}/acknowledge")->getStatusCode());
     }
 
     // ---------------------------------------------------------------

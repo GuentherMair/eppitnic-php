@@ -125,31 +125,16 @@ final class SetupRouteTest extends TestCase
     // ---------------------------------------------------------------
 
     /**
-     * The form checks this too, but the endpoint is reachable with curl and
-     * the account it creates is the one administrator the installation starts
-     * with -- so the rule has to hold here, not only in a browser.
+     * The form checks this too, but the endpoint is reachable with curl. It is
+     * refused before any connection, so the message never depends on one.
      */
-    public function testAWeakAdminPasswordIsRefused(): void {
-        $body = $this->install([
-            'db_name' => 'x', 'db_user' => 'x',
-            'admin_username' => 'admin', 'admin_password' => 'short',
-        ]);
-
-        $this->assertSame(400, $body['status']);
-        $this->assertStringContainsString('password needs', $body['error']);
-    }
-
-    /**
-     * Refused before the database is touched: a password that will not be
-     * accepted should not first cost a connection attempt to somebody else's
-     * host, and the message must not depend on that attempt's outcome.
-     */
-    public function testTheWeakPasswordIsCaughtBeforeAnyConnection(): void {
+    public function testAWeakAdminPasswordIsRefusedBeforeAnyConnection(): void {
         $body = $this->install([
             'db_name' => 'x', 'db_user' => 'x', 'db_host' => '203.0.113.1',
             'admin_username' => 'admin', 'admin_password' => 'short',
         ]);
 
+        $this->assertSame(400, $body['status']);
         $this->assertStringContainsString('password needs', $body['error']);
         $this->assertStringNotContainsString('connect', strtolower($body['error']));
     }

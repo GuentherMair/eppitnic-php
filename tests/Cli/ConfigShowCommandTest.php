@@ -6,7 +6,6 @@ use Eppitnic\Cli\Command\ConfigShowCommand;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Config;
 use Eppitnic\Tests\Support\EppTestCase;
-use RedBeanPHP\R;
 
 /**
  * `config show` -- a local, read-only settings dump, so this needs only
@@ -18,9 +17,6 @@ final class ConfigShowCommandTest extends EppTestCase
     protected function setUp(): void {
         parent::setUp();
 
-        if ( ! R::hasDatabase('default')) {
-            R::setup('sqlite::memory:');
-        }
         Config::loadForTesting(static::SETTINGS + [
             'jwt_psk' => 'super-secret-signing-key',
         ]);

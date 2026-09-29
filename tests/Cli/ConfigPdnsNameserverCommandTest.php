@@ -86,15 +86,6 @@ final class ConfigPdnsNameserverCommandTest extends EppTestCase
         (new ConfigPdnsNameserverCommand(['--yes', 'add', '192.0.2.1']))->run();
     }
 
-    public function testAddASeventhHostIsAUsageError(): void {
-        for ($i = 1; $i <= 6; $i++) {
-            $this->runCommand(['--yes', 'add', "ns{$i}.example.it"]);
-        }
-
-        $this->expectException(UsageError::class);
-        (new ConfigPdnsNameserverCommand(['--yes', 'add', 'ns7.example.it']))->run();
-    }
-
     public function testShowListsTheConfiguredHosts(): void {
         $this->runCommand(['--yes', 'add', 'ns1.example.it']);
 

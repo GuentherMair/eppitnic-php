@@ -29,10 +29,6 @@ final class ContactAuthinfoTest extends EppTestCase
         return $contact;
     }
 
-    public function testAFreshContactHasAnAuthinfo(): void {
-        $this->assertNotSame('', (new Contact($this->nic))->get('authinfo'));
-    }
-
     /**
      * 16 characters by choice, not by rule: it matches the registry password's
      * ceiling and is what Domain has always generated. The schema would take

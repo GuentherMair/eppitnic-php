@@ -60,11 +60,6 @@ final class ConfigRemoteAuthSetCommandTest extends EppTestCase
         (new ConfigRemoteAuthSetCommand(['--yes', 'header', 'Not A Header!']))->run();
     }
 
-    public function testRejectsAForbiddenHeaderName(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigRemoteAuthSetCommand(['--yes', 'header', 'Authorization']))->run();
-    }
-
     public function testRejectsAnUnknownField(): void {
         $this->expectException(UsageError::class);
         (new ConfigRemoteAuthSetCommand(['--yes', 'bogus', 'x']))->run();

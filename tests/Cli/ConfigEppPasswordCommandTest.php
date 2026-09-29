@@ -31,10 +31,20 @@ final class ConfigEppPasswordCommandTest extends EppTestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        R::exec('DROP TABLE IF EXISTS settings');
+        foreach (['settings', 'history', 'users'] as $table) {
+            R::exec("DROP TABLE IF EXISTS {$table}");
+        }
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, `value` TEXT)');
+        R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                 user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
+        R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT)');
 
-        Config::loadForTesting(static::SETTINGS);
+        // mail off: a landed rotation is recorded, and mailed only when enabled
+        Config::loadForTesting(static::SETTINGS + ['smtp' => [
+            'enabled' => false, 'host' => 'localhost', 'port' => null, 'sender' => '',
+            'recipient_mode' => 'system', 'recipient' => '', 'username' => '', 'password' => '',
+            'auth_type' => 'plain', 'message_types' => [], 'fulltext' => '',
+        ]]);
         Config::set('epp', ['password' => 'old-password'] + static::SETTINGS['epp']);
 
         RegistryPasswordChange::useClientFactory(function (): Client {
@@ -71,10 +81,9 @@ final class ConfigEppPasswordCommandTest extends EppTestCase
         $this->capture(fn() => $this->assertSame(0, $command->run()));
 
         $this->assertSame('new-password', Config::get('epp')['password']);
-        // apply() offers the new password as <newPW> in the same login that
-        // still authenticates with the old one -- the credential this test's
-        // FakeTransport reads back is the one it was offered as the login
         $this->assertArrayNotHasKey('pendingPassword', Config::get('epp'));
+        $this->assertSame(['new-password'], $this->attempted, 'sent as <newPW> in one login');
+        $this->assertSame(1, (int) R::getCell("SELECT COUNT(*) FROM history WHERE action = 'rotate'"));
     }
 
     public function testChangeStampsLastPasswordUpdate(): void {

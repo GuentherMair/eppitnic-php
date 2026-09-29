@@ -100,7 +100,7 @@ final class PollProcessCommandTest extends EppTestCase
         $this->assertStringContainsString('poll process is off', $output);
     }
 
-    public function testEnabledReachesThePastDryRunRejection(): void {
+    public function testEnabledRejectsDryRun(): void {
         Config::loadForTesting(static::SETTINGS + [
             'poll_process' => ['enabled' => true, 'frequency_minutes' => 5, 'last_run_at' => null],
         ]);
@@ -128,9 +128,10 @@ final class PollProcessCommandTest extends EppTestCase
      * The watermark (max messages.id before this run) is the boundary --
      * anything already there when the run starts must never be re-notified,
      * regardless of how the id compares to whatever the registry drains.
+     * Not a passwdReminder: that would start a real rotation over the network.
      */
     public function testAPreExistingMessageIsNeverReNotified(): void {
-        R::exec("INSERT INTO messages (type, domain, data) VALUES ('passwdReminder', NULL, 'an old reminder')");
+        R::exec("INSERT INTO messages (type, domain, data) VALUES ('creditMsgData', NULL, 'an old balance')");
 
         Config::loadForTesting(static::SETTINGS + [
             'poll_process' => ['enabled' => true, 'frequency_minutes' => 5, 'last_run_at' => null],

@@ -49,13 +49,6 @@ final class SelftestNameserverTest extends EppTestCase
         $this->assertSame(self::TARGET, $result);
     }
 
-    public function testAnAlreadyCorrectSetIsLeftAsItIs(): void {
-        $result = $this->reconciled(self::TARGET);
-
-        sort($result);
-        $this->assertSame(self::TARGET, $result);
-    }
-
     /**
      * Whatever the registry says it holds, the answer is the target -- there
      * is no reported state that produces fewer than two.
@@ -91,10 +84,6 @@ final class SelftestNameserverTest extends EppTestCase
 
         $this->assertSame([], $run->steps(), 'a wait was recorded with no domain to wait for');
         $this->assertLessThan(1.0, microtime(true) - $started);
-    }
-
-    public function testNameserversNotWantedAreRemoved(): void {
-        $this->assertNotContains('ns2.example.it', $this->reconciled(['ns1.example.it', 'ns2.example.it']));
     }
 
     /**

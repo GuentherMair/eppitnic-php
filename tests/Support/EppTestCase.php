@@ -54,10 +54,6 @@ abstract class EppTestCase extends TestCase
         $this->nic = new Client();
         $this->transport = new FakeTransport();
         $this->nic->setTransport($this->transport);
-
-        // clTRID embeds time() and a random suffix, so normalize() strips it
-        // rather than freezing it: the generator's job is to place the element
-        // correctly, not to invent a specific id
     }
 
     protected function tearDown(): void {
@@ -66,9 +62,9 @@ abstract class EppTestCase extends TestCase
     }
 
     /**
-     * Make a generated request comparable across runs: strip the volatile
-     * clTRID and normalize whitespace, so the assertion is about structure and
-     * values rather than one generator's formatting.
+     * Make a generated request comparable across runs: strip the clTRID (it
+     * embeds time() and a random suffix) and normalize whitespace, so the
+     * assertion is about structure and values, not one generator's formatting.
      *
      * @param string $xml the raw request body
      * @return string a canonical form suitable for string comparison

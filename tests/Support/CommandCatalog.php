@@ -38,9 +38,9 @@ final class CommandCatalog
     XML;
 
     /**
-     * PROVISIONAL: reconstructions, not captures. Enough to exercise the
-     * parsing paths, but NOT evidence that the parsers handle what the registry
-     * sends. Replace with captures once test credentials exist.
+     * Reconstructions, not captures: enough to drive the commands, but not
+     * evidence the parsers handle what the registry sends -- that is
+     * ResponseParsingTest's job, against tests/fixtures/responses/.
      */
     public const DOMAIN_CHECK_RESPONSE = <<<'XML'
     <?xml version="1.0" encoding="UTF-8" standalone="no"?>

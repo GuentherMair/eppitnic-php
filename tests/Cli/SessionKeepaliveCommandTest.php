@@ -7,7 +7,6 @@ use Eppitnic\Config;
 use Eppitnic\Service\SessionState;
 use Eppitnic\Tests\Support\CommandCatalog;
 use Eppitnic\Tests\Support\EppTestCase;
-use Eppitnic\Tests\Support\FakeTransport;
 use RedBeanPHP\R;
 
 /**

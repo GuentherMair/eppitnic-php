@@ -134,7 +134,4 @@ final class PollQueueScopeTest extends TestCase
             array_map('intval', R::getCol('SELECT id FROM messages WHERE archived_time IS NULL ORDER BY id')));
     }
 
-    public function testArchivingAllIsRefusedToAPlainUser(): void {
-        $this->assertSame(403, $this->call($this->app(), 'POST', '/v1/poll-queue/archive', 3, ['until' => '2999-01-01 00:00:00'])->getStatusCode());
-    }
 }

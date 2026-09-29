@@ -21,8 +21,21 @@ final class InstallerTest extends TestCase
 {
     private const DB_NAME = 'eppitnic_setuptest_installer';
 
+    /** a PDO driver that does not exist: fails at once, reaching no server */
+    private const UNREACHABLE_DB = [
+        'db_type' => 'eppitnic_test_bogus_driver', 'db_host' => 'localhost',
+        'db_name' => 'x', 'db_user' => 'x', 'db_password' => 'x',
+    ];
+
+    /** @var string[] throwaway config directories to remove afterwards */
+    private array $scratchDirectories = [];
+
     protected function tearDown(): void {
         ConfigFile::usePath(null);
+        foreach ($this->scratchDirectories as $dir) {
+            @unlink($dir . '/config.php');
+            @rmdir($dir);
+        }
     }
 
     /**
@@ -67,16 +80,9 @@ final class InstallerTest extends TestCase
     public function testInstallThrowsBeforeTouchingTheDatabaseWhenAdminFieldsAreBlank(): void {
         $this->useThrowawayConfigPath();
 
-        // a DSN that would fail loudly if ever reached, so a silent pass here
-        // can't be mistaken for "the admin-field check never ran"
-        $input = [
-            'db_type' => 'mysql', 'db_host' => '127.0.0.1', 'db_port' => '1',
-            'db_name' => 'x', 'db_user' => 'x', 'db_password' => 'x',
-        ];
-
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/admin_username and admin_password/');
-        Installer::install($input);
+        Installer::install(self::UNREACHABLE_DB);
     }
 
     public function testInstallThrowsWhenConfigFileAlreadyExists(): void {
@@ -180,9 +186,7 @@ final class InstallerTest extends TestCase
      * @return array<string, string>
      */
     private function minimalInput(): array {
-        return [
-            'db_type' => 'mysql', 'db_host' => '127.0.0.1', 'db_port' => '1',
-            'db_name' => 'x', 'db_user' => 'x', 'db_password' => 'x',
+        return self::UNREACHABLE_DB + [
             'admin_username' => 'admin', 'admin_password' => 'Setup-Admin-42!',
             'registrar_tag' => 'TEST-REG',
         ];
@@ -191,6 +195,7 @@ final class InstallerTest extends TestCase
     private function useThrowawayConfigPath(): string {
         $dir = sys_get_temp_dir() . '/eppitnic-installer-test-' . bin2hex(random_bytes(4));
         mkdir($dir);
+        $this->scratchDirectories[] = $dir;
         $path = $dir . '/config.php';
         ConfigFile::usePath($path);
         return $path;
@@ -231,7 +236,7 @@ final class InstallerTest extends TestCase
             $this->assertTrue(ConfigFile::exists());
             $this->assertSame(0600, fileperms($path) & 0777);
             $written = (string) file_get_contents($path);
-            $this->assertStringNotContainsString('a-strong-password', $written, 'the admin password leaked into config.php');
+            $this->assertStringNotContainsString('Setup-Admin-42!', $written, 'the admin password leaked into config.php');
 
             $adminRow = R::getRow('SELECT username, role, reseller_id FROM users WHERE id = ?', [$result['admin']['id']]);
             $this->assertSame('setupadmin', $adminRow['username']);

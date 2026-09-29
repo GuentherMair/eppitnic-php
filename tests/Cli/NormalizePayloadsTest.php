@@ -37,16 +37,24 @@ final class NormalizePayloadsTest extends EppTestCase
         return '__SERIALIZED:' . base64_encode(serialize($body));
     }
 
+    /** what the last run wrote to stderr */
+    private string $errors = '';
+
     /**
      * @param string[] $args
      */
     private function normalizeWith(array $args = ['--yes']): string {
         $command = new DoctorNormalizePayloadsCommand($args);
+        $command->useErrorStream($stream = fopen('php://memory', 'w+'));
 
         ob_start();
         $command->run();
         $command->flush();
-        return (string) ob_get_clean();
+        $output = (string) ob_get_clean();
+
+        rewind($stream);
+        $this->errors = (string) stream_get_contents($stream);
+        return $output;
     }
 
     public function testAnEnvelopedRowBecomesItsBody(): void {
@@ -101,9 +109,9 @@ final class NormalizePayloadsTest extends EppTestCase
         $this->assertSame($damaged, R::getCell('SELECT sv_httpdata FROM msgqueue WHERE id = 1'));
         $this->assertSame(self::XML, R::getCell('SELECT sv_httpdata FROM msgqueue WHERE id = 2'));
 
-        // one of the two, not both -- the count is on stdout; the warning
-        // naming the skipped row goes to stderr, where a caller can separate it
+        // the count is on stdout, the warning about the skipped row on stderr
         $this->assertStringContainsString('1 row(s) rewritten', $output);
+        $this->assertStringContainsString('1 row(s) could not be decoded', $this->errors);
     }
 
     /**

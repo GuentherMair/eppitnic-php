@@ -235,10 +235,6 @@ final class SelftestRunTest extends EppTestCase
     }
 
     /**
-     * The duration is per step, not per run: a self-test that got slower is
-     * worth knowing about, and the answer to "which part" is on the line.
-     */
-    /**
      * The note is written from what is still outstanding, so anything the run
      * did delete must drop out of it -- otherwise `selftest reap` retries it
      * for weeks against "object does not exist", reporting problems it
@@ -267,6 +263,10 @@ final class SelftestRunTest extends EppTestCase
         $this->assertSame(['STTJC6F4R1'], $run->summary()['contacts']);
     }
 
+    /**
+     * The duration is per step, not per run: a self-test that got slower is
+     * worth knowing about, and the answer to "which part" is on the line.
+     */
     public function testEveryStepIsTimed(): void {
         $run = $this->newRun();
         $run->step('a', '', fn() => usleep(2000));

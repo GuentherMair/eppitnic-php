@@ -84,7 +84,7 @@ final class UserNotificationsTest extends TestCase
         $this->assertSame(['enabled' => false, 'message_types' => [], 'fulltext' => ''], self::json($response)['notifications']);
     }
 
-    public function testAUserSetsTheirOwnFilter(): void {
+    public function testAManagerSetsTheirOwnFilter(): void {
         $response = $this->call($this->app(), 'PATCH', '/v1/users/2/notifications', [
             'message_types' => ['dnsWarningMsgData'], 'fulltext' => 'expired',
         ]);
@@ -94,7 +94,7 @@ final class UserNotificationsTest extends TestCase
         $this->assertSame('expired', self::json($response)['notifications']['fulltext']);
     }
 
-    public function testAUserCannotSetSomeoneElsesFilter(): void {
+    public function testAManagerCannotReachAnotherResellersUser(): void {
         $app = $this->app();
 
         $this->assertSame(403, $this->call($app, 'GET', '/v1/users/3/notifications')->getStatusCode());
@@ -130,11 +130,10 @@ final class UserNotificationsTest extends TestCase
         $this->assertTrue(self::json($response)['notifications']['enabled']);
     }
 
-    public function testAManagerCannotReachAnotherResellersUser(): void {
-        $this->assertSame(403, $this->call($this->app(), 'PATCH', '/v1/users/3/notifications', ['enabled' => true], 2)->getStatusCode());
-    }
-
     public function testAPlainUserCannotReachTheirManager(): void {
-        $this->assertSame(403, $this->call($this->app(), 'GET', '/v1/users/2/notifications', [], 4)->getStatusCode());
+        $app = $this->app();
+
+        $this->assertSame(403, $this->call($app, 'GET', '/v1/users/2/notifications', [], 4)->getStatusCode());
+        $this->assertSame(403, $this->call($app, 'PATCH', '/v1/users/2/notifications', ['fulltext' => 'x'], 4)->getStatusCode());
     }
 }

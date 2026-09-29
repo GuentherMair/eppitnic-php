@@ -79,10 +79,19 @@ final class PowerDnsZonesTest extends EppTestCase
 
     public function testAFailureBecomesAWarningNotAnException(): void {
         $this->http->failHost('pdns2', 401, '{"error":"Unauthorized"}');
+        $log = tempnam(sys_get_temp_dir(), 'eppitnic-pdns-');
+        $previous = ini_set('error_log', $log);
 
-        $zone = PowerDnsZones::provision('example-one.it', ['ns1.example.it']);
+        try {
+            $zone = PowerDnsZones::provision('example-one.it', ['ns1.example.it']);
+        } finally {
+            ini_set('error_log', (string) $previous);
+            $logged = (string) file_get_contents($log);
+            unlink($log);
+        }
 
         $this->assertStringContainsString('http://pdns2:8081: 401 Unauthorized', (string) $zone['warning']);
+        $this->assertStringContainsString('could not be prepared', $logged);
     }
 
     /** only where it was created: pdns2 found the zone already there */

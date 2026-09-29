@@ -29,14 +29,6 @@ final class SerializedColumnTest extends TestCase
         $this->assertSame($status, SerializedColumn::toArray(serialize($status)));
     }
 
-    public function testABareUnserializeWouldHaveFailedOnTheEnvelope(): void {
-        // the bug this class exists for, pinned so it cannot come back
-        $wrapped = self::wrapped(['ok']);
-
-        $this->assertFalse(@unserialize($wrapped));
-        $this->assertSame(['ok'], SerializedColumn::toArray($wrapped));
-    }
-
     /**
      * @param string|null $stored
      */

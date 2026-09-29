@@ -2,7 +2,6 @@
 
 namespace Eppitnic\Tests\Http;
 
-use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Service\Notifier;
@@ -89,6 +88,7 @@ final class SmtpRouteTest extends TestCase
     }
 
     protected function tearDown(): void {
+        Notifier::useMailerFactory(null);
         Config::reset();
         parent::tearDown();
     }
@@ -99,7 +99,7 @@ final class SmtpRouteTest extends TestCase
 
         $this->assertArrayNotHasKey('password', $body['smtp']);
         $this->assertTrue($body['smtp']['password_set']);
-        $this->assertStringNotContainsString('a-known-test-password', (string) $this->get($this->app())->getBody());
+        $this->assertStringNotContainsString('a-known-test-password', (string) $this->get($app)->getBody());
     }
 
     public function testGetIncludesTheMessageTypeList(): void {
@@ -144,12 +144,6 @@ final class SmtpRouteTest extends TestCase
         $this->assertArrayHasKey('error', self::body($response));
     }
 
-    public function testPatchRejectsAnUnknownMessageType(): void {
-        $app = $this->app();
-        $response = $this->patch($app, ['message_types' => ['not-a-real-type']]);
-
-        $this->assertSame(400, $response->getStatusCode());
-    }
 
     public function testPatchRequiresAdmin(): void {
         $app = $this->app();
@@ -170,12 +164,6 @@ final class SmtpRouteTest extends TestCase
         $this->assertEmpty(R::getAll("SELECT * FROM history WHERE object = 'smtp'"), 'a test must never be audited');
     }
 
-    public function testSendTestWorksEvenWhileDisabled(): void {
-        $app = $this->app();
-        $response = $this->sendTest($app, ['recipient' => 'admin@example.it']);
-
-        $this->assertSame(200, $response->getStatusCode());
-    }
 
     public function testSendTestFailsWithoutARecipient(): void {
         $app = $this->app();

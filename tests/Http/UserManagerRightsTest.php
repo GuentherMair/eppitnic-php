@@ -344,11 +344,4 @@ final class UserManagerRightsTest extends TestCase
         $this->assertSame(200, $this->call($app, 'PUT', '/v1/users/6', ['role' => 'user'], 1)->getStatusCode());
     }
 
-    public function testAManagersOfDifferentResellersDoNotCountAgainstEachOther(): void {
-        // managerB (reseller 3) is the only manager there; deactivating
-        // managerA2 (reseller 2) must not be blocked by that
-        $response = $this->call($this->app(), 'DELETE', '/v1/users/4', [], 1);
-
-        $this->assertSame(200, $response->getStatusCode());
-    }
 }

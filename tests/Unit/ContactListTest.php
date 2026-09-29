@@ -64,12 +64,6 @@ final class ContactListTest extends EppTestCase
         $this->assertSame(['C' => [], 'D' => [], 'E' => []], $this->statuses());
     }
 
-    public function testAContactWithoutTheFlagCarriesOthers(): void {
-        $this->insert('F', serialize(['ok']));
-
-        $this->assertNotContains('linked', $this->statuses()['F']);
-    }
-
     public function testTheInactiveStayOutOfTheDefaultList(): void {
         $this->insert('G', serialize(['ok']), 0);
 

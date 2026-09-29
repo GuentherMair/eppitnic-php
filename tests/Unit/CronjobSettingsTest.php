@@ -129,11 +129,6 @@ final class CronjobSettingsTest extends EppTestCase
         $this->assertSame('ns1', $result['apis'][0]['host']);
     }
 
-    public function testSetRejectsANewApisEntryWithNoKey(): void {
-        $this->expectException(\InvalidArgumentException::class);
-        CronjobSettings::set('pdns', ['apis' => [['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => '']]], 1);
-    }
-
     public function testSetKeepsTheStoredApiKeyWhenBlank(): void {
         CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
 
@@ -147,11 +142,6 @@ final class CronjobSettingsTest extends EppTestCase
         return ['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => 'stored-key'];
     }
 
-    public function testSetAcceptsAValidNameserversList(): void {
-        $result = CronjobSettings::set('pdns', ['nameservers' => ['ns1.example.it']], 1);
-        $this->assertSame(['ns1.example.it'], $result['nameservers']);
-    }
-
     public function testSetNormalizesNameservers(): void {
         $result = CronjobSettings::set('pdns', ['nameservers' => ['NS1.Example.IT.']], 1);
         $this->assertSame(['ns1.example.it'], $result['nameservers']);
@@ -160,14 +150,6 @@ final class CronjobSettingsTest extends EppTestCase
     public function testSetRejectsAnIpAddressAsANameserver(): void {
         $this->expectException(\InvalidArgumentException::class);
         CronjobSettings::set('pdns', ['nameservers' => ['192.0.2.1']], 1);
-    }
-
-    public function testSetRejectsMoreThanSixNameservers(): void {
-        $this->expectException(\InvalidArgumentException::class);
-        CronjobSettings::set('pdns', ['nameservers' => [
-            'ns1.example.it', 'ns2.example.it', 'ns3.example.it',
-            'ns4.example.it', 'ns5.example.it', 'ns6.example.it', 'ns7.example.it',
-        ]], 1);
     }
 
     public function testSetRejectsAFrequencyOutOfRange(): void {

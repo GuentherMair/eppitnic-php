@@ -72,10 +72,21 @@ final class DomainSyncCommandTest extends EppTestCase
         return (int) R::getCell('SELECT id FROM domains WHERE domain = ?', [$name]);
     }
 
-    private function seedContact(string $handle, int $userId = 1): void {
+    private function seedContact(string $handle, int $resellerId = 1): void {
         R::exec('INSERT INTO contacts (handle, reseller_id, status, name, email) VALUES (?, ?, ?, ?, ?)', [
-            $handle, $userId, serialize(['ok']), 'Mario Rossi', 'old@example.it',
+            $handle, $resellerId, serialize(['ok']), 'Mario Rossi', 'old@example.it',
         ]);
+    }
+
+    /** a run that never reaches the registry */
+    private function runOffline(array $args): string {
+        $command = new DomainSyncCommand($args);
+        $command->useClient($this->nic);
+        $command->useErrorStream(fopen('php://memory', 'w+'));
+
+        ob_start();
+        $this->assertSame(0, $command->run());
+        return (string) ob_get_clean();
     }
 
     /**
@@ -200,28 +211,20 @@ final class DomainSyncCommandTest extends EppTestCase
         $this->withSettings(['enabled' => false, 'batch_size' => 25, 'cursor_id' => 0]);
         $this->seedDomain('example-one.it');
 
-        $command = new DomainSyncCommand([]);
-        $command->useClient($this->nic);
-        $command->useErrorStream(fopen('php://memory', 'w+'));
-
-        $this->assertSame(0, $command->run());
+        $this->assertStringContainsString('domain sync is off', $this->runOffline([]));
         $this->assertCount(0, $this->transport->requests, 'off must make no registry calls at all');
         $cfg = Config::get('domain_sync');
         $this->assertSame(0, $cfg['cursor_id']);
     }
 
     /**
-     * --batch-size overrides this run only -- unlike before, it no longer
-     * rewrites the stored default as a side effect (config domain-sync-set
-     * batch_size is the way to actually change that).
+     * --batch-size overrides this run only; `config domain-sync-set
+     * batch_size` changes the stored default.
      */
     public function testBatchSizeOptionDoesNotPersist(): void {
         $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
 
-        $command = new DomainSyncCommand(['--batch-size=10']);
-        $command->useClient($this->nic);
-        $command->useErrorStream(fopen('php://memory', 'w+'));
-        $this->assertSame(0, $command->run());
+        $this->runOffline(['--batch-size=10']);
 
         $this->assertSame(25, Config::get('domain_sync')['batch_size'], 'the CLI override leaked into the stored setting');
     }
@@ -229,11 +232,7 @@ final class DomainSyncCommandTest extends EppTestCase
     public function testBatchSizeOptionHasNoEffectWhileOff(): void {
         $this->withSettings(['enabled' => false, 'batch_size' => 25, 'cursor_id' => 0]);
 
-        $command = new DomainSyncCommand(['--batch-size=10']);
-        $command->useClient($this->nic);
-        $command->useErrorStream(fopen('php://memory', 'w+'));
-        $this->assertSame(0, $command->run());
-
+        $this->assertStringContainsString('domain sync is off', $this->runOffline(['--batch-size=10']));
         $this->assertCount(0, $this->transport->requests, 'off means off, regardless of --batch-size');
         $this->assertSame(25, Config::get('domain_sync')['batch_size']);
     }
@@ -248,10 +247,7 @@ final class DomainSyncCommandTest extends EppTestCase
     public function testNoActiveDomainsIsANoOp(): void {
         $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
 
-        $command = new DomainSyncCommand([]);
-        $command->useClient($this->nic);
-        $command->useErrorStream(fopen('php://memory', 'w+'));
-        $this->assertSame(0, $command->run());
+        $this->assertStringContainsString('no active domains', $this->runOffline([]));
         $this->assertCount(0, $this->transport->requests);
     }
 
@@ -420,7 +416,7 @@ final class DomainSyncCommandTest extends EppTestCase
 
         $row = R::getRow('SELECT * FROM contacts WHERE handle = ?', ['TECH1234TECH5678']);
         $this->assertNotEmpty($row, 'a newly-seen tech contact must be stored');
-        $this->assertSame(3, (int) $row['reseller_id'], 'a new contact is owned by the domain that named it, not the CLI default');
+        $this->assertSame(3, (int) $row['reseller_id'], 'a new contact is owned by the reseller of the domain that named it');
     }
 
     public function testAnAlreadyKnownContactIsRefreshedWithoutClobberingItsOwner(): void {
@@ -428,9 +424,9 @@ final class DomainSyncCommandTest extends EppTestCase
         $this->seedDomain('example.it', ['reseller_id' => 1]);
         $this->seedContact('REGI1234REGI5678', 7);
         $this->seedContact('ADMIN123ADMIN456', 7);
-        $this->seedContact('TECH1234TECH5678', 7); // pre-existing, owned by user 7
+        $this->seedContact('TECH1234TECH5678', 7); // pre-existing, owned by reseller 7
 
-        $command = new DomainSyncCommand([]); // default CLI user is 1
+        $command = new DomainSyncCommand([]);
         $this->withRegistry($command, [
             $this->checkResponse(['example.it' => false]),
             $this->infoResponse('example.it'),

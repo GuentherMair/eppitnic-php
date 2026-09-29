@@ -2,7 +2,6 @@
 
 namespace Eppitnic\Tests\Http;
 
-use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Persistence\User;

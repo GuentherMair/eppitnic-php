@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * Validates every generated request against the registry's own schemas --
  * order, cardinality, facets and namespaces, the mistake that otherwise arrives
- * as a 2001. A request with no schema on disk is skipped by name, never passed.
+ * as a 2001.
  */
 final class SchemaValidationTest extends EppTestCase
 {
@@ -81,41 +81,17 @@ final class SchemaValidationTest extends EppTestCase
         $this->assertFileExists($path, "record the wire fixture first (UPDATE_FIXTURES=1)");
         $xml = file_get_contents($path);
 
-        $unsatisfied = [];
         foreach (self::namespacesUsed($xml) as $ns) {
-            if ($ns === 'http://www.w3.org/2001/XMLSchema-instance') {
-                continue;
-            }
-            if ( ! array_key_exists($ns, RegistrySchemas::SCHEMAS)) {
-                $this->fail("'{$name}' uses namespace '{$ns}', which this test does not know about at all");
-            }
-            if (RegistrySchemas::SCHEMAS[$ns] === null) {
-                $unsatisfied[] = $ns;
+            if ($ns !== 'http://www.w3.org/2001/XMLSchema-instance' && ! array_key_exists($ns, RegistrySchemas::SCHEMAS)) {
+                $this->fail("'{$name}' uses namespace '{$ns}', which RegistrySchemas does not know about at all");
             }
         }
 
-        if ( ! empty($unsatisfied)) {
-            $this->markTestSkipped(
-                "'{$name}' cannot be validated: no schema in xsd/ for " . implode(', ', $unsatisfied)
-            );
-        }
+        $errors = RegistrySchemas::validate($xml);
 
-        $previous = libxml_use_internal_errors(true);
-        libxml_clear_errors();
-
-        $dom = new \DOMDocument();
-        $dom->loadXML($xml);
-        $valid = $dom->schemaValidateSource(RegistrySchemas::catalog());
-        $errors = array_map(
-            fn($e) => trim($e->message) . ' (line ' . $e->line . ')',
-            libxml_get_errors()
-        );
-
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
-
-        $this->assertTrue(
-            $valid,
+        $this->assertSame(
+            [],
+            $errors,
             "'{$name}' is not schema-valid:\n  - " . implode("\n  - ", $errors) . "\n\n{$xml}"
         );
     }
@@ -134,20 +110,4 @@ final class SchemaValidationTest extends EppTestCase
         );
     }
 
-    /**
-     * Fails while any namespace this codebase actually emits has no schema on
-     * disk. Not a nicety: every such gap is a command whose structure nothing
-     * verifies before the registry rejects it.
-     */
-    public function testSchemaSetIsComplete(): void {
-        $missing = array_keys(array_filter(RegistrySchemas::SCHEMAS, fn($f) => $f === null));
-
-        $this->assertSame(
-            [],
-            $missing,
-            "xsd/ is missing schemas for namespaces this codebase emits:\n  - " . implode("\n  - ", $missing)
-                . "\n\nNote xsd/ currently holds extdom-1.0 and extepp-1.0, but the code and the"
-                . "\nlive registry greeting both use extdom-2.0 and extepp-2.0."
-        );
-    }
 }

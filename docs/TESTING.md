@@ -18,10 +18,8 @@ registry and proves the registry still accepts it.
    vendor/bin/phpunit
    ```
 
-   `composer test` does the same. The run ends with
-   `OK, but some tests were skipped!`: four poll-message cases in
-   `Wire\ResponseParsingTest` skip by design, since `passwdReminder` and
-   `creditMsgData` are not about a particular domain.
+   `composer test` does the same. With a local MariaDB reachable (see below)
+   the run ends with a plain `OK`.
 
 The suite needs no MariaDB and no network: it runs on
 `Config::loadForTesting()` and a fake transport. Some tests open an in-memory
@@ -45,7 +43,7 @@ vendor/bin/phpunit --filter <TEST_NAME>
 disposable database: `mysql:host=localhost` as the current shell user with no
 password (local socket authentication), with privileges to create and drop a
 database. Without one reachable, those tests skip themselves rather than
-fail, and the skipped count goes up accordingly.
+fail, and the run ends with `OK, but some tests were skipped!`.
 
 ### Captured registry responses
 

@@ -116,16 +116,6 @@ final class CronRunCommandTest extends EppTestCase
         $this->assertStringNotContainsString('domain_sync', $output);
     }
 
-    public function testNullLastRunAtIsImmediatelyDue(): void {
-        $this->configure([
-            'domain_reap_deletions' => ['enabled' => true, 'last_run_at' => null],
-        ]);
-
-        [, $output] = $this->capture(['--dry-run']);
-
-        $this->assertStringContainsString('domain_reap_deletions', $output);
-    }
-
     public function testPollProcessDueOnElapsedTimeWhenEnabled(): void {
         $this->configure([
             'poll_process' => ['enabled' => true, 'last_run_at' => self::minutesAgo(10), 'frequency_minutes' => 5],

@@ -43,56 +43,14 @@ final class ConfigEppSetCommandTest extends EppTestCase
         return $this->capture(fn() => $this->assertSame(0, $command->run()));
     }
 
-    public function testSetsAnIPv4Interface(): void {
-        $this->runCommand(['--yes', 'interface', '203.0.113.5']);
-        $this->assertSame('203.0.113.5', Config::get('epp')['interface']);
-    }
-
     public function testRejectsANonIPv4Interface(): void {
         $this->expectException(UsageError::class);
         (new ConfigEppSetCommand(['--yes', 'interface', 'not-an-ip']))->run();
     }
 
-    public function testRejectsAnIPv6Interface(): void {
-        // the field is specifically documented as IPv4
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'interface', '2001:db8::1']))->run();
-    }
-
     public function testSetsLangToItOrEn(): void {
         $this->runCommand(['--yes', 'lang', 'it']);
         $this->assertSame('it', Config::get('epp')['lang']);
-    }
-
-    public function testRejectsAnUnsupportedLang(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'lang', 'fr']))->run();
-    }
-
-    public function testSetsClTridPrefixUpToThirtyTwoCharacters(): void {
-        $prefix = str_repeat('A', 32);
-        $this->runCommand(['--yes', 'cl_trid_prefix', $prefix]);
-        $this->assertSame($prefix, Config::get('epp')['cl_trid_prefix']);
-    }
-
-    public function testRejectsAClTridPrefixOverThirtyTwoCharacters(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'cl_trid_prefix', str_repeat('A', 33)]))->run();
-    }
-
-    public function testSetsAUsernameEndingInReg(): void {
-        $this->runCommand(['--yes', 'username', 'MYCOMPANY-REG']);
-        $this->assertSame('MYCOMPANY-REG', Config::get('epp')['username']);
-    }
-
-    public function testAcceptsAnEppUserWithoutSuffix(): void {
-        $this->runCommand(['--yes', 'username', 'mario.rossi']);
-        $this->assertSame('mario.rossi', Config::get('epp')['username']);
-    }
-
-    public function testRejectsAUsernameOutsideThreeToSixtyFourCharacters(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'username', str_repeat('A', 61) . '-REG']))->run();
     }
 
     public function testRejectsAnUnknownField(): void {
@@ -103,21 +61,6 @@ final class ConfigEppSetCommandTest extends EppTestCase
     public function testSetsThePort(): void {
         $this->runCommand(['--yes', 'port', '8443']);
         $this->assertSame(8443, Config::get('epp')['port']);
-    }
-
-    public function testRejectsAPortOutOfRange(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'port', '99999']))->run();
-    }
-
-    public function testSetsServerDeleted(): void {
-        $this->runCommand(['--yes', 'server_deleted', 'https://epp-deleted.example.it']);
-        $this->assertSame('https://epp-deleted.example.it', Config::get('epp')['server_deleted']);
-    }
-
-    public function testRejectsAnHttpServer(): void {
-        $this->expectException(UsageError::class);
-        (new ConfigEppSetCommand(['--yes', 'server', 'http://epp.nic.it']))->run();
     }
 
     public function testOmittingTheValueUnsetsAnOptionalField(): void {

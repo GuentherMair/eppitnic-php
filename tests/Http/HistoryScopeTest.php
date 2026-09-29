@@ -2,7 +2,6 @@
 
 namespace Eppitnic\Tests\Http;
 
-use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Tests\Support\TestAccounts;
@@ -78,7 +77,7 @@ final class HistoryScopeTest extends TestCase
         );
     }
 
-    private function get(\Slim\App $app, string $path, int $id, bool $admin = false): ResponseInterface {
+    private function get(\Slim\App $app, string $path, int $id): ResponseInterface {
         [$role, $reseller] = self::ACCOUNTS[$id];
         $token = TestAccounts::issueToken([
             'id' => $id, 'username' => "user{$id}", 'role' => $role, 'reseller_id' => $reseller,
@@ -94,8 +93,8 @@ final class HistoryScopeTest extends TestCase
     /**
      * @return array<int, string> "object:object_id" for each entry returned
      */
-    private function visible(\Slim\App $app, int $id, bool $admin = false, string $query = ''): array {
-        $body = json_decode((string) $this->get($app, '/v1/history' . $query, $id, $admin)->getBody(), true);
+    private function visible(\Slim\App $app, int $id, string $query = ''): array {
+        $body = json_decode((string) $this->get($app, '/v1/history' . $query, $id)->getBody(), true);
 
         return array_map(fn($row) => $row['object'] . ':' . $row['object_id'], $body['history']);
     }
@@ -108,7 +107,7 @@ final class HistoryScopeTest extends TestCase
     public function testAnAdminSeesEverything(): void {
         $app = $this->app();
 
-        $this->assertCount(7, $this->visible($app, 1, true));
+        $this->assertCount(7, $this->visible($app, 1));
     }
 
     /**
@@ -140,13 +139,13 @@ final class HistoryScopeTest extends TestCase
     public function testAUserCannotReadAnotherUsersRow(): void {
         $app = $this->app();
 
-        $this->assertSame([], $this->visible($app, self::ALICE, false, '?object=users&object_id=' . self::BOB));
+        $this->assertSame([], $this->visible($app, self::ALICE, '?object=users&object_id=' . self::BOB));
     }
 
     public function testAUserCannotReadAnotherUsersDomain(): void {
         $app = $this->app();
 
-        $this->assertSame([], $this->visible($app, self::ALICE, false, '?object=domains&object_id=20'));
+        $this->assertSame([], $this->visible($app, self::ALICE, '?object=domains&object_id=20'));
     }
 
     /**
@@ -156,7 +155,7 @@ final class HistoryScopeTest extends TestCase
     public function testAUserSeesNoSecurityEntries(): void {
         $app = $this->app();
 
-        $this->assertSame([], $this->visible($app, self::ALICE, false, '?object=security'));
+        $this->assertSame([], $this->visible($app, self::ALICE, '?object=security'));
     }
 
     /**
@@ -188,15 +187,15 @@ final class HistoryScopeTest extends TestCase
     public function testFiltersNarrowWithinWhatIsVisible(): void {
         $app = $this->app();
 
-        $this->assertSame(['domains:10'], $this->visible($app, self::ALICE, false, '?object=domains'));
-        $this->assertSame(['domains:10'], $this->visible($app, self::ALICE, false, '?action=create'));
+        $this->assertSame(['domains:10'], $this->visible($app, self::ALICE, '?object=domains'));
+        $this->assertSame(['domains:10'], $this->visible($app, self::ALICE, '?action=create'));
     }
 
     public function testPagingDoesNotEscapeTheScope(): void {
         $app = $this->app();
 
-        $this->assertCount(1, $this->visible($app, self::ALICE, false, '?limit=1'));
-        $this->assertCount(2, $this->visible($app, self::ALICE, false, '?limit=99&offset=1'));
+        $this->assertCount(1, $this->visible($app, self::ALICE, '?limit=1'));
+        $this->assertCount(2, $this->visible($app, self::ALICE, '?limit=99&offset=1'));
     }
 
     public function testAnonymousGetsNothing(): void {

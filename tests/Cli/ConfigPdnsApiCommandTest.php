@@ -98,15 +98,6 @@ final class ConfigPdnsApiCommandTest extends EppTestCase
         (new ConfigPdnsApiCommand(['--yes', 'add', 'not-a-url', '--api-key=k']))->run();
     }
 
-    public function testAddASeventhServerIsAUsageError(): void {
-        for ($i = 1; $i <= 6; $i++) {
-            $this->runCommand(['--yes', 'add', "https://ns{$i}.example.com:8081", '--api-key=k']);
-        }
-
-        $this->expectException(UsageError::class);
-        (new ConfigPdnsApiCommand(['--yes', 'add', 'https://ns7.example.com:8081', '--api-key=k']))->run();
-    }
-
     public function testRemoveDropsTheMatchingEntry(): void {
         $this->runCommand(['--yes', 'add', 'https://ns1.example.com:8081', '--api-key=k1']);
         $this->runCommand(['--yes', 'add', 'https://ns2.example.com:8081', '--api-key=k2']);

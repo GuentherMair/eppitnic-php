@@ -20,9 +20,7 @@ final class ResponseParsingTest extends EppTestCase
 
     private static function fixture(string $name): string {
         $path = self::DIR . '/' . $name . '.xml';
-        if ( ! is_file($path)) {
-            self::markTestSkipped("no captured fixture '{$name}' (run tests/capture-responses.php)");
-        }
+        self::assertFileExists($path, "no captured fixture '{$name}' (run tests/capture-responses.php)");
         return file_get_contents($path);
     }
 
@@ -32,7 +30,7 @@ final class ResponseParsingTest extends EppTestCase
             $name = basename($file, '.xml');
             $cases[$name] = [$name];
         }
-        return $cases ?: ['none' => ['none']];
+        return $cases;
     }
 
     /**
@@ -42,10 +40,6 @@ final class ResponseParsingTest extends EppTestCase
      */
     #[DataProvider('allFixtures')]
     public function testResponseIsUnderstoodGenerically(string $name): void {
-        if ($name === 'none') {
-            $this->markTestSkipped('no captured response fixtures yet');
-        }
-
         $this->transport->queue(self::fixture($name));
 
         $session = new Session($this->nic);
@@ -131,6 +125,14 @@ final class ResponseParsingTest extends EppTestCase
         ];
     }
 
+    /**
+     * @return array<string, array{0: string, 1: string, 2: bool}> the
+     *         pollFixtures() about one particular domain
+     */
+    public static function domainPollFixtures(): array {
+        return array_filter(self::pollFixtures(), fn($case) => $case[2]);
+    }
+
     private function parsePoll(string $fixture): array {
         $this->transport->queue(self::fixture($fixture));
 
@@ -157,12 +159,8 @@ final class ResponseParsingTest extends EppTestCase
      * messages.domain, so one parsed without it is a failure nobody hears
      * about.
      */
-    #[DataProvider('pollFixtures')]
+    #[DataProvider('domainPollFixtures')]
     public function testDomainScopedPollMessagesCarryTheirDomain(string $fixture, string $expectedType, bool $hasDomain): void {
-        if ( ! $hasDomain) {
-            $this->markTestSkipped("{$expectedType} is not about a particular domain");
-        }
-
         $parsed = $this->parsePoll($fixture);
 
         $this->assertNotSame('', $parsed['domain'], "'{$fixture}' lost the domain it refers to");

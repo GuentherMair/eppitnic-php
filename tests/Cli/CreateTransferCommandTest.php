@@ -97,24 +97,24 @@ final class CreateTransferCommandTest extends EppTestCase
     }
 
     /**
-     * @return array<string, array{0: string, 1: string}> operation => expected op attribute
+     * @return array<string, array{0: string}> operation, also the op attribute
      */
     public static function transferOperations(): array {
         return [
-            'request' => ['request', 'request'],
-            'approve' => ['approve', 'approve'],
-            'reject'  => ['reject', 'reject'],
-            'cancel'  => ['cancel', 'cancel'],
+            'request' => ['request'],
+            'approve' => ['approve'],
+            'reject'  => ['reject'],
+            'cancel'  => ['cancel'],
         ];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('transferOperations')]
-    public function testTransferSendsTheRightOperation(string $operation, string $expected): void {
+    public function testTransferSendsTheRightOperation(string $operation): void {
         $output = $this->preview(new DomainTransferCommand([
             '--dry-run', '--authinfo=SECRET1234567890', $operation, 'example-one.it',
         ]));
 
-        $this->assertStringContainsString("<transfer op=\"{$expected}\">", $output);
+        $this->assertStringContainsString("<transfer op=\"{$operation}\">", $output);
         $this->assertStringContainsString('<domain:name>example-one.it</domain:name>', $output);
     }
 

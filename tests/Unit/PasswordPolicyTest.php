@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 final class PasswordPolicyTest extends TestCase
 {
     /**
-     * @param string[] $missing the rule descriptions expected to be reported
+     * @param int $missingCount how many rules the password breaks
      */
     #[DataProvider('candidates')]
     public function testViolations(string $password, int $missingCount): void {

@@ -4,7 +4,6 @@ namespace Eppitnic\Tests\Cli;
 
 use Eppitnic\Cli\Command\PdnsSyncCommand;
 use Eppitnic\Config;
-use Eppitnic\PowerDns\HttpClient;
 use Eppitnic\Tests\Support\EppTestCase;
 use Eppitnic\Tests\Support\FakeHttpClient;
 use RedBeanPHP\R;
@@ -132,9 +131,6 @@ final class PdnsSyncTest extends EppTestCase
         $this->assertStringContainsString('synced', $row['exit_message']);
     }
 
-    /**
-     * An existing zone is not re-created; only its NS set is reconciled.
-     */
     /** a row still in 6.x's `__SERIALIZED:` envelope reads like a plain one */
     public function testNameserversInTheLegacyEnvelopeAreRead(): void {
         $ns = serialize(['ns1.example.com' => 'ns1.example.com', 'ns2.example.com' => 'ns2.example.com']);
@@ -147,6 +143,9 @@ final class PdnsSyncTest extends EppTestCase
         $this->assertStringContainsString('zone synced (2 NS records)', $output);
     }
 
+    /**
+     * An existing zone is not re-created; only its NS set is reconciled.
+     */
     public function testAnUpdateSkipsTheZoneCreation(): void {
         $this->http = new FakeHttpClient(['example-one.it.']);
         $this->addDomain('example-one.it', ['ns1.example.com']);

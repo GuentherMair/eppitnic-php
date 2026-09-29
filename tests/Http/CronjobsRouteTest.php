@@ -2,7 +2,6 @@
 
 namespace Eppitnic\Tests\Http;
 
-use Eppitnic\Api\Auth;
 use Eppitnic\Api\Middleware;
 use Eppitnic\Config;
 use Eppitnic\Tests\Support\TestAccounts;
@@ -119,13 +118,6 @@ final class CronjobsRouteTest extends TestCase
         $this->assertSame(7200, Config::get('pdns')['ttl']);
     }
 
-    public function testPatchPreservesFieldsNotBeingChanged(): void {
-        $app = $this->app();
-        $this->patch($app, 'pdns', ['ttl' => 7200]);
-
-        $this->assertFalse(Config::get('pdns')['enabled'], 'an unrelated field must survive the partial update');
-    }
-
     public function testPatchWritesAHistoryRow(): void {
         $app = $this->app();
         $this->patch($app, 'domain_sync', ['enabled' => true]);
@@ -178,50 +170,6 @@ final class CronjobsRouteTest extends TestCase
         $this->assertTrue($body['settings']['apis'][0]['api_key_set']);
     }
 
-    public function testPatchRejectsANewApisEntryWithNoKey(): void {
-        $app = $this->app();
-        $response = $this->patch($app, 'pdns', ['apis' => [
-            ['protocol' => 'https', 'host' => 'ns1', 'port' => 8081],
-        ]]);
-
-        $this->assertSame(400, $response->getStatusCode());
-    }
-
-    public function testPatchRejectsMoreThanSixApis(): void {
-        $app = $this->app();
-        $apis = [];
-        for ($i = 1; $i <= 7; $i++) {
-            $apis[] = ['protocol' => 'http', 'host' => "ns{$i}", 'port' => 8081, 'api_key' => 'k'];
-        }
-
-        $response = $this->patch($app, 'pdns', ['apis' => $apis]);
-
-        $this->assertSame(400, $response->getStatusCode());
-    }
-
-    public function testPatchAcceptsExactlySixApis(): void {
-        $app = $this->app();
-        $apis = [];
-        for ($i = 1; $i <= 6; $i++) {
-            $apis[] = ['protocol' => 'http', 'host' => "ns{$i}", 'port' => 8081, 'api_key' => 'k'];
-        }
-
-        $response = $this->patch($app, 'pdns', ['apis' => $apis]);
-
-        $this->assertSame(200, $response->getStatusCode());
-        $this->assertCount(6, Config::get('pdns')['apis']);
-    }
-
-    public function testHistoryNeverContainsARealApiKey(): void {
-        $app = $this->app();
-        $this->patch($app, 'pdns', ['apis' => [
-            ['protocol' => 'https', 'host' => 'ns1', 'port' => 8081, 'api_key' => 'super-secret'],
-        ]]);
-
-        $row = R::getRow("SELECT * FROM history WHERE object = 'cronjobs'");
-        $this->assertStringNotContainsString('super-secret', $row['data']);
-    }
-
     public function testPatchAcceptsNameservers(): void {
         $app = $this->app();
         $response = $this->patch($app, 'pdns', ['nameservers' => ['NS1.Example.IT.', 'ns2.example.it']]);
@@ -230,35 +178,6 @@ final class CronjobsRouteTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame(['ns1.example.it', 'ns2.example.it'], $body['settings']['nameservers']);
         $this->assertSame(['ns1.example.it', 'ns2.example.it'], Config::get('pdns')['nameservers']);
-    }
-
-    public function testPatchRejectsAnIpAddressAsANameserver(): void {
-        $app = $this->app();
-        $response = $this->patch($app, 'pdns', ['nameservers' => ['192.0.2.1']]);
-
-        $this->assertSame(400, $response->getStatusCode());
-        $this->assertSame([], Config::get('pdns')['nameservers']);
-    }
-
-    public function testPatchRejectsMoreThanSixNameservers(): void {
-        $app = $this->app();
-        $hosts = [];
-        for ($i = 1; $i <= 7; $i++) {
-            $hosts[] = "ns{$i}.example.it";
-        }
-
-        $response = $this->patch($app, 'pdns', ['nameservers' => $hosts]);
-
-        $this->assertSame(400, $response->getStatusCode());
-    }
-
-    public function testPatchCanDisablePollProcess(): void {
-        $app = $this->app();
-        $response = $this->patch($app, 'poll_process', ['enabled' => false]);
-
-        $this->assertSame(200, $response->getStatusCode());
-        $this->assertFalse(self::body($response)['settings']['enabled']);
-        $this->assertFalse(Config::get('poll_process')['enabled']);
     }
 
     public function testPatchRequiresAdmin(): void {

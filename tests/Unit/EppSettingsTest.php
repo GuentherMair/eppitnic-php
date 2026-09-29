@@ -8,7 +8,7 @@ use Eppitnic\Tests\Support\EppTestCase;
 use RedBeanPHP\R;
 
 /**
- * The 7 plain `epp.*` fields -- the single place `config epp-set`/`config
+ * The 8 plain `epp.*` fields -- the single place `config epp-set`/`config
  * epp-server` and `PATCH /v1/session/epp` share for validating, persisting
  * and auditing a change.
  */

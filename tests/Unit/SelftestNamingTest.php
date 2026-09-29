@@ -89,8 +89,6 @@ final class SelftestNamingTest extends TestCase
     /**
      * `selftest reap` deletes what these match. A handle belonging to somebody
      * else must never be mistaken for one of ours.
-     *
-     * @param string $handle something that is not a self-test handle
      */
     public function testSomebodyElsesHandleIsNotOurs(): void {
         foreach ([
