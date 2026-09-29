@@ -59,6 +59,38 @@ final class CronjobSettings
     ];
 
     /**
+     * What an unset field means, matching the schema seeds: setting a field to
+     * null stores its default, and get() fills a missing one with it. A
+     * list field's default is empty.
+     */
+    private const DEFAULTS = [
+        'pdns' => [
+            'enabled'           => false,
+            'apis'              => [],
+            'nameservers'       => [],
+            'ttl'               => 3600,
+            'delay_hours'       => 12,
+            'frequency_minutes' => 15,
+        ],
+        'domain_sync' => [
+            'enabled'           => true,
+            'batch_size'        => 25,
+            'frequency_minutes' => 5,
+        ],
+        'domain_reap_deletions' => [
+            'enabled'           => true,
+            'frequency_minutes' => 15,
+        ],
+        'poll_process' => [
+            'enabled'           => true,
+            'frequency_minutes' => 5,
+        ],
+        'keepalive' => [
+            'enabled'           => false,
+        ],
+    ];
+
+    /**
      * validator => the command that edits that field directly. A field
      * whose validator is listed here takes more than one bare value (a
      * list, not a scalar), so `config <job>-set` won't offer it -- see
@@ -104,16 +136,21 @@ final class CronjobSettings
     }
 
     /**
-     * @return array the job's current settings -- the bare bool for
-     *         `keepalive`, wrapped as `['enabled' => bool]` for a uniform
-     *         shape callers don't have to special-case
+     * @return array the job's current settings, an unset field showing its
+     *         default -- the bare bool for `keepalive`, wrapped as
+     *         `['enabled' => bool]` for a uniform shape callers don't have to
+     *         special-case
      */
     public static function get(string $job): array {
         [$key] = self::job($job);
         if ($key === null) {
             return ['enabled' => (bool) Config::get('keepalive')];
         }
-        return Config::get($key);
+        $settings = Config::get($key);
+        foreach (self::DEFAULTS[$job] as $field => $default) {
+            $settings[$field] ??= $default;
+        }
+        return $settings;
     }
 
     /**
@@ -135,7 +172,7 @@ final class CronjobSettings
      * show "already set to X" / a confirm prompt with the real, coerced
      * value before deciding whether to actually call set().
      *
-     * @param array $changes field => new value, or null to unset it
+     * @param array $changes field => new value, or null for its default
      * @return array{0: array, 1: array} [validated changes, resulting full settings]
      */
     public static function preview(string $job, array $changes): array {
@@ -149,11 +186,13 @@ final class CronjobSettings
             );
         }
 
-        $current = $key === null ? [] : Config::get($key);
+        $current = $key === null ? [] : self::get($job);
 
         $validated = [];
         foreach ($changes as $field => $value) {
-            $validated[$field] = $value === null ? null : self::validate($fields[$field], $field, $value, $current);
+            $validated[$field] = $value === null
+                ? self::DEFAULTS[$job][$field]
+                : self::validate($fields[$field], $field, $value, $current);
         }
 
         if ($key === null) {
@@ -169,8 +208,8 @@ final class CronjobSettings
      * unknown job/field or a failed validator -- callers translate that
      * into a UsageError (CLI) or a 400 (API).
      *
-     * @param array $changes field => new value, or null to unset it. Only
-     *              the given fields change; everything else is untouched.
+     * @param array $changes field => new value, or null for its default.
+     *              Only the given fields change; everything else is untouched.
      * @return array the job's full settings after the change
      */
     public static function set(string $job, array $changes, int $userId): array {
@@ -181,7 +220,7 @@ final class CronjobSettings
 
         // audited redacted -- a real api_key must never reach `history`
         $audited = $validated;
-        if (array_key_exists('apis', $audited) && $audited['apis'] !== null) {
+        if (array_key_exists('apis', $audited)) {
             $audited['apis'] = PowerDnsApis::redact($audited['apis']);
         }
         History::record('cronjobs', 0, 'update', ['job' => $job, 'changes' => $audited], $userId);

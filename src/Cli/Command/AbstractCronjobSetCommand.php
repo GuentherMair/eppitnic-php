@@ -42,7 +42,7 @@ abstract class AbstractCronjobSetCommand extends Command
             throw new UsageError('give a field (' . implode(', ', $fields) . ') and, optionally, a value to set it to');
         }
 
-        // no value = unset, falling back to the job's own default
+        // no value = back to the job's default
         $value = $this->arguments[1] ?? null;
         $label = "{$job}.{$field}";
 
@@ -55,18 +55,19 @@ abstract class AbstractCronjobSetCommand extends Command
         $current = CronjobSettings::get($job)[$field] ?? null;
 
         if ($current === $new) {
-            $this->line("{$label} is already " . ($new === null ? 'unset' : self::describeValue($new)));
+            $this->line("{$label} is already " . self::describeValue($new));
             return 0;
         }
 
-        $verb = $new === null ? 'Unset' : "Set to " . self::describeValue($new);
+        $reset = $value === null;
+        $verb = ($reset ? 'Reset to default ' : 'Set to ') . self::describeValue($new);
         if ( ! $this->confirm("{$verb} {$label}?")) {
             $this->line('nothing done');
             return 0;
         }
 
         if ($this->isDryRun()) {
-            $this->line($new === null ? "would unset {$label}" : "would set {$label} to " . self::describeValue($new));
+            $this->line("would " . ($reset ? 'reset' : 'set') . " {$label} to " . self::describeValue($new));
             return 0;
         }
 
@@ -76,7 +77,7 @@ abstract class AbstractCronjobSetCommand extends Command
             throw new UsageError($e->getMessage());
         }
 
-        $this->record("{$label} " . ($new === null ? 'unset' : 'set to ' . self::describeValue($new)), [$job => [$field => $new]]);
+        $this->record("{$label} " . ($reset ? 'reset to default ' : 'set to ') . self::describeValue($new), [$job => [$field => $new]]);
         return 0;
     }
 

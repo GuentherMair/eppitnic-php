@@ -3,7 +3,7 @@
 namespace Eppitnic\Cli\Command;
 
 /**
- * Set or unset `poll_process`'s fields: enabled, frequency_minutes.
+ * Set (or reset to its default) `poll_process`'s fields: enabled, frequency_minutes.
  * Disabling it stops the shared EPP password from auto-rotating on a
  * passwdReminder, alongside the queue drain and transfer reconciliation --
  * a real foot-gun, but the operator's call to make. See
@@ -16,6 +16,6 @@ final class ConfigPollProcessSetCommand extends AbstractCronjobSetCommand
     }
 
     public function describe(): string {
-        return 'set or unset one poll_process.* field: enabled, frequency_minutes';
+        return 'set or reset one poll_process.* field: enabled, frequency_minutes';
     }
 }

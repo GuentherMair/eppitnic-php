@@ -394,7 +394,9 @@ running them. In Docker, the `scheduler` container runs this line for you.
 
 A job is due when it is `enabled` and `frequency_minutes` have passed since
 its `last_run_at`. Every field can be set with the CLI verbs below or, by an
-admin, through `GET`/`PATCH /v1/cronjobs` (see [API.md](API.md)). Every job
+admin, through `GET`/`PATCH /v1/cronjobs` (see [API.md](API.md)). Omitting
+the value on the command line, or sending `null`, resets a field to its
+default (an empty list for `pdns` APIs and nameservers). Every job
 is also an ordinary command you can run by hand at any time, due or not.
 
 ### `poll process` — on by default

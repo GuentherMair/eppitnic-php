@@ -97,10 +97,38 @@ final class CronjobSettingsTest extends EppTestCase
         $this->assertSame(7, $stored['cursor_id'], 'job state was clobbered by an unrelated field change');
     }
 
-    public function testSetWithNullUnsetsAField(): void {
-        CronjobSettings::set('pdns', ['apis' => [self::validApi()]], 1);
-        CronjobSettings::set('pdns', ['apis' => null], 1);
-        $this->assertNull(Config::get('pdns')['apis']);
+    public function testSetWithNullStoresTheDefault(): void {
+        CronjobSettings::set('pdns', ['apis' => [self::validApi()], 'ttl' => 60, 'delay_hours' => 1], 1);
+        $result = CronjobSettings::set('pdns', ['apis' => null, 'ttl' => null, 'delay_hours' => null], 1);
+
+        $this->assertSame([], Config::get('pdns')['apis']);
+        $this->assertSame(3600, Config::get('pdns')['ttl']);
+        $this->assertSame(12, Config::get('pdns')['delay_hours']);
+        $this->assertSame(3600, $result['ttl']);
+    }
+
+    public function testNullDefaultsFollowTheSchemaSeeds(): void {
+        CronjobSettings::set('domain_sync', ['batch_size' => 50, 'frequency_minutes' => 1, 'enabled' => false], 1);
+        CronjobSettings::set('domain_sync', ['batch_size' => null, 'frequency_minutes' => null, 'enabled' => null], 1);
+        $this->assertEquals(['enabled' => true, 'batch_size' => 25, 'frequency_minutes' => 5], array_intersect_key(
+            Config::get('domain_sync'), ['enabled' => 1, 'batch_size' => 1, 'frequency_minutes' => 1]
+        ));
+
+        CronjobSettings::set('poll_process', ['frequency_minutes' => null], 1);
+        $this->assertSame(5, Config::get('poll_process')['frequency_minutes']);
+        CronjobSettings::set('domain_reap_deletions', ['frequency_minutes' => null], 1);
+        $this->assertSame(15, Config::get('domain_reap_deletions')['frequency_minutes']);
+        CronjobSettings::set('keepalive', ['enabled' => true], 1);
+        $this->assertSame(['enabled' => false], CronjobSettings::set('keepalive', ['enabled' => null], 1));
+    }
+
+    public function testGetShowsTheDefaultForAFieldStoredAsNullOrMissing(): void {
+        Config::set('domain_sync', ['enabled' => true, 'batch_size' => null, 'cursor_id' => 0, 'last_run_at' => null]);
+
+        $settings = CronjobSettings::get('domain_sync');
+
+        $this->assertSame(25, $settings['batch_size']);
+        $this->assertSame(5, $settings['frequency_minutes']);
     }
 
     public function testSetRejectsAnUnknownField(): void {

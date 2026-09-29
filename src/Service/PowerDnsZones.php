@@ -34,7 +34,7 @@ final class PowerDnsZones
      */
     public static function provision(string $zone, array $nameservers): array {
         $servers = self::targets($nameservers);
-        $ttl = (int) (CronjobSettings::get('pdns')['ttl'] ?? 3600) ?: 3600;
+        $ttl = (int) CronjobSettings::get('pdns')['ttl'];
         $failures = [];
 
         foreach ($servers as $i => $server) {
@@ -62,7 +62,7 @@ final class PowerDnsZones
      * @param string[] $previousNameservers the NS set before the change
      */
     public static function undo(string $zone, array $provisioned, array $previousNameservers): void {
-        $ttl = (int) (CronjobSettings::get('pdns')['ttl'] ?? 3600) ?: 3600;
+        $ttl = (int) CronjobSettings::get('pdns')['ttl'];
 
         foreach ($provisioned['servers'] as $server) {
             $outcome = ! empty($server['created'])

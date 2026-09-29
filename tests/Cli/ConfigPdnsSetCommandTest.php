@@ -79,9 +79,10 @@ final class ConfigPdnsSetCommandTest extends EppTestCase
         (new ConfigPdnsSetCommand(['--yes', 'ttl', '0']))->run();
     }
 
-    public function testUnsettingTtlGivesNoValue(): void {
+    public function testOmittingTheTtlResetsItToTheDefault(): void {
+        $this->runCommand(['--yes', 'ttl', '60']);
         $this->runCommand(['--yes', 'ttl']);
-        $this->assertNull(Config::get('pdns')['ttl']);
+        $this->assertSame(3600, Config::get('pdns')['ttl']);
     }
 
     public function testSetsEnabledToTrue(): void {

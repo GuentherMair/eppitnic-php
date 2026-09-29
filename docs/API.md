@@ -675,7 +675,7 @@ change made here or on the command line is validated and audited identically
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/cronjobs` | admin | every job's current settings, as `{"jobs": {"pdns": {...}, "domain_sync": {...}, "domain_reap_deletions": {...}, "poll_process": {...}, "keepalive": {...}}}`. Job-state fields (`cursor_id`, `last_run_at`) are included read-only, not part of what `PATCH` accepts |
-| `PATCH /v1/cronjobs/{job}` | admin | body = partial field map for that job, e.g. `{"enabled": true, "frequency_minutes": 10}`. `400` with `{"error": "..."}` on an unknown job/field or a failed validator (the same message the CLI produces). Returns `{"job": "...", "settings": {...}}`, the job's full updated settings |
+| `PATCH /v1/cronjobs/{job}` | admin | body = partial field map for that job, e.g. `{"enabled": true, "frequency_minutes": 10}`; `null` resets a field to its default (`pdns`: disabled, `ttl` 3600, `delay_hours` 12, `frequency_minutes` 15, empty `apis`/`nameservers`; `domain_sync`: enabled, `batch_size` 25, `frequency_minutes` 5; `domain_reap_deletions`: enabled, `frequency_minutes` 15; `poll_process`: enabled, `frequency_minutes` 5; `keepalive`: disabled). `400` with `{"error": "..."}` on an unknown job/field or a failed validator (the same message the CLI produces). Returns `{"job": "...", "settings": {...}}`, the job's full updated settings |
 
 `keepalive` is stored as a bare boolean; this route wraps it as
 `{"enabled": bool}` so every job has the same shape.

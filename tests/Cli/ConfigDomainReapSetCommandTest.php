@@ -49,12 +49,12 @@ final class ConfigDomainReapSetCommandTest extends EppTestCase
         $this->assertFalse(Config::get('domain_reap_deletions')['enabled']);
     }
 
-    public function testUnsettingFrequencyGivesNoValue(): void {
+    public function testOmittingTheValueResetsToTheDefault(): void {
         $this->runCommand(['--yes', 'frequency_minutes', '30']);
         $this->assertSame(30, Config::get('domain_reap_deletions')['frequency_minutes']);
 
         $this->runCommand(['--yes', 'frequency_minutes']);
-        $this->assertNull(Config::get('domain_reap_deletions')['frequency_minutes']);
+        $this->assertSame(15, Config::get('domain_reap_deletions')['frequency_minutes']);
     }
 
     public function testRejectsAnUnknownField(): void {

@@ -60,8 +60,8 @@ final class PdnsSyncCommand extends Command
             return 0;
         }
 
-        $delayHours = (int) $this->option('delay-hours', $cfg['delay_hours'] ?: 12);
-        $this->ttl = (int) ($cfg['ttl'] ?: 3600);
+        $delayHours = (int) $this->option('delay-hours', $cfg['delay_hours']);
+        $this->ttl = (int) $cfg['ttl'];
 
         // an injected client (tests) always wins; otherwise --dry-run gets a
         // client that answers itself, so the real one is used nowhere else

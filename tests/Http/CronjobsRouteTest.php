@@ -118,6 +118,15 @@ final class CronjobsRouteTest extends TestCase
         $this->assertSame(7200, Config::get('pdns')['ttl']);
     }
 
+    public function testPatchWithNullResetsAFieldToItsDefault(): void {
+        $app = $this->app();
+        $this->patch($app, 'domain_sync', ['batch_size' => 100]);
+
+        $body = self::body($this->patch($app, 'domain_sync', ['batch_size' => null]));
+
+        $this->assertSame(25, $body['settings']['batch_size']);
+    }
+
     public function testPatchWritesAHistoryRow(): void {
         $app = $this->app();
         $this->patch($app, 'domain_sync', ['enabled' => true]);
