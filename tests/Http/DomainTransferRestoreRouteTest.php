@@ -15,7 +15,8 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 
 /**
- * POST /v1/domains/{name}/restore talks to the epp.server_deleted host.
+ * POST /v1/domains/{name}/transfer needs a registrant, and .../restore talks
+ * to the epp.server_deleted host.
  */
 // domain.php declares functions: each test loads it in a process of its own
 #[\PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses]
@@ -88,6 +89,25 @@ final class DomainTransferRestoreRouteTest extends EppTestCase
                 ->withHeader('Content-Type', 'application/json')
                 ->withParsedBody($body)
         );
+    }
+
+    public function testTransferWithoutARegistrantIs400AndSendsNothing(): void {
+        $response = $this->post('/v1/domains/new.it/transfer', ['authinfo' => 'SECRET1234567890']);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertSame([], $this->byServer);
+        $this->assertSame(0, (int) R::getCell('SELECT COUNT(*) FROM transfers'));
+    }
+
+    public function testTransferStoresTheRegistrant(): void {
+        $response = $this->post('/v1/domains/new.it/transfer', [
+            'authinfo' => 'SECRET1234567890', 'registrant' => 'MINE1234MINE5678',
+        ]);
+
+        $this->assertSame(201, $response->getStatusCode());
+        $row = R::getRow('SELECT * FROM transfers');
+        $this->assertSame('MINE1234MINE5678', $row['registrant']);
+        $this->assertSame(2, (int) $row['reseller_id']);
     }
 
     public function testRestoreReachesTheServerDeletedHost(): void {

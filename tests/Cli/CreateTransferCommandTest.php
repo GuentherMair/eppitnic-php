@@ -111,7 +111,7 @@ final class CreateTransferCommandTest extends EppTestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('transferOperations')]
     public function testTransferSendsTheRightOperation(string $operation): void {
         $output = $this->preview(new DomainTransferCommand([
-            '--dry-run', '--authinfo=SECRET1234567890', $operation, 'example-one.it',
+            '--dry-run', '--authinfo=SECRET1234567890', '--registrant=REGI1234REGI5678', $operation, 'example-one.it',
         ]));
 
         $this->assertStringContainsString("<transfer op=\"{$operation}\">", $output);
@@ -120,7 +120,21 @@ final class CreateTransferCommandTest extends EppTestCase
 
     public function testTransferRequestRequiresAnAuthinfo(): void {
         $this->expectException(UsageError::class);
-        (new DomainTransferCommand(['--dry-run', 'request', 'example-one.it']))->run();
+        (new DomainTransferCommand(['--dry-run', '--registrant=REGI1234REGI5678', 'request', 'example-one.it']))->run();
+    }
+
+    public function testTransferRequestRequiresARegistrant(): void {
+        $this->expectException(UsageError::class);
+        $this->expectExceptionMessage('no registrant');
+        (new DomainTransferCommand(['--dry-run', '--authinfo=SECRET1234567890', 'request', 'example-one.it']))->run();
+    }
+
+    public function testTransferOtherOperationsNeedNoRegistrant(): void {
+        $output = $this->preview(new DomainTransferCommand([
+            '--dry-run', '--authinfo=SECRET1234567890', 'approve', 'example-one.it',
+        ]));
+
+        $this->assertStringContainsString('<transfer op="approve">', $output);
     }
 
     public function testTransferRejectsAnUnknownOperation(): void {
@@ -134,7 +148,7 @@ final class CreateTransferCommandTest extends EppTestCase
      */
     public function testTransferTakesAuthinfoPerRow(): void {
         $output = $this->preview(new DomainTransferCommand([
-            '--dry-run', 'request', 'example-one.it;CODEONE1234567890',
+            '--dry-run', '--registrant=REGI1234REGI5678', 'request', 'example-one.it;CODEONE1234567890',
         ]));
 
         $this->assertStringContainsString('<domain:pw>CODEONE1234567890</domain:pw>', $output);

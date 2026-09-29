@@ -615,17 +615,24 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
         return Json::response($response, ['error' => 'authinfo is required'], 400);
     }
     $registrant = (string) ($params['registrant'] ?? '');
-    if ($registrant !== '' && ! Access::canUseAsRegistrant($registrant, $scope)) {
+    if ($registrant === '') {
+        return Json::response($response, ['error' => 'registrant is required'], 400);
+    }
+    if ( ! Access::canUseAsRegistrant($registrant, $scope)) {
         return Json::response($response, ['error' => "Contact '{$registrant}' is not yours to use as registrant"], 403);
+    }
+    // transfers.registrant is a foreign key onto contacts
+    if ((int) R::getCell('SELECT COUNT(*) FROM contacts WHERE handle = ?', [$registrant]) === 0) {
+        return Json::response($response, ['error' => "Contact '{$registrant}' not found"], 404);
     }
     if ( ! Access::withinQuota($scope)) {
         return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
     }
     // the transfer belongs where the domain will: its registrant's reseller
-    $resellerId = $registrant !== '' ? Domain::resellerOf($registrant) : $scope->resellerId;
+    $resellerId = Domain::resellerOf($registrant);
 
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $resellerId) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $registrant, $resellerId) {
             $domain = new Domain($nic);
             if ( ! $domain->transfer($name, $params['authinfo'])) {
                 return ['ok' => false, 'error' => $domain->getError()];
@@ -637,7 +644,7 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
             ", [
                 ':reseller_id' => $resellerId,
                 ':domain'     => $name,
-                ':registrant' => $params['registrant'] ?? '',
+                ':registrant' => $registrant,
                 ':techc'      => serialize((array) ($params['tech'] ?? [])),
                 ':dns'        => serialize((array) ($params['ns'] ?? [])),
             ]);

@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Cli\Command;
 
+use Eppitnic\Api\Access;
 use Eppitnic\Cli\Command;
 use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
@@ -12,7 +13,7 @@ use RedBeanPHP\R;
 /**
  * The four sides of a domain transfer.
  *
- *   request  claim a domain held by another registrar
+ *   request  claim a domain held by another registrar, for a registrant
  *   approve  agree to somebody else's claim on a domain we hold
  *   reject   refuse it
  *   cancel   withdraw a request we made ourselves
@@ -31,8 +32,9 @@ final class DomainTransferCommand extends Command
 
     public function options(): array {
         return [
-            'file='     => "read rows from this file: 'domain' or 'domain;authinfo' per line",
-            'authinfo=' => 'the authinfo code, when it is the same for every domain',
+            'file='       => "read rows from this file: 'domain', 'domain;authinfo' or 'domain;authinfo;registrant' per line",
+            'authinfo='   => 'the authinfo code, when it is the same for every domain',
+            'registrant=' => 'registrant contact handle for a request (required unless every row supplies its own)',
         ] + self::MUTATING_OPTIONS;
     }
 
@@ -47,12 +49,15 @@ final class DomainTransferCommand extends Command
             throw new UsageError('give at least one domain name, or --file=PATH');
         }
 
-        // 'domain;authinfo' rows, or a shared --authinfo
+        // 'domain;authinfo;registrant' rows, or a shared --authinfo/--registrant
         $shared = (string) $this->option('authinfo', '');
+        $sharedRegistrant = (string) $this->option('registrant', '');
         $targets = [];
+        $registrants = [];
         foreach ($names as $line) {
             $fields = array_map('trim', explode(';', $line));
-            $targets[$fields[0]] = $fields[1] ?? $shared;
+            $targets[$fields[0]] = ($fields[1] ?? '') !== '' ? $fields[1] : $shared;
+            $registrants[$fields[0]] = ($fields[2] ?? '') !== '' ? $fields[2] : $sharedRegistrant;
         }
 
         // a request is the one operation the registry will not accept without
@@ -61,6 +66,9 @@ final class DomainTransferCommand extends Command
             foreach ($targets as $name => $authinfo) {
                 if ($authinfo === '') {
                     throw new UsageError("no authinfo for '{$name}': pass --authinfo, or use 'domain;authinfo' rows");
+                }
+                if ($registrants[$name] === '') {
+                    throw new UsageError("no registrant for '{$name}': pass --registrant, or give one in the file row");
                 }
             }
         }
@@ -74,7 +82,19 @@ final class DomainTransferCommand extends Command
         // a dry run records nothing locally, so it needs no database either
         $scope = $dryRun ? Scope::operator($this->userId()) : $this->scope();
 
-        $this->withSession(function ($nic) use ($targets, $operation, $scope, $dryRun) {
+        // refused before the registry hears of it: the row is stored under it
+        if ($operation === 'request' && ! $dryRun) {
+            foreach (array_unique($registrants) as $handle) {
+                if ((int) R::getCell('SELECT COUNT(*) FROM contacts WHERE handle = ?', [$handle]) === 0) {
+                    throw new UsageError("registrant '{$handle}' is not a stored contact");
+                }
+                if ( ! Access::canUseAsRegistrant($handle, $scope)) {
+                    throw new UsageError("contact '{$handle}' is not yours to use as registrant");
+                }
+            }
+        }
+
+        $this->withSession(function ($nic) use ($targets, $registrants, $operation, $scope, $dryRun) {
             foreach ($targets as $name => $authinfo) {
                 $domain = new Domain($nic);
 
@@ -91,7 +111,7 @@ final class DomainTransferCommand extends Command
                 }
 
                 if ( ! $dryRun) {
-                    $this->recordLocally($operation, $name, $authinfo, $scope);
+                    $this->recordLocally($operation, $name, $registrants[$name], $scope);
                 }
 
                 $this->record("{$name} transfer {$operation} accepted",
@@ -107,14 +127,16 @@ final class DomainTransferCommand extends Command
      * acts on, approve and reject settle someone else's claim and clear it.
      * Cancel does not -- the row records that we wanted the domain.
      */
-    private function recordLocally(string $operation, string $name, string $authinfo, Scope $scope): void {
+    private function recordLocally(string $operation, string $name, string $registrant, Scope $scope): void {
         if ($operation === 'request') {
             R::exec("
                 INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
-                VALUES (:reseller_id, :domain, '', :techc, :dns)
+                VALUES (:reseller_id, :domain, :registrant, :techc, :dns)
             ", [
-                ':reseller_id' => $scope->resellerId,
+                // the transfer belongs where the domain will: its registrant's reseller
+                ':reseller_id' => Domain::resellerOf($registrant),
                 ':domain'      => $name,
+                ':registrant'  => $registrant,
                 ':techc'       => serialize([]),
                 ':dns'         => serialize([]),
             ]);
