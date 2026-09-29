@@ -2,6 +2,7 @@
 
 namespace Eppitnic\Epp;
 
+use Eppitnic\Epp\Transport\Curl;
 use Eppitnic\Service\SessionLock;
 use Eppitnic\Service\SessionState;
 use Eppitnic\Support\PasswordGenerator;
@@ -57,8 +58,9 @@ abstract class AbstractObject
 
   /**
    * Diagnostics: the full request and response in getError(), and a row per
-   * command in `transactions`/`responses` -- raw XML, registrant names and
-   * authinfo included. Set per user by `users`.`debug`, via Client::$debug.
+   * command in `transactions`/`responses` -- raw XML, registrant names
+   * included; passwords and authinfo are masked as in the transport's debug
+   * file. Set per user by `users`.`debug`, via Client::$debug.
    */
   public bool $debug = false;
 
@@ -401,7 +403,7 @@ abstract class AbstractObject
         ':cl_trid'     => $this->client->get_clTRID(),
         ':cl_trtype'   => $clTRType,
         ':cl_trobject' => $clTRObject,
-        ':cl_trdata'   => $this->xmlQuery,
+        ':cl_trdata'   => Curl::mask((string) $this->xmlQuery),
       ]);
     }
 
@@ -568,7 +570,7 @@ abstract class AbstractObject
       ':status'             => 0,
       ':sv_httpcode'        => $this->result?->code,
       ':sv_httpheaders'     => $this->result?->headers,
-      ':sv_httpdata'        => $this->result?->body,
+      ':sv_httpdata'        => $this->result?->body === null ? null : Curl::mask($this->result->body),
       ':extvaluereasoncode' => $this->extValueReasonCode,
       ':extvaluereason'     => $this->extValueReason,
     ]);
