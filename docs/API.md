@@ -610,14 +610,14 @@ admin) may change them. Every route answers with the whole current state:
 
 `domainToArray()` is the shape of the object **inside** the `domain`
 envelope, used by every single-domain response below:
-`{domain, status, registrant, admin, tech: [handles], ns: [names], authinfo, dnssec, cr_date, ex_date}`.
+`{domain, status, registrant, admin, tech: [handles], ns: [names], authinfo, dnssec: [{keytag, algorithm, digesttype, digest}], cr_date, ex_date}`.
 `tech`/`ns` are flattened to plain string arrays — no per-NS IP or per-tech
 metadata comes through this shape.
 
 | Method & path | Auth | Notes |
 |---|---|---|
 | `GET /v1/domains` | user | local DB only. Query params: `registrant` (exact match), `active` (`1`\|`0`, default `1`), `age` (months since `ex_date`, filters to older-than). Returns **raw DB rows** `{domain, registrant, reseller_id, reseller_name, status}` — not `domainToArray()` — plus the transfer-in requests, with `" (transfer-in)"` appended to the domain name as a literal suffix (`" (transfer-in cancelled)"` for one that was cancelled; not a separate field — parse it out to tell them apart). A transfer-in row always has `status: []`, and `active`/`age` don't filter it |
-| `GET /v1/domains/expiring?days=30` | user | local DB, active domains whose `ex_date` is less than `days` away (already expired ones included), joined with the registrant contact; rows include `handle, org, name, email` alongside the domain columns. `ns`, `tech`, `status` and `dnssec` are decoded into real JSON (`ns`/`tech` as objects keyed by hostname/handle, so take `Object.keys()`; `status`/`dnssec` as arrays) — **not** the flattened `domainToArray()` shape |
+| `GET /v1/domains/expiring?days=30` | user | local DB, active domains whose `ex_date` is less than `days` away (already expired ones included), joined with the registrant contact; rows include `handle, org, name, email` alongside the domain columns. `ns`, `tech`, `status` and `dnssec` are decoded into real JSON (`ns`/`tech` as objects keyed by hostname/handle, so take `Object.keys()`; `status` as an array, `dnssec` as a list of `{keytag, algorithm, digesttype, digest}`) — **not** the flattened `domainToArray()` shape |
 | `GET /v1/domains/autocomplete?term=&limit=10` | user | domain-name substring search (`LIKE %term%`), including transfer-ins with the same suffixes: `{"domains": ["a.it", "b.it (transfer-in)", "c.it (transfer-in cancelled)", ...]}` |
 | `GET /v1/domains/export` | user | **not JSON** — `text/csv` (`;`-separated) with `Content-Disposition: attachment; filename="domains-export.csv"`, columns `Active;Domain;Auth-Info;Created;Expires;Registrant Handle;Registrant Org;Registrant Name;Registrant Email` |
 | `GET /v1/domains/transfers?registrant=` | user | local transfer-in requests (the `transfers` table, not registry `pendingTransfer` state) — rows `{id, domain, status, techc, dns, reseller_id, name, email}` (`status` is `pending` or `cancelled`; `name` and `email` are the registrant's), `techc`/`dns` as arrays. Scoped by `transfers.reseller_id`, matching what `.../transfer/cancel` authorizes against |

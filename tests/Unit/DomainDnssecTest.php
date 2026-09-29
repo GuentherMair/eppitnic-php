@@ -108,6 +108,17 @@ final class DomainDnssecTest extends EppTestCase
         );
     }
 
+    /** what the API returns is what PATCH accepts, so it can be sent back */
+    public function testAFetchedSetListsInThePatchShape(): void {
+        $list = DomainService::dnssecList($this->fetchedWithTwoKeys()->get('dnssec'));
+
+        $this->assertSame([
+            ['keytag' => '11', 'algorithm' => '10', 'digesttype' => '2', 'digest' => self::OLD_A],
+            ['keytag' => '12', 'algorithm' => '10', 'digesttype' => '2', 'digest' => self::OLD_B],
+        ], $list);
+        $this->assertSame($list, DomainService::dnssecRecords($list));
+    }
+
     private function withDnssecOff(): Domain {
         Config::loadForTesting(['dnssec' => ['active' => 0]] + static::SETTINGS);
         $this->nic = new Client();

@@ -354,6 +354,23 @@ final class DomainService
     }
 
     /**
+     * The DS records as a list of {keytag, algorithm, digesttype, digest}:
+     * the shape PATCH accepts, not Domain's digest-keyed storage.
+     */
+    public static function dnssecList(array $keyed): array {
+        $list = [];
+        foreach ($keyed as $digest => $ds) {
+            $list[] = [
+                'keytag'     => (string) ($ds['keytag'] ?? ''),
+                'algorithm'  => (string) ($ds['algorithm'] ?? ''),
+                'digesttype' => (string) ($ds['digesttype'] ?? ''),
+                'digest'     => (string) $digest,
+            ];
+        }
+        return $list;
+    }
+
+    /**
      * Validate the DS records of a domain update: each needs keytag,
      * algorithm, digesttype and digest as non-empty strings or numbers.
      *

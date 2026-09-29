@@ -32,7 +32,7 @@ function domainToArray(Domain $domain): array {
         'tech'       => array_keys((array)$domain->get('tech')),
         'ns'         => array_keys((array)$domain->get('ns')),
         'authinfo'   => $domain->get('authinfo'),
-        'dnssec'     => $domain->get('dnssec'),
+        'dnssec'     => DomainService::dnssecList((array)$domain->get('dnssec')),
         'cr_date'    => $domain->get('crDate'),
         'ex_date'    => $domain->get('exDate'),
     ];
@@ -89,6 +89,7 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
         foreach (['ns', 'tech', 'status', 'dnssec'] as $column) {
             $row[$column] = SerializedColumn::toArray($row[$column] ?? null);
         }
+        $row['dnssec'] = DomainService::dnssecList($row['dnssec']);
     }
     unset($row);
 
