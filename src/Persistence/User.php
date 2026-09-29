@@ -50,6 +50,9 @@ final class User
     /**
      * Managers and admins start with notifications on, plain users off.
      *
+     * @param int|null $actorId who creates it, for history (null: nobody, as
+     *                 when the installer makes the first admin)
+     * @param bool|null $notifyEnabled overrides that default
      * @throws UsernameTaken if $username is already in use
      * @throws \InvalidArgumentException if $password does not meet
      *                       PasswordPolicy, or $role does not fit $resellerId
@@ -63,7 +66,13 @@ final class User
         int $resellerId = 1,
         string $role = 'user',
         bool $mustChangePassword = false,
-        bool $mustEnrollMfa = false
+        bool $mustEnrollMfa = false,
+        ?int $actorId = null,
+        bool $active = true,
+        ?int $maxTokenAge = null,
+        ?int $maxIdleTime = null,
+        bool $debug = false,
+        ?bool $notifyEnabled = null
     ): int {
         if (($error = self::roleError($role, $resellerId)) !== null) {
             throw new \InvalidArgumentException($error);
@@ -81,9 +90,9 @@ final class User
 
         R::exec("
             INSERT INTO users (reseller_id, role, description, username, password, email, notify_enabled, active,
-                               must_change_password, must_enroll_mfa)
-            VALUES (:reseller_id, :role, :description, :username, :password, :email, :notify_enabled, 1,
-                    :must_change_password, :must_enroll_mfa)
+                               max_token_age, max_idle_time, debug, must_change_password, must_enroll_mfa)
+            VALUES (:reseller_id, :role, :description, :username, :password, :email, :notify_enabled, :active,
+                    :max_token_age, :max_idle_time, :debug, :must_change_password, :must_enroll_mfa)
         ", [
             ':reseller_id'    => $resellerId,
             ':role'           => $role,
@@ -91,15 +100,17 @@ final class User
             ':username'       => $username,
             ':password'       => password_hash($password, PASSWORD_DEFAULT),
             ':email'          => $email,
-            ':notify_enabled' => $role === 'user' ? 0 : 1,
+            ':notify_enabled' => (int) ($notifyEnabled ?? $role !== 'user'),
+            ':active'         => (int) $active,
+            ':max_token_age'  => $maxTokenAge,
+            ':max_idle_time'  => $maxIdleTime,
+            ':debug'          => (int) $debug,
             ':must_change_password' => (int) $mustChangePassword,
             ':must_enroll_mfa'      => (int) $mustEnrollMfa,
         ]);
 
         $id = (int) R::getInsertID();
-        // no authenticated actor exists yet when bootstrapping, so the new
-        // user is recorded as its own actor
-        History::record('users', $id, 'create', ['username' => $username, 'role' => $role, 'reseller_id' => $resellerId], $id);
+        History::record('users', $id, 'create', ['username' => $username, 'role' => $role, 'reseller_id' => $resellerId], $actorId);
 
         return $id;
     }

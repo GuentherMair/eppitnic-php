@@ -66,6 +66,7 @@ final class UserCreateCommand extends Command
                 role: $role,
                 mustChangePassword: $this->hasOption('must-change-password'),
                 mustEnrollMfa: $this->hasOption('must-enroll-mfa'),
+                actorId: $this->userId(),
             );
         } catch (UsernameTaken $e) {
             $this->warn($e->getMessage());

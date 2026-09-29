@@ -133,7 +133,8 @@ authentication, trusts a front server's login instead.
 
 `POST /v1/users/authenticate` — body `{"username", "password", "totp"?}`.
 No auth required. Looks up an active user by `username` and checks `password`
-with `password_verify()`. If the account has a TOTP secret **and** the request
+with `password_verify()` (also for an unknown username, against a dummy hash,
+so the response time does not reveal which usernames exist). If the account has a TOTP secret **and** the request
 doesn't come from a `safe_networks` CIDR (the `settings` table, key
 `safe_networks`), a valid `totp` code is required in the same request. There
 is no separate two-step exchange: retry the whole call once you have the code.
@@ -291,10 +292,11 @@ carry `has_totp: false`.
 
 ### Set up TOTP (MFA) for a user
 
-- `POST /v1/users/{id}/totp` (self or admin) — generates a pending secret and
-  returns `{"secret": "...", "uri": "otpauth://..."}`. Render `uri` as a QR
-  code. MFA is not active yet.
-- `PUT /v1/users/{id}/totp` (self or admin) — body `{"totp": "123456"}`.
+- `POST /v1/users/{id}/totp` (self, their manager, or admin) — generates a
+  pending secret and returns `{"secret": "...", "uri": "otpauth://..."}`.
+  Render `uri` as a QR code. MFA is not active yet. `400` when
+  the account already has a TOTP secret: remove it first with `DELETE`.
+- `PUT /v1/users/{id}/totp` (self, their manager, or admin) — body `{"totp": "123456"}`.
   Verifies against the *pending* secret and, on success, activates it.
   `400` if there's no pending setup, `401` if the code doesn't verify.
 - `DELETE /v1/users/{id}/totp` (self, their manager, or admin; MFA-verified)
@@ -302,13 +304,13 @@ carry `has_totp: false`.
 
 ### Fixed API tokens for scripted access
 
-- `POST /v1/users/{id}/api-token` (self or admin) — body
+- `POST /v1/users/{id}/api-token` (self, their manager, or admin) — body
   `{"expires"?: <UNIX_TIMESTAMP>}`, `0` or omitted for never. Generates a
   random 256-bit token and returns it **once** as
   `{"token": "...", "expires": 0}`. Only its SHA-256 hash is stored
   (`users.api_token`), so it cannot be recovered, only reissued; reissuing
   replaces the previous one.
-- `DELETE /v1/users/{id}/api-token` (self or admin) — revokes it.
+- `DELETE /v1/users/{id}/api-token` (self, their manager, or admin) — revokes it.
 - Send it like a JWT: `Authorization: Bearer <token>`. It never expires unless
   `expires` was set and carries no MFA claims. Route handlers see the same
   claims shape as for a JWT (`Auth::verify()` synthesizes it).
@@ -554,8 +556,8 @@ deactivated.
 |---|---|---|
 | `GET /v1/users` | user | an admin sees every user (`?reseller_id=` narrows it to one reseller), a manager their reseller's, a plain user only themselves. Rows: `id, active, role, reseller_id, reseller_name, username, max_token_age, max_idle_time, debug, notify_enabled, has_totp`, and for a manager or admin also `description, email, must_change_password, must_enroll_mfa`. Never password hashes |
 | `GET /v1/users/{id}` | user | same field set and scope, still `{"users": [row]}` — a one-element array, and `[]` for an unknown id or one the caller may not see |
-| `POST /v1/users` | manager | create; `201`. Required: `username`, `password`. Optional: `description`, `email`, `role` (default `user`; `admin` only in reseller 1), `reseller_id` (admin only, default 1; a manager's users join their own reseller), `notify_enabled` (default on for managers/admins, off for plain users), `active` (default `1`), `max_token_age`, `max_idle_time`, `debug` (admin only), `must_change_password`, `must_enroll_mfa` (0/1, default `0`). `400` if a required field is missing, the username is taken, or the role doesn't fit the reseller |
-| `PUT /v1/users/{id}` | manager | update of the same field set; **every field is optional** — anything omitted keeps its current value (including `password`). `reseller_id` can never change (`400`). `404` for an unknown id |
+| `POST /v1/users` | manager | create; `201`. Required: `username`, `password`. Optional: `description`, `email`, `role` (default `user`; `admin` only in reseller 1), `reseller_id` (admin only, default 1; a manager's users join their own reseller), `notify_enabled` (default on for managers/admins, off for plain users), `active` (default `1`), `max_token_age`, `max_idle_time`, `debug` (admin only), `must_change_password`, `must_enroll_mfa` (0/1, default `0`). `400` if a required field is missing, the username is taken or empty or longer than 32 characters, `email` is not an address (at most 64 characters), `max_token_age`/`max_idle_time` is not `null` or a non-negative whole number, or the role doesn't fit the reseller. The creation is recorded in `history` under the creating user |
+| `PUT /v1/users/{id}` | manager | update of the same field set (validated the same way); **every field is optional** — anything omitted keeps its current value (including `password`). `reseller_id` can never change (`400`). `404` for an unknown id |
 | `DELETE /v1/users/{id}` | manager | deactivate (`active = 0`), with the same rules as setting it through `PUT` |
 | `GET /v1/users/{id}/notifications` | self, their manager, or admin | this user's own email notifications, `{"notifications": {"enabled": bool, "message_types": [...], "fulltext": "..."}, "message_types": [...]}` (the second `message_types` is the full allow-list, for a picker). `404` for an unknown user |
 | `PATCH /v1/users/{id}/notifications` | self, their manager, or admin | body: any of `enabled`, `message_types` (a list from the allow-list above) and `fulltext`; what is omitted stays. Returns `{"notifications": {...}}`. Only takes effect while the system-wide `smtp.recipient_mode` (see "Email (SMTP)") includes `user` |

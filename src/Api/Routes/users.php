@@ -6,6 +6,7 @@ use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
 use Eppitnic\Persistence\History;
 use Eppitnic\Persistence\User;
+use Eppitnic\Persistence\UsernameTaken;
 use Eppitnic\Service\EppSettings;
 use Eppitnic\Support\PasswordPolicy;
 use Eppitnic\Support\PasswordGenerator;
@@ -75,7 +76,13 @@ $checkCredentials = static function (Request $request, Response $response): arra
         ':username' => $username,
     ]);
 
-    if (empty($user) || !password_verify($password, $user[0]['password'])) {
+    // an unknown username is verified against a hash all the same, so the
+    // response time does not tell which usernames exist. Same cost as
+    // PASSWORD_DEFAULT; the password behind it is not a secret
+    $dummyHash = '$2y$12$CZy6tosW6kbQLFDe.n8TK.HEku56zYUPZkN7rMqj2qrdEHpSp8hjy';
+    $passwordMatches = password_verify($password, empty($user) ? $dummyHash : (string) $user[0]['password']);
+
+    if (empty($user) || ! $passwordMatches) {
         // The response says only "wrong username or password", so that it
         // cannot be used to find out which usernames exist. The log may be
         // precise -- it is read by an operator, not by whoever is guessing.
@@ -406,7 +413,36 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 });
 
-$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount, $managerNeeded): Response {
+/**
+ * The fields POST and PUT /v1/users share, checked against their columns.
+ *
+ * @return string|null the first problem, or null when all present fields fit
+ */
+$userFieldError = static function (array $params): ?string {
+    if (array_key_exists('username', $params)) {
+        $username = $params['username'];
+        if ( ! is_string($username) || trim($username) === '') {
+            return 'username must not be empty';
+        }
+        if (mb_strlen($username) > 32) {
+            return 'username must be at most 32 characters';
+        }
+    }
+    if (isset($params['email']) && $params['email'] !== '') {
+        if ( ! is_string($params['email']) || ! Validate::isEmail($params['email']) || mb_strlen($params['email']) > 64) {
+            return 'email must be a valid address of at most 64 characters';
+        }
+    }
+    foreach (['max_token_age', 'max_idle_time'] as $field) {
+        $value = $params[$field] ?? null;
+        if ($value !== null && ! (is_int($value) && $value >= 0) && ! (is_string($value) && ctype_digit($value))) {
+            return "{$field} must be null or a non-negative whole number";
+        }
+    }
+    return null;
+};
+
+$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount, $managerNeeded, $userFieldError): Response {
     $actor = Auth::requireManager($request);
     $targetId = (int) $args['id'];
     $params = $request->getParsedBody() ?? [];
@@ -428,6 +464,10 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
         if ((isset($params['role']) && $params['role'] === 'admin') || array_key_exists('debug', $params)) {
             return $notAuthorized($response);
         }
+    }
+
+    if (($error = $userFieldError($params)) !== null) {
+        return Json::response($response, ['error' => $error], 400);
     }
 
     // the UNIQUE column is pre-checked (excluding this row) for the same reason
@@ -517,12 +557,15 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     ]);
 });
 
-$app->post('/v1/users', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+$app->post('/v1/users', function (Request $request, Response $response, array $args) use ($notAuthorized, $userFieldError): Response {
     $actor = Auth::requireManager($request);
     $params = $request->getParsedBody() ?? [];
 
     if ($err = Validate::requireFields($params, ['username', 'password'])) {
         return Json::response($response, ['error' => $err], 400);
+    }
+    if (($error = $userFieldError($params)) !== null) {
+        return Json::response($response, ['error' => $error], 400);
     }
 
     // pre-check the UNIQUE column, so a collision comes back as a 400 with a
@@ -560,38 +603,31 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         return Json::response($response, ['error' => $error], 400);
     }
 
-    R::exec("
-        INSERT INTO users (
-            reseller_id, role, description, username, password, email,
-            notify_enabled, active, max_token_age, max_idle_time, debug,
-            must_change_password, must_enroll_mfa
-        ) VALUES (
-            :reseller_id, :role, :description, :username, :password, :email,
-            :notify_enabled, :active, :max_token_age, :max_idle_time, :debug,
-            :must_change_password, :must_enroll_mfa
-        )
-    ", [
-        ':reseller_id'    => $resellerId,
-        ':role'           => $role,
-        ':description'    => $params['description'] ?? null,
-        ':username'       => $params['username'],
-        ':password'       => password_hash($params['password'], PASSWORD_DEFAULT),
-        ':email'          => $params['email'] ?? null,
-        // managers and admins start with notifications on, plain users off
-        ':notify_enabled' => (int) ($params['notify_enabled'] ?? ($role === 'user' ? 0 : 1)),
-        ':active'         => (int) ($params['active'] ?? 1),
-        ':max_token_age'  => $params['max_token_age'] ?? null,
-        ':max_idle_time'  => $params['max_idle_time'] ?? null,
-        ':debug'          => (int) ($params['debug'] ?? 0),
-        ':must_change_password' => (int) ($params['must_change_password'] ?? 0),
-        ':must_enroll_mfa'      => (int) ($params['must_enroll_mfa'] ?? 0),
-    ]);
+    $optionalInt = static fn(mixed $value): ?int => $value === null ? null : (int) $value;
+    try {
+        $id = User::create(
+            username: $params['username'],
+            password: (string) $params['password'],
+            email: isset($params['email']) && $params['email'] !== '' ? $params['email'] : null,
+            description: $params['description'] ?? null,
+            resellerId: $resellerId,
+            role: $role,
+            mustChangePassword: (bool) (int) ($params['must_change_password'] ?? 0),
+            mustEnrollMfa: (bool) (int) ($params['must_enroll_mfa'] ?? 0),
+            actorId: $actor['id'],
+            active: (bool) (int) ($params['active'] ?? 1),
+            maxTokenAge: $optionalInt($params['max_token_age'] ?? null),
+            maxIdleTime: $optionalInt($params['max_idle_time'] ?? null),
+            debug: (bool) (int) ($params['debug'] ?? 0),
+            notifyEnabled: isset($params['notify_enabled']) ? (bool) (int) $params['notify_enabled'] : null,
+        );
+    } catch (UsernameTaken | \InvalidArgumentException $e) {
+        return Json::response($response, ['error' => $e->getMessage()], 400);
+    }
 
-    $id = R::getInsertID();
     $users = R::getAll("SELECT " . User::readColumns(true) . " FROM users WHERE id = :id", [
         ':id' => $id,
     ]);
-    History::record('users', $id, 'create', $users[0] ?? [], $actor['id']);
     return Json::response($response, [
         'users' => $users,
     ], 201);
@@ -642,20 +678,22 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     ]);
 });
 
-$app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = Auth::verify($request);
-    $isAdmin = $decoded->data->role === 'admin';
-    $isOwner = (int) $decoded->data->id === (int) $args['id'];
-
-    if (!$isOwner && !$isAdmin) {
-        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
+$app->post('/v1/users/{id}/totp', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+    // one's own, or as their manager or an admin (Auth::actorFor)
+    try {
+        Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
+        return $notAuthorized($response);
     }
 
-    $user = R::getAll("SELECT id, username FROM users WHERE id = :id AND active = 1", [
+    $user = R::getAll("SELECT id, username, totp_secret FROM users WHERE id = :id AND active = 1", [
         ':id' => $args['id'],
     ]);
     if (empty($user)) {
         return Json::response($response, ['error' => 'User not found'], 404);
+    }
+    if ( ! empty($user[0]['totp_secret'])) {
+        return Json::response($response, ['error' => 'This account already has a TOTP secret; remove it first with DELETE /v1/users/{id}/totp'], 400);
     }
 
     $totp = Auth::totpGenerate($user[0]['username']);
@@ -671,13 +709,11 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
     ]);
 });
 
-$app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args): Response {
-    $decoded = Auth::verify($request);
-    $isAdmin = $decoded->data->role === 'admin';
-    $isOwner = (int) $decoded->data->id === (int) $args['id'];
-
-    if (!$isOwner && !$isAdmin) {
-        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
+$app->put('/v1/users/{id}/totp', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+    try {
+        $actor = Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
+        return $notAuthorized($response);
     }
 
     $params   = $request->getParsedBody() ?? [];
@@ -700,13 +736,12 @@ $app->put('/v1/users/{id}/totp', function (Request $request, Response $response,
         ':id' => $args['id'],
     ]);
 
-    $user_id = (int) $decoded->data->id;
     $users  = R::getAll("SELECT
         id, active, role, username, max_token_age, max_idle_time, debug
     FROM users WHERE id = :id", [
         ':id' => $args['id'],
     ]);
-    History::record('users', (int) $args['id'], 'update', $users[0] ?? [], $user_id);
+    History::record('users', (int) $args['id'], 'update', $users[0] ?? [], $actor['id']);
     return Json::response($response, [
         'users' => $users,
     ]);
@@ -738,13 +773,11 @@ $app->delete('/v1/users/{id}/totp', function (Request $request, Response $respon
     ]);
 });
 
-$app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = Auth::verify($request);
-    $isAdmin = $decoded->data->role === 'admin';
-    $isOwner = (int) $decoded->data->id === (int) $args['id'];
-
-    if ( ! $isOwner && ! $isAdmin) {
-        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
+$app->post('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+    try {
+        $actor = Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
+        return $notAuthorized($response);
     }
 
     $user = R::getAll("SELECT id FROM users WHERE id = :id AND active = 1", [
@@ -767,8 +800,7 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
         ':id'      => $args['id'],
     ]);
 
-    $user_id = (int) $decoded->data->id;
-    History::record('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $user_id);
+    History::record('users', (int) $args['id'], 'update', ['api_token_expires' => $expires], $actor['id']);
 
     // the plaintext token is only ever shown here, at issue time -- it can't be
     // recovered later since only its hash is stored
@@ -778,21 +810,18 @@ $app->post('/v1/users/{id}/api-token', function (Request $request, Response $res
     ]);
 });
 
-$app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args): Response {
-    $decoded = Auth::verify($request);
-    $isAdmin = $decoded->data->role === 'admin';
-    $isOwner = (int) $decoded->data->id === (int) $args['id'];
-
-    if ( ! $isOwner && ! $isAdmin) {
-        return Json::response($response, ['error' => 'You are not authorized to perform this operation'], 403);
+$app->delete('/v1/users/{id}/api-token', function (Request $request, Response $response, array $args) use ($notAuthorized): Response {
+    try {
+        $actor = Auth::actorFor($request, (int) $args['id']);
+    } catch (HttpForbiddenException) {
+        return $notAuthorized($response);
     }
 
     R::exec("UPDATE users SET api_token = NULL, api_token_expires = 0 WHERE id = :id", [
         ':id' => $args['id'],
     ]);
 
-    $user_id = (int) $decoded->data->id;
-    History::record('users', (int) $args['id'], 'update', ['api_token' => null], $user_id);
+    History::record('users', (int) $args['id'], 'update', ['api_token' => null], $actor['id']);
 
     return Json::response($response, ['revoked' => true]);
 });
