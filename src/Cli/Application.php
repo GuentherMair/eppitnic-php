@@ -4,6 +4,7 @@ namespace Eppitnic\Cli;
 
 use Eppitnic\Cli\Command\ConfigAllowedOriginsCommand;
 use Eppitnic\Cli\Command\ConfigDebugfileCommand;
+use Eppitnic\Cli\Command\ConfigDnssecCommand;
 use Eppitnic\Cli\Command\ConfigDomainReapSetCommand;
 use Eppitnic\Cli\Command\ConfigDomainSyncCommand;
 use Eppitnic\Cli\Command\ConfigDomainSyncSetCommand;
@@ -127,6 +128,7 @@ final class Application
             'config epp-set'            => ConfigEppSetCommand::class,
             'config epp-password'       => ConfigEppPasswordCommand::class,
             'config keepalive'          => ConfigKeepaliveCommand::class,
+            'config dnssec'             => ConfigDnssecCommand::class,
             'config domain-sync'        => ConfigDomainSyncCommand::class,
             'config domain-sync-set'    => ConfigDomainSyncSetCommand::class,
             'config domain-reap-set'    => ConfigDomainReapSetCommand::class,

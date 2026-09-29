@@ -264,7 +264,7 @@ class Domain extends AbstractObject
       unset($this->dnssec[$digest]);
       return $digest;
     } else {
-      $this->setError("The keytag you provided is not currently associated to this domain object.");
+      $this->setError("The digest you provided is not currently associated to this domain object.");
       return FALSE;
     }
   }
@@ -505,11 +505,28 @@ class Domain extends AbstractObject
   }
 
   /**
+   * DS records are only sent while the dnssec setting is on.
+   *
+   * @return bool true when on; false with the error set when off
+   */
+  private function dnssecEnabled(): bool {
+    if ($this->dnssec_status == 1) {
+      return TRUE;
+    }
+    $this->setError("DNSSEC is switched off: enable it with 'eppitnic config dnssec on' or PATCH /v1/dnssec.");
+    return FALSE;
+  }
+
+  /**
    * create domain
    *
    * @return bool status
    */
   public function create(): bool {
+    if ($this->dnssec !== array() && ! $this->dnssecEnabled()) {
+      return FALSE;
+    }
+
     $this->xmlQuery = XmlBuilder::domainCreate(
       $this->client->set_clTRID(),
       $this->domain,
@@ -518,7 +535,7 @@ class Domain extends AbstractObject
       $this->admin,
       $this->tech,
       $this->authinfo,
-      ($this->dnssec_status == 1) ? $this->dnssec : array()
+      $this->dnssec
     );
 
     // query server and return answer (no handling of special return values)
@@ -697,6 +714,9 @@ class Domain extends AbstractObject
     }
     if ($this->changed('registrant')) {
       $this->setError("Update the registrant through updateRegistrant()!");
+      return FALSE;
+    }
+    if ($this->changed('dnssec') && ! $this->dnssecEnabled()) {
       return FALSE;
     }
 

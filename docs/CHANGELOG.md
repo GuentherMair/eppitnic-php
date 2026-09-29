@@ -27,11 +27,15 @@ see [UPGRADING.md](UPGRADING.md).
   production|test|toggle`, `config epp-set`, `config epp-password`,
   `config safe-networks`, `config trusted-proxies`, `config allowed-origins`,
   `config debugfile`, `config keepalive`, `config session-serialize`,
-  `config region-set`, `config pdns-api`, `config pdns-nameserver` and the
-  job-specific `config *-set` verbs.
+  `config region-set`, `config dnssec`, `config pdns-api`,
+  `config pdns-nameserver` and the job-specific `config *-set` verbs.
   `Support\Validate::eppField()` holds the EPP field rules shared by setup,
   the CLI and the API, so an invalid username or password is refused when
   entered rather than at the next `<login>`.
+- The `dnssec` setting is `{"active": 0|1}`, switched with `config dnssec
+  on|off` or `PATCH /v1/dnssec`. While off, DS records on a domain create or
+  update are refused instead of silently dropped. `algorithm` and
+  `digesttype` are no longer settings: each DS record carries its own.
 - The registry debug log (`config debugfile`) masks passwords, auth codes and
   cookie values, is created with mode `600`, and only in the var directory.
   An unwritable log file warns instead of stopping every registry call.

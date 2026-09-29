@@ -448,7 +448,7 @@ CREATE TABLE `history` (
   -- nullable: a login against a nonexistent username has no user to
   -- attribute it to; defaulting to user 1 would misattribute it.
   `user_id`               bigint unsigned DEFAULT NULL,
-  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers', 'region', 'allowed_origins', 'debugfile') NOT NULL,
+  `object`                enum('users', 'contacts', 'domains', 'security', 'cronjobs', 'epp', 'smtp', 'remote_auth', 'trusted_proxies', 'resellers', 'region', 'allowed_origins', 'debugfile', 'dnssec') NOT NULL,
   `object_id`             int(11) NOT NULL,
   -- 'request': a registration or transfer-in a user asked for (object
   -- 'domains'), what the daily reseller quota counts; 'rotate': the
@@ -832,7 +832,7 @@ INSERT INTO `settings` (`key`, `value`) VALUES
   -- rotation attempt (via `eppitnic poll process`), capping it to once
   -- per 24h. 0 = never attempted.
   ('epp', '{"server":"https://epp.nic.it","server_deleted":"https://epp-deleted.nic.it","port":null,"interface":"","registrar_tag":"","username":"","password":"","lang":"en","cl_trid_prefix":"EPPITNIC","lastPasswordUpdate":0}'),
-  ('dnssec', '{"active":0,"algorithm":10,"digesttype":2}'),
+  ('dnssec', '{"active":0}'),
   ('debugfile', '""'),
   ('certificatefile', 'null'),
   -- keepalive: hold one registry session open across processes instead of

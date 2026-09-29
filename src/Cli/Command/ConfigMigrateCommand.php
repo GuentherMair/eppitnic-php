@@ -115,9 +115,7 @@ final class ConfigMigrateCommand extends Command
             'lastPasswordUpdate' => 0,
           ],
           'dnssec' => [
-            'active'     => (int) self::xmlStr($xml->dnssec->active),
-            'algorithm'  => (int) self::xmlStr($xml->dnssec->algorithm),
-            'digesttype' => (int) self::xmlStr($xml->dnssec->digesttype),
+            'active' => (int) self::xmlStr($xml->dnssec->active),
           ],
           // config.xml's DEBUG flag and debugfile are not carried over:
           // verbosity is now per-object (users.debug), and a 6.x wire log

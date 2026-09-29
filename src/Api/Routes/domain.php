@@ -294,8 +294,16 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
         return Json::response($response, ['error' => $err], 400);
     }
 
+    $dnssec = [];
+    if (array_key_exists('dnssec', $params)) {
+        $dnssec = DomainService::dnssecRecords($params['dnssec']);
+        if (is_string($dnssec)) {
+            return Json::response($response, ['error' => $dnssec], 400);
+        }
+    }
+
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $scope) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $scope, $dnssec) {
             $domain = new Domain($nic);
             if ( ! $domain->fetch($name)) {
                 return ['ok' => false, 'status' => 404, 'error' => "Domain '{$name}' not found"];
@@ -323,13 +331,10 @@ $app->patch('/v1/domains/{name}', function (Request $request, Response $response
                 foreach (array_diff($current, $target) as $rem) $domain->remTECH($rem);
             }
             if (array_key_exists('dnssec', $params)) {
-                $current = array_keys((array) $domain->get('dnssec'));
-                $target = [];
-                foreach ((array) $params['dnssec'] as $ds) {
-                    $domain->addDNSSEC($ds['keytag'], $ds['algorithm'], $ds['digesttype'], $ds['digest']);
-                    $target[] = $ds['digest'];
+                $error = DomainService::applyDnssec($domain, $dnssec);
+                if ($error !== null) {
+                    return ['ok' => false, 'status' => 400, 'error' => $error];
                 }
-                foreach (array_diff($current, $target) as $rem) $domain->remDNSSEC($rem);
             }
 
             // update() resets this to 0 on success, so it must be captured

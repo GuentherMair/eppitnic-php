@@ -616,7 +616,7 @@ metadata comes through this shape.
 | `GET /v1/domains/{name}` | user | registry-first: live EPP `fetch()`, in the `domainToArray()` shape with `"stale": false`. If the registry can't answer — `fetch()` fails **or** the session itself fails — falls back to the local DB row with `"stale": true`. `404`, without asking the registry, for a domain (or pending transfer-in) not of the caller's reseller; otherwise `404` only when neither source has it. Never `502` |
 | `POST /v1/domains` | user | create-or-transfer-request in one call: `check()`s the name first, `create()`s if available, otherwise requests a `transfer()` if it's held elsewhere. Body: `domain*, registrant*, admin?, tech?: [...], ns?: [{name,ip?}...], authinfo?` (`*` = required). `400` for a name that is not a valid .it domain. The `registrant` must be one of your reseller's contacts, else 403, and the domain belongs to the registrant's reseller. Counts against the reseller's **daily quota** (see "Authorization model"), whether it registers or requests a transfer — `429` when exceeded. `201` + `domainToArray()` on success |
 | `POST /v1/domains/import` | user | body `{"domains": ["a.it", ...]}` — pulls each from the registry into the local DB (idempotent reconciliation, not a create). Answers `{"results": {...}}`, keyed by domain name, each entry with `domain` and `registrant` (`"found"`/`"not found"`/`"held by another reseller"` — another reseller's domain is left untouched) and `contact_stored` and `domain_stored` (`"stored"`/`"not stored"`). A step never reached reads `"skipped"`, so the first non-`skipped` failure is where that import stopped. A domain the registry doesn't have is also removed locally |
-| `PATCH /v1/domains/{name}` | user | partial update: `admin`, `authinfo` set directly; `ns`, `tech`, `dnssec` are **full-target-list diffs** — send the complete desired array and the server computes add/remove, don't send deltas. `dnssec` entries are `{keytag, algorithm, digesttype, digest}`. Registrant changes are **not** accepted here — see the dedicated endpoint below |
+| `PATCH /v1/domains/{name}` | user | partial update: `admin`, `authinfo` set directly; `ns`, `tech`, `dnssec` are **full-target-list diffs** — send the complete desired array and the server computes add/remove, don't send deltas. `dnssec` entries are `{keytag, algorithm, digesttype, digest}`, all four non-empty (`400` otherwise, before the registry is asked); removals are sent before additions, so a key rollover fits the two-record limit. `400` too while the `dnssec` setting is off (see "DNSSEC"). Registrant changes are **not** accepted here — see the dedicated endpoint below |
 | `POST /v1/domains/{name}/registrant` | user | registrant change (`Domain::updateRegistrant()`, a distinct EPP command from generic update). Body `{"registrant"*, "authinfo"?}`. The new registrant must be one of your reseller's contacts (403 otherwise), since this also moves the domain to that contact's reseller. Authinfo is rotated too (server-generated if omitted), since the registry requires it to change alongside the registrant |
 | `POST /v1/domains/{name}/status` | user | body `{"state"*, "action"?: "add"\|"rem" (default "add")}` — EPP status flags (e.g. `clientTransferProhibited`) |
 | `DELETE /v1/domains/{name}?mode=now\|expiry\|date&date=YYYY-MM-DD` | user | ownership is checked first, so a domain you don't own is **403** in every mode. `mode=now` (default): immediate EPP delete + local deactivate. `mode=expiry`/`mode=date`: **does not touch the registry** — inserts a future-dated `tasks` row (`object='registry'`, `action='delete'`) for `eppitnic domain reap-deletions` to act on once due. The date is the domain's `ex_date` for `mode=expiry`; `mode=date` requires `date` (`400` otherwise) |
@@ -706,6 +706,19 @@ and changes are recorded in `history` (`object='region'`).
 |---|---|---|
 | `GET /v1/region` | admin | `{"region": {"timezone", "lc_monetary", "lc_time"}, "timezones": [...]}`. `timezones` lists every zone the server accepts, for a picker |
 | `PATCH /v1/region` | admin | body: any of the three fields; what is omitted stays. `400` for an unknown time zone, a value that isn't a locale name (`C`, `POSIX`, `it_IT`, `it_IT.UTF-8`, …), a blank value or an unknown field. Returns `{"region": {...}}` |
+
+### DNSSEC
+
+The `dnssec` setting switches DS records on or off. Off (the default), login
+does not announce the secDNS extensions and a domain create or update that
+carries DS records is refused. It goes through `Service\DnssecSettings`,
+shared with `config dnssec`, and changes are recorded in `history`
+(`object='dnssec'`).
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/dnssec` | admin | `{"dnssec": {"active": false}}` |
+| `PATCH /v1/dnssec` | admin | body `{"active": true\|false}`; `400` for anything else. Returns the same shape `GET` does |
 
 ### Email (SMTP)
 

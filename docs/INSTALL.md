@@ -206,6 +206,21 @@ The time zone must be a zone name PHP knows. Use a locale that is installed
 on the server (`locale -a` lists them); `setlocale()` silently ignores one that
 isn't. Admins can make the same changes through `GET`/`PATCH /v1/region`.
 
+### Turn DNSSEC on or off
+
+The `dnssec` setting is off by default. Off, login does not announce the
+secDNS extensions, and creating or updating a domain with DS records is
+refused. Algorithm and digest type are given per DS record, not here:
+
+```bash
+bin/eppitnic config dnssec on
+bin/eppitnic config dnssec off
+```
+
+Admins can make the same change through `GET`/`PATCH /v1/dnssec`. Turning it
+on takes effect for the next registry session; with `keepalive` on, that is
+after the open session has ended.
+
 ### Change the EPP account settings
 
 Give a value to set one of the `epp` setting's 8 plain fields, or omit it to

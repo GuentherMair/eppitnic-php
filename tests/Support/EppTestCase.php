@@ -39,7 +39,7 @@ abstract class EppTestCase extends TestCase
         ],
         'certificatefile'   => null,
         'debugfile'         => '',
-        'dnssec'            => ['active' => 1, 'algorithm' => 10, 'digesttype' => 2],
+        'dnssec'            => ['active' => 1],
         'keepalive'         => false,
         'session_serialize' => false,
         'session_cookies'   => [],

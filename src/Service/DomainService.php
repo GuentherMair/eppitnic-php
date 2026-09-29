@@ -272,4 +272,66 @@ final class DomainService
 
         return ['ok' => true, 'domain' => $domain];
     }
+
+    /**
+     * Validate the DS records of a domain update: each needs keytag,
+     * algorithm, digesttype and digest as non-empty strings or numbers.
+     *
+     * @return array|string the records with string values, or the error
+     */
+    public static function dnssecRecords(mixed $records): array|string {
+        if ( ! is_array($records)) {
+            return 'dnssec must be a list of DS records';
+        }
+        $entries = [];
+        foreach ($records as $i => $ds) {
+            if ( ! is_array($ds)) {
+                return "dnssec[{$i}] must be an object";
+            }
+            $entry = [];
+            foreach (['keytag', 'algorithm', 'digesttype', 'digest'] as $key) {
+                $value = $ds[$key] ?? null;
+                if ( ! is_scalar($value) || is_bool($value) || (string) $value === '') {
+                    return "dnssec[{$i}].{$key} is required and must be a non-empty string or number";
+                }
+                $entry[$key] = (string) $value;
+            }
+            $entries[] = $entry;
+        }
+        return $entries;
+    }
+
+    /**
+     * Make the domain's DS set equal to $records (from dnssecRecords()).
+     * Removals come first: the registry holds at most two, so a key rollover
+     * has to free the slots before it fills them.
+     *
+     * @return string|null the error, or null when the set is as requested
+     */
+    public static function applyDnssec(Domain $domain, array $records): ?string {
+        $current = (array) $domain->get('dnssec');
+        $target = [];
+        foreach ($records as $ds) {
+            $target[$ds['digest']] = $ds;
+        }
+
+        foreach (array_diff_key($current, $target) as $digest => $unused) {
+            if ($domain->remDNSSEC((string) $digest) === false) {
+                return $domain->getError();
+            }
+        }
+        foreach ($target as $digest => $ds) {
+            $held = $current[$digest] ?? null;
+            if ($held !== null
+                && (string) $held['keytag'] === $ds['keytag']
+                && (string) $held['algorithm'] === $ds['algorithm']
+                && (string) $held['digesttype'] === $ds['digesttype']) {
+                continue;
+            }
+            if ($domain->addDNSSEC($ds['keytag'], $ds['algorithm'], $ds['digesttype'], $ds['digest']) === false) {
+                return $domain->getError();
+            }
+        }
+        return null;
+    }
 }
