@@ -39,6 +39,8 @@ final class EppSession
      * @param bool $debug turn on EPP diagnostics for everything built from this
      *                    session -- see AbstractObject::$debug. Set from the
      *                    caller's `users`.`debug` column, via actor()['debug'].
+     * @param bool $joinShared false: login and logout even with `keepalive`
+     *                    on, for what only a login reports (the credit)
      * @param Client|null $client use this client instead of building one, and
      *                    keep whatever $client->keepalive it already carries
      *                    rather than computing one. Only the test suite passes
@@ -52,7 +54,7 @@ final class EppSession
      *         only) the transport failed outright -- see
      *         AbstractObject::sendAndParse()
      */
-    public static function run(callable $fn, bool $debug = false, ?Client $client = null): mixed {
+    public static function run(callable $fn, bool $debug = false, ?Client $client = null, bool $joinShared = true): mixed {
         $nic = $client ?? new Client();
         // set before anything is constructed from it: AbstractObject copies
         // this at construction, so a later change would not reach the objects
@@ -66,6 +68,9 @@ final class EppSession
             // fail, and must never touch a session other callers share).
             $nic->keepalive = SessionState::enabled()
                 && $nic->EPPCfg->server === Config::get('epp')['server'];
+        }
+        if ( ! $joinShared) {
+            $nic->keepalive = false;
         }
 
         $session = new Session($nic);

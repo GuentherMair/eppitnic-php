@@ -16,7 +16,7 @@ final class SessionCreditCommand extends Command
     }
 
     public function run(): int {
-        $credit = $this->withSession(fn($nic, $session) => $session->showCredit());
+        $credit = $this->withSession(fn($nic, $session) => $session->showCredit(), null, false);
 
         if ($credit === null) {
             $this->warn('the registry did not report a credit balance');

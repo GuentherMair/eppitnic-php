@@ -140,7 +140,7 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
     try {
         $credit = EppSession::run(function ($nic, $session) {
             return $session->showCredit();
-        }, $debug);
+        }, $debug, null, false);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);
     }

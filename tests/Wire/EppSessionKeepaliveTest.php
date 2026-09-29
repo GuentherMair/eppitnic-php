@@ -191,6 +191,21 @@ final class EppSessionKeepaliveTest extends EppTestCase
         $this->assertStringContainsString('<logout', $this->transport->requests[3]);
     }
 
+    /** the credit only arrives with a login, so it opens a session of its own */
+    public function testNotJoiningTheSharedSessionLogsInAndOut(): void {
+        $this->keepaliveOn(time());
+        $this->transport->queue(CommandCatalog::GREETING_RESPONSE);
+        $this->transport->queue(CommandCatalog::OK_RESPONSE); // login
+        $this->transport->queue(CommandCatalog::OK_RESPONSE); // logout
+
+        EppSession::run(fn($nic, $session) => $session->showCredit(), false, $this->nic, false);
+
+        $this->assertCount(3, $this->transport->requests);
+        $this->assertStringContainsString('<login', $this->transport->requests[1]);
+        $this->assertStringContainsString('<logout', $this->transport->requests[2]);
+        $this->assertSame(['JSESSIONID' => 'abc123'], SessionState::cookies(), 'the shared session is left alone');
+    }
+
     /**
      * A client on a different host than `epp.server` must never join the
      * shared session -- DomainRestoreCommand's "-deleted" endpoint is exactly

@@ -368,10 +368,11 @@ abstract class Command
      *                    one -- for the restore endpoint, which is a different
      *                    host. Ignored under --dry-run, which answers locally
      *                    and never joins the shared session.
+     * @param bool $joinShared see EppSession::run()
      * @return mixed whatever $fn returns
      * @throws SessionError if the registry is unreachable or rejects the login
      */
-    protected function withSession(callable $fn, ?Client $override = null): mixed {
+    protected function withSession(callable $fn, ?Client $override = null, bool $joinShared = true): mixed {
         $client = $override ?? $this->client;
 
         if ($this->isDryRun()) {
@@ -387,7 +388,7 @@ abstract class Command
         }
 
         try {
-            $result = EppSession::run($fn, $this->isVerbose(), $client);
+            $result = EppSession::run($fn, $this->isVerbose(), $client, $joinShared);
         } catch (ConfigMissing $e) {
             // Rethrown, not wrapped: an uninstalled application is not a
             // registry problem, and it must keep its own exit code -- the same
