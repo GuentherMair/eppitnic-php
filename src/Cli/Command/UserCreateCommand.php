@@ -30,6 +30,8 @@ final class UserCreateCommand extends Command
             'description='    => 'free-text description',
             'role='           => 'admin, manager or user (default: user); admin only in reseller 1',
             'reseller='       => 'the reseller id the user belongs to, fixed from now on (default: 1)',
+            'must-change-password' => 'refuse login until the user has changed the password',
+            'must-enroll-mfa'      => 'refuse login from outside the safe networks until MFA is set up',
         ];
     }
 
@@ -62,6 +64,8 @@ final class UserCreateCommand extends Command
                 description: $this->option('description'),
                 resellerId: $resellerId,
                 role: $role,
+                mustChangePassword: $this->hasOption('must-change-password'),
+                mustEnrollMfa: $this->hasOption('must-enroll-mfa'),
             );
         } catch (UsernameTaken $e) {
             $this->warn($e->getMessage());

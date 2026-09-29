@@ -81,6 +81,11 @@ server's own login (`REMOTE_USER`, or a header from a trusted proxy; see
   12 characters with a lower-case letter, an upper-case letter, a digit and
   one other character; the rule is enforced by `Support\PasswordPolicy`
   wherever a password is set, never at login.
+- A manager or admin can require a user to change the password or set up MFA
+  before the account works (`must_change_password`, `must_enroll_mfa`;
+  `user create --must-change-password --must-enroll-mfa`). Login answers `403`
+  with no token until it is done, through `POST /v1/users/authenticate/password`
+  and `/mfa`. Enrollment is only demanded outside `safe_networks`.
 - Logins are rate-limited per network — IPv4 `/24` and IPv6 `/48` by
   default — through the `login_ratelimit` setting: past `max_failures` within
   `timespan` seconds, `POST /v1/users/authenticate` answers `429` with a

@@ -212,7 +212,8 @@ final class Auth
      */
     private static function withAccount(object $decoded, Request $request): object {
         $account = R::getRow('
-            SELECT u.active, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active
+            SELECT u.active, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active,
+                   u.must_change_password, u.must_enroll_mfa, u.totp_secret IS NOT NULL AS has_totp
             FROM users u JOIN resellers r ON r.id = u.reseller_id
             WHERE u.id = ?
         ', [(int) $decoded->data->id]);
@@ -227,12 +228,35 @@ final class Auth
             throw new HttpForbiddenException($request, 'Your reseller account is deactivated');
         }
 
+        // Sessions only: a signed token carries `exp`, while remote-auth and
+        // fixed-token claims are synthesized and never went through a login
+        if (isset($decoded->exp)) {
+            if ((int) $account['must_change_password'] === 1) {
+                throw new HttpForbiddenException($request, 'Password change required');
+            }
+            if ((int) $account['must_enroll_mfa'] === 1 && ! (int) $account['has_totp'] && ! self::onSafeNetwork()) {
+                throw new HttpForbiddenException($request, 'MFA enrollment required');
+            }
+        }
+
         unset($decoded->data->admin);
         $decoded->data->role = $account['role'];
         $decoded->data->reseller_id = (int) $account['reseller_id'];
         $decoded->data->reseller_name = $account['reseller_name'];
         $decoded->data->registry = EppSettings::environment();
         return $decoded;
+    }
+
+    /**
+     * @return bool whether the client address is inside `safe_networks`
+     */
+    public static function onSafeNetwork(): bool {
+        foreach (Config::get('safe_networks') as $cidr) {
+            if (ClientIp::inCidr($cidr)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function credential(Request $request): object {

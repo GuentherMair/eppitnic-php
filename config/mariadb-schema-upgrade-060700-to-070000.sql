@@ -475,7 +475,7 @@ CREATE TABLE `history` (
 -- ----------------------------------------------------------------------------
 -- PART 5: EXTEND users TABLE
 --
--- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 12
+-- Widens `password` (32 -> 255 chars, for bcrypt/argon2) and adds 14
 -- columns (default country, NS sets and the default set, active/admin flags,
 -- TOTP secrets, session/token limits, debug level, API token + expiry), each
 -- AFTER to match the new column order, and makes `username` unique (pre-flight
@@ -488,6 +488,7 @@ CREATE TABLE `history` (
 
 ALTER TABLE users
   MODIFY COLUMN `password` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  ADD COLUMN `must_change_password` TINYINT NOT NULL DEFAULT 0 AFTER `password`,
   DROP COLUMN `dns`,
   ADD COLUMN `countrycode` VARCHAR(2) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `techc`,
   ADD COLUMN `nssets` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `countrycode`,
@@ -500,7 +501,8 @@ ALTER TABLE users
   ADD COLUMN `admin` TINYINT DEFAULT 0 AFTER `active`,
   ADD COLUMN `totp_secret` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `admin`,
   ADD COLUMN `totp_secret_pending` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `totp_secret`,
-  ADD COLUMN `max_token_age` INT AFTER `totp_secret_pending`,
+  ADD COLUMN `must_enroll_mfa` TINYINT NOT NULL DEFAULT 0 AFTER `totp_secret_pending`,
+  ADD COLUMN `max_token_age` INT AFTER `must_enroll_mfa`,
   ADD COLUMN `max_idle_time` INT AFTER `max_token_age`,
   ADD COLUMN `debug` TINYINT DEFAULT 0 AFTER `max_idle_time`,
   ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug`,
@@ -710,9 +712,9 @@ WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'users'
 ORDER BY ORDINAL_POSITION;
 -- ^ expect: id, reseller_id, role, description, username, password
---   (varchar(255)), email, notify_enabled, notify_message_types,
---   notify_fulltext, active, totp_secret, totp_secret_pending,
---   max_token_age, max_idle_time, debug, api_token, api_token_expires --
+--   (varchar(255)), must_change_password, email, notify_enabled,
+--   notify_message_types, notify_fulltext, active, totp_secret,
+--   totp_secret_pending, must_enroll_mfa, max_token_age, max_idle_time, debug, api_token, api_token_expires --
 --   and no `dns`, `admin`, `max_operations`, `techc`, `countrycode`,
 --   `nssets` or `dnsset` (those moved to `resellers` in PART 5b).
 

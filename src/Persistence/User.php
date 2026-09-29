@@ -28,7 +28,9 @@ final class User
             username, max_token_age, max_idle_time, debug, notify_enabled,
             totp_secret IS NOT NULL AS has_totp';
 
-        return $isManager ? "{$columns}, description, email" : $columns;
+        return $isManager
+            ? "{$columns}, description, email, must_change_password, must_enroll_mfa"
+            : $columns;
     }
 
     /**
@@ -59,7 +61,9 @@ final class User
         ?string $email = null,
         ?string $description = null,
         int $resellerId = 1,
-        string $role = 'user'
+        string $role = 'user',
+        bool $mustChangePassword = false,
+        bool $mustEnrollMfa = false
     ): int {
         if (($error = self::roleError($role, $resellerId)) !== null) {
             throw new \InvalidArgumentException($error);
@@ -76,8 +80,10 @@ final class User
         }
 
         R::exec("
-            INSERT INTO users (reseller_id, role, description, username, password, email, notify_enabled, active)
-            VALUES (:reseller_id, :role, :description, :username, :password, :email, :notify_enabled, 1)
+            INSERT INTO users (reseller_id, role, description, username, password, email, notify_enabled, active,
+                               must_change_password, must_enroll_mfa)
+            VALUES (:reseller_id, :role, :description, :username, :password, :email, :notify_enabled, 1,
+                    :must_change_password, :must_enroll_mfa)
         ", [
             ':reseller_id'    => $resellerId,
             ':role'           => $role,
@@ -86,6 +92,8 @@ final class User
             ':password'       => password_hash($password, PASSWORD_DEFAULT),
             ':email'          => $email,
             ':notify_enabled' => $role === 'user' ? 0 : 1,
+            ':must_change_password' => (int) $mustChangePassword,
+            ':must_enroll_mfa'      => (int) $mustEnrollMfa,
         ]);
 
         $id = (int) R::getInsertID();

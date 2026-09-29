@@ -44,6 +44,8 @@ final class TestAccounts
             'max_idle_time'        => 'INTEGER',
             'totp_secret'          => 'TEXT',
             'totp_secret_pending'  => 'TEXT',
+            'must_change_password' => 'INTEGER NOT NULL DEFAULT 0',
+            'must_enroll_mfa'      => 'INTEGER NOT NULL DEFAULT 0',
             'api_token'            => 'TEXT',
             'api_token_expires'    => 'INTEGER NOT NULL DEFAULT 0',
             'notify_enabled'       => 'INTEGER NOT NULL DEFAULT 0',

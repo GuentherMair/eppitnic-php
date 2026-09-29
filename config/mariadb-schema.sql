@@ -29,6 +29,9 @@ CREATE TABLE `users` (
   `description`           varchar(64),
   `username`              varchar(32),
   `password`              varchar(255),
+  -- login is refused until the user has changed the password / enrolled MFA
+  -- (Auth::withAccount(), POST /v1/users/authenticate)
+  `must_change_password`  tinyint NOT NULL DEFAULT 0,
   `email`                 varchar(64),
   -- this user's own email notifications (see Service\Notifier), applied
   -- only while the system-wide `smtp.recipient_mode` includes 'user': a
@@ -40,6 +43,7 @@ CREATE TABLE `users` (
   `active`                tinyint DEFAULT 1,
   `totp_secret`           varchar(64),
   `totp_secret_pending`   varchar(64),
+  `must_enroll_mfa`       tinyint NOT NULL DEFAULT 0,
   `max_token_age`         int,
   `max_idle_time`         int,
   `debug`                 tinyint    DEFAULT 0,

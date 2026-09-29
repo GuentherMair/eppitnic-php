@@ -182,6 +182,8 @@ Failures:
 | `401` | `Wrong username or password` — whichever half was wrong |
 | `401` | `MFA code required` / `Invalid MFA code` |
 | `403` | `Your reseller account is deactivated` — correct password, deactivated reseller |
+| `403` | `Password change required` — see "Forced password change and MFA enrollment"; no token is issued |
+| `403` | `MFA enrollment required` — same |
 | `429` | too many failures from this network (below) |
 
 `GET /v1/users/renew-token` (any valid token) re-issues a fresh JWT from the
@@ -191,6 +193,41 @@ TOTP.
 
 `GET /v1/users/me` (any valid token) returns the claims as-is, without
 `token`.
+
+### Forced password change and MFA enrollment
+
+Two user flags, `must_change_password` and `must_enroll_mfa`, are set through
+`POST`/`PUT /v1/users` (0/1, by a manager or admin, with the usual scope
+rules) or `bin/eppitnic user create --must-change-password --must-enroll-mfa`.
+While one is pending, `POST /v1/users/authenticate` issues no token, after
+every other check has passed:
+
+| Pending | Answer |
+|---|---|
+| `must_change_password` | `403` `{"error": "Password change required", "required": "password_change", "password_policy": {...}}` |
+| `must_enroll_mfa`, no MFA yet, client outside `safe_networks` | `403` `{"error": "MFA enrollment required", "required": "mfa_enrollment"}` |
+
+The password change comes first. Enrollment is only demanded from outside
+`safe_networks`; the flag stays set until then. If the account already has
+MFA, the flag is cleared at login. These answers are not failed logins for the
+rate limit; they are recorded as `security`/`secread` rows
+(`event='login_requirement_pending'`).
+
+The routes below need no token. Each takes `username` and `password` again
+(plus `totp` for an account that has MFA, outside `safe_networks`), and is
+rate-limited and failure-recorded like `authenticate`. A wrong credential is
+`401`.
+
+| Route | Body | Result |
+|---|---|---|
+| `POST /v1/users/authenticate/password` | `new_password` | `400` unless a change is pending, or if the new password fails the password rule (`error` and `password_policy`) or equals the current one. On success the flag is cleared, the change is recorded in `history` (`users` update, `security`/`rotate` `password_changed`), and the answer is that of a login: `403` `mfa_enrollment`, or `200` with the token body above |
+| `POST /v1/users/authenticate/mfa` | — | `400` unless enrollment is pending (and no password change is). Returns `{"secret", "uri"}` |
+| `PUT /v1/users/authenticate/mfa` | `totp` | verifies the code against the secret from `POST`, stores it, clears the flag and answers `200` with the token body (`has_totp`, `totp_verified` true). `401` on a wrong code, counted |
+
+For a session that is already open, a flag set afterwards ends it: the next
+request answers `403` `Password change required`, or `MFA enrollment
+required` from outside `safe_networks`. Remote authentication and fixed API
+tokens are not affected.
 
 ### Login rate limit
 
@@ -510,9 +547,9 @@ deactivated.
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/users` | user | an admin sees every user (`?reseller_id=` narrows it to one reseller), a manager their reseller's, a plain user only themselves. Rows: `id, active, role, reseller_id, reseller_name, username, max_token_age, max_idle_time, debug, notify_enabled, has_totp`, and for a manager or admin also `description, email`. Never password hashes |
+| `GET /v1/users` | user | an admin sees every user (`?reseller_id=` narrows it to one reseller), a manager their reseller's, a plain user only themselves. Rows: `id, active, role, reseller_id, reseller_name, username, max_token_age, max_idle_time, debug, notify_enabled, has_totp`, and for a manager or admin also `description, email, must_change_password, must_enroll_mfa`. Never password hashes |
 | `GET /v1/users/{id}` | user | same field set and scope, still `{"users": [row]}` — a one-element array, and `[]` for an unknown id or one the caller may not see |
-| `POST /v1/users` | manager | create; `201`. Required: `username`, `password`. Optional: `description`, `email`, `role` (default `user`; `admin` only in reseller 1), `reseller_id` (admin only, default 1; a manager's users join their own reseller), `notify_enabled` (default on for managers/admins, off for plain users), `active` (default `1`), `max_token_age`, `max_idle_time`, `debug` (admin only). `400` if a required field is missing, the username is taken, or the role doesn't fit the reseller |
+| `POST /v1/users` | manager | create; `201`. Required: `username`, `password`. Optional: `description`, `email`, `role` (default `user`; `admin` only in reseller 1), `reseller_id` (admin only, default 1; a manager's users join their own reseller), `notify_enabled` (default on for managers/admins, off for plain users), `active` (default `1`), `max_token_age`, `max_idle_time`, `debug` (admin only), `must_change_password`, `must_enroll_mfa` (0/1, default `0`). `400` if a required field is missing, the username is taken, or the role doesn't fit the reseller |
 | `PUT /v1/users/{id}` | manager | update of the same field set; **every field is optional** — anything omitted keeps its current value (including `password`). `reseller_id` can never change (`400`). `404` for an unknown id |
 | `DELETE /v1/users/{id}` | manager | deactivate (`active = 0`), with the same rules as setting it through `PUT` |
 | `GET /v1/users/{id}/notifications` | self, their manager, or admin | this user's own email notifications, `{"notifications": {"enabled": bool, "message_types": [...], "fulltext": "..."}, "message_types": [...]}` (the second `message_types` is the full allow-list, for a picker). `404` for an unknown user |

@@ -1,7 +1,6 @@
 <?php
 
 use Eppitnic\Api\Auth;
-use Eppitnic\Api\ClientIp;
 use Eppitnic\Api\Json;
 use Eppitnic\Api\LoginRateLimit;
 use Eppitnic\Config;
@@ -29,7 +28,15 @@ $app->get('/v1/users/me', function (Request $request, Response $response, array 
     return Json::response($response, (array) $decoded->data);
 });
 
-$app->post('/v1/users/authenticate', function (Request $request, Response $response, array $args): Response {
+/**
+ * The checks every login-shaped route starts with: rate limit, username and
+ * password, active reseller, and the MFA code of an enrolled user off the safe
+ * networks. Records each failure as authenticate always has.
+ *
+ * @return array{0: array|null, 1: Response|null} the user row, or the answer
+ *         to give instead
+ */
+$checkCredentials = static function (Request $request, Response $response): array {
     $params   = $request->getParsedBody() ?? [];
     $username = $params['username'] ?? '';
     $password = $params['password'] ?? '';
@@ -47,23 +54,22 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             'username' => (string) $username,
         ], 'secread');
 
-        return Json::response($response, [
+        return [null, Json::response($response, [
             'error'       => 'Too many failed login attempts. Try again later.',
             'retry_after' => $retryAfter,
-        ], 429)->withHeader('Retry-After', (string) $retryAfter);
+        ], 429)->withHeader('Retry-After', (string) $retryAfter)];
     }
 
     if (empty($username)) {
-        return Json::response($response, ['error' => 'Please provide a username'], 401);
+        return [null, Json::response($response, ['error' => 'Please provide a username'], 401)];
     }
     if (empty($password)) {
-        return Json::response($response, ['error' => 'Please provide a password'], 401);
+        return [null, Json::response($response, ['error' => 'Please provide a password'], 401)];
     }
-
 
     $user = R::getAll("SELECT
         u.id, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active,
-        u.username, u.password, u.totp_secret, u.debug, u.max_token_age, u.max_idle_time
+        u.username, u.password, u.must_change_password, u.must_enroll_mfa, u.totp_secret, u.debug, u.max_token_age, u.max_idle_time
     FROM users u JOIN resellers r ON r.id = u.reseller_id
     WHERE u.username = :username AND u.active = 1", [
         ':username' => $username,
@@ -78,7 +84,7 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             'reason'   => empty($user) ? 'no such active user' : 'wrong password',
         ], 'denied');
 
-        return Json::response($response, ['error' => 'Wrong username or password'], 401);
+        return [null, Json::response($response, ['error' => 'Wrong username or password'], 401)];
     }
 
     // after the password, so this says nothing to someone merely guessing
@@ -88,23 +94,13 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
             'reason'   => 'reseller deactivated',
         ], 'denied');
 
-        return Json::response($response, ['error' => 'Your reseller account is deactivated'], 403);
+        return [null, Json::response($response, ['error' => 'Your reseller account is deactivated'], 403)];
     }
 
-    $hasTotp   = !empty($user[0]['totp_secret']);
-    $onSafeNet = false;
-    foreach (Config::get('safe_networks') as $cidr) {
-        if (ClientIp::inCidr($cidr)) {
-            $onSafeNet = true;
-            break;
-        }
-    }
-    $needsTotp = $hasTotp && !$onSafeNet;
-
-    if ($needsTotp) {
+    if (!empty($user[0]['totp_secret']) && !Auth::onSafeNetwork()) {
         $totpCode = $params['totp'] ?? '';
         if (empty($totpCode)) {
-            return Json::response($response, ['error' => 'MFA code required'], 401);
+            return [null, Json::response($response, ['error' => 'MFA code required'], 401)];
         }
         if (!Auth::totpVerify($user[0]['totp_secret'], $totpCode)) {
             // counted like any other failure: the password alone is not a
@@ -114,32 +110,181 @@ $app->post('/v1/users/authenticate', function (Request $request, Response $respo
                 'reason'   => 'wrong MFA code',
             ], 'denied');
 
-            return Json::response($response, ['error' => 'Invalid MFA code'], 401);
+            return [null, Json::response($response, ['error' => 'Invalid MFA code'], 401)];
+        }
+    }
+
+    return [$user[0], null];
+};
+
+/**
+ * What a login answers with once the credentials are right: the pending
+ * password change or MFA enrollment (403, no token), else the token.
+ */
+$continueLogin = static function (Request $request, Response $response, array $user): Response {
+    $hasTotp   = !empty($user['totp_secret']);
+    $onSafeNet = Auth::onSafeNetwork();
+    $needsTotp = $hasTotp && !$onSafeNet;
+
+    // The credentials were right, so this is not a failure: 'secread' keeps it
+    // out of what LoginRateLimit counts
+    if ((int) $user['must_change_password'] === 1) {
+        History::recordSecurityEvent('login_requirement_pending', $request, (int) $user['id'], [
+            'username' => (string) $user['username'],
+            'required' => 'password_change',
+        ], 'secread');
+
+        return Json::response($response, [
+            'error'           => 'Password change required',
+            'required'        => 'password_change',
+            'password_policy' => PasswordPolicy::describe(),
+        ], 403);
+    }
+    if ((int) $user['must_enroll_mfa'] === 1) {
+        if ($hasTotp) {
+            R::exec('UPDATE users SET must_enroll_mfa = 0 WHERE id = ?', [(int) $user['id']]);
+        } elseif (!$onSafeNet) {
+            History::recordSecurityEvent('login_requirement_pending', $request, (int) $user['id'], [
+                'username' => (string) $user['username'],
+                'required' => 'mfa_enrollment',
+            ], 'secread');
+
+            return Json::response($response, [
+                'error'    => 'MFA enrollment required',
+                'required' => 'mfa_enrollment',
+            ], 403);
         }
     }
 
     // Recorded like the failures, and with the same care: the token this call
     // is about to issue is a credential, so it is not written here any more
     // than the password was.
-    History::recordSecurityEvent('login_succeeded', $request, (int) $user[0]['id'], [
-        'username'  => (string) $username,
+    History::recordSecurityEvent('login_succeeded', $request, (int) $user['id'], [
+        'username'  => (string) $user['username'],
         'mfa'       => $needsTotp ? 'verified' : ($hasTotp ? 'skipped on a safe network' : 'not configured'),
     ], 'login');
 
     return Json::response($response, Auth::issueToken([
-        'id'            => $user[0]['id'],
-        'role'          => $user[0]['role'],
-        'reseller_id'   => (int) $user[0]['reseller_id'],
-        'reseller_name' => $user[0]['reseller_name'],
-        'username'      => $user[0]['username'],
+        'id'            => $user['id'],
+        'role'          => $user['role'],
+        'reseller_id'   => (int) $user['reseller_id'],
+        'reseller_name' => $user['reseller_name'],
+        'username'      => $user['username'],
         'has_totp'      => $hasTotp,
         'needs_totp'    => $needsTotp,
         'totp_verified' => $hasTotp,
-        'debug'         => (bool) $user[0]['debug'],
-        'max_token_age'   => $user[0]['max_token_age'],
-        'max_idle_time'   => $user[0]['max_idle_time'],
+        'debug'         => (bool) $user['debug'],
+        'max_token_age'   => $user['max_token_age'],
+        'max_idle_time'   => $user['max_idle_time'],
         'registry'        => EppSettings::environment(),
     ]));
+};
+
+$app->post('/v1/users/authenticate', function (Request $request, Response $response, array $args) use ($checkCredentials, $continueLogin): Response {
+    [$user, $failure] = $checkCredentials($request, $response);
+    return $failure ?? $continueLogin($request, $response, $user);
+});
+
+$app->post('/v1/users/authenticate/password', function (Request $request, Response $response, array $args) use ($checkCredentials, $continueLogin): Response {
+    [$user, $failure] = $checkCredentials($request, $response);
+    if ($failure !== null) {
+        return $failure;
+    }
+    if ((int) $user['must_change_password'] !== 1) {
+        return Json::response($response, ['error' => 'No password change is pending'], 400);
+    }
+
+    $params      = $request->getParsedBody() ?? [];
+    $newPassword = (string) ($params['new_password'] ?? '');
+    if ($newPassword === '') {
+        return Json::response($response, ['error' => 'Please provide a new password'], 400);
+    }
+    if ( ! PasswordPolicy::isAcceptable($newPassword)) {
+        return Json::response($response, [
+            'error'           => PasswordPolicy::explain($newPassword),
+            'password_policy' => PasswordPolicy::describe(),
+        ], 400);
+    }
+    if (password_verify($newPassword, $user['password'])) {
+        return Json::response($response, ['error' => 'The new password must differ from the current one'], 400);
+    }
+
+    R::exec('UPDATE users SET password = ?, must_change_password = 0 WHERE id = ?', [
+        password_hash($newPassword, PASSWORD_DEFAULT),
+        (int) $user['id'],
+    ]);
+    $user['must_change_password'] = 0;
+
+    History::record('users', (int) $user['id'], 'update', ['password' => 'PASSWORD_CHANGED', 'must_change_password' => 0], (int) $user['id']);
+    History::recordSecurityEvent('password_changed', $request, (int) $user['id'], [
+        'username' => (string) $user['username'],
+    ], 'rotate');
+
+    return $continueLogin($request, $response, $user);
+});
+
+/**
+ * Whether $user still owes an MFA enrollment that may be done now: the
+ * password requirement comes first, and an enrolled user has nothing to do.
+ */
+$mfaEnrollmentPending = static function (array $user): bool {
+    return (int) $user['must_enroll_mfa'] === 1
+        && (int) $user['must_change_password'] !== 1
+        && empty($user['totp_secret']);
+};
+
+$app->post('/v1/users/authenticate/mfa', function (Request $request, Response $response, array $args) use ($checkCredentials, $mfaEnrollmentPending): Response {
+    [$user, $failure] = $checkCredentials($request, $response);
+    if ($failure !== null) {
+        return $failure;
+    }
+    if ( ! $mfaEnrollmentPending($user)) {
+        return Json::response($response, ['error' => 'No MFA enrollment is pending'], 400);
+    }
+
+    $totp = Auth::totpGenerate($user['username']);
+    R::exec('UPDATE users SET totp_secret_pending = ? WHERE id = ?', [$totp['secret'], (int) $user['id']]);
+
+    return Json::response($response, ['secret' => $totp['secret'], 'uri' => $totp['uri']]);
+});
+
+$app->put('/v1/users/authenticate/mfa', function (Request $request, Response $response, array $args) use ($checkCredentials, $continueLogin, $mfaEnrollmentPending): Response {
+    [$user, $failure] = $checkCredentials($request, $response);
+    if ($failure !== null) {
+        return $failure;
+    }
+    if ( ! $mfaEnrollmentPending($user)) {
+        return Json::response($response, ['error' => 'No MFA enrollment is pending'], 400);
+    }
+
+    $pending = (string) R::getCell('SELECT totp_secret_pending FROM users WHERE id = ?', [(int) $user['id']]);
+    if ($pending === '') {
+        return Json::response($response, ['error' => 'No pending TOTP setup found'], 400);
+    }
+
+    $params   = $request->getParsedBody() ?? [];
+    $totpCode = (string) ($params['totp'] ?? '');
+    if ($totpCode === '') {
+        return Json::response($response, ['error' => 'MFA code required'], 401);
+    }
+    if ( ! Auth::totpVerify($pending, $totpCode)) {
+        History::recordSecurityEvent('login_failed', $request, (int) $user['id'], [
+            'username' => (string) $user['username'],
+            'reason'   => 'wrong MFA code',
+        ], 'denied');
+
+        return Json::response($response, ['error' => 'Invalid MFA code'], 401);
+    }
+
+    R::exec('UPDATE users SET totp_secret = totp_secret_pending, totp_secret_pending = NULL, must_enroll_mfa = 0 WHERE id = ?', [
+        (int) $user['id'],
+    ]);
+    $user['totp_secret']     = $pending;
+    $user['must_enroll_mfa'] = 0;
+
+    History::record('users', (int) $user['id'], 'update', ['has_totp' => true, 'must_enroll_mfa' => 0], (int) $user['id']);
+
+    return $continueLogin($request, $response, $user);
 });
 
 /**
@@ -340,6 +485,8 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
         'max_token_age'  => $params['max_token_age'] ?? $current['max_token_age'],
         'max_idle_time'  => $params['max_idle_time'] ?? $current['max_idle_time'],
         'debug'          => (int) ($params['debug'] ?? $current['debug']),
+        'must_change_password' => (int) ($params['must_change_password'] ?? $current['must_change_password']),
+        'must_enroll_mfa'      => (int) ($params['must_enroll_mfa'] ?? $current['must_enroll_mfa']),
     ];
     // the password column is only touched when a new one was actually supplied
     if ( ! empty($params['password'])) {
@@ -412,10 +559,12 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     R::exec("
         INSERT INTO users (
             reseller_id, role, description, username, password, email,
-            notify_enabled, active, max_token_age, max_idle_time, debug
+            notify_enabled, active, max_token_age, max_idle_time, debug,
+            must_change_password, must_enroll_mfa
         ) VALUES (
             :reseller_id, :role, :description, :username, :password, :email,
-            :notify_enabled, :active, :max_token_age, :max_idle_time, :debug
+            :notify_enabled, :active, :max_token_age, :max_idle_time, :debug,
+            :must_change_password, :must_enroll_mfa
         )
     ", [
         ':reseller_id'    => $resellerId,
@@ -430,6 +579,8 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
         ':max_token_age'  => $params['max_token_age'] ?? null,
         ':max_idle_time'  => $params['max_idle_time'] ?? null,
         ':debug'          => (int) ($params['debug'] ?? 0),
+        ':must_change_password' => (int) ($params['must_change_password'] ?? 0),
+        ':must_enroll_mfa'      => (int) ($params['must_enroll_mfa'] ?? 0),
     ]);
 
     $id = R::getInsertID();
