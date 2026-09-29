@@ -9,6 +9,7 @@ use Eppitnic\Epp\Contact;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\Scope;
 use Eppitnic\Service\CronjobSettings;
+use Eppitnic\Support\Idn;
 use RedBeanPHP\R;
 
 /**
@@ -86,12 +87,22 @@ final class DomainSyncCommand extends Command
                     }
                     continue;
                 }
-                $results = $answer->all();
+                // the registry may answer in another case or spelling than stored
+                $results = [];
+                foreach ($answer->all() as $answered => $result) {
+                    $results[Idn::ascii(strtolower($answered))] = $result;
+                }
 
                 foreach ($chunk as $row) {
                     $name = $row['domain'];
 
-                    if ($results[$name]['available'] ?? true) {
+                    $result = $results[Idn::ascii(strtolower($name))] ?? null;
+                    if ($result === null) {
+                        // unanswered is not "gone"
+                        $this->itemFailed($name, 'missing from the availability answer');
+                        continue;
+                    }
+                    if ($result['available']) {
                         $gone++;
                         $this->record("{$name}: no longer at the registry", [
                             'domain' => $name, 'result' => 'unregistered',

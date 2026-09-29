@@ -327,6 +327,39 @@ final class DomainSyncCommandTest extends EppTestCase
         $this->assertSame(1, (int) R::getCell('SELECT active FROM domains WHERE domain = ?', ['gone.it']));
     }
 
+    public function testANameMissingFromTheAnswerIsAFailedCheckNotAGoneDomain(): void {
+        $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
+        $this->seedDomain('silent.it');
+
+        $command = new DomainSyncCommand([]);
+        $output = $this->withRegistry($command, [$this->checkResponse(['other.it' => false])], function () use ($command) {
+            $this->assertSame(DOMAIN_FETCH_FAILED, $command->run());
+        });
+
+        $this->assertStringNotContainsString('no longer at the registry', $output);
+        $this->assertStringContainsString('1 failure(s)', $output);
+        $this->assertSame(1, (int) R::getCell('SELECT active FROM domains WHERE domain = ?', ['silent.it']));
+    }
+
+    public function testNamesMatchTheAnswerRegardlessOfCaseAndIdnForm(): void {
+        $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
+        $this->seedDomain("caff\u{00e8}.it");
+        $this->seedDomain('Mixed.IT');
+
+        $command = new DomainSyncCommand([]);
+        $answer = $this->checkResponse(['xn--caff-8oa.it' => false, 'mixed.it' => false]);
+        $output = $this->withRegistry($command, [
+            $answer, $this->infoResponse('xn--caff-8oa.it'), $this->infoResponse('mixed.it'),
+            CommandCatalog::CONTACT_INFO_RESPONSE, CommandCatalog::CONTACT_INFO_RESPONSE,
+            CommandCatalog::CONTACT_INFO_RESPONSE,
+        ], function () use ($command) {
+            $command->run();
+        });
+
+        $this->assertStringContainsString('0 gone', $output);
+        $this->assertStringContainsString('0 failure(s)', $output);
+    }
+
     public function testADriftedDomainIsReconciled(): void {
         $this->withSettings(['enabled' => true, 'batch_size' => 25, 'cursor_id' => 0]);
         $this->seedDomain('drifted.it'); // admin defaults to ADMIN123ADMIN456
