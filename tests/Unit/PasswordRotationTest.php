@@ -186,6 +186,37 @@ final class PasswordRotationTest extends EppTestCase
     }
 
     /**
+     * A login that gets no parsable answer may still have landed: the
+     * candidate stays for reconcile() instead of being thrown away.
+     */
+    public function testAnUnansweredLoginKeepsTheCandidate(): void {
+        RegistryPasswordChange::useClientFactory(function (): Client {
+            $client = new Client();
+            $transport = new FakeTransport();
+            $client->setTransport($transport);
+            $transport->queue(CommandCatalog::GREETING_RESPONSE);
+            $transport->queue('');
+            return $client;
+        });
+
+        $outcome = RegistryPasswordChange::apply('new-password');
+
+        $this->assertFalse($outcome['ok']);
+        $this->assertSame('unknown', $outcome['stage']);
+        $this->assertStringContainsString('unknown', $outcome['error']);
+        $this->assertSame('new-password', Config::get('epp')['pendingPassword']);
+    }
+
+    public function testARefusedLoginClearsTheCandidate(): void {
+        $this->livePassword = 'something-else';
+
+        $outcome = RegistryPasswordChange::apply('new-password');
+
+        $this->assertSame('registry', $outcome['stage']);
+        $this->assertArrayNotHasKey('pendingPassword', Config::get('epp'));
+    }
+
+    /**
      * apply()'s second argument is what every operator-driven change must pass:
      * `lastPasswordUpdate` is the once-per-24h guard rotateOnReminder() reads,
      * so omitting it lets a rotation follow a manual change moments later.

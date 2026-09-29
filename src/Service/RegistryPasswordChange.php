@@ -117,7 +117,8 @@ final class RegistryPasswordChange
      * @param string $trigger 'manual' or 'reminder' (poll process), for the record
      * @param int|null $userId who asked for it; null for the automatic rotation
      * @return array{ok: bool, error: string, stage: string} stage is 'persist'
-     *         (nothing was sent), 'connect', 'registry', or '' on success
+     *         (nothing was sent), 'connect', 'registry' (refused), 'unknown'
+     *         (no parsed answer; the candidate is kept), or '' on success
      */
     public static function apply(?string $newPassword = null, bool $stampAttempt = false,
                                  string $trigger = 'manual', ?int $userId = null): array {
@@ -145,6 +146,13 @@ final class RegistryPasswordChange
         }
         if ($session->login($newPassword) === FALSE) {
             $error = $session->getError();
+            // Only a parsed 2xxx result is a refusal. Anything else (timeout,
+            // empty or unparseable answer) may have landed: reconcile() decides
+            if ( ! preg_match('/^2\d{3}$/', (string) $session->svCode)) {
+                return ['ok' => false, 'stage' => 'unknown',
+                        'error' => 'the outcome of the password change is unknown (' . $error
+                            . '); the candidate is kept and reconcile() will settle it'];
+            }
             self::clearPending();
             return ['ok' => false, 'stage' => 'registry',
                     'error' => 'registry rejected the password change (' . $error . ')'];

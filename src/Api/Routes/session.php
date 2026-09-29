@@ -272,7 +272,7 @@ $app->post('/v1/session/change-password', function (Request $request, Response $
 
     if ( ! $outcome['ok']) {
         $status = match ($outcome['stage']) {
-            'connect'  => 502,
+            'connect', 'unknown' => 502,
             'registry' => 400,
             default    => 500,
         };
