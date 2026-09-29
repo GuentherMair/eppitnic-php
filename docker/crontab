@@ -6,16 +6,9 @@
 # it on (and, for `poll process`, off -- it's the only thing that acts on
 # the registry's passwdReminder, on by default, but the operator's call).
 #
-# EPPITNIC_CONFIG_DIR/EPPITNIC_VAR_DIR are set as image ENV (see the
-# Dockerfile) and would normally just be inherited, but cron implementations
-# differ in what environment they hand a job -- vixie-style cron resets it to
-# a fixed minimal set, and only variables declared in the crontab itself
-# survive that. BusyBox crond's actual behaviour here isn't verified (no
-# Docker on this machine to check), so they're declared explicitly below
-# rather than assumed inherited. Do not "tidy up" this duplication with the
-# Dockerfile's ENV -- without it, `cron run` looks for /app/config/config.php,
-# finds nothing, and fails every minute: a scheduler that's silently broken
-# on an otherwise healthy stack.
+# Repeated from the Dockerfile's ENV on purpose: cron may hand a job a reset
+# environment, and without them `cron run` looks for /app/config/config.php and
+# fails every minute. Do not "tidy up" this duplication.
 EPPITNIC_CONFIG_DIR=/data/config
 EPPITNIC_VAR_DIR=/data/var
 

@@ -98,8 +98,7 @@ final class Config
     }
 
     /**
-     * persist + keep the in-process cache consistent (used by EPP password
-     * rotation)
+     * persist a setting and keep the in-process cache consistent
      *
      * @param string $key setting name
      * @param mixed $value new value

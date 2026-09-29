@@ -245,7 +245,7 @@ class Contact extends AbstractObject
   /**
    * set consent for publishing
    *
-   * @return string "true"
+   * @return int|false 1, or FALSE when consent was already set
    */
   public function setConsent(): bool|int {
     if ($this->consentforpublishing == 1) {
@@ -259,7 +259,8 @@ class Contact extends AbstractObject
   /**
    * unset consent for publishing
    *
-   * @return string "false"
+   * @return int|false 0 (compare with === FALSE), or FALSE when consent was
+   *                   already unset
    */
   public function unsetConsent(): bool|int {
     if ($this->consentforpublishing == 0) {

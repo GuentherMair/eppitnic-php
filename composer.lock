@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "43955a1fe973d51f616db44355cca84a",
+    "content-hash": "39dd331f59bbb6a1ec33c2534519845f",
     "packages": [
         {
             "name": "algo26-matthias/idna-convert",
@@ -231,49 +231,6 @@
                 "source": "https://github.com/gabordemooij/redbean/tree/v5.7.6"
             },
             "time": "2026-04-30T15:47:40+00:00"
-        },
-        {
-            "name": "hexmode/io-mode",
-            "version": "1.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/hexmode/IOMode.git",
-                "reference": "fe167584f949a82695510b1497ec8c4a017bb8b4"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/hexmode/IOMode/zipball/fe167584f949a82695510b1497ec8c4a017bb8b4",
-                "reference": "fe167584f949a82695510b1497ec8c4a017bb8b4",
-                "shasum": ""
-            },
-            "require-dev": {
-                "jakub-onderka/php-parallel-lint": "dev-master",
-                "mediawiki/mediawiki-codesniffer": "dev-master",
-                "phpunit/phpunit": "~8.0",
-                "vimeo/psalm": "^3.2"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "Hexmode\\IOMode\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "GPL-3.0-or-later"
-            ],
-            "authors": [
-                {
-                    "name": "Mark A. Hershberger",
-                    "email": "mah@nichework.com"
-                }
-            ],
-            "description": "More info than posix_isatty()",
-            "support": {
-                "issues": "https://github.com/hexmode/IOMode/issues",
-                "source": "https://github.com/hexmode/IOMode/tree/master"
-            },
-            "time": "2019-06-23T22:46:27+00:00"
         },
         {
             "name": "jakeasmith/http_build_url",
@@ -3122,6 +3079,8 @@
         "ext-posix": "*",
         "ext-intl": "*"
     },
-    "platform-dev": {},
+    "platform-dev": {
+        "ext-pdo_sqlite": "*"
+    },
     "plugin-api-version": "2.9.0"
 }

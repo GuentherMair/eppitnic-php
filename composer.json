@@ -1,6 +1,6 @@
 {
     "name": "inet-services/eppitnic",
-    "description": "PHP library for the EPP interface of the Italian domain registry (nic.it)",
+    "description": "REST API and command line for registrars of the Italian domain registry (nic.it), over EPP",
     "license": "BSD-3-Clause",
     "require": {
         "php": ">=8.1",
@@ -17,7 +17,6 @@
         "slim/slim": "^4.0",
         "slim/psr7": "^1.8",
         "firebase/php-jwt": "^7.1",
-        "hexmode/io-mode": "^1.0",
         "spomky-labs/otphp": "^11.0",
         "phpmailer/phpmailer": "^7.1"
     },
@@ -30,6 +29,7 @@
         ]
     },
     "require-dev": {
+        "ext-pdo_sqlite": "*",
         "phpunit/phpunit": "^11"
     },
     "autoload-dev": {

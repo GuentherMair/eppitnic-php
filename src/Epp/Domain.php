@@ -860,9 +860,7 @@ class Domain extends AbstractObject
    * being a foreign key onto it.
    *
    * @param int|null $actorId the acting user, for history (null: a job)
-   * @param bool $notifyDNS fire the DNS-sync 'create' event (default yes; a
-   *                     requested-but-not-yet-completed transfer-in passes
-   *                     false here, since we don't operate the zone yet)
+   * @param bool $notifyDNS fire the DNS-sync 'create' event (default yes)
    * @return bool status
    */
   public function storeDB(?int $actorId, bool $notifyDNS = true): bool {

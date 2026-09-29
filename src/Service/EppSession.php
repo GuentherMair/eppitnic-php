@@ -108,12 +108,4 @@ final class EppSession
             throw new \RuntimeException('EPP session unavailable: login failed (' . $session->getError() . ')');
         }
     }
-
-    /**
-     * A test seam, not a configuration point: production leaves it null and
-     * gets a fresh Client per call, which the rotation needs anyway.
-     *
-     * @var callable():Client|null
-     */
-    private static $eppClientFactory = null;
 }

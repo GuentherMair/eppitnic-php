@@ -40,6 +40,8 @@ foreach (['root', 'network_check', 'users', 'user_settings', 'resellers', 'sessi
 
 // run application
 try {
+  // inside the try: a database outage answers the JSON 500 below
+  date_default_timezone_set(Config::get('region')['timezone']);
   $app->run();
 } catch (\Throwable $e) {
   // \Throwable, not \Exception -- a \Throwable also catches \Error

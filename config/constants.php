@@ -27,7 +27,6 @@ if ( ! defined('DATA_INCONSISTENT')) define('DATA_INCONSISTENT', 6);  // a check
 // session exit codes (10-19)
 if ( ! defined('HELLO_FAILED'))           define('HELLO_FAILED', 10);
 if ( ! defined('LOGIN_FAILED'))           define('LOGIN_FAILED', 11);
-if ( ! defined('LOGOUT_FAILED'))          define('LOGOUT_FAILED', 12);
 if ( ! defined('POLL_FAILED'))            define('POLL_FAILED', 13);
 if ( ! defined('CHANGE_PASSWORD_FAILED')) define('CHANGE_PASSWORD_FAILED', 14);
 
@@ -36,11 +35,9 @@ if ( ! defined('DOMAIN_CREATE_FAILED'))   define('DOMAIN_CREATE_FAILED', 20);
 if ( ! defined('DOMAIN_FETCH_FAILED'))    define('DOMAIN_FETCH_FAILED', 21);
 if ( ! defined('DOMAIN_UPDATE_FAILED'))   define('DOMAIN_UPDATE_FAILED', 22);
 if ( ! defined('DOMAIN_DELETE_FAILED'))   define('DOMAIN_DELETE_FAILED', 23);
-if ( ! defined('DOMAIN_STORE_FAILED'))    define('DOMAIN_STORE_FAILED', 24);
 if ( ! defined('DOMAIN_CHECK_FAILED'))    define('DOMAIN_CHECK_FAILED', 25);
 if ( ! defined('DOMAIN_RESTORE_FAILED'))  define('DOMAIN_RESTORE_FAILED', 26);
 if ( ! defined('DOMAIN_TRANSFER_FAILED')) define('DOMAIN_TRANSFER_FAILED', 27);
-if ( ! defined('DOMAIN_EXPORT_FAILED'))   define('DOMAIN_EXPORT_FAILED', 28);
 if ( ! defined('DOMAIN_IMPORT_FAILED'))   define('DOMAIN_IMPORT_FAILED', 29);
 
 // contact exit codes (30-39)
@@ -48,7 +45,6 @@ if ( ! defined('CONTACT_CREATE_FAILED')) define('CONTACT_CREATE_FAILED', 30);
 if ( ! defined('CONTACT_FETCH_FAILED'))  define('CONTACT_FETCH_FAILED', 31);
 if ( ! defined('CONTACT_UPDATE_FAILED')) define('CONTACT_UPDATE_FAILED', 32);
 if ( ! defined('CONTACT_DELETE_FAILED')) define('CONTACT_DELETE_FAILED', 33);
-if ( ! defined('CONTACT_STORE_FAILED'))  define('CONTACT_STORE_FAILED', 34);
 if ( ! defined('CONTACT_CHECK_FAILED'))  define('CONTACT_CHECK_FAILED', 35);
 
 // dns exit codes (40-49)

@@ -54,6 +54,9 @@ use RedBeanPHP\R;
 
 abstract class AbstractObject
 {
+  /** the code setError() records for an error that never reached the registry */
+  protected const LOCAL_ERROR = "0000";
+
   protected $client;
 
   /**
@@ -187,9 +190,10 @@ abstract class AbstractObject
    * set error code and message
    *
    * @param string $msg error message
-   * @param string $code 4-digit error code
+   * @param string $code 4-digit error code; the default marks an error found
+   *                     here, before any registry answer
    */
-  protected function setError(string $msg, string $code = "0000"): void {
+  protected function setError(string $msg, string $code = self::LOCAL_ERROR): void {
     $this->svMsg = $msg;
     $this->svCode = $code;
   }
@@ -204,7 +208,9 @@ abstract class AbstractObject
 
     // only try to set a message text if we got a EPP error message
     if ( ! empty($this->svCode)) {
-      $msg = " EPP code '".$this->svCode."': ".$this->svMsg;
+      $msg = $this->svCode === self::LOCAL_ERROR
+        ? $this->svMsg
+        : " EPP code '".$this->svCode."': ".$this->svMsg;
       if ( ! empty($this->extValueReason)) {
         $msg .= " / extended reason '".$this->extValueReasonCode."': ".$this->extValueReason;
       }
