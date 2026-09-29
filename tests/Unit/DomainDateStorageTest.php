@@ -64,4 +64,19 @@ final class DomainDateStorageTest extends EppTestCase
         $row = R::getRow("SELECT cr_date, ex_date FROM domains WHERE domain = 'example.it'");
         $this->assertSame(['cr_date' => '2026-09-27', 'ex_date' => '2027-09-27'], $row);
     }
+
+    public function testStoreKeepsTheRowIdAndLastInvoice(): void {
+        // a later row, so a re-inserted example.it could not get its id back
+        R::exec("INSERT INTO domains (domain, reseller_id, registrant) VALUES ('other.it', 1, 'REG1')");
+        R::exec("UPDATE domains SET active = 0, last_invoice = '2026-01-01 00:00:00' WHERE domain = 'example.it'");
+        $id = (int) R::getCell("SELECT id FROM domains WHERE domain = 'example.it'");
+
+        $this->assertTrue($this->fetchedDomain()->storeDB(1, false));
+
+        $row = R::getRow("SELECT id, active, last_invoice FROM domains WHERE domain = 'example.it'");
+        $this->assertSame($id, (int) $row['id']);
+        $this->assertSame(1, (int) $row['active']);
+        $this->assertSame('2026-01-01 00:00:00', $row['last_invoice']);
+        $this->assertSame(2, (int) R::getCell("SELECT COUNT(*) FROM domains"));
+    }
 }

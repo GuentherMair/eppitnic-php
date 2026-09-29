@@ -890,16 +890,15 @@ class Domain extends AbstractObject
     $data['cr_date'] = self::dateOnly($this->crDate);
     $data['ex_date'] = self::dateOnly($this->exDate);
 
-    // replaced rather than updated (re-transfer-in / re-register / re-import),
-    // preserving last_invoice
-    $row = R::getRow("SELECT last_invoice FROM domains WHERE domain = ?", [$this->domain]);
-    if ( ! empty($row)) {
-      $data['last_invoice'] = $row['last_invoice'];
-      R::exec("DELETE FROM domains WHERE domain = ?", [$this->domain]);
-    }
-
+    // re-transfer-in / re-register / re-import: an existing row is rewritten
+    // in place, keeping its id (history, tasks) and last_invoice
     $data['reseller_id'] = self::resellerOf($this->registrant);
-    if ( ! $this->storageInsert($data, $this->domain)) {
+    if (R::getCell("SELECT id FROM domains WHERE domain = ?", [$this->domain])) {
+      $data['active'] = 1;
+      if ( ! $this->storageUpdate($this->domain, $data, Scope::operator((int) $actorId))) {
+        return FALSE;
+      }
+    } elseif ( ! $this->storageInsert($data, $this->domain)) {
       return FALSE;
     }
 
