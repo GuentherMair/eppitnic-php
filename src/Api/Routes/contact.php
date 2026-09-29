@@ -153,7 +153,7 @@ $app->patch('/v1/contacts/{handle}', function (Request $request, Response $respo
     $handle = $args['handle'];
     $params = $request->getParsedBody() ?? [];
 
-    if ( ! Access::canAccessContact($handle, $scope)) {
+    if ( ! Access::ownsContact($handle, $scope)) {
         return Json::response($response, ['error' => 'You are not authorized to update this contact'], 403);
     }
     if ($err = Validate::maxLength($params, Validate::CONTACT_FIELD_MAX_LENGTHS)) {
