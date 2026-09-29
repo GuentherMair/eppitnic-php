@@ -105,8 +105,9 @@ class PollProcessor
 
   /**
    * Reconcile transfer state from the unarchived poll messages: outgoing
-   * transfers deactivate locally, pending ones are noted, and open incoming
-   * requests are completed, rejected or left. Needs a logged-in session.
+   * transfers deactivate locally, pending ones on our own transfer-ins are
+   * noted, and open incoming requests are completed, rejected, cancelled or
+   * left. A transfer-out request stays in the queue. Needs a logged-in session.
    *
    * @return array human-readable log lines
    */
@@ -116,6 +117,7 @@ class PollProcessor
     $messages = R::getAll("SELECT * FROM messages WHERE archived_time IS NULL AND type LIKE '%Transfer'");
     $transferIn = [];
     $transferInRejected = [];
+    $transferInCancelled = [];
     $transferOut = [];
     $transferOutstanding = [];
     foreach ($messages as $msg) {
@@ -136,14 +138,24 @@ class PollProcessor
         case "clientApprovedTransfer":
           $transferIn[$msg['domain']] = $msg;
           break;
+        case "clientCancelledTransfer":
+        case "serverCancelledTransfer":
+          $transferInCancelled[$msg['domain']] = $msg;
+          break;
         case "pendingTransfer":
           $transferOutstanding[$msg['domain']] = $msg;
           break;
       }
     }
 
-    // 1. OPEN TRANSFERS -- nothing to do but acknowledge we've seen them
+    // 1. OPEN TRANSFERS -- acknowledge those on our own transfer-ins; a
+    // request from another registrar for one of our domains needs a person
+    $ownTransferIns = R::getCol("SELECT domain FROM transfers WHERE status = 'pending'");
     foreach ($transferOutstanding as $transfer) {
+      if ( ! in_array($transfer['domain'], $ownTransferIns, true)) {
+        $log[] = "'{$transfer['domain']}' pendingTransfer is a request for our domain, left in the queue";
+        continue;
+      }
       $log[] = "'{$transfer['domain']}' pendingTransfer noted";
       R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$transfer['id']]);
     }
@@ -167,7 +179,7 @@ class PollProcessor
     $transfers = R::getAll("
       SELECT t.id, t.domain, t.techc, t.dns
       FROM transfers t, contacts c
-      WHERE t.registrant = c.handle");
+      WHERE t.registrant = c.handle AND t.status = 'pending'");
 
     foreach ($transfers as $transfer) {
       $log[] = "verifying '{$transfer['domain']}' (transfer-in)";
@@ -185,6 +197,9 @@ class PollProcessor
       } else if (isset($transferInRejected[$transfer['domain']])) {
         $trStatus = $transferInRejected[$transfer['domain']]['type'];
         $archiveMsg = $transferInRejected[$transfer['domain']]['id'];
+      } else if (isset($transferInCancelled[$transfer['domain']])) {
+        $trStatus = $transferInCancelled[$transfer['domain']]['type'];
+        $archiveMsg = $transferInCancelled[$transfer['domain']]['id'];
       } else if ($this->domain->transferStatus($transfer['domain'])) {
         $trStatus = $this->domain->get('trStatus');
       } else {
@@ -223,18 +238,23 @@ class PollProcessor
             $name = is_array($newNS) ? ($newNS['name'] ?? '') : $newNS;
             if ($name === '') continue;
             $allNS[$name] = $name;
-            $this->domain->addNS($name, isset($newNS['ip']) ? [$newNS['ip']] : null);
+            $this->domain->addNS($name, isset($newNS['ip']) ? (array) $newNS['ip'] : null);
           }
           foreach ($currentNS as $existing) {
             if ( ! in_array($existing, $allNS)) $this->domain->remNS($existing);
           }
 
-          $this->domain->update();
+          if ($this->domain->hasChanges() && ! $this->domain->update()) {
+            $log[] = "  couldn't apply the requested contacts/nameservers: " . $this->domain->getError();
+          }
 
           // transfer-in completing counts as a DNS-sync 'create' event
           // (storeDB() fires it); done by this job, not by a person, and it
           // lands in its registrant's reseller like any other domain
-          $this->domain->storeDB(null);
+          if ( ! $this->domain->storeDB(null)) {
+            $log[] = "  couldn't store domain locally, will retry next run: " . $this->domain->getError();
+            break;
+          }
 
           if ($archiveMsg !== false) {
             R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$archiveMsg]);
@@ -245,6 +265,9 @@ class PollProcessor
         case "clientRejected":
         case "clientRejectedTransfer":
         case "clientCancelled":
+        case "clientCancelledTransfer":
+        case "serverCancelled":
+        case "serverCancelledTransfer":
           $log[] = "  transfer is '{$trStatus}', removing transfer note";
           if ($archiveMsg !== false) {
             R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$archiveMsg]);

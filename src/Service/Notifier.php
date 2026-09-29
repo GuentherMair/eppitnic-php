@@ -48,6 +48,7 @@ final class Notifier
         'clientApprovedTransfer',
         'clientRejectedTransfer',
         'clientCancelledTransfer',
+        'serverCancelledTransfer',
         'serverApprovedTransfer',
         'pendingTransfer',
         'unknown',
