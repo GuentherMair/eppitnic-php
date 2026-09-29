@@ -116,6 +116,27 @@ final class ErrorResponseTest extends TestCase
     }
 
     /**
+     * Tokens and credentials must not be cached, with or without an Origin,
+     * on success and on error alike.
+     */
+    #[DataProvider('cacheProbes')]
+    public function testEveryResponseIsUncacheable(string $method, string $path): void {
+        $response = $this->request($method, $path);
+
+        $this->assertSame('no-store, no-cache, must-revalidate, max-age=0', $response->getHeaderLine('Cache-Control'));
+        $this->assertSame('no-cache', $response->getHeaderLine('Pragma'));
+    }
+
+    public static function cacheProbes(): array {
+        return [
+            'success'   => ['GET', '/'],
+            '401'       => ['GET', '/v1/domains'],
+            '404'       => ['GET', '/v1/no-such-route'],
+            '405'       => ['PATCH', '/v1/users'],
+        ];
+    }
+
+    /**
      * A route that succeeds must be unaffected by any of this.
      */
     public function testSuccessfulRouteStillWorks(): void {

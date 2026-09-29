@@ -115,8 +115,6 @@ final class Middleware
                     ->withHeader('Access-Control-Allow-Headers', implode(', ', Config::get('allowed_headers')))
                     ->withHeader('Access-Control-Allow-Methods', implode(', ', Config::get('allowed_methods')))
                     ->withHeader('Access-Control-Expose-Headers', 'Content-Disposition') // filename=".."
-                    ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                    ->withHeader('Pragma', 'no-cache')
                     ->withHeader('Vary', 'Origin'); // important in case of dynamic origins!
             }
 
@@ -125,6 +123,14 @@ final class Middleware
             }
 
             return $response;
+        });
+
+        // Outermost: tokens and credentials are never cacheable, whatever
+        // the origin or status
+        $app->add(function (Request $request, RequestHandler $handler): Response {
+            return $handler->handle($request)
+                ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                ->withHeader('Pragma', 'no-cache');
         });
     }
 }
