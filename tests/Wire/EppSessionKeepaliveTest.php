@@ -104,8 +104,17 @@ final class EppSessionKeepaliveTest extends EppTestCase
         $this->keepaliveOn(time(), serialize: true);
         $this->transport->queue(CommandCatalog::OK_RESPONSE);
 
-        $this->assertTrue($this->runOnePoll());
+        $log = tempnam(sys_get_temp_dir(), 'eppitnic-errlog-');
+        $previous = ini_set('error_log', $log);
+        try {
+            $this->assertTrue($this->runOnePoll());
+        } finally {
+            ini_set('error_log', $previous === false ? '' : $previous);
+        }
+        $logged = (string) file_get_contents($log);
+        unlink($log);
 
+        $this->assertStringContainsString('EPP session lock not obtained', $logged);
         $this->assertCount(1, $this->transport->requests);
         $this->assertStringContainsString('<poll', $this->transport->requests[0]);
     }

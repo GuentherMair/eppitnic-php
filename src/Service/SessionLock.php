@@ -65,8 +65,9 @@ final class SessionLock
             $acquired = false;
         }
         if ( ! $acquired) {
-            fwrite(STDERR, "EPP session lock not obtained within " . self::WAIT_SECONDS .
-                "s; proceeding without it -- a concurrent command may still be in flight\n");
+            // STDERR is not defined outside the CLI SAPI
+            error_log("EPP session lock not obtained within " . self::WAIT_SECONDS .
+                "s; proceeding without it -- a concurrent command may still be in flight");
         }
 
         self::$depth++;
