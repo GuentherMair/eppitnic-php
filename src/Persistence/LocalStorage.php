@@ -93,6 +93,23 @@ trait LocalStorage
     }
 
     /**
+     * Whether the row exists within the caller's scope -- checked before a
+     * write rather than read off its affected-row count, which MariaDB
+     * reports as 0 for a row the write left unchanged.
+     *
+     * @param string $extraWhere an additional condition, bound by $extraParams
+     */
+    private function storageExists(string $key, Scope $scope, string $extraWhere = '', array $extraParams = []): bool {
+        $params = [':key' => $key] + $extraParams;
+        $sql = 'SELECT COUNT(*) FROM ' . static::storageTable()
+             . ' WHERE ' . static::storageKeyColumn() . ' = :key'
+             . $extraWhere
+             . $this->storageScope($params, $scope);
+
+        return (int) R::getCell($sql, $params) > 0;
+    }
+
+    /**
      * Copy a row onto this object's declared properties.
      *
      * Columns with no matching property are skipped, which is what keeps
@@ -124,7 +141,8 @@ trait LocalStorage
      * @param string $logAction the history action; a restore logs as 'update',
      *               since the history enum has no 'restore'
      * @param string $extraWhere an additional condition, e.g. the check that a
-     *               contact is not still some domain's registrant
+     *               contact is not still some domain's registrant; failing
+     *               it is an error too, not a silent no-op
      */
     private function storageSetActive(
         string $key,
@@ -135,6 +153,15 @@ trait LocalStorage
         string $extraWhere = '',
         array $extraParams = []
     ): bool {
+        if ( ! $this->storageExists($key, $scope)) {
+            $this->setError(static::storageNoun() . " '{$key}' not found");
+            return false;
+        }
+        if ($extraWhere !== '' && ! $this->storageExists($key, $scope, $extraWhere, $extraParams)) {
+            $this->setError(static::storageNoun() . " '{$key}' is still in use");
+            return false;
+        }
+
         $params = [':key' => $key] + $extraParams;
         $sql = 'UPDATE ' . static::storageTable() . ' SET active = ' . $active
              . ' WHERE ' . static::storageKeyColumn() . ' = :key'
@@ -157,6 +184,11 @@ trait LocalStorage
      * @param array $data column => value
      */
     private function storageUpdate(string $key, array $data, Scope $scope): bool {
+        if ( ! $this->storageExists($key, $scope)) {
+            $this->setError(static::storageNoun() . " '{$key}' not found");
+            return false;
+        }
+
         $set = [];
         $params = [':key' => $key];
         foreach ($data as $column => $value) {
