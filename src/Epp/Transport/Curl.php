@@ -42,12 +42,14 @@ namespace Eppitnic\Epp\Transport;
 
 class Curl implements Transport
 {
+  /** seconds for the whole request, and for connecting alone */
+  private const TIMEOUT = 30;
+  private const CONNECT_TIMEOUT = 10;
+
   protected $_useragent = 'PHP Eppitnic\Epp\Transport\Curl 1.1';
   protected $_url;
   protected $_port;
   protected $_certFile;
-  protected $_authName;
-  protected $_authPass;
 
   /**
    * The cookie jar, in process memory rather than a file -- see the class
@@ -58,14 +60,8 @@ class Curl implements Transport
    */
   protected array $_cookies = [];
 
-  protected $_referer;
   protected $_postHeaders = array('Expect:');
-  protected $_post = false;
-  protected $_followLocation = true;
-  protected $_timeout = 30;
-  protected $_maxRedirects = 4;
   protected $_interface = "";
-  protected $_binaryTransfer = false;
   protected $_debugFile = false;
 
   protected $_status;
@@ -73,10 +69,8 @@ class Curl implements Transport
   protected $_body;
   protected $_error;
 
-  public function __construct(string $url, string $authName = '', string $authPass = '') {
+  public function __construct(string $url) {
     $this->_url = $url;
-    $this->_authName = $authName;
-    $this->_authPass = $authPass;
   }
 
   public function __destruct() {
@@ -133,18 +127,6 @@ class Curl implements Transport
     );
   }
 
-  public function setMaxRedirects(int $maxRedirects): void {
-    $this->_maxRedirects = (int)$maxRedirects;
-  }
-
-  public function setTimeout(int $timeout): void {
-    $this->_timeout = (int)$timeout;
-  }
-
-  public function setReferer(string $referer): void {
-    $this->_referer = $referer;
-  }
-
   public function setCookies(array $cookies): void {
     $this->_cookies = $cookies;
   }
@@ -153,28 +135,8 @@ class Curl implements Transport
     return $this->_cookies;
   }
 
-  public function setBinaryTransfer(bool $binaryTransfer): void {
-    $this->_binaryTransfer = $binaryTransfer ? true : false;
-  }
-
-  public function setFollowLocation(bool $followLocation): void {
-    $this->_followLocation = $followLocation ? true : false;
-  }
-
-  public function setPost(bool $post): void {
-    $this->_post = $post ? true : false;
-  }
-
-  public function setUrl(string $url): void {
-    $this->_url = $url;
-  }
-
   public function setPort(int $port): void {
     $this->_port = $port;
-  }
-
-  public function setUserAgent(string $userAgent): void {
-    $this->_useragent = $userAgent;
   }
 
   public function setHeaders(array $headers): void {
@@ -188,16 +150,15 @@ class Curl implements Transport
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $this->_postHeaders);
-    curl_setopt($ch, CURLOPT_TIMEOUT, $this->_timeout);
-    curl_setopt($ch, CURLOPT_MAXREDIRS, $this->_maxRedirects);
-    if ( ! ini_get('safe_mode') && ! ini_get('open_basedir')) {
-      curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $this->_followLocation);
-    }
+    curl_setopt($ch, CURLOPT_TIMEOUT, self::TIMEOUT);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, self::CONNECT_TIMEOUT);
+    // an EPP command is never re-sent to wherever a redirect points
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
     if ( ! empty($this->_cookies)) {
       curl_setopt($ch, CURLOPT_COOKIE, Cookies::header($this->_cookies));
     }
     curl_setopt($ch, CURLOPT_USERAGENT, $this->_useragent);
-    curl_setopt($ch, CURLOPT_POST, $this->_post);
+    curl_setopt($ch, CURLOPT_POST, true);
     if ($postFields != null) {
       curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
     }
@@ -206,15 +167,6 @@ class Curl implements Transport
     }
     if ( ! empty($this->_interface)) {
       curl_setopt($ch, CURLOPT_INTERFACE, $this->_interface);
-    }
-    if ( ! empty($this->_referer)) {
-      curl_setopt($ch, CURLOPT_REFERER, $this->_referer);
-    }
-    if ($this->_binaryTransfer) {
-      curl_setopt($ch, CURLOPT_BINARYTRANSFER, true);
-    }
-    if ( ! empty($this->_authName)) {
-      curl_setopt($ch, CURLOPT_USERPWD, $this->_authName.':'.$this->_authPass);
     }
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
@@ -270,15 +222,7 @@ class Curl implements Transport
     return $this->_headers;
   }
 
-  public function getHttpBody(): string {
-    return $this->_body;
-  }
-
   public function getHttpError(): string {
     return $this->_error;
-  }
-
-  public function __tostring(): string {
-    return $this->_body;
   }
 }

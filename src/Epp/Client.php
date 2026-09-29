@@ -107,7 +107,7 @@ class Client
     date_default_timezone_set($this->EPPCfg->timezone ?: "Europe/Rome");
 
     // initialize httpClient
-    $this->httpClient = new Curl($this->EPPCfg->server, '', '');
+    $this->httpClient = new Curl($this->EPPCfg->server);
     $this->httpClient->setHeaders($this->headers);
 
     // set server port
