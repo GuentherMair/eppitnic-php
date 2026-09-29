@@ -25,7 +25,7 @@ final class Csv
     public static function row(array $row, string $delimiter = ',', string $lineBreak = "\n", string $enclosure = '"'): string {
         $return = [];
         foreach ($row as $column) {
-            $return[] = $enclosure . str_replace($enclosure, $enclosure.$enclosure, $column) . $enclosure;
+            $return[] = $enclosure . str_replace($enclosure, $enclosure.$enclosure, (string) $column) . $enclosure;
         }
         return implode($delimiter, $return) . $lineBreak;
     }

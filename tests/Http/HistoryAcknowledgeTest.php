@@ -120,6 +120,17 @@ final class HistoryAcknowledgeTest extends TestCase
         $this->assertSame($first, (int) $body['history'][0]['id']);
     }
 
+    public function testAnyOtherAcknowledgedValueIsIgnored(): void {
+        $app = $this->app();
+        $first = $this->seed('security', 'denied');
+        $this->seed('security', 'denied');
+        $this->call($app, 'POST', "/v1/history/{$first}/acknowledge");
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?object=security&acknowledged=maybe'));
+
+        $this->assertCount(2, $body['history']);
+    }
+
     /**
      * The listing exists because a failed login at a username nobody has has no
      * object to be looked up under.

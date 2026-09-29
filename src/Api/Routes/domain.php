@@ -75,11 +75,11 @@ $app->get('/v1/domains/expiring', function (Request $request, Response $response
 
     $domains = R::getAll("
         SELECT d.*, c.handle, c.org, c.name, c.email
-        FROM contacts c, domains d
+        FROM domains d
+        LEFT JOIN contacts c ON d.registrant = c.handle
         WHERE
             d.ex_date < NOW() + INTERVAL :days DAY AND
             d.active = 1 AND
-            d.registrant = c.handle AND
             " . implode(' AND ', $where) . "
         ORDER BY d.ex_date ASC", $params);
 
@@ -100,8 +100,9 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
     $term = $request->getQueryParams()['term'] ?? '';
     $limit = (int) ($request->getQueryParams()['limit'] ?? 10) ?: 10;
 
-    $where = ['domain LIKE :term'];
-    $params = [':term' => "%{$term}%"];
+    // a literal term: % and _ would otherwise match anything
+    $where = ["domain LIKE :term ESCAPE '!'"];
+    $params = [':term' => '%' . strtr((string) $term, ['!' => '!!', '%' => '!%', '_' => '!_']) . '%'];
     if ( ! $scope->isAdmin()) {
         $where[] = 'reseller_id = :reseller_id';
         $params[':reseller_id'] = $scope->resellerId;
@@ -129,9 +130,9 @@ $app->get('/v1/domains/export', function (Request $request, Response $response, 
             d.active, d.domain, d.authinfo, d.cr_date, d.ex_date,
             c.handle, c.org, c.name, c.email
         FROM
-            contacts c, domains d
+            domains d
+            LEFT JOIN contacts c ON d.registrant = c.handle
         WHERE
-            d.registrant = c.handle AND
             " . implode(' AND ', $where) . "
         ORDER BY d.domain ASC", $params);
 

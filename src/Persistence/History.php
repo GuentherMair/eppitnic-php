@@ -201,8 +201,9 @@ final class History
             $clauses[] = 'action IN (' . implode(', ', $names) . ')';
         }
 
-        if (isset($filters['acknowledged'])) {
-            $clauses[] = $filters['acknowledged'] === '0'
+        $acknowledged = (string) ($filters['acknowledged'] ?? '');
+        if ($acknowledged === '0' || $acknowledged === '1') {
+            $clauses[] = $acknowledged === '0'
                 ? 'acknowledged_time IS NULL'
                 : 'acknowledged_time IS NOT NULL';
         }

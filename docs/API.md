@@ -485,7 +485,6 @@ set. `GET /v1/history` takes `limit`/`offset` and `GET /v1/poll-queue` takes
 ```json
 {
   "total": 1234,
-  "filteredTotal": 1234,
   "page": 1,
   "pageSize": 25,
   "rows": [ { "...": "..." } ]
@@ -493,7 +492,6 @@ set. `GET /v1/history` takes `limit`/`offset` and `GET /v1/poll-queue` takes
 ```
 
 `page` is 1-based. `pageSize` is clamped to `[1, 200]`, default `25`.
-`filteredTotal` always equals `total` — don't rely on them differing.
 
 ## Route reference
 
@@ -742,7 +740,7 @@ line is validated and audited identically (`history`, `object='smtp'`). See
 
 | Method & path | Auth | Notes |
 |---|---|---|
-| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything; everyone else sees their reseller's `domains` and `contacts` (whoever changed them), the registrations and transfer-ins its users requested (`action=request`), and their own `users` row — a manager also every user of the reseller and the reseller itself (`object=resellers`) — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action` (or several, comma-separated: `action=denied,secread`), `network`, `acknowledged` (`0` = not yet acknowledged, **any other value** = acknowledged), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
+| `GET /v1/history` | user | the audit trail, newest first, as `{"history": [...], "total": n}`. **Scoped to what the caller may see**: an admin sees everything; everyone else sees their reseller's `domains` and `contacts` (whoever changed them), the registrations and transfer-ins its users requested (`action=request`), and their own `users` row — a manager also every user of the reseller and the reseller itself (`object=resellers`) — and never `security`. `total` counts what they may see, not what exists. Admins also get `outstanding`: how many `security` entries nobody has acknowledged. Filters: `object`, `object_id`, `action` (or several, comma-separated: `action=denied,secread`), `network`, `acknowledged` (`0` = not yet acknowledged, `1` = acknowledged, anything else is ignored), `since`, `until`, `limit` (max 500, default 100), `offset`. Filters narrow what is visible and never widen it, so `?object=security` as a non-admin is an empty list rather than a 403 |
 | `GET /v1/history/{object}/{object_id}` | user | shorthand for `GET /v1/history?object=…&object_id=…`, scoped identically. Only `limit` is honoured here (default **500**, not 100) — no `offset`, no further filters. Answers `{"history": [...], "total": n}` without `outstanding` |
 | `POST /v1/history/acknowledge` | admin | acknowledge every entry still unacknowledged up to a moment, in one call. Body `{"until": "YYYY-MM-DD HH:MM:SS"}` (a real datetime; `400` otherwise), compared to the entry's timestamp inclusively, and optionally `"actions": [...]` to acknowledge only entries of those actions (`400` unless a non-empty list of known ones). Pass the newest entry the user has loaded, so what arrived since stays outstanding rather than being acknowledged unread. The timestamp is only second-resolution, so pass `"until_id"` (that entry's `id`) as well for an exact cutoff — ids are monotonic, and when given it is used in place of `until`. `"object"` (default `security`, `400` unless one of the `object` enum) scopes it — `outstanding` only ever counts `security`, and this is the call that clears that badge. Already-acknowledged entries keep their stamp. Answers `{"acknowledged": n, "object", "until", "until_id", "outstanding"}` |
 | `POST /v1/history/{id}/acknowledge` | admin | mark one entry as reviewed. Records `acknowledged_time` and `acknowledged_user_id` rather than a flag, so a dismissed entry can be asked about later. Does not alter what the entry says happened. Re-acknowledging re-stamps it, so the last person to look at it is the one on record. Returns `{"acknowledged": true, "id": n, "entry": {…}}` with the entry as it now stands. `404` for an unknown id. Unscoped: an admin may acknowledge any entry, including a non-`security` one |

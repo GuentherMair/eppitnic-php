@@ -52,7 +52,6 @@ $app->get('/v1/tasks', function (Request $request, Response $response, array $ar
 
     return Json::response($response, [
         'total' => $total,
-        'filteredTotal' => $total,
         'page' => $page,
         'pageSize' => $pageSize,
         'rows' => $rows,
