@@ -46,6 +46,7 @@ CREATE TABLE `users` (
   `must_enroll_mfa`       tinyint NOT NULL DEFAULT 0,
   `max_token_age`         int,
   `max_idle_time`         int,
+  `last_activity`         datetime DEFAULT NULL,
   `debug`                 tinyint    DEFAULT 0,
   `api_token`             varchar(64),
   `api_token_expires`     bigint unsigned NOT NULL DEFAULT 0,

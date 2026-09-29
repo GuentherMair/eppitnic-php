@@ -505,7 +505,8 @@ ALTER TABLE users
   ADD COLUMN `must_enroll_mfa` TINYINT NOT NULL DEFAULT 0 AFTER `totp_secret_pending`,
   ADD COLUMN `max_token_age` INT AFTER `must_enroll_mfa`,
   ADD COLUMN `max_idle_time` INT AFTER `max_token_age`,
-  ADD COLUMN `debug` TINYINT DEFAULT 0 AFTER `max_idle_time`,
+  ADD COLUMN `last_activity` DATETIME DEFAULT NULL AFTER `max_idle_time`,
+  ADD COLUMN `debug` TINYINT DEFAULT 0 AFTER `last_activity`,
   ADD COLUMN `api_token` VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AFTER `debug`,
   ADD COLUMN `api_token_expires` BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER `api_token`,
   ADD UNIQUE KEY (`api_token`),
@@ -716,7 +717,8 @@ ORDER BY ORDINAL_POSITION;
 -- ^ expect: id, reseller_id, role, description, username, password
 --   (varchar(255)), must_change_password, email, notify_enabled,
 --   notify_message_types, notify_fulltext, active, totp_secret,
---   totp_secret_pending, must_enroll_mfa, max_token_age, max_idle_time, debug, api_token, api_token_expires --
+--   totp_secret_pending, must_enroll_mfa, max_token_age, max_idle_time, last_activity, debug, api_token,
+--   api_token_expires --
 --   and no `dns`, `admin`, `max_operations`, `techc`, `countrycode`,
 --   `nssets` or `dnsset` (those moved to `resellers` in PART 5b).
 

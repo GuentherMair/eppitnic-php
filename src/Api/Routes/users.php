@@ -158,6 +158,8 @@ $continueLogin = static function (Request $request, Response $response, array $u
         }
     }
 
+    Auth::startActivity((int) $user['id']);
+
     // Recorded like the failures, and with the same care: the token this call
     // is about to issue is a credential, so it is not written here any more
     // than the password was.

@@ -171,9 +171,13 @@ Success response — every claim plus a `token`:
   default. `renew-token` re-signs the same claim, so a renewed token keeps the
   user's lifetime.
 - `exp` — the token's expiry as a unix timestamp.
-- `max_idle_time` — **not enforced.** It is stored on the user, accepted by
-  `POST`/`PUT /v1/users` and echoed here, but nothing tracks idle time. A
-  token's only expiry is `max_token_age`.
+- `max_idle_time` — minutes a session may sit idle; `null` and `0` mean no
+  limit. Logging in and every request made with a session token record the
+  time in `users.last_activity` (UTC, written at most once a minute). A
+  request arriving after `max_idle_time` minutes without one is refused with
+  `401` `Session expired after inactivity`, however much of `max_token_age`
+  is left, and the user has to log in again. Fixed API tokens and remote
+  authentication have no session and are exempt.
 
 Failures:
 

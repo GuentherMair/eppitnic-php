@@ -42,6 +42,7 @@ final class TestAccounts
             'debug'                => 'INTEGER DEFAULT 0',
             'max_token_age'        => 'INTEGER',
             'max_idle_time'        => 'INTEGER',
+            'last_activity'        => 'TEXT',
             'totp_secret'          => 'TEXT',
             'totp_secret_pending'  => 'TEXT',
             'must_change_password' => 'INTEGER NOT NULL DEFAULT 0',

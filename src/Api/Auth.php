@@ -213,7 +213,8 @@ final class Auth
     private static function withAccount(object $decoded, Request $request): object {
         $account = R::getRow('
             SELECT u.active, u.role, u.reseller_id, r.name AS reseller_name, r.active AS reseller_active,
-                   u.must_change_password, u.must_enroll_mfa, u.totp_secret IS NOT NULL AS has_totp
+                   u.must_change_password, u.must_enroll_mfa, u.totp_secret IS NOT NULL AS has_totp,
+                   u.max_idle_time, u.last_activity
             FROM users u JOIN resellers r ON r.id = u.reseller_id
             WHERE u.id = ?
         ', [(int) $decoded->data->id]);
@@ -239,6 +240,7 @@ final class Auth
             if ((int) $account['must_enroll_mfa'] === 1 && ! (int) $account['has_totp'] && ! self::onSafeNetwork()) {
                 throw new HttpForbiddenException($request, 'MFA enrollment required');
             }
+            self::touchActivity((int) $decoded->data->id, $account, $request);
         }
 
         unset($decoded->data->admin);
@@ -247,6 +249,33 @@ final class Auth
         $decoded->data->reseller_name = $account['reseller_name'];
         $decoded->data->registry = EppSettings::environment();
         return $decoded;
+    }
+
+    /**
+     * Enforce `users.max_idle_time` (minutes, empty or 0 = no limit) and
+     * record the request as activity, at most once a minute to spare the
+     * write. `last_activity` is UTC.
+     *
+     * @throws HttpUnauthorizedException if the session sat idle too long
+     */
+    private static function touchActivity(int $userId, array $account, Request $request): void {
+        $now = time();
+        $last = $account['last_activity'] === null ? null : strtotime($account['last_activity'] . ' UTC');
+
+        $maxIdle = (int) $account['max_idle_time'];
+        if ($maxIdle > 0 && $last !== null && $now - $last > $maxIdle * 60) {
+            throw new HttpUnauthorizedException($request, 'Session expired after inactivity');
+        }
+        if ($last === null || $now - $last >= 60) {
+            R::exec('UPDATE users SET last_activity = ? WHERE id = ?', [gmdate('Y-m-d H:i:s', $now), $userId]);
+        }
+    }
+
+    /**
+     * Start a session's idle clock, as a login does.
+     */
+    public static function startActivity(int $userId): void {
+        R::exec('UPDATE users SET last_activity = ? WHERE id = ?', [gmdate('Y-m-d H:i:s'), $userId]);
     }
 
     /**
