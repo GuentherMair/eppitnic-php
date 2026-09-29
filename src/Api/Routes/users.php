@@ -253,7 +253,7 @@ $app->post('/v1/users/authenticate/mfa', function (Request $request, Response $r
         return Json::response($response, ['error' => 'No MFA enrollment is pending'], 400);
     }
 
-    $totp = Auth::totpGenerate($user['username']);
+    $totp = Auth::totpGenerate($user['username'], $request->getUri()->getHost());
     R::exec('UPDATE users SET totp_secret_pending = ? WHERE id = ?', [$totp['secret'], (int) $user['id']]);
 
     return Json::response($response, ['secret' => $totp['secret'], 'uri' => $totp['uri']]);
@@ -696,7 +696,7 @@ $app->post('/v1/users/{id}/totp', function (Request $request, Response $response
         return Json::response($response, ['error' => 'This account already has a TOTP secret; remove it first with DELETE /v1/users/{id}/totp'], 400);
     }
 
-    $totp = Auth::totpGenerate($user[0]['username']);
+    $totp = Auth::totpGenerate($user[0]['username'], $request->getUri()->getHost());
 
     R::exec("UPDATE users SET totp_secret_pending = :secret WHERE id = :id", [
         ':secret' => $totp['secret'],

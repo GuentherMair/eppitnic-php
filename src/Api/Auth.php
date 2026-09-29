@@ -441,8 +441,8 @@ final class Auth
 
         $payload = [
             'data' => $data,
-            'iss'  => 'http://www.inet-services.it',
-            'sub'  => 'invoicing API',
+            'iss'  => 'eppitnic',
+            'sub'  => 'eppitnic API',
             'nbf'  => $nbf,
             'iat'  => $iat,
             'exp'  => $exp,
@@ -462,15 +462,19 @@ final class Auth
      * generate a new TOTP secret + provisioning URI for a user enrolling in MFA
      *
      * @param string $username shown as the label in authenticator apps
+     * @param string $host the host the request reached the API at, shown next
+     *              to the issuer so several installations tell apart
      * @return array ['secret' => ..., 'uri' => ...]
      */
-    public static function totpGenerate(string $username): array {
+    public static function totpGenerate(string $username, string $host): array {
         // 20 bytes, per RFC 4226 section 4 and what authenticator apps expect.
         // otphp defaults to 64, whose base32 encoding overflows
         // users.totp_secret varchar(64) and is silently truncated on write
         $totp = TOTP::generate(null, 20);
         $totp->setLabel($username);
-        $totp->setIssuer('inet-services.it');
+        // otphp refuses a colon in the issuer, which an IPv6 host has
+        $host = str_replace(':', '', $host);
+        $totp->setIssuer($host === '' ? 'eppitnic' : "eppitnic ({$host})");
         return [
             'secret' => $totp->getSecret(),
             'uri'    => $totp->getProvisioningUri(),

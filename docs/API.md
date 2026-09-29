@@ -294,7 +294,8 @@ carry `has_totp: false`.
 
 - `POST /v1/users/{id}/totp` (self, their manager, or admin) — generates a
   pending secret and returns `{"secret": "...", "uri": "otpauth://..."}`.
-  Render `uri` as a QR code. MFA is not active yet. `400` when
+  Render `uri` as a QR code; authenticator apps list it as `eppitnic (<host>)`,
+  the host the request reached the API at. MFA is not active yet. `400` when
   the account already has a TOTP secret: remove it first with `DELETE`.
 - `PUT /v1/users/{id}/totp` (self, their manager, or admin) — body `{"totp": "123456"}`.
   Verifies against the *pending* secret and, on success, activates it.
