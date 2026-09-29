@@ -292,6 +292,12 @@ token:
 | `PATCH /v1/remote-auth` | admin | body = partial field map, e.g. `{"enabled": true, "header": "X-Remote-User"}`; `null`/blank `header` goes back to `REMOTE_USER`. `400` on an unknown field or an invalid header name (`Authorization`, `Cookie` and `Proxy-Authorization` are refused). Audited in `history` (`object='remote_auth'`). Returns the same shape `GET` does |
 | `GET /v1/trusted-proxies` | admin | `{"trusted_proxies": ["10.0.0.0/8", ...], "peer": "172.18.0.1"}`. `peer` is the address this request itself arrived from — behind a reverse proxy, the address the proxy must be listed as |
 | `PUT /v1/trusted-proxies` | admin | body `{"trusted_proxies": [...]}` replaces the whole list; entries are addresses or networks, stored canonically (`172.18.0.1` → `172.18.0.1/32`, host bits cleared), duplicates dropped. `400` on an entry that is not a network, on a catch-all (`0.0.0.0/0`, `::/0`), or when the list is missing. Audited in `history` (`object='trusted_proxies'`). Returns the same shape `GET` does |
+| `GET /v1/allowed-origins` | admin | `{"allowed_origins": ["https://epp.example.it", ...]}` — the browser origins the CORS check lets through (see "CORS") |
+| `PUT /v1/allowed-origins` | admin | body `{"allowed_origins": [...]}` replaces the whole list; entries are `http`/`https` origins (scheme, host, optional port), stored as browsers send them (`HTTPS://Epp.Example.it:443/` → `https://epp.example.it`), duplicates dropped. `400` on anything else (a path, `*`, `null`) or when the list is missing. The request itself is checked against the list stored before it, so removing your own origin succeeds and locks out the next write. Audited in `history` (`object='allowed_origins'`). Returns the same shape `GET` does |
+| `GET /v1/debugfile` | admin | `{"debugfile": {"path", "directory", "exists", "size", "writable"}, "warning": "..."}` — the registry debug log; `path` `""` = off, `writable` false with a path = nothing is being logged. `warning` is the text to show before turning logging on |
+| `PUT /v1/debugfile` | admin | body `{"path": "epp-debug.log"}` starts logging: a bare `.log` file name or an absolute path inside `directory`; the file is created (mode `600`) before the setting is stored. `400` on another name or place, or when the file cannot be written; `409` while another log is recording — the setting is then unchanged. Audited in `history` (`object='debugfile'`). Returns the same shape `GET` does |
+| `DELETE /v1/debugfile` | admin | deletes the log file, then clears the setting (logging off); a file already gone only clears it. `500` when the file cannot be deleted — the setting is then kept, so logging stays on. Audited in `history` (`object='debugfile'`, `action='delete'`). Returns the same shape `GET` does |
+| `GET /v1/debugfile/content` | admin | the log as `text/plain`, at most its last 2 MiB (prefixed with a line saying how much was left out). Passwords, auth codes and cookie values in it are masked. `404` while logging is off or the file is empty. **Every read is recorded** as a `security`/`secread` history row (`event='debugfile_read'`) |
 
 ### Change a user's login password
 
@@ -404,8 +410,8 @@ responses additionally carry `exception` (the class name), `file`, `line` and
 
 ## CORS
 
-The `Origin` header must appear verbatim in the `settings` table's
-`allowed_origins` — strict string equality, no wildcards, no subdomain
+The `Origin` header must appear verbatim in `allowed_origins` (edited with
+`config allowed-origins` or `PUT /v1/allowed-origins`) — strict string equality, no wildcards, no subdomain
 matching. Preflight `OPTIONS` gets `204` if allowed, `403` if not. Actual
 requests from a disallowed origin get `403` with a JSON body but *without* CORS
 headers, so the browser still blocks them as a CORS failure. Allowed headers

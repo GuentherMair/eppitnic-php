@@ -93,16 +93,44 @@ class Curl implements Transport
   }
 
   /**
-   * @throws \RuntimeException if the debug file cannot be written
+   * Log every exchange to $file, created 0600, masked by mask(). A file that
+   * cannot be opened only warns: debugging must not stop the registry
+   * traffic it is meant to observe.
    */
   public function setDebugFile(string $file): void {
-    if (is_writeable((file_exists($file) ? $file : dirname($file)))) {
-      $this->_debugFile = fopen($file, 'a+');
-    } else {
-      // same reasoning as the constructor's: also reached from Client's
-      // constructor, whenever the `debugfile` setting is non-empty
-      throw new \RuntimeException("debug file '".$file."' is not writeable");
+    $new = ! file_exists($file);
+    $umask = umask(0077);
+    $handle = @fopen($file, 'a');
+    umask($umask);
+
+    if ($handle === false) {
+      error_log("eppitnic: debug file '{$file}' is not writable -- registry traffic is not being logged");
+      return;
     }
+    if ($new) {
+      @chmod($file, 0600);
+    }
+    $this->_debugFile = $handle;
+  }
+
+  /**
+   * Passwords, auth codes and credential headers out of a debug log entry:
+   * <pw>/<newPW> in any namespace (login, domain and contact auth codes),
+   * Authorization, and every cookie value (the registry session).
+   */
+  public static function mask(string $text): string {
+    $text = (string) preg_replace('#<((?:[\w-]+:)?(?:pw|newPW))(\s[^>]*)?>[^<]*</\1>#', '<$1$2>***</$1>', $text);
+
+    return (string) preg_replace_callback(
+      '/^((?:[<>] )?)(Authorization|Cookie|Set-Cookie):([^\r\n]*)/mi',
+      function (array $m): string {
+        $value = strcasecmp($m[2], 'Authorization') === 0
+          ? ' ***'
+          : preg_replace('/=[^;]*/', '=***', $m[3]);
+        return $m[1] . $m[2] . ':' . $value;
+      },
+      $text
+    );
   }
 
   public function setMaxRedirects(int $maxRedirects): void {
@@ -192,10 +220,13 @@ class Curl implements Transport
       curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
       curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
     }
+    // verbose output goes to a buffer first, so mask() sees it too
+    $verbose = false;
     if ($this->_debugFile !== false) {
+      $verbose = fopen('php://temp', 'w+');
       curl_setopt($ch, CURLINFO_HEADER_OUT, 1);
       curl_setopt($ch, CURLOPT_VERBOSE, true);
-      curl_setopt($ch, CURLOPT_STDERR, $this->_debugFile);
+      curl_setopt($ch, CURLOPT_STDERR, $verbose);
     }
 
     $response = curl_exec($ch);
@@ -213,15 +244,18 @@ class Curl implements Transport
     // and deprecated outright since 8.5, where calling it warns on every query
 
     // write debug information
-    if ($this->_debugFile) {
-      fwrite($this->_debugFile,
-        __FILE__ . " @ " . __LINE__ . " -- " . date("c") . "\n" .
+    if ($this->_debugFile && $verbose !== false) {
+      rewind($verbose);
+      fwrite($this->_debugFile, self::mask(
+        "==== " . date("c") . " " . $this->_url . " ====\n" .
+        stream_get_contents($verbose) .
         "==== START OUTPUT ====\n" .
         $header_out . $postFields .
-        "==== END OUTPUT ====\n" .
+        "\n==== END OUTPUT ====\n" .
         "==== START INPUT ====\n" .
         $response .
-        "==== END INPUT ====\n\n");
+        "\n==== END INPUT ====\n\n"));
+      fclose($verbose);
     }
 
     return $this->_body;

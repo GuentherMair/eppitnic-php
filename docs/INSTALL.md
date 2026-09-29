@@ -111,8 +111,8 @@ Ubuntu), and `<YOUR_HOSTNAME>` the virtual host's name.
 
 - Behind a reverse proxy, list it in `trusted_proxies` (see "Login rate
   limiting").
-- A browser client served from another origin needs that origin in
-  `allowed_origins` (see "Configuration").
+- Every browser client needs its origin in `allowed_origins`, including a
+  frontend on the API's own host (see "Configuration").
 - To exercise the whole registry lifecycle against the public test registry,
   run `selftest` (see "Test against the live test registry" in
   [TESTING.md](TESTING.md)).
@@ -156,17 +156,23 @@ Configuration is split in two:
    Everything else can stay at its default. Leave `epp.lastPasswordUpdate`
    at `0` on a fresh install (see "Registry password rotation").
 
-`allowed_origins` has no setup question and no CLI verb. Every browser
-client needs its origin listed, including a frontend served from the API's
-own host: browsers send `Origin` on same-origin writes too. Set it in the
-database:
+`allowed_origins` lists the browser origins allowed to call the API. Every
+browser client needs its origin there, including a frontend served from the
+API's own host: browsers send `Origin` on same-origin writes too.
 
-```sql
-UPDATE settings SET value = '["https://<APP_HOSTNAME>"]' WHERE `key` = 'allowed_origins';
+```bash
+bin/eppitnic config allowed-origins                                 # show
+bin/eppitnic config allowed-origins add https://<APP_HOSTNAME>      # scheme, host, optional port
+bin/eppitnic config allowed-origins remove https://<APP_HOSTNAME>
+bin/eppitnic config allowed-origins clear
 ```
 
-It takes effect with the next request. Clients without an `Origin` header
-(curl, scripts) are not affected — see "CORS" in [API.md](API.md).
+Entries are stored as browsers send them: lower case, without a default port
+or trailing slash. A change takes effect with the next request and is
+recorded in `history` (`object='allowed_origins'`). Admins can make the same
+changes through `GET`/`PUT /v1/allowed-origins` or the frontend's Settings.
+Clients without an `Origin` header (curl, scripts) are not affected — see
+"CORS" in [API.md](API.md).
 
 The schema is versioned: `settings.schema_version` (`MMmmrr`, e.g. `070000`)
 is compared with `SCHEMA_VERSION` in `config/constants.php` on every
@@ -664,3 +670,35 @@ API), a settled interrupted one, or an adopted password (`--force`) — is a
 an admin acknowledges it. It is also mailed to the SMTP system recipient, if
 mail is enabled and a recipient is set, whatever the recipient mode and
 filters say. Neither contains the password.
+
+## Log the registry traffic for debugging
+
+The registry debug log records every exchange with the registry: curl's
+connection trace, each request and each response. It is off by default.
+
+```bash
+bin/eppitnic config debugfile                    # show: off, or the file and its size
+bin/eppitnic config debugfile epp-debug.log      # log to <var directory>/epp-debug.log
+bin/eppitnic config debugfile delete             # delete the file, then turn logging off
+```
+
+> **Warning:** the log holds every command sent and every contact's personal
+> data in clear. Registry passwords (`<pw>`, `<newPW>`), domain and contact
+> auth codes, `Authorization` headers and session cookie values are masked,
+> but treat the file as confidential: turn it on only while debugging.
+
+The file must be a `.log` name inside the var directory (`EPPITNIC_VAR_DIR`,
+else `var/` in the checkout): the log holds text users typed, which must
+never land where it could run as PHP. It is created with mode `600` before
+the setting is stored, so a file that cannot be written leaves the setting
+as it was. While one log is recording, another cannot be started.
+
+Logging stops only by deleting the log: `delete` removes the file first and
+clears the setting only if that worked, so a file that cannot be deleted
+keeps logging on. A file that stops being writable does not stop registry
+traffic: each connection writes a warning to the PHP error log instead.
+
+Admins can make the same changes through `GET`/`PUT /v1/debugfile` or the
+frontend's Settings, which also opens the log in a new browser tab. Every
+change is recorded in `history` (`object='debugfile'`), and every read of the
+log as a `security` row.

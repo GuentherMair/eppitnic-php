@@ -40,8 +40,9 @@ The migration also drops `users.dns`, which nothing reads.
 
    This converts `config.xml` into `config/config.php` plus the `settings`
    table, and the first connection migrates the schema (see "What the
-   migration does"). 6.x's `-REG` username also becomes the registrar tag.
-   Afterwards `config.xml` is unused and can be archived.
+   migration does"). 6.x's `-REG` username also becomes the registrar tag;
+   its `<debugfile>` is not carried over (`config debugfile` turns logging
+   on again). Afterwards `config.xml` is unused and can be archived.
    Don't use `eppitnic setup` here: it installs `config/mariadb-schema.sql`
    into an empty database, for a new installation.
 3. Create an admin. 6.x had no admin role, so the migration leaves none:

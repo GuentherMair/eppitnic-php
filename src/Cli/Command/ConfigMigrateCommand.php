@@ -119,10 +119,11 @@ final class ConfigMigrateCommand extends Command
             'algorithm'  => (int) self::xmlStr($xml->dnssec->algorithm),
             'digesttype' => (int) self::xmlStr($xml->dnssec->digesttype),
           ],
-          // config.xml's DEBUG flag is not carried over: nothing read it.
-          // Verbosity is now per-object (users.debug), and debugfile below is
-          // what turns on cURL wire logging
-          'debugfile'       => self::xmlStr($xml->debugfile),
+          // config.xml's DEBUG flag and debugfile are not carried over:
+          // verbosity is now per-object (users.debug), and a 6.x wire log
+          // pointed into the tree the upgrade retires. `config debugfile`
+          // turns logging back on
+          'debugfile'       => '',
           'certificatefile' => null, // no config.xml source
           // no config.xml source -- 6.x never held a session open between
           // requests. Off until explicitly turned on with 'config keepalive on'

@@ -20,17 +20,21 @@ see [UPGRADING.md](UPGRADING.md).
 - `config.xml` is replaced by `config/config.php` (database credentials only)
   plus the `settings` table, read through `Eppitnic\Config`.
   `eppitnic config migrate` converts an existing `config.xml`. The `debug`,
-  `passwordexpirydays`, `passwordexpirynext` and `cookie_dir` settings and the
-  `users.dns` column are not carried over.
+  `debugfile`, `passwordexpirydays`, `passwordexpirynext` and `cookie_dir`
+  settings and the `users.dns` column are not carried over.
 - Settings are inspected and changed with `config` verbs instead of SQL:
   `config show` (credentials redacted), `config epp-server
   production|test|toggle`, `config epp-set`, `config epp-password`,
-  `config safe-networks`, `config trusted-proxies`, `config keepalive`,
-  `config session-serialize`, `config region-set`, `config pdns-api`,
-  `config pdns-nameserver` and the job-specific `config *-set` verbs.
+  `config safe-networks`, `config trusted-proxies`, `config allowed-origins`,
+  `config debugfile`, `config keepalive`, `config session-serialize`,
+  `config region-set`, `config pdns-api`, `config pdns-nameserver` and the
+  job-specific `config *-set` verbs.
   `Support\Validate::eppField()` holds the EPP field rules shared by setup,
   the CLI and the API, so an invalid username or password is refused when
   entered rather than at the next `<login>`.
+- The registry debug log (`config debugfile`) masks passwords, auth codes and
+  cookie values, is created with mode `600`, and only in the var directory.
+  An unwritable log file warns instead of stopping every registry call.
 - The `epp` setting gains `registrar_tag`, the registrar's `-REG` ID that
   poll messages name it by, so the login can be an EPP user of any name up
   to 64 characters. Setup asks for it first, and `config migrate` takes it

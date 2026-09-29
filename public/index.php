@@ -41,7 +41,7 @@ Middleware::register($app);
 // Route files register closures on $app rather than declaring classes, so
 // they are required rather than autoloaded -- the order is the routing order.
 foreach (['root', 'network_check', 'users', 'user_settings', 'resellers', 'session', 'contact',
-          'domain', 'tasks', 'cronjobs', 'smtp', 'region', 'remote_auth', 'trusted_proxies', 'whois', 'history'] as $routes) {
+          'domain', 'tasks', 'cronjobs', 'smtp', 'region', 'remote_auth', 'trusted_proxies', 'allowed_origins', 'debugfile', 'whois', 'history'] as $routes) {
     require EPPITNIC_ROOT . "/src/Api/Routes/{$routes}.php";
 }
 

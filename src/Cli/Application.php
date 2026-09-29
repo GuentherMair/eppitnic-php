@@ -2,6 +2,8 @@
 
 namespace Eppitnic\Cli;
 
+use Eppitnic\Cli\Command\ConfigAllowedOriginsCommand;
+use Eppitnic\Cli\Command\ConfigDebugfileCommand;
 use Eppitnic\Cli\Command\ConfigDomainReapSetCommand;
 use Eppitnic\Cli\Command\ConfigDomainSyncCommand;
 use Eppitnic\Cli\Command\ConfigDomainSyncSetCommand;
@@ -138,6 +140,8 @@ final class Application
             'config session-serialize'  => ConfigSessionSerializeCommand::class,
             'config safe-networks'      => ConfigSafeNetworksCommand::class,
             'config trusted-proxies'    => ConfigTrustedProxiesCommand::class,
+            'config allowed-origins'    => ConfigAllowedOriginsCommand::class,
+            'config debugfile'          => ConfigDebugfileCommand::class,
             'config migrate'            => ConfigMigrateCommand::class,
         ];
     }
