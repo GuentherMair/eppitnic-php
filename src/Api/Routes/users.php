@@ -167,6 +167,14 @@ $notAuthorized = static function (Response $response): Response {
 };
 
 /**
+ * Whether the last active manager of $resellerId must stay: only while the
+ * reseller itself is active -- a deactivated one has nobody left to manage.
+ */
+$managerNeeded = static function (int $resellerId): bool {
+    return (int) R::getCell('SELECT active FROM resellers WHERE id = ?', [$resellerId]) === 1;
+};
+
+/**
  * How many other ACTIVE users hold $role -- in $resellerId if given, else
  * anywhere -- so the last admin or the last manager of a reseller can be
  * told apart from one of several.
@@ -249,7 +257,7 @@ $app->put('/v1/changepassword/{id}', function (Request $request, Response $respo
     ]);
 });
 
-$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount): Response {
+$app->put('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount, $managerNeeded): Response {
     $actor = Auth::requireManager($request);
     $targetId = (int) $args['id'];
     $params = $request->getParsedBody() ?? [];
@@ -296,17 +304,20 @@ $app->put('/v1/users/{id}', function (Request $request, Response $response, arra
     }
     $active = (int) ($params['active'] ?? $current['active']);
 
-    // the last active admin, or the last active manager of a reseller, may
-    // not be demoted or deactivated -- someone has to be left who can fix
-    // it; checked before the self-guard below, so it is this message a sole
-    // admin/manager gets for trying it on themselves, not the generic one
-    if ($current['role'] === 'admin' && ($role !== 'admin' || $active === 0)
+    // the last active admin, or the last active manager of an active reseller,
+    // may not be demoted or deactivated -- someone has to be left who can fix
+    // it; a promotion keeps them able to. Checked before the self-guard
+    // below, so it is this message a sole admin/manager gets, not the generic one
+    $rank = ['user' => 0, 'manager' => 1, 'admin' => 2];
+    $demoted = $rank[$role] < $rank[$current['role']];
+    if ($current['role'] === 'admin' && ($demoted || $active === 0)
         && $activeCount('admin', null, $targetId) === 0) {
-        return Json::response($response, ['error' => 'cannot change the role or deactivate the last active admin'], 400);
+        return Json::response($response, ['error' => 'cannot demote or deactivate the last active admin'], 400);
     }
-    if ($current['role'] === 'manager' && ($role !== 'manager' || $active === 0)
-        && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0) {
-        return Json::response($response, ['error' => 'cannot change the role or deactivate the last active manager of this reseller'], 400);
+    if ($current['role'] === 'manager' && ($demoted || $active === 0)
+        && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0
+        && $managerNeeded((int) $current['reseller_id'])) {
+        return Json::response($response, ['error' => 'cannot demote or deactivate the last active manager of an active reseller'], 400);
     }
 
     // nobody, admin included, may touch their own role or deactivate themselves
@@ -431,7 +442,7 @@ $app->post('/v1/users', function (Request $request, Response $response, array $a
     ], 201);
 });
 
-$app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount): Response {
+$app->delete('/v1/users/{id}', function (Request $request, Response $response, array $args) use ($notAuthorized, $activeCount, $managerNeeded): Response {
     $actor = Auth::requireManager($request);
     $targetId = (int) $args['id'];
 
@@ -449,10 +460,11 @@ $app->delete('/v1/users/{id}', function (Request $request, Response $response, a
     // never trips it
     if ((int) $current['active'] === 1) {
         if ($current['role'] === 'admin' && $activeCount('admin', null, $targetId) === 0) {
-            return Json::response($response, ['error' => 'cannot change the role or deactivate the last active admin'], 400);
+            return Json::response($response, ['error' => 'cannot demote or deactivate the last active admin'], 400);
         }
-        if ($current['role'] === 'manager' && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0) {
-            return Json::response($response, ['error' => 'cannot change the role or deactivate the last active manager of this reseller'], 400);
+        if ($current['role'] === 'manager' && $activeCount('manager', (int) $current['reseller_id'], $targetId) === 0
+            && $managerNeeded((int) $current['reseller_id'])) {
+            return Json::response($response, ['error' => 'cannot demote or deactivate the last active manager of an active reseller'], 400);
         }
     }
 

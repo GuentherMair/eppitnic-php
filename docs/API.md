@@ -502,9 +502,11 @@ it, and the refusal there stays the generic `Wrong username or password`.
 A **manager** manages the users of their own reseller: creates them (as
 `manager` or `user`), edits and deactivates them, but never an admin, never
 `debug`, and never in another reseller. Nobody may change their own `role` or
-deactivate themselves, and neither the last active admin nor a reseller's
-last active manager may be demoted or deactivated — each refused with `400`
-or `403` and a message saying why.
+deactivate themselves, and neither the last active admin nor an active
+reseller's last active manager may be demoted or deactivated — each refused
+with `400` or `403` and a message saying why. Promoting them (a manager to
+admin) is allowed, and so is either change once their reseller is
+deactivated.
 
 | Method & path | Auth | Notes |
 |---|---|---|

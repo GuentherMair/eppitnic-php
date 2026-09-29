@@ -15,8 +15,8 @@ use Slim\Psr7\Factory\ServerRequestFactory;
  * A manager's rights over POST/PUT/DELETE /v1/users: only within their own
  * reseller, never an admin target or role, never `debug`, plus the guard
  * rails everyone (including an admin) is held to -- no touching one's own
- * role or `active`, and never removing the last active admin or the last
- * active manager of a reseller.
+ * role or `active`, and never demoting or deactivating the last active admin
+ * or the last active manager of an active reseller.
  */
 final class UserManagerRightsTest extends TestCase
 {
@@ -315,6 +315,33 @@ final class UserManagerRightsTest extends TestCase
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame(0, (int) self::json($response)['users'][0]['active']);
+    }
+
+    public function testTheLastActiveManagerMayBePromotedToAdmin(): void {
+        $app = $this->app();
+        TestAccounts::ensure(8, 'manager', 1, 'managerMain'); // reseller 1's only manager
+
+        $response = $this->call($app, 'PUT', '/v1/users/8', ['role' => 'admin'], 1);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('admin', self::json($response)['users'][0]['role']);
+    }
+
+    public function testTheLastActiveManagerOfADeactivatedResellerMayBeDeactivated(): void {
+        $app = $this->app();
+        R::exec('UPDATE resellers SET active = 0 WHERE id = 3'); // managerB is reseller 3's only manager
+
+        $response = $this->call($app, 'DELETE', '/v1/users/6', [], 1);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(0, (int) self::json($response)['users'][0]['active']);
+    }
+
+    public function testTheLastActiveManagerOfADeactivatedResellerMayBeDemoted(): void {
+        $app = $this->app();
+        R::exec('UPDATE resellers SET active = 0 WHERE id = 3');
+
+        $this->assertSame(200, $this->call($app, 'PUT', '/v1/users/6', ['role' => 'user'], 1)->getStatusCode());
     }
 
     public function testAManagersOfDifferentResellersDoNotCountAgainstEachOther(): void {
