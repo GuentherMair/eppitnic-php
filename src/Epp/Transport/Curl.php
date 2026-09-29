@@ -216,8 +216,9 @@ class Curl implements Transport
     if ( ! empty($this->_authName)) {
       curl_setopt($ch, CURLOPT_USERPWD, $this->_authName.':'.$this->_authPass);
     }
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     if ( ! empty($this->_certFile)) {
-      curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
       curl_setopt($ch, CURLOPT_SSLCERT, $this->_certFile);
     }
     // verbose output goes to a buffer first, so mask() sees it too
