@@ -365,10 +365,10 @@ abstract class AbstractObject
 
     switch ($adddel) {
       case "add":
-        $this->status = array_merge($this->status, array($state));
+        $this->status = array_values(array_unique(array_merge($this->status, array($state))));
         return TRUE;
       case "rem":
-        $this->status = array_diff($this->status, array($state));
+        $this->status = array_values(array_diff($this->status, array($state)));
         return TRUE;
       default:
         $this->setError("Function '".$adddel."' not allowed, expecting either 'add' or 'rem'.");

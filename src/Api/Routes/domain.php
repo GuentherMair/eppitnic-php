@@ -469,7 +469,10 @@ $app->post('/v1/domains/{name}/status', function (Request $request, Response $re
             if ( ! $domain->updateStatus($params['state'], $action)) {
                 return ['ok' => false, 'status' => 400, 'error' => $domain->getError()];
             }
-            return ['ok' => true, 'domain' => $domain];
+            // the registry adds or drops ok/inactive around a change, so keep
+            // what it reports now; the local guess only if that read fails
+            $fresh = new Domain($nic);
+            return ['ok' => true, 'domain' => $fresh->fetch($name) ? $fresh : $domain];
         }, $debug);
     } catch (\RuntimeException $e) {
         return Json::response($response, ['error' => $e->getMessage()], 502);

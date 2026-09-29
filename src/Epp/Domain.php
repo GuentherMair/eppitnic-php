@@ -626,6 +626,9 @@ class Domain extends AbstractObject
         }
       }
 
+      // infData and ownStatus both carry states, often the same (ok)
+      $this->status = array_values(array_unique($this->status));
+
       // reset changes at the bottom
       $this->resetChangeTracking();
       return TRUE;
