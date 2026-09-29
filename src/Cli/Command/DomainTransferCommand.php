@@ -8,6 +8,7 @@ use Eppitnic\Cli\UsageError;
 use Eppitnic\Epp\Domain;
 use Eppitnic\Persistence\History;
 use Eppitnic\Persistence\Scope;
+use Eppitnic\Service\DomainService;
 use RedBeanPHP\R;
 
 /**
@@ -125,27 +126,20 @@ final class DomainTransferCommand extends Command
     /**
      * Keep `transfers` in step: a request creates the pending row PollProcessor
      * acts on, approve and reject settle someone else's claim and clear it.
-     * Cancel does not -- the row records that we wanted the domain.
+     * Cancel keeps the row, as `cancelled` -- the record that we wanted the
+     * domain.
      */
     private function recordLocally(string $operation, string $name, string $registrant, Scope $scope): void {
         if ($operation === 'request') {
-            R::exec("
-                INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
-                VALUES (:reseller_id, :domain, :registrant, :techc, :dns)
-            ", [
-                // the transfer belongs where the domain will: its registrant's reseller
-                ':reseller_id' => Domain::resellerOf($registrant),
-                ':domain'      => $name,
-                ':registrant'  => $registrant,
-                ':techc'       => serialize([]),
-                ':dns'         => serialize([]),
-            ]);
+            DomainService::recordTransferRequest($name, $registrant);
             // what the reseller's daily quota counts, as the API writes it
             History::record('domains', 0, 'request', ['domain' => $name, 'kind' => 'transfer'], $scope->userId);
             return;
         }
 
-        if ($operation === 'approve' || $operation === 'reject') {
+        if ($operation === 'cancel') {
+            R::exec("UPDATE transfers SET status = 'cancelled' WHERE domain = ?", [$name]);
+        } elseif ($operation === 'approve' || $operation === 'reject') {
             R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
         }
     }

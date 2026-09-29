@@ -37,10 +37,11 @@ final class DomainTransferRestoreRouteTest extends EppTestCase
         foreach (['transfers', 'contacts', 'domains', 'history', 'users', 'resellers'] as $table) {
             R::exec("DROP TABLE IF EXISTS {$table}");
         }
-        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER, name TEXT, email TEXT)');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
         R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT,
-                 registrant TEXT NOT NULL, techc TEXT, dns TEXT)');
+                 registrant TEXT NOT NULL, techc TEXT, dns TEXT,
+                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec("INSERT INTO contacts (handle, reseller_id) VALUES ('MINE1234MINE5678', 2)");
@@ -74,21 +75,35 @@ final class DomainTransferRestoreRouteTest extends EppTestCase
         ]);
     }
 
-    private function post(string $path, array $body = []): ResponseInterface {
-        $app = AppFactory::create();
-        Middleware::register($app);
-        require EPPITNIC_ROOT . '/src/Api/Routes/domain.php';
+    private ?\Slim\App $app = null;
+
+    private function call(string $method, string $path, array $body = []): ResponseInterface {
+        // domain.php declares functions, so the routes are registered once
+        if ($this->app === null) {
+            $this->app = AppFactory::create();
+            Middleware::register($this->app);
+            $app = $this->app;
+            require EPPITNIC_ROOT . '/src/Api/Routes/domain.php';
+        }
 
         $token = TestAccounts::issueToken([
             'id' => 4, 'role' => 'user', 'reseller_id' => 2, 'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 
-        return $app->handle(
-            (new ServerRequestFactory())->createServerRequest('POST', "http://localhost{$path}")
+        return $this->app->handle(
+            (new ServerRequestFactory())->createServerRequest($method, "http://localhost{$path}")
                 ->withHeader('Authorization', "Bearer {$token}")
                 ->withHeader('Content-Type', 'application/json')
                 ->withParsedBody($body)
         );
+    }
+
+    private function post(string $path, array $body = []): ResponseInterface {
+        return $this->call('POST', $path, $body);
+    }
+
+    private function get(string $path): ResponseInterface {
+        return $this->call('GET', $path);
     }
 
     public function testTransferWithoutARegistrantIs400AndSendsNothing(): void {
@@ -108,6 +123,44 @@ final class DomainTransferRestoreRouteTest extends EppTestCase
         $row = R::getRow('SELECT * FROM transfers');
         $this->assertSame('MINE1234MINE5678', $row['registrant']);
         $this->assertSame(2, (int) $row['reseller_id']);
+    }
+
+    public function testCancelKeepsTheRowAsCancelled(): void {
+        $this->post('/v1/domains/new.it/transfer', ['authinfo' => 'SECRET1234567890', 'registrant' => 'MINE1234MINE5678']);
+
+        $response = $this->post('/v1/domains/new.it/transfer/cancel', ['authinfo' => 'SECRET1234567890']);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('cancelled', R::getCell("SELECT status FROM transfers WHERE domain = 'new.it'"));
+        $this->assertSame(403, $this->post('/v1/domains/new.it/transfer/cancel', ['authinfo' => 'SECRET1234567890'])->getStatusCode(), 'nothing pending to cancel');
+    }
+
+    public function testANewRequestReplacesTheCancelledRow(): void {
+        R::exec("INSERT INTO transfers (reseller_id, domain, registrant, techc, dns, status)
+                 VALUES (3, 'new.it', 'OLD', 'a:0:{}', 'a:0:{}', 'cancelled')");
+
+        $response = $this->post('/v1/domains/new.it/transfer', [
+            'authinfo' => 'SECRET1234567890', 'registrant' => 'MINE1234MINE5678', 'tech' => ['TECH1234TECH5678'],
+        ]);
+
+        $this->assertSame(201, $response->getStatusCode());
+        $this->assertSame(1, (int) R::getCell('SELECT COUNT(*) FROM transfers'));
+        $row = R::getRow('SELECT * FROM transfers');
+        $this->assertSame('pending', $row['status']);
+        $this->assertSame('MINE1234MINE5678', $row['registrant']);
+        $this->assertSame(2, (int) $row['reseller_id']);
+        $this->assertSame(['TECH1234TECH5678'], unserialize($row['techc']));
+    }
+
+    public function testTheTransfersListShowsTheStatus(): void {
+        $this->post('/v1/domains/new.it/transfer', ['authinfo' => 'SECRET1234567890', 'registrant' => 'MINE1234MINE5678']);
+        $this->post('/v1/domains/new.it/transfer/cancel', ['authinfo' => 'SECRET1234567890']);
+
+        $response = $this->get('/v1/domains/transfers');
+
+        $this->assertSame(200, $response->getStatusCode());
+        $rows = json_decode((string) $response->getBody(), true)['transfers'];
+        $this->assertSame(['cancelled'], array_column($rows, 'status'));
     }
 
     public function testRestoreReachesTheServerDeletedHost(): void {

@@ -75,4 +75,9 @@ final class DomainListQueriesTest extends TestCase
         $this->assertSame(['100%.it'], $this->autocomplete('100%'));
         $this->assertSame([], $this->autocomplete('%%'));
     }
+
+    public function testTransferInsAreLabelledByStatus(): void {
+        $this->assertSame(['back.it (transfer-in cancelled)'], $this->autocomplete('back'));
+        $this->assertSame(['in.it (transfer-in)'], $this->autocomplete('in.it'));
+    }
 }

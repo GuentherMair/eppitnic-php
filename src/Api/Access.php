@@ -26,7 +26,8 @@ final class Access
      * @param bool $includePending also accept a domain that so far only exists as a
      *                     pending transfer-in request (the `transfers` table) --
      *                     the state a transfer/cancel operates on, where the
-     *                     domain isn't in `domains` yet
+     *                     domain isn't in `domains` yet; a cancelled one is
+     *                     only a record and does not count
      */
     public static function canAccessDomain(string $domain, Scope $scope, bool $includePending = false): bool {
         if ($scope->isAdmin()) {
@@ -37,7 +38,7 @@ final class Access
             return true;
         }
         if ($includePending) {
-            return (int) R::getCell("SELECT COUNT(*) FROM transfers WHERE domain = ? AND reseller_id = ?", [$domain, $scope->resellerId]) > 0;
+            return (int) R::getCell("SELECT COUNT(*) FROM transfers WHERE domain = ? AND reseller_id = ? AND status = 'pending'", [$domain, $scope->resellerId]) > 0;
         }
         return false;
     }
@@ -136,8 +137,8 @@ final class Access
             return ['1 = 1', []];
         }
         return [
-            '(domain IN (SELECT domain FROM domains WHERE reseller_id = :msg_reseller)
-              OR domain IN (SELECT domain FROM transfers WHERE reseller_id = :msg_reseller))',
+            "(domain IN (SELECT domain FROM domains WHERE reseller_id = :msg_reseller)
+              OR domain IN (SELECT domain FROM transfers WHERE reseller_id = :msg_reseller AND status = 'pending'))",
             [':msg_reseller' => $scope->resellerId],
         ];
     }

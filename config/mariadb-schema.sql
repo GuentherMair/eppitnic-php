@@ -177,6 +177,7 @@ CREATE TABLE `transfers` (
   `techc`                 text,
   `dns`                   text,
   `registrant`            varchar(32) NOT NULL,
+  `status`                enum('pending','cancelled') NOT NULL DEFAULT 'pending',
   `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE,

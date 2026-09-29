@@ -71,7 +71,7 @@ final class ContactFixEmailPrivacyCommand extends Command
 
                 $email = strtolower(trim((string) $contact->get('email')));
                 if (in_array($email, self::NOT_AN_ADDRESS, true)) {
-                    // a '(transfer-in)' suffix means the domain is not ours yet
+                    // a '(transfer-in...)' suffix means the domain is not ours yet
                     $usable = array_values(array_filter($theirDomains, fn($d) => ! str_contains($d, ' ')));
                     if ($usable === []) {
                         $this->warn("{$handle}: no usable domain to derive an address from");

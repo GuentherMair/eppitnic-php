@@ -29,7 +29,8 @@ final class DomainTransferRequestTest extends EppTestCase
         R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER)');
         R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER)');
         R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT,
-                 registrant TEXT NOT NULL, techc TEXT, dns TEXT)');
+                 registrant TEXT NOT NULL, techc TEXT, dns TEXT,
+                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec('INSERT INTO users (id, reseller_id) VALUES (5, 2)');
@@ -68,6 +69,18 @@ final class DomainTransferRequestTest extends EppTestCase
         $this->request(['--registrant=THEIR234THEIR678', 'request', 'example-one.it;SECRET1234567890;MINE1234MINE5678']);
 
         $this->assertSame('MINE1234MINE5678', R::getCell('SELECT registrant FROM transfers'));
+    }
+
+    public function testCancelKeepsTheRowAsCancelledAndANewRequestReplacesIt(): void {
+        $this->request(['--authinfo=SECRET1234567890', '--registrant=MINE1234MINE5678', 'request', 'example-one.it']);
+        $this->request(['--authinfo=SECRET1234567890', 'cancel', 'example-one.it']);
+
+        $this->assertSame('cancelled', R::getCell('SELECT status FROM transfers'));
+
+        $this->request(['--authinfo=SECRET1234567890', '--registrant=MINE1234MINE5678', 'request', 'example-one.it']);
+
+        $this->assertSame(1, (int) R::getCell('SELECT COUNT(*) FROM transfers'));
+        $this->assertSame('pending', R::getCell('SELECT status FROM transfers'));
     }
 
     /** @return array<string, array{0: string[], 1: string}> args => message */

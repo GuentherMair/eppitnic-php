@@ -109,7 +109,9 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
     }
 
     $domains = R::getCol("SELECT domain FROM domains WHERE active = 1 AND " . implode(' AND ', $where), $params);
-    $transfersIn = R::getCol("SELECT concat(domain, ' (transfer-in)') FROM transfers WHERE " . implode(' AND ', $where), $params);
+    $transfersIn = R::getCol("
+        SELECT concat(domain, CASE WHEN status = 'cancelled' THEN ' (transfer-in cancelled)' ELSE ' (transfer-in)' END)
+        FROM transfers WHERE " . implode(' AND ', $where), $params);
     $domains = array_merge($domains, $transfersIn);
     sort($domains);
 
@@ -175,7 +177,7 @@ $app->get('/v1/domains/transfers', function (Request $request, Response $respons
     }
 
     $rows = R::getAll("
-        SELECT t.id, t.domain, t.techc, t.dns, t.reseller_id, c.name, c.email
+        SELECT t.id, t.domain, t.status, t.techc, t.dns, t.reseller_id, c.name, c.email
         FROM transfers t, contacts c
         WHERE " . implode(' AND ', $where), $bind);
 
@@ -665,26 +667,14 @@ $app->post('/v1/domains/{name}/transfer', function (Request $request, Response $
     if ( ! Access::withinQuota($scope)) {
         return Json::response($response, ['error' => 'Daily operation quota exceeded'], 429);
     }
-    // the transfer belongs where the domain will: its registrant's reseller
-    $resellerId = Domain::resellerOf($registrant);
-
     try {
-        $result = EppSession::run(function ($nic) use ($name, $params, $registrant, $resellerId) {
+        $result = EppSession::run(function ($nic) use ($name, $params, $registrant) {
             $domain = new Domain($nic);
             if ( ! $domain->transfer($name, $params['authinfo'])) {
                 return ['ok' => false, 'error' => $domain->getError()];
             }
 
-            R::exec("
-                INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
-                VALUES (:reseller_id, :domain, :registrant, :techc, :dns)
-            ", [
-                ':reseller_id' => $resellerId,
-                ':domain'     => $name,
-                ':registrant' => $registrant,
-                ':techc'      => serialize((array) ($params['tech'] ?? [])),
-                ':dns'        => serialize((array) ($params['ns'] ?? [])),
-            ]);
+            DomainService::recordTransferRequest($name, $registrant, (array) ($params['tech'] ?? []), (array) ($params['ns'] ?? []));
             return ['ok' => true];
         }, $debug);
     } catch (\RuntimeException $e) {
@@ -720,7 +710,10 @@ foreach (['approve', 'reject', 'cancel'] as $transferAction) {
                 if ( ! $domain->$method($name, $authinfo)) {
                     return ['ok' => false, 'error' => $domain->getError()];
                 }
-                if ($method !== 'transferCancel') {
+                // a cancelled request stays as the record that we wanted the domain
+                if ($method === 'transferCancel') {
+                    R::exec("UPDATE transfers SET status = 'cancelled' WHERE domain = ?", [$name]);
+                } else {
                     R::exec("DELETE FROM transfers WHERE domain = ?", [$name]);
                 }
                 return ['ok' => true];

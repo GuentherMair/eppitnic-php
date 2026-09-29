@@ -37,7 +37,7 @@ final class ResellerScopingTest extends EppTestCase
                  domain TEXT UNIQUE, authinfo TEXT, ns TEXT, registrant TEXT, admin TEXT, tech TEXT, cr_date TEXT,
                  ex_date TEXT, dnssec TEXT, last_invoice TEXT DEFAULT CURRENT_TIMESTAMP)');
         R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, reseller_id INTEGER, handle TEXT UNIQUE, active INTEGER DEFAULT 1)');
-        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT, registrant TEXT)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT, registrant TEXT, status TEXT NOT NULL DEFAULT \'pending\')');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec('CREATE TABLE settings (`key` TEXT PRIMARY KEY, value TEXT)');
@@ -72,6 +72,13 @@ final class ResellerScopingTest extends EppTestCase
         $this->assertFalse(Access::canAccessDomain('pending.it', $this->alice), 'not a domain yet');
         $this->assertTrue(Access::canAccessDomain('pending.it', $this->alice, true));
         $this->assertFalse(Access::canAccessDomain('pending.it', $this->bob, true));
+    }
+
+    public function testACancelledTransferIsOnlyARecord(): void {
+        R::exec("UPDATE transfers SET status = 'cancelled' WHERE domain = 'pending.it'");
+
+        $this->assertFalse(Access::canAccessDomain('pending.it', $this->alice, true));
+        $this->assertTrue(Access::canAccessDomain('pending.it', $this->admin, true));
     }
 
     public function testAClaimOnAnotherResellersDomainIsBlocked(): void {

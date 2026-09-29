@@ -26,7 +26,7 @@ final class DomainListTest extends EppTestCase
         R::exec('DROP TABLE IF EXISTS transfers');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT,
                  status TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
-        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, registrant TEXT, reseller_id INTEGER, status TEXT NOT NULL DEFAULT \'pending\')');
     }
 
     private function insert(string $domain, ?string $status, int $active = 1): void {
@@ -84,6 +84,14 @@ final class DomainListTest extends EppTestCase
         $transferIn = current(array_filter($rows, fn($row) => $row['domain'] === 'g.it (transfer-in)'));
 
         $this->assertSame([], $transferIn['status']);
+    }
+
+    public function testACancelledTransferInSaysSo(): void {
+        R::exec("INSERT INTO transfers (domain, registrant, reseller_id, status) VALUES ('h.it', 'REG1', 1, 'cancelled')");
+
+        $rows = (new Domain($this->nic))->listDomains(Scope::operator(1), null, true);
+
+        $this->assertSame(['h.it (transfer-in cancelled)'], array_column($rows, 'domain'));
     }
 
     public function testEachRowNamesItsReseller(): void {

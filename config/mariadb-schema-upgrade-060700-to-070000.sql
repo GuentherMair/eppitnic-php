@@ -594,6 +594,7 @@ ALTER TABLE resellers DROP COLUMN `_migrated_user_id`;
 ALTER TABLE contacts  ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
 ALTER TABLE domains   ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
 ALTER TABLE transfers ADD COLUMN `reseller_id` BIGINT UNSIGNED NOT NULL DEFAULT 1 AFTER `id`;
+ALTER TABLE transfers ADD COLUMN `status` ENUM('pending','cancelled') NOT NULL DEFAULT 'pending' AFTER `registrant`;
 
 UPDATE contacts  c JOIN users u ON u.id = c.user_id SET c.reseller_id = u.reseller_id;
 UPDATE domains   d JOIN users u ON u.id = d.user_id SET d.reseller_id = u.reseller_id;

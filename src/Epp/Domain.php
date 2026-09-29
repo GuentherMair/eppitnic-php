@@ -1152,7 +1152,7 @@ class Domain extends AbstractObject
       $row['status'] = [];
       return $row;
     }, R::getAll("
-      SELECT concat(domain, ' (transfer-in)') as domain, registrant, reseller_id,
+      SELECT concat(domain, CASE WHEN status = 'cancelled' THEN ' (transfer-in cancelled)' ELSE ' (transfer-in)' END) as domain, registrant, reseller_id,
         (SELECT r.name FROM resellers r WHERE r.id = transfers.reseller_id) AS reseller_name
       FROM transfers WHERE " . implode(' AND ', $where) . "
       ORDER BY domain ASC", $params));

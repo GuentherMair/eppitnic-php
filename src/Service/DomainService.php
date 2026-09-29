@@ -34,7 +34,9 @@ final class DomainService
      *              ns[], authinfo
      * @param int $actorId the acting user, for history; the domain belongs
      *              to its registrant's reseller (Domain::storeDB())
-     * @param bool $persist write the result to the local database
+     * @param bool $persist write the result to the local database: a
+     *              registration as a domain, a transfer as a pending row in
+     *              `transfers` (registrant stored locally first)
      * @return array{ok: bool, action?: string, domain?: Domain, error?: string, warnings?: string[]}
      */
     public static function createOrTransfer(Client $nic, array $params, int $actorId, bool $persist = true): array {
@@ -44,6 +46,14 @@ final class DomainService
             // the availability question was never answered, so neither command
             // can be chosen -- create() would collide, transfer() would fail
             return ['ok' => false, 'error' => $availability->error()];
+        }
+
+        // transfers.registrant is a foreign key onto contacts: refused before
+        // the registry is asked, which would otherwise take a request we
+        // cannot record
+        if ($persist && ! $availability->available()
+            && (int) R::getCell('SELECT COUNT(*) FROM contacts WHERE handle = ?', [$params['registrant']]) === 0) {
+            return ['ok' => false, 'error' => "Contact '{$params['registrant']}' not found"];
         }
 
         $domain->set('domain', $params['domain']);
@@ -81,16 +91,55 @@ final class DomainService
             $action = 'transfer-requested';
         }
 
-        if ($persist) {
-            // a fresh registration is a DNS-sync 'create' event; a requested
-            // transfer-in is NOT -- that only becomes real once PollProcessor
-            // sees it complete
-            if ( ! $domain->storeDB($actorId, $action === 'created')) {
+        if ($persist && $action === 'created') {
+            if ( ! $domain->storeDB($actorId)) {
                 $warnings[] = Warnings::localWrite("domain '{$params['domain']}'", $domain->getError());
+            }
+        } elseif ($persist) {
+            // not ours until PollProcessor sees the transfer complete
+            try {
+                self::recordTransferRequest(
+                    $params['domain'],
+                    $params['registrant'],
+                    (array) ($params['tech'] ?? []),
+                    (array) ($params['ns'] ?? [])
+                );
+            } catch (\Throwable $e) {
+                $warnings[] = Warnings::localWrite("transfer of '{$params['domain']}'", $e->getMessage());
             }
         }
 
         return ['ok' => true, 'action' => $action, 'domain' => $domain, 'warnings' => $warnings];
+    }
+
+    /**
+     * Record a transfer-in request as pending, for PollProcessor to complete.
+     * It belongs to its registrant's reseller. `transfers.domain` is unique,
+     * so an earlier row for the name (a cancelled request) is replaced.
+     *
+     * @param string[] $tech tech contacts to apply once the domain is ours
+     * @param array $ns nameservers to apply: names, or {name, ip} entries
+     */
+    public static function recordTransferRequest(string $name, string $registrant, array $tech = [], array $ns = []): void {
+        $values = [
+            ':reseller_id' => Domain::resellerOf($registrant),
+            ':registrant'  => $registrant,
+            ':techc'       => serialize($tech),
+            ':dns'         => serialize($ns),
+            ':domain'      => $name,
+        ];
+        if (R::getCell('SELECT id FROM transfers WHERE domain = ?', [$name])) {
+            R::exec("
+                UPDATE transfers SET reseller_id = :reseller_id, registrant = :registrant,
+                    techc = :techc, dns = :dns, status = 'pending', time = CURRENT_TIMESTAMP
+                WHERE domain = :domain
+            ", $values);
+            return;
+        }
+        R::exec("
+            INSERT INTO transfers (reseller_id, domain, registrant, techc, dns)
+            VALUES (:reseller_id, :domain, :registrant, :techc, :dns)
+        ", $values);
     }
 
     /**

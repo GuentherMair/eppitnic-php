@@ -96,8 +96,8 @@ final class PollQueueListTest extends TestCase
     public function testANonAdminSeesNoneOfAnotherResellersMessages(): void {
         R::exec('DROP TABLE IF EXISTS domains');
         R::exec('DROP TABLE IF EXISTS transfers');
-        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
-        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, status TEXT NOT NULL DEFAULT \'pending\')');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, status TEXT NOT NULL DEFAULT \'pending\')');
 
         $body = self::body($this->get($this->app(), '?limit=10', 0));
         $this->assertSame([], $body['messages']);

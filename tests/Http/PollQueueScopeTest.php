@@ -42,7 +42,7 @@ final class PollQueueScopeTest extends TestCase
                  archived_user_id INTEGER DEFAULT NULL, archived_time TEXT DEFAULT NULL,
                  created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
-        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, status TEXT NOT NULL DEFAULT \'pending\')');
         R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('ours.it', 2), ('theirs.it', 3)");
         R::exec("INSERT INTO transfers (domain, reseller_id) VALUES ('incoming.it', 2)");
         R::exec("INSERT INTO messages (id, type, domain, data) VALUES
