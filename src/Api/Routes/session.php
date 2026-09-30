@@ -236,10 +236,48 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
  * messages in the same second as the one the caller saw; pass
  * {"until_id": N} (that message's id) for an exact cutoff instead -- ids are
  * monotonic.
+ *
+ * Or {"ids": [...]} instead: exactly the messages a screen shows. Ids outside
+ * the caller's scope are left alone and do not count.
  */
 $app->post('/v1/poll-queue/archive', function (Request $request, Response $response, array $args): Response {
     ['id' => $user_id, 'scope' => $scope] = Auth::requireManager($request);
     $body = $request->getParsedBody() ?? [];
+
+    // a manager archives only what they can see -- their reseller's messages
+    [$visible, $scopeBind] = Access::messageScope($scope);
+    // one stamp for every row, so the caller can show it without reloading
+    $now = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
+    $outstanding = fn() => (int) R::getCell("SELECT COUNT(*) FROM messages WHERE archived_time IS NULL AND {$visible}", $scopeBind);
+
+    if (array_key_exists('ids', $body)) {
+        $ids = $body['ids'];
+        if ( ! is_array($ids) || $ids === []
+            || array_filter($ids, fn($id) => filter_var($id, FILTER_VALIDATE_INT) === false) !== []) {
+            return Json::response($response, ['error' => 'ids must be a non-empty list of integers'], 400);
+        }
+        $archived = 0;
+        // chunked: a whole cached queue is thousands of placeholders
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $ids))), 1000) as $chunk) {
+            $bind = [];
+            foreach ($chunk as $i => $id) {
+                $bind[":id{$i}"] = $id;
+            }
+            $names = implode(', ', array_keys($bind));
+            $archived += R::exec(
+                "UPDATE messages SET archived_time = :now, archived_user_id = :user
+                 WHERE archived_time IS NULL AND id IN ({$names}) AND {$visible}",
+                [':now' => $now, ':user' => $user_id] + $bind + $scopeBind
+            );
+        }
+        return Json::response($response, [
+            'archived'         => $archived,
+            'archived_time'    => $now,
+            'archived_user_id' => $user_id,
+            'outstanding'      => $outstanding(),
+        ]);
+    }
+
     $until = (string) ($body['until'] ?? '');
 
     if ( ! Validate::isDatetime($until)) {
@@ -259,12 +297,8 @@ $app->post('/v1/poll-queue/archive', function (Request $request, Response $respo
         $bind = [':user' => $user_id, ':until' => $until];
     }
 
-    // a manager archives only what they can see -- their reseller's messages
-    [$visible, $scopeBind] = Access::messageScope($scope);
     $where .= " AND {$visible}";
 
-    // one stamp for every row, so the caller can show it without reloading
-    $now = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
     $archived = R::exec(
         "UPDATE messages SET archived_time = :now, archived_user_id = :user WHERE {$where}",
         [':now' => $now] + $bind + $scopeBind
@@ -276,7 +310,7 @@ $app->post('/v1/poll-queue/archive', function (Request $request, Response $respo
         'until_id'    => $untilId !== null ? (int) $untilId : null,
         'archived_time'    => $now,
         'archived_user_id' => $user_id,
-        'outstanding' => (int) R::getCell("SELECT COUNT(*) FROM messages WHERE archived_time IS NULL AND {$visible}", $scopeBind),
+        'outstanding' => $outstanding(),
     ], static fn($v) => $v !== null));
 });
 

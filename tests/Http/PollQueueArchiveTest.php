@@ -25,7 +25,11 @@ final class PollQueueArchiveTest extends TestCase
         if ( ! R::hasDatabase('default')) {
             R::setup('sqlite::memory:');
         }
-        R::exec('DROP TABLE IF EXISTS messages');
+        foreach (['messages', 'domains', 'transfers'] as $table) {
+            R::exec("DROP TABLE IF EXISTS {$table}");
+        }
+        R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER)');
+        R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, status TEXT)');
         R::exec('CREATE TABLE messages (id INTEGER PRIMARY KEY, type TEXT, domain TEXT, data TEXT,
                  archived_user_id INTEGER DEFAULT NULL, archived_time TEXT DEFAULT NULL,
                  created_time TEXT DEFAULT CURRENT_TIMESTAMP)');
@@ -43,9 +47,10 @@ final class PollQueueArchiveTest extends TestCase
 
     /**
      * @param array<string, mixed> $body the parsed request body
+     * @param array<string, mixed> $claims token claims replacing the defaults
      */
-    private function archive(\Slim\App $app, array $body, int $admin = 1): ResponseInterface {
-        $token = TestAccounts::issueToken([
+    private function archive(\Slim\App $app, array $body, int $admin = 1, array $claims = []): ResponseInterface {
+        $token = TestAccounts::issueToken($claims + [
             'id' => 7, 'username' => 'someone', 'admin' => $admin, 'has_totp' => false, 'max_token_age' => 60,
         ])['token'];
 
@@ -183,6 +188,100 @@ final class PollQueueArchiveTest extends TestCase
         $id = $this->seedAt('2026-08-06 00:50:16');
 
         $response = $this->archive($app, ['until' => '2026-09-01 00:00:00'], 0);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertNull(self::archivedTime($id));
+    }
+
+    // ---------------------------------------------------------------
+    // archiving the messages a screen shows, by id
+    // ---------------------------------------------------------------
+
+    public function testNamedIdsAreArchivedAndNothingElse(): void {
+        $app = $this->app();
+        $shown = $this->seedAt('2026-08-06 00:50:16');
+        $alsoShown = $this->seedAt('2026-08-06 00:50:17');
+        $notShown = $this->seedAt('2026-08-06 00:50:18');
+
+        $body = self::body($this->archive($app, ['ids' => [$shown, (string) $alsoShown]]));
+
+        $this->assertSame(2, $body['archived']);
+        $this->assertSame(1, $body['outstanding']);
+        $this->assertSame(7, $body['archived_user_id']);
+        $this->assertSame($body['archived_time'], self::archivedTime($shown), 'the answer carries the stamp written');
+        $this->assertNull(self::archivedTime($notShown));
+    }
+
+    public function testNamedIdsKeepAnEarlierStamp(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-08-06 00:50:16');
+        R::exec("UPDATE messages SET archived_time = '2026-08-07 09:00:00', archived_user_id = 3 WHERE id = ?", [$id]);
+
+        $body = self::body($this->archive($app, ['ids' => [$id]]));
+
+        $this->assertSame(0, $body['archived']);
+        $this->assertSame('2026-08-07 09:00:00', self::archivedTime($id));
+        $this->assertSame(3, (int) R::getCell('SELECT archived_user_id FROM messages WHERE id = ?', [$id]));
+    }
+
+    /** more than one statement's worth of placeholders */
+    public function testAWholeCachedQueueCanBeNamed(): void {
+        $app = $this->app();
+        R::exec('WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2500)
+                 INSERT INTO messages (type, domain, data) SELECT \'chgStatusMsgData\', \'example.it\', \'\' FROM n');
+
+        $body = self::body($this->archive($app, [
+            'ids' => array_map('intval', R::getCol('SELECT id FROM messages')),
+        ]));
+
+        $this->assertSame(2500, $body['archived']);
+        $this->assertSame(0, $body['outstanding']);
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function notAListOfIds(): array {
+        return [
+            'an empty list'  => [[]],
+            'a plain number' => [5],
+            'not a number'   => [[1, 'two']],
+        ];
+    }
+
+    #[DataProvider('notAListOfIds')]
+    public function testItRefusesIdsThatAreNotAListOfIntegers(mixed $ids): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-08-06 00:50:16');
+
+        $response = $this->archive($app, ['ids' => $ids]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(self::archivedTime($id), 'a refused call archives nothing');
+    }
+
+    public function testAManagerCannotArchiveAnotherResellersMessageById(): void {
+        $app = $this->app();
+        R::exec("INSERT INTO domains (domain, reseller_id) VALUES ('example.it', 2), ('other.it', 3)");
+        $ours = $this->seedAt('2026-08-06 00:50:16');
+        $theirs = $this->seedAt('2026-08-06 00:50:17');
+        R::exec("UPDATE messages SET domain = 'other.it' WHERE id = ?", [$theirs]);
+
+        $body = self::body($this->archive($app, ['ids' => [$ours, $theirs]], 0, [
+            'id' => 8, 'role' => 'manager', 'reseller_id' => 2,
+        ]));
+
+        $this->assertSame(1, $body['archived']);
+        $this->assertSame(0, $body['outstanding'], 'counted within what the manager sees');
+        $this->assertNotNull(self::archivedTime($ours));
+        $this->assertNull(self::archivedTime($theirs));
+    }
+
+    public function testArchivingByIdRequiresAdmin(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-08-06 00:50:16');
+
+        $response = $this->archive($app, ['ids' => [$id]], 0);
 
         $this->assertSame(403, $response->getStatusCode());
         $this->assertNull(self::archivedTime($id));
