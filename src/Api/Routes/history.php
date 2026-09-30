@@ -14,7 +14,7 @@ use RedBeanPHP\R;
  * 403. Admins also get `outstanding`, for badging.
  *
  * Filters: object, object_id, action, network, acknowledged, since, until,
- * limit (max 500), offset.
+ * before_id/after_id (cursors, not counted in total), limit (max 1000), offset.
  */
 $app->get('/v1/history', function (Request $request, Response $response, array $args): Response {
     ['scope' => $scope, 'isAdmin' => $isAdmin] = Auth::actor($request);
@@ -58,27 +58,52 @@ $app->post('/v1/history/{id}/acknowledge', function (Request $request, Response 
 });
 
 /**
- * Acknowledge every entry still unacknowledged up to a moment the caller names,
- * in one go. The moment is what keeps it honest: it is the newest entry the
- * caller has looked at, so whatever arrived after they loaded the list stays
- * outstanding instead of being waved through unread. Entries already
- * acknowledged keep their original stamp.
+ * Acknowledge in one go, either the entries named by {"ids": [...]} -- what
+ * a screen shows, exactly -- or every entry still unacknowledged up to a
+ * moment the caller names: the newest entry they have looked at, so whatever
+ * arrived after they loaded the list stays outstanding instead of being waved
+ * through unread. Entries already acknowledged keep their original stamp.
  *
- * Body: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to the entry's timestamp
- * inclusively, and optionally {"actions": [...]} to acknowledge only entries
- * of those actions -- what a screen that lists just the severe ones needs.
- * `timestamp` is only second-resolution, so a burst can land several rows in
- * the same second as the one the caller saw; pass {"until_id": N} (the id of
- * that row) for an exact cutoff instead -- ids are monotonic.
- *
+ * Moment mode: {"until": "YYYY-MM-DD HH:MM:SS"}, compared to the entry's
+ * timestamp inclusively, and optionally {"actions": [...]} to acknowledge only
+ * entries of those actions. `timestamp` is only second-resolution, so a burst
+ * can land several rows in the same second as the one the caller saw; pass
+ * {"until_id": N} (the id of that row) for an exact cutoff -- ids are monotonic.
  * {"object": ...} defaults to `security`: that is the only object type
- * `outstanding` counts, and the only one this button is meant to clear.
+ * `outstanding` counts, and the only one the dashboard's button clears.
  */
 $app->post('/v1/history/acknowledge', function (Request $request, Response $response, array $args): Response {
     $user_id = Auth::requireAdmin($request);
     $body = $request->getParsedBody() ?? [];
-    $until = (string) ($body['until'] ?? '');
+    // one stamp for every row, so the caller can show it without reloading
+    $now = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
+    $stamp = 'UPDATE history SET acknowledged_time = :now, acknowledged_user_id = :user WHERE acknowledged_time IS NULL';
 
+    if (array_key_exists('ids', $body)) {
+        $ids = $body['ids'];
+        if ( ! is_array($ids) || $ids === []
+            || array_filter($ids, fn($id) => filter_var($id, FILTER_VALIDATE_INT) === false) !== []) {
+            return Json::response($response, ['error' => 'ids must be a non-empty list of integers'], 400);
+        }
+        $acknowledged = 0;
+        // chunked: a whole cached history is thousands of placeholders
+        foreach (array_chunk(array_values(array_unique(array_map('intval', $ids))), 1000) as $chunk) {
+            $bind = [':now' => $now, ':user' => $user_id];
+            foreach ($chunk as $i => $id) {
+                $bind[":id{$i}"] = $id;
+            }
+            $names = implode(', ', array_slice(array_keys($bind), 2));
+            $acknowledged += R::exec("{$stamp} AND id IN ({$names})", $bind);
+        }
+        return Json::response($response, [
+            'acknowledged'         => $acknowledged,
+            'acknowledged_time'    => $now,
+            'acknowledged_user_id' => $user_id,
+            'outstanding'          => History::outstandingSecurityCount(),
+        ]);
+    }
+
+    $until = (string) ($body['until'] ?? '');
     if ( ! Validate::isDatetime($until)) {
         return Json::response($response, ['error' => "until must be a datetime such as '2026-09-21 14:41:36'"], 400);
     }
@@ -93,12 +118,13 @@ $app->post('/v1/history/acknowledge', function (Request $request, Response $resp
         return Json::response($response, ['error' => 'object must be one of: ' . implode(', ', History::OBJECTS)], 400);
     }
 
+    $bind = [':now' => $now, ':user' => $user_id, ':object' => $object];
     if ($untilId !== null) {
-        $where = 'acknowledged_time IS NULL AND object = :object AND id <= :until_id';
-        $bind = [':user' => $user_id, ':object' => $object, ':until_id' => (int) $untilId];
+        $where = 'object = :object AND id <= :until_id';
+        $bind[':until_id'] = (int) $untilId;
     } else {
-        $where = 'acknowledged_time IS NULL AND object = :object AND `timestamp` <= :until';
-        $bind = [':user' => $user_id, ':object' => $object, ':until' => $until];
+        $where = 'object = :object AND `timestamp` <= :until';
+        $bind[':until'] = $until;
     }
 
     $actions = $body['actions'] ?? null;
@@ -114,17 +140,16 @@ $app->post('/v1/history/acknowledge', function (Request $request, Response $resp
         $where .= ' AND action IN (' . implode(', ', $names) . ')';
     }
 
-    $acknowledged = R::exec(
-        "UPDATE history SET acknowledged_time = CURRENT_TIMESTAMP, acknowledged_user_id = :user WHERE {$where}",
-        $bind
-    );
+    $acknowledged = R::exec("{$stamp} AND {$where}", $bind);
 
     return Json::response($response, array_filter([
-        'acknowledged' => (int) $acknowledged,
-        'object'       => $object,
-        'until'        => $until,
-        'until_id'     => $untilId !== null ? (int) $untilId : null,
-        'outstanding'  => History::outstandingSecurityCount(),
+        'acknowledged'         => (int) $acknowledged,
+        'object'               => $object,
+        'until'                => $until,
+        'until_id'             => $untilId !== null ? (int) $untilId : null,
+        'acknowledged_time'    => $now,
+        'acknowledged_user_id' => $user_id,
+        'outstanding'          => History::outstandingSecurityCount(),
     ], static fn($v) => $v !== null));
 });
 

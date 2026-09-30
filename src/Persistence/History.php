@@ -119,13 +119,22 @@ final class History
      *
      * @param array<string, mixed> $filters object, object_id, action (or several,
      *        comma-separated), network, acknowledged ('0'/'1'), since, until,
-     *        limit, offset
-     * @return array{rows: array<int, array<string, mixed>>, total: int}
+     *        before_id, after_id, limit, offset
+     * @return array{rows: array<int, array<string, mixed>>, total: int} total
+     *         counts every match, whatever before_id/after_id cut off
      */
     public static function visibleTo(Scope $scope, array $filters = []): array {
         [$where, $params] = self::scope($scope, $filters);
+        $total = (int) R::getCell("SELECT COUNT(*) FROM history WHERE {$where}", $params);
 
-        $limit  = min(500, max(1, (int) ($filters['limit'] ?? 100)));
+        foreach (['before_id' => '<', 'after_id' => '>'] as $filter => $comparison) {
+            if (isset($filters[$filter]) && $filters[$filter] !== '') {
+                $where .= " AND id {$comparison} :{$filter}";
+                $params[":{$filter}"] = (int) $filters[$filter];
+            }
+        }
+
+        $limit  = min(1000, max(1, (int) ($filters['limit'] ?? 100)));
         $offset = max(0, (int) ($filters['offset'] ?? 0));
 
         return [
@@ -133,7 +142,7 @@ final class History
                 "SELECT * FROM history WHERE {$where} ORDER BY id DESC LIMIT {$limit} OFFSET {$offset}",
                 $params
             ),
-            'total' => (int) R::getCell("SELECT COUNT(*) FROM history WHERE {$where}", $params),
+            'total' => $total,
         ];
     }
 

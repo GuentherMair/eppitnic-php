@@ -360,6 +360,122 @@ final class HistoryAcknowledgeTest extends TestCase
     }
 
     // ---------------------------------------------------------------
+    // acknowledging the entries a screen shows, by id
+    // ---------------------------------------------------------------
+
+    public function testNamedIdsAreAcknowledgedAndNothingElse(): void {
+        $app = $this->app();
+        $shown = $this->seed('domains', 'update');
+        $alsoShown = $this->seed('security', 'denied');
+        $notShown = $this->seed('domains', 'update');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'ids' => [$shown, (string) $alsoShown],
+        ]));
+
+        $this->assertSame(2, $body['acknowledged']);
+        $this->assertSame(0, $body['outstanding']);
+        $this->assertSame(7, $body['acknowledged_user_id']);
+        $this->assertSame(
+            $body['acknowledged_time'],
+            R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$shown]),
+            'the answer carries the stamp written, so a cached list can show it'
+        );
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$notShown]));
+    }
+
+    public function testNamedIdsKeepAnEarlierStamp(): void {
+        $app = $this->app();
+        $id = $this->seed('security', 'denied');
+        R::exec("UPDATE history SET acknowledged_time = '2026-09-21 15:00:00', acknowledged_user_id = 3 WHERE id = ?", [$id]);
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['ids' => [$id]]));
+
+        $this->assertSame(0, $body['acknowledged']);
+        $this->assertSame(3, (int) R::getCell('SELECT acknowledged_user_id FROM history WHERE id = ?', [$id]));
+    }
+
+    /** more than one statement's worth of placeholders */
+    public function testAWholeCachedHistoryCanBeNamed(): void {
+        $app = $this->app();
+        R::exec('WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2500)
+                 INSERT INTO history (user_id, object, object_id, action, data) SELECT 1, \'domains\', i, \'update\', \'{}\' FROM n');
+
+        $body = self::body($this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], [
+            'ids' => array_map('intval', R::getCol('SELECT id FROM history')),
+        ]));
+
+        $this->assertSame(2500, $body['acknowledged']);
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function notAListOfIds(): array {
+        return [
+            'an empty list'  => [[]],
+            'a plain number' => [5],
+            'not a number'   => [[1, 'two']],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('notAListOfIds')]
+    public function testItRefusesIdsThatAreNotAListOfIntegers(mixed $ids): void {
+        $app = $this->app();
+        $id = $this->seed('security', 'denied');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 1], ['ids' => $ids]);
+
+        $this->assertSame(400, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]), 'a refused call acknowledges nothing');
+    }
+
+    public function testAcknowledgingByIdRequiresAdmin(): void {
+        $app = $this->app();
+        $id = $this->seed('security', 'denied');
+
+        $response = $this->call($app, 'POST', '/v1/history/acknowledge', ['admin' => 0], ['ids' => [$id]]);
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertNull(R::getCell('SELECT acknowledged_time FROM history WHERE id = ?', [$id]));
+    }
+
+    // ---------------------------------------------------------------
+    // loading in batches: id cursors, and a total they do not narrow
+    // ---------------------------------------------------------------
+
+    public function testBeforeIdLoadsTheNextOlderBatch(): void {
+        $app = $this->app();
+        $ids = array_map(fn() => $this->seed('domains', 'update'), range(1, 5));
+
+        $body = self::body($this->call($app, 'GET', "/v1/history?before_id={$ids[3]}&limit=2"));
+
+        $this->assertSame([$ids[2], $ids[1]], array_map('intval', array_column($body['history'], 'id')));
+        $this->assertSame(5, $body['total'], 'the cursor is not a filter');
+    }
+
+    public function testAfterIdLoadsWhatIsNewer(): void {
+        $app = $this->app();
+        $ids = array_map(fn() => $this->seed('domains', 'update'), range(1, 4));
+
+        $body = self::body($this->call($app, 'GET', "/v1/history?after_id={$ids[1]}"));
+
+        $this->assertSame([$ids[3], $ids[2]], array_map('intval', array_column($body['history'], 'id')));
+        $this->assertSame(4, $body['total']);
+    }
+
+    public function testABatchIsAtMostAThousandEntries(): void {
+        $app = $this->app();
+        R::exec('WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1200)
+                 INSERT INTO history (user_id, object, object_id, action, data) SELECT 1, \'domains\', i, \'update\', \'{}\' FROM n');
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?limit=5000'));
+
+        $this->assertCount(1000, $body['history']);
+        $this->assertSame(1200, $body['total']);
+    }
+
+    // ---------------------------------------------------------------
     // several actions at once: what a screen of severe entries asks for
     // ---------------------------------------------------------------
 
