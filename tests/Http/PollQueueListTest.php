@@ -92,6 +92,50 @@ final class PollQueueListTest extends TestCase
         $this->assertCount(12, self::body($this->get($app, '?limit=100000'))['messages']);
     }
 
+    public function testCursorsPageThroughTheQueueAndTotalIgnoresThem(): void {
+        $app = $this->app(); // ids 4..15 unarchived
+        $first = self::body($this->get($app, '?limit=5'));
+        $ids = array_map('intval', array_column($first['messages'], 'id'));
+        $this->assertSame([15, 14, 13, 12, 11], $ids);
+
+        $older = self::body($this->get($app, '?limit=5&before_id=11'));
+        $this->assertSame([10, 9, 8, 7, 6], array_map('intval', array_column($older['messages'], 'id')));
+        $this->assertSame(12, $older['total']);
+
+        $newer = self::body($this->get($app, '?after_id=13'));
+        $this->assertSame([15, 14], array_map('intval', array_column($newer['messages'], 'id')));
+        $this->assertSame(12, $newer['total']);
+
+        $both = self::body($this->get($app, '?after_id=8&before_id=12'));
+        $this->assertSame([11, 10, 9], array_map('intval', array_column($both['messages'], 'id')));
+    }
+
+    public function testChangedSinceNarrowsByArchivedTimeAndTotal(): void {
+        $app = $this->app(); // ids 1..3 archived 2026-01-01
+        R::exec("UPDATE messages SET archived_time = '2026-02-01 10:00:00' WHERE id = 5");
+
+        $body = self::body($this->get($app, '?active=0&changed_since=' . rawurlencode('2026-01-01 00:00:00')));
+        $this->assertSame([5, 3, 2, 1], array_map('intval', array_column($body['messages'], 'id')));
+        $this->assertSame(4, $body['total']);
+
+        $body = self::body($this->get($app, '?active=0&changed_since=' . rawurlencode('2026-01-02 00:00:00') . '&before_id=6'));
+        $this->assertSame([5], array_map('intval', array_column($body['messages'], 'id')));
+        $this->assertSame(1, $body['total']);
+    }
+
+    public function testChangedSinceMustBeADatetime(): void {
+        $this->assertSame(400, $this->get($this->app(), '?changed_since=yesterday')->getStatusCode());
+    }
+
+    public function testAnswersTheServerTimeAndAllowsBatchesOfAThousand(): void {
+        $app = $this->app(1200, 0);
+        $body = self::body($this->get($app, '?limit=5000'));
+
+        $this->assertCount(1000, $body['messages']);
+        $this->assertSame(1200, $body['total']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $body['server_time']);
+    }
+
     /** a.it and b.it belong to no reseller here -- see PollQueueScopeTest */
     public function testANonAdminSeesNoneOfAnotherResellersMessages(): void {
         R::exec('DROP TABLE IF EXISTS domains');

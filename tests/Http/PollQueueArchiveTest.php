@@ -125,6 +125,16 @@ final class PollQueueArchiveTest extends TestCase
         $this->assertNull(self::archivedTime($id));
     }
 
+    public function testTheAnswerCarriesTheStampWrittenToEveryRow(): void {
+        $app = $this->app();
+        $id = $this->seedAt('2026-08-06 00:50:16');
+
+        $body = self::body($this->archive($app, ['until' => '2026-08-06 00:50:16']));
+
+        $this->assertSame(self::archivedTime($id), $body['archived_time']);
+        $this->assertSame(7, $body['archived_user_id']);
+    }
+
     public function testItRecordsWhoArchived(): void {
         $app = $this->app();
         $id = $this->seedAt('2026-08-06 00:50:16');

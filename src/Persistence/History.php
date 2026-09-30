@@ -217,9 +217,10 @@ final class History
                 : 'acknowledged_time IS NOT NULL';
         }
 
-        foreach (['since' => '>=', 'until' => '<='] as $filter => $comparison) {
+        foreach (['since' => '>=', 'until' => '<=', 'changed_since' => '>='] as $filter => $comparison) {
             if ( ! empty($filters[$filter])) {
-                $clauses[] = "`timestamp` {$comparison} :{$filter}";
+                $column = $filter === 'changed_since' ? 'acknowledged_time' : '`timestamp`';
+                $clauses[] = "{$column} {$comparison} :{$filter}";
                 $params[":{$filter}"] = $filters[$filter];
             }
         }

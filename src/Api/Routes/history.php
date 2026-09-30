@@ -14,16 +14,26 @@ use RedBeanPHP\R;
  * 403. Admins also get `outstanding`, for badging.
  *
  * Filters: object, object_id, action, network, acknowledged, since, until,
- * before_id/after_id (cursors, not counted in total), limit (max 1000), offset.
+ * changed_since (acknowledged_time >=), before_id/after_id (cursors, not
+ * counted in total), limit (max 1000), offset. `server_time` is read before
+ * the queries, so it is a safe next `changed_since`.
  */
 $app->get('/v1/history', function (Request $request, Response $response, array $args): Response {
     ['scope' => $scope, 'isAdmin' => $isAdmin] = Auth::actor($request);
+    $filters = $request->getQueryParams();
 
-    $page = History::visibleTo($scope, $request->getQueryParams());
+    $changedSince = (string) ($filters['changed_since'] ?? '');
+    if ($changedSince !== '' && ! Validate::isDatetime($changedSince)) {
+        return Json::response($response, ['error' => "changed_since must be a datetime such as '2026-09-21 14:41:36'"], 400);
+    }
+
+    $serverTime = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
+    $page = History::visibleTo($scope, $filters);
 
     $body = [
-        'history' => $page['rows'],
-        'total'   => $page['total'],
+        'history'     => $page['rows'],
+        'total'       => $page['total'],
+        'server_time' => $serverTime,
     ];
     if ($isAdmin) {
         $body['outstanding'] = History::outstandingSecurityCount();

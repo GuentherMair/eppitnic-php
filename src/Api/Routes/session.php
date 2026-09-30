@@ -152,21 +152,44 @@ $app->get('/v1/session/credit', function (Request $request, Response $response, 
     ]);
 });
 
+/**
+ * The queue as History's listing is: `limit` (max 1000; none means all),
+ * `before_id`/`after_id` cursors, and `changed_since` (archived_time >=).
+ * `total` counts every match of the filters, whatever the cursors cut off.
+ * `server_time` is read before the queries, so it is a safe next
+ * `changed_since`.
+ */
 $app->get('/v1/poll-queue', function (Request $request, Response $response, array $args): Response {
     ['scope' => $scope] = Auth::actor($request);
     $params = $request->getQueryParams();
     $activeOnly = ($params['active'] ?? '1') !== '0';
 
+    $changedSince = (string) ($params['changed_since'] ?? '');
+    if ($changedSince !== '' && ! Validate::isDatetime($changedSince)) {
+        return Json::response($response, ['error' => "changed_since must be a datetime such as '2026-09-21 14:41:36'"], 400);
+    }
+
+    $serverTime = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
+
     [$visible, $bind] = Access::messageScope($scope);
     $where = ($activeOnly ? 'archived_time IS NULL' : '1 = 1') . " AND {$visible}";
-
-    // The whole queue runs to ~3 MB, so a screen that wants only the latest few
-    // asks for them; `total` is how many matched, whatever was returned.
-    $limit = isset($params['limit']) ? min(500, max(1, (int) $params['limit'])) : null;
-    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC" . ($limit !== null ? " LIMIT {$limit}" : ''), $bind);
+    if ($changedSince !== '') {
+        $where .= ' AND archived_time >= :changed_since';
+        $bind[':changed_since'] = $changedSince;
+    }
     $total = (int) R::getCell("SELECT COUNT(*) FROM messages WHERE {$where}", $bind);
 
-    return Json::response($response, ['messages' => $messages, 'total' => $total]);
+    foreach (['before_id' => '<', 'after_id' => '>'] as $cursor => $comparison) {
+        if (isset($params[$cursor]) && $params[$cursor] !== '') {
+            $where .= " AND id {$comparison} :{$cursor}";
+            $bind[":{$cursor}"] = (int) $params[$cursor];
+        }
+    }
+
+    $limit = isset($params['limit']) ? min(1000, max(1, (int) $params['limit'])) : null;
+    $messages = R::getAll("SELECT * FROM messages WHERE {$where} ORDER BY id DESC" . ($limit !== null ? " LIMIT {$limit}" : ''), $bind);
+
+    return Json::response($response, ['messages' => $messages, 'total' => $total, 'server_time' => $serverTime]);
 });
 
 $app->get('/v1/poll-queue/{id}', function (Request $request, Response $response, array $args): Response {
@@ -195,9 +218,10 @@ $app->post('/v1/poll-queue/{id}/archive', function (Request $request, Response $
     R::exec("UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = ? WHERE id = ?", [$user_id, $id]);
 
     return Json::response($response, [
-        'archived'      => true,
-        'id'            => $id,
-        'archived_time' => R::getCell("SELECT archived_time FROM messages WHERE id = ?", [$id]),
+        'archived'         => true,
+        'id'               => $id,
+        'archived_time'    => R::getCell("SELECT archived_time FROM messages WHERE id = ?", [$id]),
+        'archived_user_id' => $user_id,
     ]);
 });
 
@@ -239,15 +263,19 @@ $app->post('/v1/poll-queue/archive', function (Request $request, Response $respo
     [$visible, $scopeBind] = Access::messageScope($scope);
     $where .= " AND {$visible}";
 
+    // one stamp for every row, so the caller can show it without reloading
+    $now = (string) R::getCell('SELECT CURRENT_TIMESTAMP');
     $archived = R::exec(
-        "UPDATE messages SET archived_time = CURRENT_TIMESTAMP, archived_user_id = :user WHERE {$where}",
-        $bind + $scopeBind
+        "UPDATE messages SET archived_time = :now, archived_user_id = :user WHERE {$where}",
+        [':now' => $now] + $bind + $scopeBind
     );
 
     return Json::response($response, array_filter([
         'archived'    => (int) $archived,
         'until'       => $until,
         'until_id'    => $untilId !== null ? (int) $untilId : null,
+        'archived_time'    => $now,
+        'archived_user_id' => $user_id,
         'outstanding' => (int) R::getCell("SELECT COUNT(*) FROM messages WHERE archived_time IS NULL AND {$visible}", $scopeBind),
     ], static fn($v) => $v !== null));
 });

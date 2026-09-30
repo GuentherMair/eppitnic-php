@@ -609,4 +609,44 @@ final class HistoryAcknowledgeTest extends TestCase
         $this->assertSame(200, $this->call($app, 'GET', '/v1/history/domains/1')->getStatusCode());
         $this->assertSame([], self::body($this->call($app, 'GET', '/v1/history/security/1', ['admin' => 0]))['history']);
     }
+
+    public function testListingAnswersTheServerTime(): void {
+        $body = self::body($this->call($this->app(), 'GET', '/v1/history'));
+
+        $this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $body['server_time']);
+    }
+
+    public function testChangedSinceListsOnlyWhatWasAcknowledgedFromThen(): void {
+        $app = $this->app();
+        $old = $this->seed('security', 'denied');
+        $recent = $this->seed('security', 'denied');
+        $never = $this->seed('security', 'denied');
+        R::exec("UPDATE history SET acknowledged_time = '2026-01-01 00:00:00' WHERE id = ?", [$old]);
+        R::exec("UPDATE history SET acknowledged_time = '2026-03-01 08:00:00' WHERE id = ?", [$recent]);
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?changed_since=' . rawurlencode('2026-03-01 08:00:00')));
+        $this->assertSame([$recent], array_map('intval', array_column($body['history'], 'id')));
+        $this->assertSame(1, $body['total'], 'a filter, so it narrows the total');
+
+        $body = self::body($this->call($app, 'GET', '/v1/history?changed_since=' . rawurlencode('2026-01-01 00:00:00') . "&before_id={$recent}"));
+        $this->assertSame([$old], array_map('intval', array_column($body['history'], 'id')), 'cursors still apply');
+        $this->assertSame(2, $body['total']);
+        $this->assertNotContains($never, array_column($body['history'], 'id'));
+    }
+
+    public function testChangedSinceMustBeADatetime(): void {
+        $this->assertSame(400, $this->call($this->app(), 'GET', '/v1/history?changed_since=yesterday')->getStatusCode());
+    }
+
+    public function testCursorsPageAndTotalIgnoresThem(): void {
+        $app = $this->app();
+        $ids = [];
+        for ($i = 0; $i < 6; $i++) {
+            $ids[] = $this->seed('security', 'denied');
+        }
+
+        $body = self::body($this->call($app, 'GET', "/v1/history?after_id={$ids[1]}&before_id={$ids[5]}"));
+        $this->assertSame([$ids[4], $ids[3], $ids[2]], array_map('intval', array_column($body['history'], 'id')));
+        $this->assertSame(6, $body['total']);
+    }
 }
