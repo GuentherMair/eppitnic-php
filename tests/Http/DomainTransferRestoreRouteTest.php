@@ -41,7 +41,8 @@ final class DomainTransferRestoreRouteTest extends EppTestCase
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT, reseller_id INTEGER, active INTEGER DEFAULT 1)');
         R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT,
                  registrant TEXT NOT NULL, techc TEXT, dns TEXT,
-                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT)');
+                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT,
+                 attempts INTEGER NOT NULL DEFAULT 0, attempted_at TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec("INSERT INTO contacts (handle, reseller_id) VALUES ('MINE1234MINE5678', 2)");

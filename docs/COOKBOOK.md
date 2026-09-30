@@ -180,7 +180,10 @@ if ( ! $result['ok']) {
 A registration is stored locally as a domain of the registrant's reseller. A
 requested transfer is stored as a pending row in `transfers`, as `POST
 /v1/domains/{name}/transfer` does, and becomes a domain once `eppitnic poll
-process` sees it complete. The registrant must be a stored contact.
+process` sees it complete: it applies the requested tech contacts and
+nameservers, retrying a refused update up to 3 times, 20 minutes apart, and
+then emails a `transfer_update_failed` notice. The registrant must be a stored
+contact.
 
 The object API underneath, to use the pieces separately:
 

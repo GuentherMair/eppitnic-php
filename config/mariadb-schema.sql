@@ -180,6 +180,9 @@ CREATE TABLE `transfers` (
   `registrant`            varchar(32) NOT NULL,
   `status`                enum('pending','cancelled') NOT NULL DEFAULT 'pending',
   `time`                  timestamp DEFAULT CURRENT_TIMESTAMP,
+  -- nameserver updates the registry refused after the transfer completed
+  `attempts`              tinyint unsigned NOT NULL DEFAULT 0,
+  `attempted_at`          datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   CONSTRAINT FOREIGN KEY (reseller_id) REFERENCES resellers(id) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT FOREIGN KEY (registrant) REFERENCES contacts(handle) ON DELETE RESTRICT ON UPDATE CASCADE

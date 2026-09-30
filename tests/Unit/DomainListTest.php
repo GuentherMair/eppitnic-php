@@ -102,4 +102,14 @@ final class DomainListTest extends EppTestCase
 
         $this->assertSame(['Registrar (self)', 'Registrar (self)'], array_column($rows, 'reseller_name'));
     }
+
+    public function testAStoredDomainIsNotListedAgainAsATransferIn(): void {
+        $this->insert('a.it', serialize([]));
+        R::exec("INSERT INTO transfers (domain, registrant, reseller_id) VALUES ('a.it', 'REG1', 1)");
+        R::exec("INSERT INTO transfers (domain, registrant, reseller_id) VALUES ('b.it', 'REG1', 1)");
+
+        $rows = (new Domain($this->nic))->listDomains(Scope::operator(1));
+
+        $this->assertSame(['b.it (transfer-in)', 'a.it'], array_column($rows, 'domain'));
+    }
 }

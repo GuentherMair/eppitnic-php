@@ -504,6 +504,14 @@ success and failure alike: the system recipient's copy covers the whole run,
 and each reseller's users (under `user` or `both`) get a copy covering only
 that reseller's domains.
 
+When a transfer-in completes, `poll process` applies the requested tech
+contacts and nameservers at once. If the registry refuses, it stores the
+domain as the registry has it and tries again on a later run, at least 20
+minutes after the previous attempt, up to 3 more times. After the fourth
+refusal it sends one `transfer_update_failed` email, with the registry's
+error, the requested and the current nameservers, to the system recipient and
+the owning reseller's users, and stops: the update is then done by hand.
+
 Every user can switch their own notifications on or off and set their own
 filter (`GET`/`PATCH /v1/users/{id}/notifications`; their manager or an admin
 may act for them). This only has an effect while `recipient_mode` includes
@@ -512,7 +520,8 @@ may act for them). This only has an effect while `recipient_mode` includes
 `message_types` is any of `Service\Notifier::MESSAGE_TYPES`: every registry
 poll message type (`passwdReminder`, `chgStatusMsgData`,
 `clientApprovedTransfer`, …) plus `scheduled_deletion`, which is
-`domain reap-deletions`' own summary. An empty list lets every type through;
+`domain reap-deletions`' own summary, and `transfer_update_failed`, which is
+`poll process`' report of a transfer-in whose nameserver update failed. An empty list lets every type through;
 `fulltext` (empty by default) matches case-insensitively against the
 message's type, domain and text together.
 

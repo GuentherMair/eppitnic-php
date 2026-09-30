@@ -61,6 +61,10 @@ use RedBeanPHP\R;
  */
 class PollProcessor
 {
+  /** the first nameserver update after a completed transfer plus 3 retries */
+  private const MAX_UPDATE_ATTEMPTS = 4;
+  private const RETRY_AFTER_SECONDS = 1200;
+
   protected $client;
   protected $domain;
   protected $contact;
@@ -177,7 +181,7 @@ class PollProcessor
 
     // 3. INCOMING TRANSFERS -- reconcile every open local transfer request
     $transfers = R::getAll("
-      SELECT t.id, t.domain, t.techc, t.dns
+      SELECT t.id, t.reseller_id, t.domain, t.techc, t.dns, t.attempts, t.attempted_at
       FROM transfers t, contacts c
       WHERE t.registrant = c.handle AND t.status = 'pending'");
 
@@ -213,6 +217,14 @@ class PollProcessor
         case "serverApprovedTransfer":
           $log[] = "  transfer is '{$trStatus}', completing locally";
 
+          if ((int) $transfer['attempts'] > 0) {
+            $due = strtotime($transfer['attempted_at']) + self::RETRY_AFTER_SECONDS;
+            if (strtotime((string) R::getCell('SELECT NOW()')) < $due) {
+              $log[] = "  retry due at " . date('Y-m-d H:i:s', $due) . ", skipping";
+              break;
+            }
+          }
+
           if ( ! $this->domain->fetch($transfer['domain'])) {
             $log[] = "  couldn't fetch current domain data, will retry next run: " . $this->domain->getError();
             break;
@@ -244,8 +256,43 @@ class PollProcessor
             if ( ! in_array($existing, $allNS)) $this->domain->remNS($existing);
           }
 
+          // the new set's zone is prepared first, so the registry's DNS check
+          // finds it answering
+          $zone = null;
+          if (in_array('ns', $this->domain->changedFields(), true)) {
+            $zone = PowerDnsZones::provision($transfer['domain'], array_keys((array) $this->domain->get('ns')));
+            if ($zone['warning'] !== null) $log[] = "  " . $zone['warning'];
+          }
+
           if ($this->domain->hasChanges() && ! $this->domain->update()) {
-            $log[] = "  couldn't apply the requested contacts/nameservers: " . $this->domain->getError();
+            $error = $this->domain->getError();
+            $log[] = "  couldn't apply the requested contacts/nameservers: " . $error;
+            if ($zone !== null) PowerDnsZones::undo($transfer['domain'], $zone, []);
+
+            // what the registry has stays what we store, until an update lands
+            $fetched = $this->domain->fetch($transfer['domain']);
+            if ( ! $fetched || ! $this->domain->storeDB(null)) {
+              $log[] = "  couldn't store the registry's data locally: " . $this->domain->getError();
+            }
+
+            $attempts = (int) $transfer['attempts'] + 1;
+            R::exec("UPDATE transfers SET attempts = ?, attempted_at = NOW() WHERE domain = ?", [$attempts, $transfer['domain']]);
+            if ($attempts < self::MAX_UPDATE_ATTEMPTS) {
+              $log[] = "  update attempt {$attempts} of " . self::MAX_UPDATE_ATTEMPTS . " failed, will retry";
+              break;
+            }
+
+            Notifier::notifyTransferUpdateFailed(
+              $transfer['domain'],
+              (int) $transfer['reseller_id'],
+              $this->updateFailedBody($transfer['domain'], $error, $techc, $dns, $fetched)
+            );
+            if ($archiveMsg !== false) {
+              R::exec("UPDATE messages SET archived_time = NOW() WHERE id = ?", [$archiveMsg]);
+            }
+            R::exec("DELETE FROM transfers WHERE domain = ?", [$transfer['domain']]);
+            $log[] = "  update failed " . self::MAX_UPDATE_ATTEMPTS . " times, gave up and sent the notification";
+            break;
           }
 
           // transfer-in completing counts as a DNS-sync 'create' event
@@ -290,5 +337,34 @@ class PollProcessor
     }
 
     return $log;
+  }
+
+  /**
+   * The email for a transfer whose nameserver update never went through.
+   *
+   * @param bool $fetched whether $this->domain holds the registry's data
+   */
+  private function updateFailedBody(string $domain, string $error, array $techc, array $dns, bool $fetched): string {
+    $requested = array_map(static function ($ns): string {
+      $ips = is_array($ns) ? (array) ($ns['ip'] ?? []) : [];
+      $name = is_array($ns) ? ($ns['name'] ?? '') : $ns;
+      return $ips === [] ? $name : "{$name} (" . implode(', ', $ips) . ")";
+    }, $dns);
+
+    $current = 'unknown, the registry could not be read';
+    if ($fetched) {
+      $current = implode(', ', array_map(static function (array $ns): string {
+        $ips = array_column($ns['ip'] ?? [], 'address');
+        return $ips === [] ? $ns['name'] : "{$ns['name']} (" . implode(', ', $ips) . ")";
+      }, (array) $this->domain->get('ns'))) ?: 'none';
+    }
+
+    return "The transfer of {$domain} completed, but the registry refused to update"
+      . " its nameservers " . self::MAX_UPDATE_ATTEMPTS . " times.\n\n"
+      . "Registry error: {$error}\n\n"
+      . "Requested nameservers: " . (implode(', ', $requested) ?: 'none') . "\n"
+      . "Requested tech contacts: " . (implode(', ', $techc) ?: 'none') . "\n"
+      . "Nameservers at the registry: {$current}\n\n"
+      . "The update must now be done by hand.\n";
   }
 }

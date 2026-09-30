@@ -29,9 +29,9 @@ use RedBeanPHP\R;
 final class Notifier
 {
     /**
-     * Every type `Epp\Session::POLL_MESSAGE_ELEMENTS`/`parsePollReq()` can
-     * produce, plus `scheduled_deletion` -- not a registry poll type at
-     * all, the synthetic type `domain reap-deletions`' own emails carry.
+     * Every type `Epp\Session::parsePollReq()` can produce, plus the synthetic
+     * `scheduled_deletion` (`domain reap-deletions`) and `transfer_update_failed`
+     * (`poll process`).
      */
     public const MESSAGE_TYPES = [
         'passwdReminder',
@@ -53,6 +53,7 @@ final class Notifier
         'pendingTransfer',
         'unknown',
         'scheduled_deletion',
+        'transfer_update_failed',
     ];
 
     public const RECIPIENT_MODES = ['system', 'user', 'both', 'none'];
@@ -408,6 +409,37 @@ final class Notifier
                 if (self::matches($recipient['types'], $recipient['fulltext'], $type, null, $summary)) {
                     self::send($smtp, $recipient['email'], $subject, $summary);
                 }
+            }
+        }
+    }
+
+    /**
+     * A transfer-in whose nameserver update the registry kept refusing: to the
+     * system recipient and to the owning reseller's recipients, each judged by
+     * their own filter.
+     */
+    public static function notifyTransferUpdateFailed(string $domain, int $resellerId, string $body): void {
+        $smtp = Config::get('smtp');
+        if ( ! $smtp['enabled']) {
+            return;
+        }
+
+        $type = 'transfer_update_failed';
+        $subject = "[eppitnic] {$type} — {$domain}";
+
+        if (in_array($smtp['recipient_mode'], ['system', 'both'], true)
+            && ($smtp['recipient'] ?? '') !== ''
+            && self::matches($smtp['message_types'], $smtp['fulltext'] ?? '', $type, $domain, $body)
+        ) {
+            self::send($smtp, $smtp['recipient'], $subject, $body);
+        }
+
+        if ( ! in_array($smtp['recipient_mode'], ['user', 'both'], true)) {
+            return;
+        }
+        foreach (self::recipientsOf($resellerId) as $recipient) {
+            if (self::matches($recipient['types'], $recipient['fulltext'], $type, $domain, $body)) {
+                self::send($smtp, $recipient['email'], $subject, $body);
             }
         }
     }

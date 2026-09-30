@@ -30,7 +30,8 @@ final class DomainTransferRequestTest extends EppTestCase
         R::exec('CREATE TABLE users (id INTEGER PRIMARY KEY, reseller_id INTEGER)');
         R::exec('CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT,
                  registrant TEXT NOT NULL, techc TEXT, dns TEXT,
-                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT)');
+                 status TEXT NOT NULL DEFAULT \'pending\', time TEXT,
+                 attempts INTEGER NOT NULL DEFAULT 0, attempted_at TEXT)');
         R::exec('CREATE TABLE history (id INTEGER PRIMARY KEY, timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
                  user_id INTEGER, object TEXT, object_id INTEGER, action TEXT, network TEXT, data TEXT)');
         R::exec('INSERT INTO users (id, reseller_id) VALUES (5, 2)');

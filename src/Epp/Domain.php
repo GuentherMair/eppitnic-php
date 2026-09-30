@@ -1156,6 +1156,7 @@ class Domain extends AbstractObject
       SELECT concat(domain, CASE WHEN status = 'cancelled' THEN ' (transfer-in cancelled)' ELSE ' (transfer-in)' END) as domain, registrant, reseller_id,
         (SELECT r.name FROM resellers r WHERE r.id = transfers.reseller_id) AS reseller_name
       FROM transfers WHERE " . implode(' AND ', $where) . "
+        AND NOT EXISTS (SELECT 1 FROM domains d WHERE d.domain = transfers.domain AND d.active = 1)
       ORDER BY domain ASC", $params));
 
     if ($activeOnly) {

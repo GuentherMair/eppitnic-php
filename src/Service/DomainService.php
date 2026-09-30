@@ -131,7 +131,8 @@ final class DomainService
         if (R::getCell('SELECT id FROM transfers WHERE domain = ?', [$name])) {
             R::exec("
                 UPDATE transfers SET reseller_id = :reseller_id, registrant = :registrant,
-                    techc = :techc, dns = :dns, status = 'pending', time = CURRENT_TIMESTAMP
+                    techc = :techc, dns = :dns, status = 'pending', time = CURRENT_TIMESTAMP,
+                    attempts = 0, attempted_at = NULL
                 WHERE domain = :domain
             ", $values);
             return;

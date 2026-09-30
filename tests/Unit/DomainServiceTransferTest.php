@@ -26,7 +26,8 @@ final class DomainServiceTransferTest extends EppTestCase
         R::exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY, handle TEXT, reseller_id INTEGER)');
         R::exec('CREATE TABLE domains (id INTEGER PRIMARY KEY, domain TEXT)');
         R::exec("CREATE TABLE transfers (id INTEGER PRIMARY KEY, reseller_id INTEGER, domain TEXT UNIQUE,
-                 registrant TEXT NOT NULL, techc TEXT, dns TEXT, status TEXT NOT NULL DEFAULT 'pending', time TEXT)");
+                 registrant TEXT NOT NULL, techc TEXT, dns TEXT, status TEXT NOT NULL DEFAULT 'pending', time TEXT,
+                 attempts INTEGER NOT NULL DEFAULT 0, attempted_at TEXT)");
         R::exec("INSERT INTO contacts (handle, reseller_id) VALUES ('REGI1234REGI5678', 2)");
     }
 

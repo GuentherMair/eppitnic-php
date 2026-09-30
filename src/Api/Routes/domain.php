@@ -112,7 +112,8 @@ $app->get('/v1/domains/autocomplete', function (Request $request, Response $resp
     $domains = R::getCol("SELECT domain FROM domains WHERE active = 1 AND " . implode(' AND ', $where), $params);
     $transfersIn = R::getCol("
         SELECT concat(domain, CASE WHEN status = 'cancelled' THEN ' (transfer-in cancelled)' ELSE ' (transfer-in)' END)
-        FROM transfers WHERE " . implode(' AND ', $where), $params);
+        FROM transfers WHERE " . implode(' AND ', $where) . "
+        AND NOT EXISTS (SELECT 1 FROM domains d WHERE d.domain = transfers.domain AND d.active = 1)", $params);
     $domains = array_merge($domains, $transfersIn);
     sort($domains);
 
