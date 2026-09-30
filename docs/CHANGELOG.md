@@ -99,6 +99,7 @@ server's own login (`REMOTE_USER`, or a header from a trusted proxy; see
   runs behind a reverse proxy**, or every client shares one rate-limit bucket
   and none matches `safe_networks`. Address matching works for IPv4 and
   IPv6 alike.
+- There is no WHOIS lookup route and no `kevinoo/phpwhois` dependency.
 
 ### Resellers and roles
 

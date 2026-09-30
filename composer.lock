@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "39dd331f59bbb6a1ec33c2534519845f",
+    "content-hash": "a304183795b88f6bcfc5b32eea77f2a4",
     "packages": [
         {
             "name": "algo26-matthias/idna-convert",
@@ -268,81 +268,6 @@
                 "source": "https://github.com/jakeasmith/http_build_url"
             },
             "time": "2017-05-01T15:36:40+00:00"
-        },
-        {
-            "name": "kevinoo/phpwhois",
-            "version": "v6.4.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/kevinoo/phpWhois.git",
-                "reference": "2d00072eb6c389515f5849848a8e9309475a3a7e"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/kevinoo/phpWhois/zipball/2d00072eb6c389515f5849848a8e9309475a3a7e",
-                "reference": "2d00072eb6c389515f5849848a8e9309475a3a7e",
-                "shasum": ""
-            },
-            "require": {
-                "algo26-matthias/idna-convert": "^3.1",
-                "php": ">=7.2"
-            },
-            "require-dev": {
-                "dms/phpunit-arraysubset-asserts": "^0.5",
-                "friendsofphp/php-cs-fixer": "^3.91",
-                "phpunit/phpunit": "^8.0 || ^9.0 || ^10.0 || ^11.0"
-            },
-            "suggest": {
-                "lib-openssl": "*"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "phpWhois\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "GPL-2.0-or-later"
-            ],
-            "authors": [
-                {
-                    "name": "Kevin Lucich",
-                    "email": "info@lucichkevin.it"
-                },
-                {
-                    "name": "Mark Jeftovic",
-                    "email": "markjr@easydns.com"
-                },
-                {
-                    "name": "David Saez Padros",
-                    "email": "david@ols.es"
-                },
-                {
-                    "name": "Ross Golder",
-                    "email": "ross@golder.org"
-                },
-                {
-                    "name": "Dmitry Lukashin",
-                    "email": "dmitry@lukashin.ru"
-                },
-                {
-                    "name": "Joshua Smith",
-                    "email": "jsmith@jssm.com"
-                }
-            ],
-            "description": "phpWhois - library for querying whois services and parsing results.",
-            "homepage": "https://github.com/kevinoo/phpWhois/",
-            "keywords": [
-                "php",
-                "phpwhois",
-                "whois"
-            ],
-            "support": {
-                "issues": "https://github.com/kevinoo/phpWhois/issues",
-                "source": "https://github.com/kevinoo/phpWhois/tree/v6.4.0"
-            },
-            "time": "2025-12-08T23:42:51+00:00"
         },
         {
             "name": "nikic/fast-route",

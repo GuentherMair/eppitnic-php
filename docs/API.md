@@ -48,7 +48,6 @@ itself:
 | `GET /v1/poll-queue` / `{id}` | `{"messages": [...], "total": n, "server_time"}` / `{"message": {...}}` |
 | `GET /v1/history`, `/v1/history/{object}/{object_id}` | `{"history": [...], "total": n}`; the listing adds `server_time` |
 | `POST /v1/users/authenticate`, `GET /v1/users/renew-token`, `GET /v1/users/me` | **not enveloped** — the claims are the body |
-| `GET /v1/whois` | **not enveloped** — the WHOIS result is the body |
 
 Routes that perform an action answer with a flag named after it, plus the
 object's key:
@@ -772,12 +771,6 @@ What `data` holds depends on the event and is not a fixed schema; `security`
 rows carry at least `event`, the client address (`ip`) and the request
 `headers`, with `Authorization`, `Cookie` and `Proxy-Authorization` stored as
 `[redacted]`.
-
-### WHOIS
-
-| Method & path | Auth | Notes |
-|---|---|---|
-| `GET /v1/whois?domain=` | user | live WHOIS lookup (`kevinoo/phpwhois`), **not enveloped**: the library's result is the body. A multi-value `regrinfo.domain.status` is collapsed to the string `"multiple status fields (see detailed output)"`; otherwise the shape passes through unmodified, so don't assume a stable schema. `400` without `domain`, `500` when the lookup fails |
 
 ## Limitations to design around
 
