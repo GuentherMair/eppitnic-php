@@ -276,7 +276,8 @@ production and the test registry normally use separate accounts. `--dry-run`
 shows the change without writing it; `--yes` skips the confirmation.
 
 
-Run `bin/eppitnic` for the full list of commands, and see
+Run `bin/eppitnic` for the full list of commands, `bin/eppitnic --version` for
+the release version, and see
 [COOKBOOK.md](COOKBOOK.md) for using the library from PHP.
 
 ## Configure the web server

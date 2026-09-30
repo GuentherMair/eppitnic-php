@@ -128,6 +128,12 @@ final class CommandParsingTest extends TestCase
         $this->assertNull($verb);
     }
 
+    public function testVersionFlagPrintsTheReleaseVersion(): void {
+        $output = shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(EPPITNIC_ROOT . '/bin/eppitnic') . ' --version');
+
+        $this->assertSame('eppitnic ' . APP_VERSION . "\n", $output);
+    }
+
     public function testOverviewListsEveryCommand(): void {
         $overview = (new Application())->overview();
 

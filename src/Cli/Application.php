@@ -160,6 +160,11 @@ final class Application
             return 0;
         }
 
+        if ($args === ['--version']) {
+            fwrite(STDOUT, 'eppitnic ' . APP_VERSION . "\n");
+            return 0;
+        }
+
         [$verb, $rest] = $this->match($args);
         if ($verb === null) {
             fwrite(STDERR, "Unknown command: " . implode(' ', $args) . "\n\n");
@@ -235,6 +240,7 @@ final class Application
         }
 
         $text .= "Run 'eppitnic <command> --help' for the options of one command.\n";
+        $text .= "Run 'eppitnic --version' for the version.\n";
         return $text;
     }
 }

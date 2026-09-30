@@ -702,6 +702,12 @@ invalid hostname, a duplicate or more than 6 entries is `400`.
 > password from auto-rotating on a `passwdReminder`, alongside the queue
 > drain and transfer reconciliation.
 
+### About
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /v1/about` | any user | `{"name", "version", "license", "copyright", "dependencies": [{"name", "version", "license"}]}`. `version` is the release version, `APP_VERSION`. `dependencies` lists every non-dev Composer package, transitive included, sorted by name; a package's `license` is its SPDX identifiers joined with ` OR ` |
+
 ### Regional settings
 
 The `region` setting: the time zone every request and CLI command runs in,

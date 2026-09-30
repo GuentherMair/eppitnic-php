@@ -16,6 +16,10 @@ if ( ! defined('EPPITNIC_ROOT')) define('EPPITNIC_ROOT', dirname(__DIR__));
 // -- Config applies them iteratively, it never jumps versions in one file.
 if ( ! defined('SCHEMA_VERSION')) define('SCHEMA_VERSION', '070000');
 
+// release version of the application, bumped per release; independent of
+// SCHEMA_VERSION
+if ( ! defined('APP_VERSION')) define('APP_VERSION', '7.0.0');
+
 // generic exit codes (1-9), returned by bin/eppitnic subcommands
 if ( ! defined('SYNTAX_ERROR'))      define('SYNTAX_ERROR', 1);       // wrong/missing CLI arguments
 if ( ! defined('FILE_NOT_READABLE')) define('FILE_NOT_READABLE', 2);  // input file/CSV unreadable
