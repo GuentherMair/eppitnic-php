@@ -32,7 +32,8 @@ WORKDIR /app
 # .dockerignore already keeps vendor/, tests/ and the rest of the build
 # context down to what this actually uses
 COPY . .
-RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
+    && php docker/notices.php /app > /app/THIRD-PARTY-NOTICES.txt
 
 FROM base AS runtime
 
@@ -73,6 +74,11 @@ COPY --from=builder /app/src            ./src
 COPY --from=builder /app/vendor         ./vendor
 COPY --from=builder /app/composer.json  ./composer.json
 
+# The packages' own license files (the LGPL one among them) stay in vendor/;
+# the notices file lists them all.
+COPY LICENSE                                   /usr/share/eppitnic/LICENSE
+COPY --from=builder /app/THIRD-PARTY-NOTICES.txt /usr/share/eppitnic/THIRD-PARTY-NOTICES.txt
+
 RUN ln -s /app/bin/eppitnic /usr/local/bin/eppitnic \
     && chmod +x /app/bin/eppitnic
 
@@ -93,6 +99,13 @@ RUN chmod +x /docker/entrypoint.sh /docker/start-web.sh \
 # different in-container layout; no instance should need to.
 ENV EPPITNIC_CONFIG_DIR=/data/config \
     EPPITNIC_VAR_DIR=/data/var
+
+# VERSION is passed by deploy/release-images.sh (APP_VERSION).
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="eppitnic" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.licenses="BSD-3-Clause" \
+      org.opencontainers.image.source="https://github.com/INET-Services/eppitnic"
 
 EXPOSE 80
 

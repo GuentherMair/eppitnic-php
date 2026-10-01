@@ -4,7 +4,9 @@
 (nginx and php-fpm) serving the REST API on `127.0.0.1:8080`, a `scheduler`
 sidecar running `eppitnic cron run` every minute, and an `eppitnic-cli`
 service for one-shot commands. No database is included — the instance
-connects to a MariaDB you provide.
+connects to a MariaDB you provide. Ready-made images and an installation
+bundle, including the web frontend, are provided to customers by the
+publisher.
 
 ## Prerequisites
 
