@@ -6,7 +6,8 @@ sidecar running `eppitnic cron run` every minute, and an `eppitnic-cli`
 service for one-shot commands. No database is included — the instance
 connects to a MariaDB you provide. Ready-made images and an installation
 bundle, including the web frontend, are provided to customers by the
-publisher.
+publisher. To run the published image instead of building it, see
+[DOCKER-IMAGE.md](DOCKER-IMAGE.md).
 
 ## Prerequisites
 

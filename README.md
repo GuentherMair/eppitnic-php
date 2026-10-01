@@ -40,6 +40,7 @@ Detailed instructions can be found in:
 * [INSTALL.md](docs/INSTALL.md)
 * [UPGRADING.md](docs/UPGRADING.md)
 * [DOCKER.md](docs/DOCKER.md)
+* [DOCKER-IMAGE.md](docs/DOCKER-IMAGE.md)
 
 For more specific information see:
 
