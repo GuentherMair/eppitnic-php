@@ -28,16 +28,16 @@ Each image is signed with cosign by digest. The publisher's public key is
 [cosign.pub](cosign.pub); from the repository root:
 
 ```bash
-cosign verify --key docs/cosign.pub ghcr.io/inet-services/eppitnic:7.0.0
+cosign verify --key docs/cosign.pub ghcr.io/inet-services/eppitnic:latest
 ```
 
 Success prints the checks that were run and the signature's JSON payload
 (`critical.image.docker-manifest-digest` is the signed digest) and exits 0.
 A failure exits non-zero; don't run that image.
 
-Images are tagged with their version only (there is no `latest`). Pin the
-version in `compose.yaml`. To pin the exact content, use the digest from the
-verified payload instead:
+Each release is tagged with its version, and `latest` points to the newest.
+To stay on one, pin its version in `compose.yaml`. To pin the exact content,
+use the digest from the verified payload instead:
 
 ```yaml
 image: ghcr.io/inet-services/eppitnic:7.0.0@sha256:<DIGEST>
@@ -50,7 +50,7 @@ In an empty directory, create `compose.yaml`:
 ```yaml
 services:
   web:
-    image: ghcr.io/inet-services/eppitnic:7.0.0
+    image: ghcr.io/inet-services/eppitnic:latest
     ports:
       - "127.0.0.1:8080:80"
     volumes:
@@ -60,7 +60,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    image: ghcr.io/inet-services/eppitnic:7.0.0
+    image: ghcr.io/inet-services/eppitnic:latest
     command: ["crond", "-f", "-L", "/dev/stdout"]
     volumes:
       - ./data:/data
@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
 
   eppitnic-cli:
-    image: ghcr.io/inet-services/eppitnic:7.0.0
+    image: ghcr.io/inet-services/eppitnic:latest
     profiles: ["cli"]
     entrypoint: ["/sbin/tini", "--", "/docker/entrypoint.sh", "su-exec", "www-data", "eppitnic"]
     volumes:
@@ -128,7 +128,8 @@ that actually arrives.
 
 ## Upgrade
 
-Change the version in all three `image:` lines, then:
+With `latest`, just run the commands below; with a pinned version, change it
+in all three `image:` lines first, then:
 
 ```bash
 docker compose pull
