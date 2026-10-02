@@ -109,6 +109,13 @@ curl http://127.0.0.1:8080/
 The expected output is `Hello, World!`. The scheduler starts working once
 `config.php` exists.
 
+A browser frontend needs its origin (scheme, host, port as in the address
+bar) allowed, even when it is served from the same host:
+
+```bash
+docker compose run --rm eppitnic-cli config allowed-origins add <ORIGIN>
+```
+
 CLI commands run the same way, e.g. `docker compose run --rm eppitnic-cli
 domain info example.it`; see "Run CLI commands" in [DOCKER.md](DOCKER.md).
 
@@ -124,7 +131,8 @@ docker compose run --rm eppitnic-cli config trusted-proxies add <NETWORK>
 
 `<NETWORK>` is an address, optionally with a prefix (`172.18.0.0/16`). A
 `/0` network is refused. [DOCKER.md](DOCKER.md) shows how to find the address
-that actually arrives.
+that actually arrives. Also add the public `https://` origin with
+`config allowed-origins add`.
 
 ## Upgrade
 

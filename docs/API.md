@@ -480,7 +480,8 @@ Three details that matter to a browser client:
   `credentials`/`withCredentials` off — turning it on buys nothing.
 - `Access-Control-Max-Age` is never sent, so browsers fall back to a very
   short preflight cache and re-`OPTIONS` almost every authenticated request.
-  Serving the SPA from the API's own origin avoids this, and CORS, altogether.
+  Serving the SPA from the API's own origin avoids the preflight, but the
+  origin must still be listed in `allowed_origins`.
 
 ## Pagination
 
